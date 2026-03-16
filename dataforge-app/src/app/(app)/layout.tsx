@@ -1,8 +1,13 @@
-import { UserButton } from "@clerk/nextjs";
-import { Database, LayoutDashboard, Users, Search } from "lucide-react";
+import { auth, signOut } from "@/lib/auth";
+import { redirect } from "next/navigation";
+import { Database, LayoutDashboard, Users, Search, LogOut } from "lucide-react";
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
 
-export default function AppLayout({ children }: { children: React.ReactNode }) {
+export default async function AppLayout({ children }: { children: React.ReactNode }) {
+  const session = await auth();
+  if (!session) redirect("/sign-in");
+
   return (
     <div className="min-h-screen flex flex-col">
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -26,7 +31,22 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 Scraping
               </Link>
             </nav>
-            <UserButton />
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-muted-foreground hidden sm:block">
+                {session.user?.name ?? session.user?.email}
+              </span>
+              <form
+                action={async () => {
+                  "use server";
+                  await signOut({ redirectTo: "/" });
+                }}
+              >
+                <Button variant="ghost" size="sm" type="submit" className="gap-1.5">
+                  <LogOut className="h-4 w-4" />
+                  Sign out
+                </Button>
+              </form>
+            </div>
           </div>
         </div>
       </header>
