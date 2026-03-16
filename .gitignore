@@ -1,0 +1,20 @@
+# Dependencies
+dataforge-app/node_modules/
+
+# Next.js build output
+dataforge-app/.next/
+dataforge-app/out/
+
+# Environment variables — never commit these
+dataforge-app/.env
+dataforge-app/.env.local
+dataforge-app/.env.*.local
+
+# Prisma generated client
+dataforge-app/src/generated/
+
+# Misc
+.DS_Store
+*.pem
+dataforge-app/.vercel
+dataforge-app/next-env.d.ts

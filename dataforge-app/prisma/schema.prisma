@@ -1,0 +1,39 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum RecordStatus {
+  active
+  flagged
+  invalid
+}
+
+model Lead {
+  id                String       @id @default(uuid())
+  businessName      String
+  phone             String
+  email             String?
+  website           String?
+  contactPerson     String?
+  city              String?
+  state             String?
+  country           String?
+  category          String?
+  source            String
+  dateCollected     DateTime     @default(now())
+  recordStatus      RecordStatus @default(active)
+  duplicateFlag     Boolean      @default(false)
+  dataQualityScore  Int          @default(0)
+  industriesFoundIn String[]
+  lastUpdated       DateTime     @updatedAt
+
+  @@index([phone])
+  @@index([email])
+  @@index([website])
+  @@index([city, state])
+}
