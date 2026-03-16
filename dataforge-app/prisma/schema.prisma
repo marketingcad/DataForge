@@ -13,6 +13,19 @@ enum RecordStatus {
   invalid
 }
 
+enum JobStatus {
+  pending
+  running
+  completed
+  failed
+  paused
+}
+
+enum JobSource {
+  serpapi
+  manual
+}
+
 model Lead {
   id                String       @id @default(uuid())
   businessName      String
@@ -36,4 +49,28 @@ model Lead {
   @@index([email])
   @@index([website])
   @@index([city, state])
+}
+
+model ScrapingJob {
+  id               String     @id @default(uuid())
+  industry         String
+  location         String
+  maxLeads         Int        @default(50)
+  source           JobSource  @default(serpapi)
+
+  status           JobStatus  @default(pending)
+  errorMessage     String?
+
+  leadsDiscovered  Int        @default(0)
+  leadsProcessed   Int        @default(0)
+  duplicatesFound  Int        @default(0)
+  failedRecords    Int        @default(0)
+
+  startTime        DateTime?
+  completedTime    DateTime?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
 }
