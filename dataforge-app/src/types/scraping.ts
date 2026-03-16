@@ -24,3 +24,20 @@ export interface ScrapedContact {
   phone?: string;
   contactPerson?: string;
 }
+
+export interface CrawlResult {
+  domain: string;
+  title?: string;
+  description?: string;
+  emails: string[];
+  phones: string[];
+  addresses: string[];
+  contactPerson?: string;
+  socialLinks: {
+    linkedin?: string;
+    twitter?: string;
+    facebook?: string;
+    instagram?: string;
+  };
+  pagesVisited: number;
+}

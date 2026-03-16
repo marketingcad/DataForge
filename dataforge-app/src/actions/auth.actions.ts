@@ -2,8 +2,12 @@
 
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
-import { signIn } from "@/lib/auth";
+import { signIn, signOut } from "@/lib/auth";
 import { redirect } from "next/navigation";
+
+export async function signOutAction() {
+  await signOut({ redirectTo: "/" });
+}
 
 export async function registerAction(formData: FormData) {
   const name = formData.get("name") as string;
