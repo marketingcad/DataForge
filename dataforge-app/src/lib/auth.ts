@@ -5,6 +5,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  secret: process.env.AUTH_SECRET ?? "dev-placeholder-set-AUTH_SECRET-in-production",
   adapter: PrismaAdapter(prisma),
   session: { strategy: "jwt" },
   pages: {
