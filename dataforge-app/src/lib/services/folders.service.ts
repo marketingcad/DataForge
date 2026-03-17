@@ -7,6 +7,7 @@ export async function getFolders(userId: string) {
     include: {
       _count: { select: { leads: true } },
       user: { select: { name: true, email: true } },
+      industry: { select: { id: true, name: true, color: true } },
     },
   });
 }

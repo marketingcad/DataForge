@@ -34,6 +34,7 @@ export async function saveLeadsAction(
         email: lead.email,
         website: lead.website,
         contactPerson: lead.contactPerson,
+        address: lead.address,
         city: lead.city,
         state: lead.state,
         source: `crawl:${lead.sourceUrl}`,

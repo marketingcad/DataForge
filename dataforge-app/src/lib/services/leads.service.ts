@@ -63,6 +63,7 @@ export async function insertLead(raw: LeadInput & { folderId?: string }): Promis
       email: email || null,
       website: website || null,
       contactPerson: raw.contactPerson || null,
+      address: raw.address || null,
       city: raw.city || null,
       state: raw.state || null,
       country: raw.country || null,

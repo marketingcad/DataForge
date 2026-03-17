@@ -40,6 +40,7 @@ type Lead = {
   email: string | null;
   website: string | null;
   contactPerson: string | null;
+  address: string | null;
   city: string | null;
   state: string | null;
   country: string | null;
@@ -624,7 +625,7 @@ export function FolderLeadsModal({
                         <CopyCell value={lead.contactPerson} />
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground w-36">
-                        <CopyCell value={[lead.city, lead.state, lead.country].filter(Boolean).join(", ") || null} />
+                        <CopyCell value={lead.address ?? ([lead.city, lead.state, lead.country].filter(Boolean).join(", ") || null)} />
                       </TableCell>
                       <TableCell className="text-sm font-mono whitespace-nowrap">
                         <CopyCell value={lead.phone}>

@@ -18,6 +18,11 @@ export const LeadInputSchema = z.object({
     .transform((v) => (v === "" ? undefined : v))
     .pipe(z.string().optional())
     .optional(),
+  address: z
+    .string()
+    .transform((v) => (v === "" ? undefined : v))
+    .pipe(z.string().optional())
+    .optional(),
   city: z
     .string()
     .transform((v) => (v === "" ? undefined : v))

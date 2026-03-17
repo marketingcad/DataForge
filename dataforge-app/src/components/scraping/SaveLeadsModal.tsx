@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { getFoldersAction, createFolderAction } from "@/actions/folders.actions";
+import { getIndustriesAction } from "@/actions/industry.actions";
 import { saveLeadsAction, LeadRow } from "@/actions/domain-scrape.actions";
 import {
   Dialog,
@@ -18,7 +19,14 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import {
-  Loader2, FolderOpen, FolderPlus, Check, Folder,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Loader2, FolderOpen, FolderPlus, Check, Folder, ChevronDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -28,7 +36,10 @@ type FolderItem = {
   name: string;
   color: string;
   _count: { leads: number };
+  industry: { id: string; name: string; color: string } | null;
 };
+
+type IndustryOption = { id: string; name: string; color: string };
 
 const PRESET_COLORS = [
   { value: "#6366f1", label: "Indigo" },
@@ -49,15 +60,16 @@ interface SaveLeadsModalProps {
 
 export function SaveLeadsModal({ open, onOpenChange, leads, onSaved }: SaveLeadsModalProps) {
   const [folders, setFolders] = useState<FolderItem[]>([]);
+  const [industries, setIndustries] = useState<IndustryOption[]>([]);
   const [loadingFolders, setLoadingFolders] = useState(false);
   const [selectedFolder, setSelectedFolder] = useState<string>("none");
   const [creatingNew, setCreatingNew] = useState(false);
   const [newName, setNewName] = useState("");
   const [newColor, setNewColor] = useState(PRESET_COLORS[0].value);
+  const [newIndustryId, setNewIndustryId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [creatingFolder, setCreatingFolder] = useState(false);
 
-  // Load folders when modal opens
   useEffect(() => {
     if (!open) return;
     setLoadingFolders(true);
@@ -65,18 +77,27 @@ export function SaveLeadsModal({ open, onOpenChange, leads, onSaved }: SaveLeads
       .then((f) => setFolders(f as unknown as FolderItem[]))
       .catch(() => toast.error("Could not load folders"))
       .finally(() => setLoadingFolders(false));
+    getIndustriesAction()
+      .then((ind) => setIndustries(ind as IndustryOption[]))
+      .catch(() => {}); // industries are optional — silent fail
   }, [open]);
 
   async function handleCreateFolder() {
     if (!newName.trim()) return;
     setCreatingFolder(true);
     try {
-      const raw = await createFolderAction(newName.trim(), newColor);
-      const folder = { ...raw, _count: { leads: 0 } } as FolderItem;
+      const raw = await createFolderAction(newName.trim(), newColor, newIndustryId);
+      const ind = industries.find((i) => i.id === newIndustryId) ?? null;
+      const folder: FolderItem = {
+        ...(raw as { id: string; name: string; color: string }),
+        _count: { leads: 0 },
+        industry: ind ? { id: ind.id, name: ind.name, color: ind.color } : null,
+      };
       setFolders((prev) => [...prev, folder]);
       setSelectedFolder(folder.id);
       setCreatingNew(false);
       setNewName("");
+      setNewIndustryId(null);
     } catch {
       toast.error("Failed to create folder");
     } finally {
@@ -101,6 +122,8 @@ export function SaveLeadsModal({ open, onOpenChange, leads, onSaved }: SaveLeads
       setSaving(false);
     }
   }
+
+  const selectedIndustry = industries.find((i) => i.id === newIndustryId);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -162,6 +185,15 @@ export function SaveLeadsModal({ open, onOpenChange, leads, onSaved }: SaveLeads
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{folder.name}</p>
+                    {folder.industry && (
+                      <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                        <span
+                          className="inline-block h-1.5 w-1.5 rounded-full shrink-0"
+                          style={{ backgroundColor: folder.industry.color }}
+                        />
+                        {folder.industry.name}
+                      </p>
+                    )}
                   </div>
                   <Badge variant="secondary" className="text-xs shrink-0">
                     {folder._count.leads}
@@ -186,6 +218,8 @@ export function SaveLeadsModal({ open, onOpenChange, leads, onSaved }: SaveLeads
           ) : (
             <div className="rounded-lg border bg-muted/20 p-4 space-y-3">
               <p className="text-sm font-medium">New folder</p>
+
+              {/* Name */}
               <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground">Name</Label>
                 <Input
@@ -197,6 +231,8 @@ export function SaveLeadsModal({ open, onOpenChange, leads, onSaved }: SaveLeads
                   className="h-8 text-sm"
                 />
               </div>
+
+              {/* Color */}
               <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground">Color</Label>
                 <div className="flex gap-1.5">
@@ -219,6 +255,64 @@ export function SaveLeadsModal({ open, onOpenChange, leads, onSaved }: SaveLeads
                   ))}
                 </div>
               </div>
+
+              {/* Industry */}
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">
+                  Industry <span className="text-muted-foreground/60">(optional)</span>
+                </Label>
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    render={
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full justify-between h-8 text-sm font-normal"
+                      />
+                    }
+                  >
+                    <span className="flex items-center gap-2">
+                      {selectedIndustry ? (
+                        <>
+                          <span
+                            className="h-2 w-2 rounded-full shrink-0"
+                            style={{ backgroundColor: selectedIndustry.color }}
+                          />
+                          {selectedIndustry.name}
+                        </>
+                      ) : (
+                        <span className="text-muted-foreground">Uncategorized</span>
+                      )}
+                    </span>
+                    <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="w-52">
+                    <DropdownMenuItem
+                      className="text-sm cursor-pointer"
+                      onClick={() => setNewIndustryId(null)}
+                    >
+                      <span className="text-muted-foreground">Uncategorized</span>
+                      {!newIndustryId && <Check className="ml-auto h-3.5 w-3.5" />}
+                    </DropdownMenuItem>
+                    {industries.length > 0 && <DropdownMenuSeparator />}
+                    {industries.map((ind) => (
+                      <DropdownMenuItem
+                        key={ind.id}
+                        className="text-sm cursor-pointer gap-2"
+                        onClick={() => setNewIndustryId(ind.id)}
+                      >
+                        <span
+                          className="h-2 w-2 rounded-full shrink-0"
+                          style={{ backgroundColor: ind.color }}
+                        />
+                        {ind.name}
+                        {newIndustryId === ind.id && <Check className="ml-auto h-3.5 w-3.5" />}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+
               <div className="flex gap-2">
                 <Button
                   size="sm"
@@ -232,7 +326,7 @@ export function SaveLeadsModal({ open, onOpenChange, leads, onSaved }: SaveLeads
                 <Button
                   size="sm"
                   variant="ghost"
-                  onClick={() => { setCreatingNew(false); setNewName(""); }}
+                  onClick={() => { setCreatingNew(false); setNewName(""); setNewIndustryId(null); }}
                   className="h-7 text-xs"
                 >
                   Cancel

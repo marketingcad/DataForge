@@ -3,7 +3,7 @@ import { PrismaNeon } from "@prisma/adapter-neon";
 
 // Bump this string any time you run prisma migrate (adds/removes models).
 // This forces a new client in dev hot-reload scenarios.
-const CLIENT_VERSION = "v3-industries";
+const CLIENT_VERSION = "v4-lead-address";
 
 function createPrismaClient() {
   const connectionString =
