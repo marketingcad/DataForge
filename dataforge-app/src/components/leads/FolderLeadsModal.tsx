@@ -306,7 +306,7 @@ export function FolderLeadsModal({
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent
           className="flex flex-col p-0 gap-0"
-          style={{ width: "calc(100vw - 40px)", maxWidth: "calc(100vw - 40px)", height: "calc(100vh - 60px)" }}
+          style={{ width: "calc(100vw - 100px)", maxWidth: "calc(100vw - 100px)", height: "calc(100vh - 120px)" }}
         >
           {/* ── Header ── */}
           <DialogHeader className="px-5 py-3 border-b shrink-0">

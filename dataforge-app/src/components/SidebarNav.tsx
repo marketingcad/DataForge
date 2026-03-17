@@ -23,14 +23,14 @@ export function SidebarNav() {
             key={href}
             href={href}
             className={cn(
-              "group flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-all duration-150",
+              "group flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-all duration-150",
               active
                 ? "bg-primary/10 text-primary"
                 : "text-muted-foreground hover:bg-accent hover:text-foreground"
             )}
           >
             <Icon className={cn(
-              "h-4 w-4 shrink-0 transition-colors",
+              "h-3.5 w-3.5 shrink-0 transition-colors",
               active ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
             )} />
             {label}
