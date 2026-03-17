@@ -1,10 +1,18 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { FolderLeadsModal } from "./FolderLeadsModal";
 import { Badge } from "@/components/ui/badge";
-import { Folder, Inbox, Users, Calendar, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { deleteFolderAction } from "@/actions/folders.actions";
+import { Folder, Inbox, Users, Calendar, RefreshCw, MoreVertical, Trash2, Loader2 } from "lucide-react";
 import { format } from "date-fns";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 type FolderData = {
   id: string;
@@ -20,18 +28,51 @@ interface FolderCardProps {
   folder: FolderData;
   isUnfiled?: boolean;
   onClick: () => void;
+  onDelete?: () => void;
+  deleting?: boolean;
 }
 
-function FolderCard({ folder, isUnfiled, onClick }: FolderCardProps) {
+function FolderCard({ folder, isUnfiled, onClick, onDelete, deleting }: FolderCardProps) {
   return (
-    <button
-      onClick={onClick}
-      className="w-64 shrink-0 rounded-xl border bg-card text-left hover:border-border hover:shadow-md transition-all duration-150 overflow-hidden group cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    <div
+      className="relative w-64 shrink-0 rounded-xl border bg-card hover:border-border hover:shadow-md transition-all duration-150 overflow-hidden group"
     >
       {/* Colored top bar */}
       <div className="h-1.5 w-full" style={{ backgroundColor: folder.color }} />
 
-      <div className="p-4 space-y-4">
+      {/* Three-dot menu — only for real folders, not Unfiled */}
+      {!isUnfiled && onDelete && (
+        <div className="absolute top-3.5 right-3 z-10" onClick={(e) => e.stopPropagation()}>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
+              >
+                {deleting
+                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  : <MoreVertical className="h-3.5 w-3.5" />}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" side="bottom">
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive gap-2 cursor-pointer"
+                onClick={onDelete}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Delete folder
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
+
+      {/* Card body — clickable */}
+      <button
+        onClick={onClick}
+        className="w-full text-left p-4 space-y-4 focus:outline-none"
+      >
         {/* Folder icon + name */}
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-2.5 min-w-0">
@@ -40,11 +81,10 @@ function FolderCard({ folder, isUnfiled, onClick }: FolderCardProps) {
               style={{ backgroundColor: folder.color + "20" }}
             >
               {isUnfiled
-                ? <Inbox className="h-4.5 w-4.5" style={{ color: folder.color }} />
-                : <Folder className="h-4.5 w-4.5" style={{ color: folder.color }} />
-              }
+                ? <Inbox className="h-4 w-4" style={{ color: folder.color }} />
+                : <Folder className="h-4 w-4" style={{ color: folder.color }} />}
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 pr-6">
               <p className="text-sm font-semibold truncate leading-tight">{folder.name}</p>
               {folder.user?.name && (
                 <p className="text-[11px] text-muted-foreground truncate mt-0.5">
@@ -53,8 +93,6 @@ function FolderCard({ folder, isUnfiled, onClick }: FolderCardProps) {
               )}
             </div>
           </div>
-
-          {/* Lead count badge */}
           <Badge
             className="shrink-0 text-xs tabular-nums font-semibold"
             style={{ backgroundColor: folder.color + "18", color: folder.color, border: "none" }}
@@ -79,15 +117,15 @@ function FolderCard({ folder, isUnfiled, onClick }: FolderCardProps) {
           </div>
         </div>
 
-        {/* Click hint */}
+        {/* Hover hint */}
         <p
-          className="text-[11px] font-medium opacity-0 group-hover:opacity-100 transition-opacity"
+          className={cn("text-[11px] font-medium opacity-0 group-hover:opacity-100 transition-opacity")}
           style={{ color: folder.color }}
         >
           Click to view leads →
         </p>
-      </div>
-    </button>
+      </button>
+    </div>
   );
 }
 
@@ -96,8 +134,11 @@ interface FolderBoardProps {
   unfiledCount: number;
 }
 
-export function FolderBoard({ folders, unfiledCount }: FolderBoardProps) {
+export function FolderBoard({ folders: initialFolders, unfiledCount }: FolderBoardProps) {
+  const router = useRouter();
+  const [folders, setFolders] = useState<FolderData[]>(initialFolders);
   const [selected, setSelected] = useState<FolderData | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const unfiledFolder: FolderData = {
     id: "unfiled",
@@ -108,6 +149,20 @@ export function FolderBoard({ folders, unfiledCount }: FolderBoardProps) {
     _count: { leads: unfiledCount },
     user: null,
   };
+
+  async function handleDeleteFolder(folder: FolderData) {
+    setDeletingId(folder.id);
+    try {
+      await deleteFolderAction(folder.id);
+      setFolders((prev) => prev.filter((f) => f.id !== folder.id));
+      toast.success(`Folder "${folder.name}" deleted`);
+      router.refresh();
+    } catch {
+      toast.error("Failed to delete folder");
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   return (
     <>
@@ -124,6 +179,8 @@ export function FolderBoard({ folders, unfiledCount }: FolderBoardProps) {
             key={folder.id}
             folder={folder}
             onClick={() => setSelected(folder)}
+            onDelete={() => handleDeleteFolder(folder)}
+            deleting={deletingId === folder.id}
           />
         ))}
       </div>
