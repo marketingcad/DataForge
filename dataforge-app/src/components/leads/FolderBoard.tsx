@@ -55,7 +55,7 @@ function FolderCard({ folder, isUnfiled, onClick, onDelete, deleting }: FolderCa
                   : <MoreVertical className="h-3.5 w-3.5" />}
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" side="bottom">
+            <DropdownMenuContent align="end" side="bottom" className="min-w-0 w-9 p-1">
               <DropdownMenuItem
                 className="text-destructive focus:text-destructive cursor-pointer"
                 onClick={onDelete}
@@ -117,10 +117,7 @@ function FolderCard({ folder, isUnfiled, onClick, onDelete, deleting }: FolderCa
         </div>
 
         {/* Hover hint */}
-        <p
-          className={cn("text-[11px] font-medium opacity-0 group-hover:opacity-100 transition-opacity")}
-          style={{ color: folder.color }}
-        >
+        <p className="text-[11px] font-medium" style={{ color: folder.color }}>
           Click to view leads →
         </p>
       </button>
