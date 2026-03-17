@@ -116,6 +116,15 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+/* ── Sonner toast customisation ── */
+[data-sonner-toast] {
+  border-left-width: 3px !important;
+}
+[data-sonner-toast] [data-icon] {
+  align-self: flex-start;
+  margin-top: 2px;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
