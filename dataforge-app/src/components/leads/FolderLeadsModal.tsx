@@ -309,19 +309,39 @@ export function FolderLeadsModal({
           style={{ width: "calc(100vw - 40px)", maxWidth: "calc(100vw - 40px)", height: "calc(100vh - 60px)" }}
         >
           {/* ── Header ── */}
-          <DialogHeader className="px-6 py-4 border-b shrink-0">
-            <div className="flex items-center gap-3">
+          <DialogHeader className="px-5 py-3 border-b shrink-0">
+            {/* Breadcrumb */}
+            {(() => {
+              const currentIndustry = allIndustries.find((i) => i.id === currentIndustryId) ?? null;
+              return (
+                <div className="flex items-center gap-1 text-[11px] text-muted-foreground mb-1.5">
+                  <span>All Categories</span>
+                  <ChevronRight className="h-3 w-3 shrink-0 text-muted-foreground/40" />
+                  {currentIndustry ? (
+                    <span className="flex items-center gap-1">
+                      <span className="h-1.5 w-1.5 rounded-full shrink-0 inline-block" style={{ backgroundColor: currentIndustry.color }} />
+                      <span className="font-medium text-foreground">{currentIndustry.name}</span>
+                    </span>
+                  ) : (
+                    <span className="font-medium text-foreground">Uncategorized</span>
+                  )}
+                  <ChevronRight className="h-3 w-3 shrink-0 text-muted-foreground/40" />
+                  <span className="font-medium text-foreground truncate">{folder.name}</span>
+                </div>
+              );
+            })()}
+            <div className="flex items-center gap-2.5">
               <div
-                className="flex h-8 w-8 items-center justify-center rounded-lg shrink-0"
+                className="flex h-7 w-7 items-center justify-center rounded-md shrink-0"
                 style={{ backgroundColor: folder.color + "22" }}
               >
-                <Folder className="h-4 w-4" style={{ color: folder.color }} />
+                <Folder className="h-3.5 w-3.5" style={{ color: folder.color }} />
               </div>
               <div className="flex-1 min-w-0">
-                <DialogTitle className="flex items-center gap-2 text-base font-semibold">
+                <DialogTitle className="flex items-center gap-2 text-sm font-semibold">
                   <span className="truncate">{folder.name}</span>
                   <Badge
-                    className="shrink-0 text-xs font-medium"
+                    className="shrink-0 text-[10px] font-medium px-1.5 py-0"
                     style={{ backgroundColor: folder.color + "18", color: folder.color, border: "none" }}
                   >
                     {total} lead{total !== 1 ? "s" : ""}
@@ -332,26 +352,26 @@ export function FolderLeadsModal({
               {/* Folder-only 3-dot menu */}
               <DropdownMenu>
                 <DropdownMenuTrigger
-                  render={<Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground" />}
+                  render={<Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground" />}
                 >
-                  <MoreVertical className="h-4 w-4" />
+                  <MoreVertical className="h-3.5 w-3.5" />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-44">
                   {allIndustries.length > 0 && (
                     <DropdownMenuItem
-                      className="gap-2 cursor-pointer text-sm"
+                      className="gap-2 cursor-pointer text-xs"
                       onClick={() => { setCategorySearch(""); setShowChangeCategory(true); }}
                     >
-                      <Tags className="h-3.5 w-3.5" />
+                      <Tags className="h-3 w-3" />
                       Change category
                     </DropdownMenuItem>
                   )}
                   {allIndustries.length > 0 && <DropdownMenuSeparator />}
                   <DropdownMenuItem
-                    className="gap-2 cursor-pointer text-sm text-destructive focus:text-destructive"
+                    className="gap-2 cursor-pointer text-xs text-destructive focus:text-destructive"
                     onClick={() => setConfirmDelete("folder")}
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
+                    <Trash2 className="h-3 w-3" />
                     Delete folder
                   </DropdownMenuItem>
                 </DropdownMenuContent>
@@ -360,7 +380,7 @@ export function FolderLeadsModal({
           </DialogHeader>
 
           {/* ── Toolbar ── */}
-          <div className="px-4 pt-3 pb-2.5 border-b shrink-0 space-y-3">
+          <div className="px-4 pt-2.5 pb-2 border-b shrink-0 space-y-2">
 
             {/* Row 1 — search + sort + lead actions */}
             <div className="flex items-center gap-2">
@@ -371,109 +391,109 @@ export function FolderLeadsModal({
                     render={
                       <button
                         type="button"
-                        className="flex items-center gap-1.5 px-3 h-9 text-sm font-medium border-r border-input bg-muted/50 hover:bg-muted shrink-0 transition-colors outline-none"
+                        className="flex items-center gap-1.5 px-2.5 h-8 text-xs font-medium border-r border-input bg-muted/50 hover:bg-muted shrink-0 transition-colors outline-none"
                       />
                     }
                   >
                     <span className="text-foreground">{activeField.label}</span>
-                    <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                    <ChevronDown className="h-3 w-3 text-muted-foreground" />
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start" className="w-36">
                     {SEARCH_FIELDS.map((f) => (
                       <DropdownMenuItem
                         key={f.value}
-                        className="text-sm cursor-pointer gap-2"
+                        className="text-xs cursor-pointer gap-2"
                         onClick={() => { setSearchField(f.value); setSearch(""); }}
                       >
                         {f.label}
-                        {searchField === f.value && <Check className="h-3.5 w-3.5 ml-auto" />}
+                        {searchField === f.value && <Check className="h-3 w-3 ml-auto" />}
                       </DropdownMenuItem>
                     ))}
                   </DropdownMenuContent>
                 </DropdownMenu>
                 <div className="relative flex-1">
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground pointer-events-none" />
                   <Input
                     placeholder={activeField.placeholder}
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    className="pl-8 h-9 text-sm border-0 rounded-none shadow-none focus-visible:ring-0 focus-visible:border-0"
+                    className="pl-7 h-8 text-xs border-0 rounded-none shadow-none focus-visible:ring-0 focus-visible:border-0"
                   />
                 </div>
               </div>
 
               <DropdownMenu>
                 <DropdownMenuTrigger
-                  render={<Button variant="outline" size="sm" className="h-9 gap-1.5 text-sm shrink-0" />}
+                  render={<Button variant="outline" size="sm" className="h-8 gap-1 text-xs shrink-0" />}
                 >
                   <span>{SORT_LABELS[sort]}</span>
-                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                  <ChevronDown className="h-3 w-3 text-muted-foreground" />
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-36">
+                <DropdownMenuContent align="end" className="w-32">
                   {(Object.entries(SORT_LABELS) as [SortOption, string][]).map(([val, label]) => (
-                    <DropdownMenuItem key={val} className="text-sm cursor-pointer" onClick={() => setSort(val)}>
+                    <DropdownMenuItem key={val} className="text-xs cursor-pointer" onClick={() => setSort(val)}>
                       {label}
-                      {sort === val && <Check className="h-3.5 w-3.5 ml-auto" />}
+                      {sort === val && <Check className="h-3 w-3 ml-auto" />}
                     </DropdownMenuItem>
                   ))}
                 </DropdownMenuContent>
               </DropdownMenu>
 
-              <Separator orientation="vertical" className="h-5" />
+              <Separator orientation="vertical" className="h-4" />
 
-              <Button variant="outline" size="sm" className="h-9 gap-1.5 text-sm shrink-0"
+              <Button variant="outline" size="sm" className="h-8 gap-1 text-xs shrink-0"
                 onClick={() => handleExport("all")} disabled={exporting || total === 0}>
-                {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                {exporting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
                 Export
               </Button>
-              <Button variant="outline" size="sm" className="h-9 gap-1.5 text-sm shrink-0 text-destructive hover:text-destructive"
+              <Button variant="outline" size="sm" className="h-8 gap-1 text-xs shrink-0 text-destructive hover:text-destructive"
                 onClick={() => setConfirmDelete("all")} disabled={total === 0}>
-                <Trash2 className="h-3.5 w-3.5" />
+                <Trash2 className="h-3 w-3" />
                 Delete all
               </Button>
             </div>
 
             {/* Row 2 — filters */}
-            <div className="flex flex-wrap items-end gap-3">
+            <div className="flex flex-wrap items-end gap-2.5">
 
               {/* Score range */}
               <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Score range</Label>
-                <div className="flex items-center gap-1.5">
+                <Label className="text-[10px] text-muted-foreground">Score range</Label>
+                <div className="flex items-center gap-1">
                   <Input
                     type="number" min={0} max={100} placeholder="0"
                     value={minScore} onChange={(e) => setMinScore(e.target.value)}
-                    className="h-8 w-14 text-sm text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    className="h-7 w-12 text-xs text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
-                  <span className="text-xs text-muted-foreground">–</span>
+                  <span className="text-[10px] text-muted-foreground">–</span>
                   <Input
                     type="number" min={0} max={100} placeholder="100"
                     value={maxScore} onChange={(e) => setMaxScore(e.target.value)}
-                    className="h-8 w-14 text-sm text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    className="h-7 w-12 text-xs text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
                 </div>
               </div>
 
               {/* Status */}
               <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Status</Label>
+                <Label className="text-[10px] text-muted-foreground">Status</Label>
                 <DropdownMenu>
                   <DropdownMenuTrigger
-                    render={<Button variant="outline" size="sm" className="h-8 gap-1.5 text-sm w-32 justify-between" />}
+                    render={<Button variant="outline" size="sm" className="h-7 gap-1 text-xs w-28 justify-between" />}
                   >
                     <span className={status ? "" : "text-muted-foreground"}>
                       {status === "active" ? "Active" : status === "flagged" ? "Flagged" : status === "invalid" ? "Invalid" : "All statuses"}
                     </span>
-                    <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="w-36">
-                    <DropdownMenuItem className="text-sm cursor-pointer" onClick={() => setStatus("")}>
-                      All statuses {!status && <Check className="h-3.5 w-3.5 ml-auto" />}
+                  <DropdownMenuContent align="start" className="w-32">
+                    <DropdownMenuItem className="text-xs cursor-pointer" onClick={() => setStatus("")}>
+                      All statuses {!status && <Check className="h-3 w-3 ml-auto" />}
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     {["active", "flagged", "invalid"].map((s) => (
-                      <DropdownMenuItem key={s} className="text-sm cursor-pointer capitalize" onClick={() => setStatus(s)}>
-                        {s} {status === s && <Check className="h-3.5 w-3.5 ml-auto" />}
+                      <DropdownMenuItem key={s} className="text-xs cursor-pointer capitalize" onClick={() => setStatus(s)}>
+                        {s} {status === s && <Check className="h-3 w-3 ml-auto" />}
                       </DropdownMenuItem>
                     ))}
                   </DropdownMenuContent>
@@ -482,18 +502,18 @@ export function FolderLeadsModal({
 
               {/* State */}
               <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">State</Label>
+                <Label className="text-[10px] text-muted-foreground">State</Label>
                 <Input
                   placeholder="e.g. TX, CA…"
                   value={stateFilter}
                   onChange={(e) => setStateFilter(e.target.value)}
-                  className="h-8 w-28 text-sm"
+                  className="h-7 w-24 text-xs"
                 />
               </div>
 
               {/* Has data toggles — pill chips */}
               <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Has data</Label>
+                <Label className="text-[10px] text-muted-foreground">Has data</Label>
                 <div className="flex items-center gap-1.5">
                   {([
                     { key: "email",   label: "Email",   val: hasEmail,   set: setHasEmail },
@@ -505,13 +525,13 @@ export function FolderLeadsModal({
                       type="button"
                       onClick={() => set(!val)}
                       className={cn(
-                        "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm font-medium transition-all select-none",
+                        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium transition-all select-none",
                         val
                           ? "border-foreground/20 bg-foreground text-background"
                           : "border-border bg-background text-muted-foreground hover:border-foreground/30 hover:text-foreground"
                       )}
                     >
-                      {val && <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />}
+                      {val && <CheckCircle2 className="h-3 w-3 shrink-0" />}
                       {label}
                     </button>
                   ))}
@@ -520,7 +540,7 @@ export function FolderLeadsModal({
 
               {/* Clear filters */}
               {hasActiveFilters && (
-                <Button variant="ghost" size="sm" className="h-8 text-xs text-muted-foreground hover:text-foreground self-end"
+                <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground hover:text-foreground self-end"
                   onClick={clearFilters}>
                   Clear filters
                 </Button>
