@@ -3,8 +3,21 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { LeadInputSchema } from "@/types/lead";
-import { insertLead, updateLead } from "@/lib/services/leads.service";
+import { insertLead, updateLead, getLeads } from "@/lib/services/leads.service";
 import { prisma } from "@/lib/prisma";
+
+export async function getLeadsForFolderAction(params: {
+  folderId: string;
+  search?: string;
+  page?: number;
+}) {
+  return getLeads({
+    folderId: params.folderId,
+    search: params.search || "",
+    page: params.page || 1,
+    pageSize: 20,
+  });
+}
 
 export async function createLeadAction(formData: FormData) {
   const raw = Object.fromEntries(formData.entries());
