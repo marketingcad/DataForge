@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
-import { saveLeadsAction, LeadRow } from "@/actions/domain-scrape.actions";
+import { LeadRow } from "@/actions/domain-scrape.actions";
+import { SaveLeadsModal } from "@/components/scraping/SaveLeadsModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -34,7 +35,7 @@ export function DomainScrapeForm() {
   const [statusMsg, setStatusMsg] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
   const [summary, setSummary] = useState<{ leadsFound: number; pagesVisited: number; elapsed: number } | null>(null);
-  const [saving, setSaving] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
   const sourceRef = useRef<EventSource | null>(null);
   const rowCounter = useRef(0);
 
@@ -110,13 +111,10 @@ export function DomainScrapeForm() {
     setRows((prev) => prev.map((r) => ({ ...r, selected: !allSelected })));
   }
 
-  async function handleSave() {
+  function openSaveModal() {
     const selected = rows.filter((r) => r.selected);
     if (!selected.length) { toast.error("Select at least one lead."); return; }
-    setSaving(true);
-    const result = await saveLeadsAction(selected);
-    setSaving(false);
-    toast.success(`${result.saved} saved · ${result.duplicates} duplicates · ${result.failed} failed`);
+    setModalOpen(true);
   }
 
   function copyText(text: string, label: string) {
@@ -139,11 +137,9 @@ export function DomainScrapeForm() {
           </p>
         </div>
         {rows.length > 0 && (
-          <Button onClick={handleSave} disabled={saving || selectedCount === 0} size="sm">
-            {saving
-              ? <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              : <Save className="h-4 w-4 mr-2" />}
-            {saving ? "Saving…" : `Save Selected (${selectedCount})`}
+          <Button onClick={openSaveModal} disabled={selectedCount === 0} size="sm">
+            <Save className="h-4 w-4 mr-2" />
+            Save Selected ({selectedCount})
           </Button>
         )}
       </div>
@@ -418,14 +414,19 @@ export function DomainScrapeForm() {
           )}
         </span>
         {rows.length > 0 && (
-          <Button onClick={handleSave} disabled={saving || selectedCount === 0} size="sm">
-            {saving
-              ? <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              : <Save className="h-4 w-4 mr-2" />}
-            {saving ? "Saving…" : `Save Selected (${selectedCount})`}
+          <Button onClick={openSaveModal} disabled={selectedCount === 0} size="sm">
+            <Save className="h-4 w-4 mr-2" />
+            Save Selected ({selectedCount})
           </Button>
         )}
       </div>
+
+      <SaveLeadsModal
+        open={modalOpen}
+        onOpenChange={setModalOpen}
+        leads={rows.filter((r) => r.selected)}
+        onSaved={() => {}}
+      />
     </div>
   );
 }
