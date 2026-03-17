@@ -5,6 +5,7 @@ import Link from "next/link";
 import { SidebarNav } from "@/components/SidebarNav";
 import { UserNav } from "@/components/UserNav";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { NotificationBell } from "@/components/NotificationBell";
 import { Separator } from "@/components/ui/separator";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -55,6 +56,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           {/* Right side */}
           <div className="flex items-center gap-2">
             <ThemeToggle />
+            <NotificationBell />
             <Separator orientation="vertical" className="h-6" />
             <UserNav name={user?.name} email={user?.email} />
           </div>

@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useNotifications } from "@/lib/notifications";
 
 type FolderItem = {
   id: string;
@@ -59,6 +60,7 @@ interface SaveLeadsModalProps {
 }
 
 export function SaveLeadsModal({ open, onOpenChange, leads, onSaved }: SaveLeadsModalProps) {
+  const { add: addNotif } = useNotifications();
   const [folders, setFolders] = useState<FolderItem[]>([]);
   const [industries, setIndustries] = useState<IndustryOption[]>([]);
   const [loadingFolders, setLoadingFolders] = useState(false);
@@ -113,11 +115,13 @@ export function SaveLeadsModal({ open, onOpenChange, leads, onSaved }: SaveLeads
       onSaved(result);
       onOpenChange(false);
       const folderName = folders.find((f) => f.id === folderId)?.name;
-      toast.success(
-        `${result.saved} saved${folderName ? ` to "${folderName}"` : ""} · ${result.duplicates} duplicates · ${result.failed} failed`
-      );
+      addNotif({
+        type: "success",
+        title: `${result.saved} lead${result.saved !== 1 ? "s" : ""} saved${folderName ? ` to "${folderName}"` : ""}`,
+        message: `${result.duplicates} duplicate${result.duplicates !== 1 ? "s" : ""} · ${result.failed} failed`,
+      });
     } catch {
-      toast.error("Failed to save leads");
+      addNotif({ type: "error", title: "Failed to save leads", message: "Something went wrong. Please try again." });
     } finally {
       setSaving(false);
     }

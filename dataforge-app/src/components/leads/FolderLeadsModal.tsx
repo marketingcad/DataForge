@@ -30,8 +30,8 @@ import {
   MoreVertical, Tags, AlertTriangle, Check, ChevronDown, CheckCircle2,
   Copy,
 } from "lucide-react";
-import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useNotifications } from "@/lib/notifications";
 
 type Lead = {
   id: string;
@@ -162,6 +162,8 @@ export function FolderLeadsModal({
   const [exporting, setExporting]   = useState(false);
 
   // Change category
+  const { add: addNotif } = useNotifications();
+
   const [showChangeCategory, setShowChangeCategory] = useState(false);
   const [categorySearch, setCategorySearch]         = useState("");
   const [savingCategory, setSavingCategory]         = useState(false);
@@ -242,23 +244,23 @@ export function FolderLeadsModal({
     try {
       if (confirmDelete === "folder") {
         await deleteFolderAction(folder.id);
-        toast.success(`Folder "${folder.name}" deleted`);
+        addNotif({ type: "success", title: `Folder deleted`, message: `"${folder.name}" has been removed.` });
         onOpenChange(false);
         onFolderDeleted?.(folder.id);
       } else if (confirmDelete === "all") {
         const all = await getAllLeadsForExportAction(folder.id);
         await bulkDeleteLeadsAction((all.leads as Lead[]).map((l) => l.id));
-        toast.success(`Deleted all leads from "${folder.name}"`);
+        addNotif({ type: "warning", title: `All leads deleted`, message: `Cleared all leads from "${folder.name}".` });
         setTotal(0); setLeads([]);
       } else if (confirmDelete === "selected") {
         const ids = Array.from(selected);
         await bulkDeleteLeadsAction(ids);
-        toast.success(`Deleted ${ids.length} lead${ids.length !== 1 ? "s" : ""}`);
+        addNotif({ type: "warning", title: `${ids.length} lead${ids.length !== 1 ? "s" : ""} deleted`, message: `Removed from "${folder.name}".` });
         setSelected(new Set());
         await fetchLeads();
       }
     } catch {
-      toast.error("Delete failed");
+      addNotif({ type: "error", title: "Delete failed", message: "Something went wrong. Please try again." });
     } finally {
       setDeleting(false);
       setConfirmDelete(null);
@@ -272,9 +274,9 @@ export function FolderLeadsModal({
         ? leads.filter((l) => selected.has(l.id))
         : (await getAllLeadsForExportAction(folder.id)).leads as Lead[];
       exportToCSV(toExport, `${folder.name.replace(/\s+/g, "_")}_leads.csv`);
-      toast.success(`Exported ${toExport.length} leads`);
+      addNotif({ type: "success", title: `${toExport.length} lead${toExport.length !== 1 ? "s" : ""} exported`, message: `Saved as CSV from "${folder.name}".` });
     } catch {
-      toast.error("Export failed");
+      addNotif({ type: "error", title: "Export failed", message: "Something went wrong. Please try again." });
     } finally {
       setExporting(false);
     }
@@ -285,13 +287,13 @@ export function FolderLeadsModal({
     try {
       await updateFolderCategoryAction(folder.id, industryId);
       const name = allIndustries.find((i) => i.id === industryId)?.name ?? "Uncategorized";
-      toast.success(`Moved "${folder.name}" to ${name}`);
+      addNotif({ type: "info", title: `Category changed`, message: `"${folder.name}" moved to ${name}.` });
       setShowChangeCategory(false);
       setCategorySearch("");
       onOpenChange(false);
       onCategoryChanged?.(folder.id);
     } catch {
-      toast.error("Failed to change category");
+      addNotif({ type: "error", title: "Category change failed", message: "Something went wrong. Please try again." });
     } finally {
       setSavingCategory(false);
     }
