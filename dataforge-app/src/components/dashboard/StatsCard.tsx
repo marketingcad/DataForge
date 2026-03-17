@@ -16,7 +16,7 @@ export function StatsCard({ title, value, icon, description }: StatsCardProps) {
             <p className="text-sm font-medium text-muted-foreground">{title}</p>
             <p className="text-2xl font-bold tracking-tight">{value}</p>
             {description && (
-              <p className="text-xs text-muted-foreground">{description}</p>
+              <p className="text-sm text-muted-foreground">{description}</p>
             )}
           </div>
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted">

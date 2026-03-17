@@ -24,12 +24,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <div className="flex h-7 w-7 items-center justify-center rounded-md bg-blue-600 shrink-0">
             <Database className="h-4 w-4 text-white" />
           </div>
-          <span className="font-bold text-sm tracking-tight">DataForge</span>
+          <span className="font-bold text-base tracking-tight">DataForge</span>
         </div>
 
         {/* Nav */}
         <div className="flex-1 overflow-y-auto py-4">
-          <p className="px-5 mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">
+          <p className="px-5 mb-1.5 text-xs font-semibold uppercase tracking-widest text-muted-foreground/50">
             Navigation
           </p>
           <SidebarNav />

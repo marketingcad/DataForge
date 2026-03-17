@@ -33,7 +33,7 @@ export default async function LeadsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">Leads</h1>
+          <h1 className="text-lg font-semibold tracking-tight">Leads</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             {totalLeads.toLocaleString()} total leads · {industries.length} industr{industries.length !== 1 ? "ies" : "y"} · {allFolders.length} folder{allFolders.length !== 1 ? "s" : ""}
           </p>
@@ -51,7 +51,7 @@ export default async function LeadsPage() {
         <div className="flex flex-col items-center justify-center py-24 gap-3 text-muted-foreground">
           <Building2 className="h-14 w-14 text-muted-foreground/20" />
           <p className="text-sm font-medium">No leads yet</p>
-          <p className="text-xs max-w-xs text-center">
+          <p className="text-sm max-w-xs text-center">
             Scrape leads from Google — they will appear here organized by industry and folder.
           </p>
           <Link href="/scraping">

@@ -13,7 +13,7 @@ export default async function DashboardPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-xl font-semibold tracking-tight">Dashboard</h1>
+        <h1 className="text-lg font-semibold tracking-tight">Dashboard</h1>
         <p className="text-sm text-muted-foreground mt-0.5">
           Overview of your lead database and scraping activity.
         </p>

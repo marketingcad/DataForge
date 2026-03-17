@@ -14,7 +14,7 @@ export default async function ScrapingPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-xl font-semibold tracking-tight">Scraping</h1>
+        <h1 className="text-lg font-semibold tracking-tight">Scraping</h1>
         <p className="text-sm text-muted-foreground mt-0.5">
           Collect leads from websites, bulk industry search, or Google results.
         </p>
@@ -24,15 +24,15 @@ export default async function ScrapingPage() {
 
       <Tabs defaultValue="domain" className="space-y-4">
         <TabsList className="h-9">
-          <TabsTrigger value="domain" className="flex items-center gap-1.5 text-xs">
+          <TabsTrigger value="domain" className="flex items-center gap-1.5 text-sm">
             <Globe className="h-3.5 w-3.5" />
             Scrape a Website
           </TabsTrigger>
-          <TabsTrigger value="bulk" className="flex items-center gap-1.5 text-xs">
+          <TabsTrigger value="bulk" className="flex items-center gap-1.5 text-sm">
             <Layers className="h-3.5 w-3.5" />
             Bulk by Industry
           </TabsTrigger>
-          <TabsTrigger value="google" className="flex items-center gap-1.5 text-xs">
+          <TabsTrigger value="google" className="flex items-center gap-1.5 text-sm">
             <ScanSearch className="h-3.5 w-3.5" />
             Search by Google
           </TabsTrigger>
