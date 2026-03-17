@@ -135,6 +135,12 @@ export async function getLeads({
   sort = "newest",
   page = 1,
   pageSize = 20,
+  minScore,
+  maxScore,
+  hasEmail,
+  hasWebsite,
+  hasContact,
+  searchField = "business",
 }: {
   search?: string;
   industry?: string;
@@ -144,16 +150,35 @@ export async function getLeads({
   sort?: "name_asc" | "name_desc" | "newest" | "oldest";
   page?: number;
   pageSize?: number;
+  minScore?: number;
+  maxScore?: number;
+  hasEmail?: boolean;
+  hasWebsite?: boolean;
+  hasContact?: boolean;
+  searchField?: "business" | "contact" | "location" | "phone" | "email" | "website" | "score";
 }) {
   const where: Record<string, unknown> = {};
 
   if (search) {
-    where.OR = [
-      { businessName: { contains: search, mode: "insensitive" } },
-      { phone: { contains: search } },
-      { email: { contains: search, mode: "insensitive" } },
-      { contactPerson: { contains: search, mode: "insensitive" } },
-    ];
+    if (searchField === "contact") {
+      where.contactPerson = { contains: search, mode: "insensitive" };
+    } else if (searchField === "location") {
+      where.OR = [
+        { city: { contains: search, mode: "insensitive" } },
+        { state: { contains: search, mode: "insensitive" } },
+      ];
+    } else if (searchField === "phone") {
+      where.phone = { contains: search };
+    } else if (searchField === "email") {
+      where.email = { contains: search, mode: "insensitive" };
+    } else if (searchField === "website") {
+      where.website = { contains: search, mode: "insensitive" };
+    } else if (searchField === "score") {
+      const n = parseInt(search);
+      if (!isNaN(n)) where.dataQualityScore = { gte: n };
+    } else {
+      where.businessName = { contains: search, mode: "insensitive" };
+    }
   }
 
   if (industry) where.industriesFoundIn = { has: industry };
@@ -161,6 +186,15 @@ export async function getLeads({
   if (status) where.recordStatus = status;
   if (folderId === "unfiled") where.folderId = null;
   else if (folderId) where.folderId = folderId;
+  if (minScore !== undefined || maxScore !== undefined) {
+    where.dataQualityScore = {
+      ...(minScore !== undefined ? { gte: minScore } : {}),
+      ...(maxScore !== undefined ? { lte: maxScore } : {}),
+    };
+  }
+  if (hasEmail) where.email = { not: null };
+  if (hasWebsite) where.website = { not: null };
+  if (hasContact) where.contactPerson = { not: null };
 
   const orderBy =
     sort === "name_asc"  ? [{ businessName: "asc"  as const }] :

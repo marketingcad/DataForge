@@ -10,26 +10,15 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { deleteFolderAction } from "@/actions/folders.actions";
 import {
   Folder,
   Inbox,
   Users,
   Calendar,
   RefreshCw,
-  MoreVertical,
-  Trash2,
   Loader2,
 } from "lucide-react";
 import { format } from "date-fns";
-import { toast } from "sonner";
 
 type FolderData = {
   id: string;
@@ -39,6 +28,12 @@ type FolderData = {
   updatedAt: Date;
   _count: { leads: number };
   user: { name: string | null; email: string } | null;
+};
+
+type IndustryOption = {
+  id: string;
+  name: string;
+  color: string;
 };
 
 type IndustryData = {
@@ -52,46 +47,21 @@ interface IndustryModalProps {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   unfiledFolders?: FolderData[];
+  allIndustries?: IndustryOption[];
 }
 
 function FolderCard({
   folder,
   isUnfiled,
   onClick,
-  onDelete,
-  deleting,
 }: {
   folder: FolderData;
   isUnfiled?: boolean;
   onClick: () => void;
-  onDelete?: () => void;
-  deleting?: boolean;
 }) {
   return (
-    <div className="relative w-56 shrink-0 rounded-xl border bg-card hover:border-border hover:shadow-md transition-all duration-150 overflow-hidden group">
+    <div className="w-56 shrink-0 rounded-xl border bg-card hover:border-border hover:shadow-md transition-all duration-150 overflow-hidden">
       <div className="h-1.5 w-full" style={{ backgroundColor: folder.color }} />
-
-      {!isUnfiled && onDelete && (
-        <div className="absolute top-3.5 right-3 z-10" onClick={(e) => e.stopPropagation()}>
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={<Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground" />}
-            >
-              {deleting
-                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                : <MoreVertical className="h-3.5 w-3.5" />}
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" side="bottom" className="min-w-0 w-9 p-1">
-              <DropdownMenuItem
-                className="text-destructive focus:text-destructive cursor-pointer"
-                onClick={onDelete}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      )}
 
       <button
         onClick={onClick}
@@ -107,7 +77,7 @@ function FolderCard({
                 ? <Inbox className="h-4 w-4" style={{ color: folder.color }} />
                 : <Folder className="h-4 w-4" style={{ color: folder.color }} />}
             </div>
-            <div className="min-w-0 pr-6">
+            <div className="min-w-0">
               <p className="text-sm font-semibold truncate leading-tight">{folder.name}</p>
               {folder.user?.name && (
                 <p className="text-[11px] text-muted-foreground truncate mt-0.5">
@@ -147,10 +117,9 @@ function FolderCard({
   );
 }
 
-export function IndustryModal({ industry, open, onOpenChange, unfiledFolders }: IndustryModalProps) {
+export function IndustryModal({ industry, open, onOpenChange, unfiledFolders, allIndustries = [] }: IndustryModalProps) {
   const [folders, setFolders] = useState<FolderData[]>([]);
   const [loading, setLoading] = useState(false);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [selectedFolder, setSelectedFolder] = useState<FolderData | null>(null);
 
   const load = useCallback(async () => {
@@ -168,19 +137,6 @@ export function IndustryModal({ industry, open, onOpenChange, unfiledFolders }: 
   useEffect(() => {
     if (open && industry) load();
   }, [open, industry, load]);
-
-  async function handleDeleteFolder(folder: FolderData) {
-    setDeletingId(folder.id);
-    try {
-      await deleteFolderAction(folder.id);
-      setFolders((prev) => prev.filter((f) => f.id !== folder.id));
-      toast.success(`Folder "${folder.name}" deleted`);
-    } catch {
-      toast.error("Failed to delete folder");
-    } finally {
-      setDeletingId(null);
-    }
-  }
 
   const allFolders = industry ? folders : (unfiledFolders ?? []);
   const totalLeads = allFolders.reduce((sum, f) => sum + f._count.leads, 0);
@@ -235,9 +191,8 @@ export function IndustryModal({ industry, open, onOpenChange, unfiledFolders }: 
                 <FolderCard
                   key={folder.id}
                   folder={folder}
+                  isUnfiled={!industry}
                   onClick={() => setSelectedFolder(folder)}
-                  onDelete={() => handleDeleteFolder(folder)}
-                  deleting={deletingId === folder.id}
                 />
               ))}
             </div>
@@ -251,6 +206,16 @@ export function IndustryModal({ industry, open, onOpenChange, unfiledFolders }: 
           folder={selectedFolder as any}
           open={!!selectedFolder}
           onOpenChange={(v) => { if (!v) setSelectedFolder(null); }}
+          allIndustries={allIndustries}
+          currentIndustryId={industry?.id ?? null}
+          onFolderDeleted={(id) => {
+            setFolders((prev) => prev.filter((f) => f.id !== id));
+            setSelectedFolder(null);
+          }}
+          onCategoryChanged={(id) => {
+            setFolders((prev) => prev.filter((f) => f.id !== id));
+            setSelectedFolder(null);
+          }}
         />
       )}
     </>

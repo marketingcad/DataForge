@@ -11,6 +11,14 @@ export async function getLeadsForFolderAction(params: {
   search?: string;
   sort?: "name_asc" | "name_desc" | "newest" | "oldest";
   page?: number;
+  minScore?: number;
+  maxScore?: number;
+  status?: string;
+  state?: string;
+  hasEmail?: boolean;
+  hasWebsite?: boolean;
+  hasContact?: boolean;
+  searchField?: "business" | "contact" | "location" | "phone" | "email" | "website" | "score";
 }) {
   return getLeads({
     folderId: params.folderId,
@@ -18,6 +26,14 @@ export async function getLeadsForFolderAction(params: {
     sort: params.sort || "newest",
     page: params.page || 1,
     pageSize: 20,
+    minScore: params.minScore,
+    maxScore: params.maxScore,
+    status: params.status || "",
+    state: params.state || "",
+    hasEmail: params.hasEmail,
+    hasWebsite: params.hasWebsite,
+    hasContact: params.hasContact,
+    searchField: params.searchField || "business",
   });
 }
 

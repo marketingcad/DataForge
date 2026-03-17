@@ -1,18 +1,27 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { IndustryModal } from "./IndustryModal";
 import { CreateFolderModal } from "./CreateFolderModal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { deleteIndustryAction } from "@/actions/industry.actions";
+import { deleteIndustryAction, createIndustryAction } from "@/actions/industry.actions";
 import {
   Building2,
   FolderOpen,
@@ -23,10 +32,18 @@ import {
   Trash2,
   Loader2,
   Plus,
+  Search,
+  X,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+
+const COLOR_SWATCHES = [
+  "#6366f1", "#8b5cf6", "#ec4899", "#ef4444",
+  "#f97316", "#eab308", "#22c55e", "#06b6d4",
+  "#3b82f6", "#64748b",
+];
 
 type FolderData = {
   id: string;
@@ -211,7 +228,24 @@ export function IndustryBoard({ industries: initialIndustries, unfiledFolders }:
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
 
+  // New category dialog
+  const [createCategoryOpen, setCreateCategoryOpen] = useState(false);
+  const [categoryName, setCategoryName] = useState("");
+  const [categoryColor, setCategoryColor] = useState(COLOR_SWATCHES[0]);
+  const [savingCategory, startSavingCategory] = useTransition();
+
+  // Filter
+  const [search, setSearch] = useState("");
+
   const unfiledLeads = unfiledFolders.reduce((sum, f) => sum + f._count.leads, 0);
+
+  const filteredIndustries = search.trim()
+    ? industries.filter((i) => i.name.toLowerCase().includes(search.toLowerCase()))
+    : industries;
+
+  const showUncategorizedCard =
+    unfiledFolders.length > 0 &&
+    (!search.trim() || "uncategorized".includes(search.toLowerCase()));
 
   async function handleDeleteIndustry(industry: IndustryData) {
     setDeletingId(industry.id);
@@ -227,20 +261,76 @@ export function IndustryBoard({ industries: initialIndustries, unfiledFolders }:
     }
   }
 
+  function handleCreateCategory() {
+    if (!categoryName.trim()) return;
+    startSavingCategory(async () => {
+      try {
+        const ind = await createIndustryAction(categoryName.trim(), categoryColor);
+        setIndustries((prev) => [
+          ...prev,
+          {
+            id: ind.id,
+            name: ind.name,
+            color: ind.color,
+            createdAt: ind.createdAt,
+            updatedAt: ind.updatedAt,
+            totalLeads: 0,
+            _count: { folders: 0 },
+            user: null,
+          },
+        ]);
+        toast.success(`Category "${ind.name}" created`);
+        setCategoryName("");
+        setCategoryColor(COLOR_SWATCHES[0]);
+        setCreateCategoryOpen(false);
+        router.refresh();
+      } catch {
+        toast.error("Failed to create category");
+      }
+    });
+  }
+
   return (
     <>
-      <div className="flex items-center justify-between mb-4">
-        <p className="text-xs text-muted-foreground">
-          {industries.length} industr{industries.length !== 1 ? "ies" : "y"}
+      {/* Toolbar */}
+      <div className="flex items-center gap-2 mb-4">
+        {/* Search / filter */}
+        <div className="relative flex-1 max-w-xs">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+          <Input
+            placeholder="Filter categories…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-8 pr-7 h-8 text-sm"
+          />
+          {search && (
+            <button
+              onClick={() => setSearch("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+
+        <p className="text-xs text-muted-foreground hidden sm:block">
+          {filteredIndustries.length} of {industries.length} categor{industries.length !== 1 ? "ies" : "y"}
         </p>
-        <Button size="sm" className="gap-1.5" onClick={() => setCreateFolderOpen(true)}>
-          <Plus className="h-4 w-4" />
-          Create Folder
-        </Button>
+
+        <div className="ml-auto flex items-center gap-2">
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setCreateCategoryOpen(true)}>
+            <Plus className="h-4 w-4" />
+            New Category
+          </Button>
+          <Button size="sm" className="gap-1.5" onClick={() => setCreateFolderOpen(true)}>
+            <Plus className="h-4 w-4" />
+            New Folder
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-4">
-        {industries.map((industry) => (
+        {filteredIndustries.map((industry) => (
           <IndustryCard
             key={industry.id}
             industry={industry}
@@ -250,14 +340,69 @@ export function IndustryBoard({ industries: initialIndustries, unfiledFolders }:
           />
         ))}
 
-        {unfiledFolders.length > 0 && (
+        {showUncategorizedCard && (
           <UncategorizedCard
             count={unfiledFolders.length}
             totalLeads={unfiledLeads}
             onClick={() => setShowUncategorized(true)}
           />
         )}
+
+        {filteredIndustries.length === 0 && !showUncategorizedCard && search && (
+          <p className="text-sm text-muted-foreground py-12 w-full text-center">
+            No categories match &ldquo;{search}&rdquo;
+          </p>
+        )}
       </div>
+
+      {/* Create category dialog */}
+      <Dialog open={createCategoryOpen} onOpenChange={(v) => { if (!v) { setCategoryName(""); setCategoryColor(COLOR_SWATCHES[0]); } setCreateCategoryOpen(v); }}>
+        <DialogContent showCloseButton className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>New Category</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-1">
+            <div className="space-y-1.5">
+              <Label htmlFor="cat-name">Name</Label>
+              <Input
+                id="cat-name"
+                placeholder="e.g. HVAC, Dentists, Real Estate…"
+                value={categoryName}
+                onChange={(e) => setCategoryName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") handleCreateCategory(); }}
+                autoFocus
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Color</Label>
+              <div className="flex flex-wrap gap-2">
+                {COLOR_SWATCHES.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setCategoryColor(c)}
+                    className={cn(
+                      "h-6 w-6 rounded-full border-2 transition-transform",
+                      categoryColor === c ? "border-foreground scale-110" : "border-transparent hover:scale-105"
+                    )}
+                    style={{ backgroundColor: c }}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              onClick={handleCreateCategory}
+              disabled={!categoryName.trim() || savingCategory}
+              className="w-full sm:w-auto"
+            >
+              {savingCategory && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Create Category
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Industry modal */}
       {selected && (
@@ -265,6 +410,7 @@ export function IndustryBoard({ industries: initialIndustries, unfiledFolders }:
           industry={selected}
           open={!!selected}
           onOpenChange={(v) => { if (!v) setSelected(null); }}
+          allIndustries={industries.map((i) => ({ id: i.id, name: i.name, color: i.color }))}
         />
       )}
 
@@ -274,6 +420,7 @@ export function IndustryBoard({ industries: initialIndustries, unfiledFolders }:
         open={showUncategorized}
         onOpenChange={setShowUncategorized}
         unfiledFolders={unfiledFolders}
+        allIndustries={industries.map((i) => ({ id: i.id, name: i.name, color: i.color }))}
       />
 
       {/* Create folder modal */}

@@ -1,9 +1,9 @@
 import { PrismaClient } from "@/generated/prisma/client";
 import { PrismaNeon } from "@prisma/adapter-neon";
 
-// Schema version — bump this whenever you run prisma migrate to bust the
-// globalThis singleton cache in dev (prevents stale client after schema changes)
-const SCHEMA_VERSION = "v3-industries";
+// Bump this string any time you run prisma migrate (adds/removes models).
+// This forces a new client in dev hot-reload scenarios.
+const CLIENT_VERSION = "v3-industries";
 
 function createPrismaClient() {
   const connectionString =
@@ -12,17 +12,18 @@ function createPrismaClient() {
   return new PrismaClient({ adapter });
 }
 
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient;
-  prismaSchemaVersion: string;
-};
-
-// Reset cached instance if schema version changed
-if (globalForPrisma.prismaSchemaVersion !== SCHEMA_VERSION) {
-  globalForPrisma.prisma = undefined as unknown as PrismaClient;
-  globalForPrisma.prismaSchemaVersion = SCHEMA_VERSION;
+declare global {
+  // eslint-disable-next-line no-var
+  var __prisma: PrismaClient | undefined;
+  // eslint-disable-next-line no-var
+  var __prismaVersion: string | undefined;
 }
 
-export const prisma = globalForPrisma.prisma ?? createPrismaClient();
+// In dev, bust the singleton whenever the client version changes.
+if (global.__prismaVersion !== CLIENT_VERSION) {
+  global.__prisma = undefined;
+  global.__prismaVersion = CLIENT_VERSION;
+}
 
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+export const prisma: PrismaClient =
+  global.__prisma ?? (global.__prisma = createPrismaClient());

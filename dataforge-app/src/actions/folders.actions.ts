@@ -1,7 +1,8 @@
 "use server";
 
 import { auth } from "@/lib/auth";
-import { getFolders, createFolder, deleteFolder } from "@/lib/services/folders.service";
+import { getFolders, createFolder, deleteFolder, updateFolderIndustry } from "@/lib/services/folders.service";
+import { revalidatePath } from "next/cache";
 
 function requireUser() {
   return auth().then((s) => {
@@ -27,4 +28,10 @@ export async function createFolderAction(
 export async function deleteFolderAction(id: string) {
   const userId = await requireUser();
   return deleteFolder(id, userId);
+}
+
+export async function updateFolderCategoryAction(id: string, industryId: string | null) {
+  const userId = await requireUser();
+  await updateFolderIndustry(id, userId, industryId);
+  revalidatePath("/leads");
 }

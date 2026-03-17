@@ -48,3 +48,14 @@ export async function createFolder(
 export async function deleteFolder(id: string, userId: string) {
   return prisma.folder.deleteMany({ where: { id, userId } });
 }
+
+export async function updateFolderIndustry(
+  id: string,
+  userId: string,
+  industryId: string | null,
+) {
+  return prisma.folder.updateMany({
+    where: { id, userId },
+    data: { industryId },
+  });
+}
