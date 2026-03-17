@@ -1,22 +1,32 @@
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { FolderBoard } from "@/components/leads/FolderBoard";
+import { IndustryBoard } from "@/components/leads/IndustryBoard";
+import { getIndustries } from "@/lib/services/industry.service";
 import { getFolders } from "@/lib/services/folders.service";
 import { getLeads } from "@/lib/services/leads.service";
 import { auth } from "@/lib/auth";
-import { Folder, Plus } from "lucide-react";
+import { Building2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
+import Link from "next/link";
 
 export default async function LeadsPage() {
   const session = await auth();
+  const userId = session?.user?.id;
 
-  const [folders, unfiledResult] = await Promise.all([
-    session?.user?.id ? getFolders(session.user.id) : Promise.resolve([]),
+  const [industries, allFolders, unfiledResult] = await Promise.all([
+    userId ? getIndustries(userId) : Promise.resolve([]),
+    userId ? getFolders(userId) : Promise.resolve([]),
     getLeads({ folderId: "unfiled", pageSize: 1 }),
   ]);
 
+  // Folders with no industryId
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const unfiledFolders = (allFolders as any[]).filter((f) => !f.industryId);
+
   const totalLeads =
-    folders.reduce((sum, f) => sum + f._count.leads, 0) + unfiledResult.total;
+    allFolders.reduce((sum: number, f: { _count: { leads: number } }) => sum + f._count.leads, 0) +
+    unfiledResult.total;
+
+  const isEmpty = industries.length === 0 && allFolders.length === 0 && unfiledResult.total === 0;
 
   return (
     <div className="space-y-6">
@@ -25,12 +35,11 @@ export default async function LeadsPage() {
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Leads</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            {totalLeads.toLocaleString()} total leads · {folders.length} folder{folders.length !== 1 ? "s" : ""}
+            {totalLeads.toLocaleString()} total leads · {industries.length} industr{industries.length !== 1 ? "ies" : "y"} · {allFolders.length} folder{allFolders.length !== 1 ? "s" : ""}
           </p>
         </div>
         <Link href="/leads/new">
-          <Button size="sm" className="gap-1.5">
-            <Plus className="h-4 w-4" />
+          <Button size="sm" variant="outline" className="gap-1.5">
             Add Lead
           </Button>
         </Link>
@@ -38,23 +47,23 @@ export default async function LeadsPage() {
 
       <Separator />
 
-      {/* Empty state */}
-      {folders.length === 0 && unfiledResult.total === 0 ? (
+      {isEmpty ? (
         <div className="flex flex-col items-center justify-center py-24 gap-3 text-muted-foreground">
-          <Folder className="h-14 w-14 text-muted-foreground/20" />
+          <Building2 className="h-14 w-14 text-muted-foreground/20" />
           <p className="text-sm font-medium">No leads yet</p>
           <p className="text-xs max-w-xs text-center">
-            Scrape leads from Google — they will appear here organized by folder.
+            Scrape leads from Google — they will appear here organized by industry and folder.
           </p>
           <Link href="/scraping">
             <Button size="sm" variant="outline" className="mt-2">Go to Scraping</Button>
           </Link>
         </div>
       ) : (
-        <FolderBoard
+        <IndustryBoard
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          folders={folders as any}
-          unfiledCount={unfiledResult.total}
+          industries={industries as any}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          unfiledFolders={unfiledFolders as any}
         />
       )}
     </div>

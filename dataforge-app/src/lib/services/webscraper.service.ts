@@ -113,7 +113,7 @@ function parsePage(html: string, url: string) {
  */
 export async function crawlWebsite(rawUrl: string): Promise<CrawlResult> {
   const domain = normalizeWebsite(rawUrl);
-  if (!domain) return { domain: rawUrl, emails: [], phones: [], socialLinks: {}, pagesVisited: 0 };
+  if (!domain) return { domain: rawUrl, emails: [], phones: [], addresses: [], socialLinks: {}, pagesVisited: 0 };
 
   const origin = `https://${domain}`;
   const visited = new Set<string>();

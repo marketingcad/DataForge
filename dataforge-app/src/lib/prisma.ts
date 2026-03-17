@@ -3,7 +3,7 @@ import { PrismaNeon } from "@prisma/adapter-neon";
 
 // Schema version — bump this whenever you run prisma migrate to bust the
 // globalThis singleton cache in dev (prevents stale client after schema changes)
-const SCHEMA_VERSION = "v2-folders";
+const SCHEMA_VERSION = "v3-industries";
 
 function createPrismaClient() {
   const connectionString =

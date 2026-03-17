@@ -15,9 +15,13 @@ export async function getFoldersAction() {
   return getFolders(userId);
 }
 
-export async function createFolderAction(name: string, color: string) {
+export async function createFolderAction(
+  name: string,
+  color: string,
+  industryId?: string | null,
+) {
   const userId = await requireUser();
-  return createFolder(userId, name.trim(), color);
+  return createFolder(userId, name.trim(), color, industryId);
 }
 
 export async function deleteFolderAction(id: string) {

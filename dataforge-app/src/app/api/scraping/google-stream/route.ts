@@ -219,9 +219,20 @@ async function extractFromSerp(
         address?: string; city?: string; state?: string;
         hours?: string; rating?: string;
       } | null = await page.evaluate(function(args: [string, string]) {
+        // Type declarations for helpers injected by eval(utils) below.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        var parseField: (text: string, label: string) => string | undefined = null as any;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        var isExternal: (href: string) => boolean = null as any;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        var extractHost: (href: string) => string = null as any;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        var realUrl: (href: string) => string = null as any;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        var parseAddr: (text: string) => { city?: string; state?: string } = null as any;
         var utils = args[0];
         var businessName = args[1];
-        eval(utils);
+        eval(utils); // assigns actual implementations to the typed vars above
 
         var popup = document.querySelector("g-sticky-content-container") as HTMLElement | null;
         if (!popup || !(popup.innerText || "").trim()) return null;
@@ -287,7 +298,7 @@ async function extractFromSerp(
             siteLink = allLinks.find(function(a: HTMLAnchorElement) {
               return isExternal(a.href) && (
                 (a.innerText || "").trim() === psVal ||
-                extractHost(a.href) === psVal.replace(/^www\./, "")
+                extractHost(a.href) === psVal!.replace(/^www\./, "")
               );
             });
           }
@@ -361,6 +372,14 @@ async function extractFromSerp(
 
     if (leadsEmitted === 0) {
       const tier2: SerpLead[] = await page.evaluate(function(utils: string) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        var parseField: (t: string, l: string) => string | undefined = null as any;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        var isExternal: (h: string) => boolean = null as any;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        var extractHost: (h: string) => string = null as any;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        var parseAddr: (t: string) => { city?: string; state?: string } = null as any;
         eval(utils);
         var out: Array<{
           businessName: string; phone?: string; address?: string;
@@ -415,6 +434,10 @@ async function extractFromSerp(
 
     if (leadsEmitted === 0) {
       const tier3: SerpLead[] = await page.evaluate(function(utils: string) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        var isExternal: (h: string) => boolean = null as any;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        var extractHost: (h: string) => string = null as any;
         eval(utils);
         var out: Array<{ businessName: string; website: string; phone?: string }> = [];
         var allH3s = Array.prototype.slice.call(

@@ -34,21 +34,18 @@ export function UserNav({ name, email }: UserNavProps) {
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          className="flex items-center gap-2 px-2 py-1.5 h-auto hover:bg-accent rounded-lg"
-        >
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-semibold">
-            {initials}
-          </span>
-          <span className="hidden sm:flex flex-col items-start text-left">
-            <span className="text-sm font-medium leading-none">{name ?? email}</span>
-            {name && (
-              <span className="text-xs text-muted-foreground leading-none mt-0.5">{email}</span>
-            )}
-          </span>
-        </Button>
+      <DropdownMenuTrigger
+        render={<Button variant="ghost" className="flex items-center gap-2 px-2 py-1.5 h-auto hover:bg-accent rounded-lg" />}
+      >
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-semibold">
+          {initials}
+        </span>
+        <span className="hidden sm:flex flex-col items-start text-left">
+          <span className="text-sm font-medium leading-none">{name ?? email}</span>
+          {name && (
+            <span className="text-xs text-muted-foreground leading-none mt-0.5">{email}</span>
+          )}
+        </span>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56" align="end">
         <DropdownMenuLabel className="font-normal">

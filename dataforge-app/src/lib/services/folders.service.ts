@@ -34,9 +34,14 @@ export async function getFoldersWithLeads(userId: string) {
   });
 }
 
-export async function createFolder(userId: string, name: string, color: string) {
+export async function createFolder(
+  userId: string,
+  name: string,
+  color: string,
+  industryId?: string | null,
+) {
   return prisma.folder.create({
-    data: { userId, name, color },
+    data: { userId, name, color, ...(industryId ? { industryId } : {}) },
   });
 }
 

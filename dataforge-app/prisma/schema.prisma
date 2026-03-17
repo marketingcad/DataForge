@@ -26,7 +26,7 @@ enum JobSource {
   manual
 }
 
-model Folder {
+model Industry {
   id        String   @id @default(uuid())
   name      String
   color     String   @default("#6366f1")
@@ -34,10 +34,27 @@ model Folder {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  leads Lead[]
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  folders Folder[]
 
   @@index([userId])
+}
+
+model Folder {
+  id         String    @id @default(uuid())
+  name       String
+  color      String    @default("#6366f1")
+  userId     String
+  industryId String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  industry Industry? @relation(fields: [industryId], references: [id], onDelete: SetNull)
+  leads    Lead[]
+
+  @@index([userId])
+  @@index([industryId])
 }
 
 model Lead {
@@ -80,6 +97,7 @@ model User {
   accounts      Account[]
   sessions      Session[]
   folders       Folder[]
+  industries    Industry[]
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 }
