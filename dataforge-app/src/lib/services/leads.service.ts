@@ -132,6 +132,7 @@ export async function getLeads({
   state = "",
   status = "",
   folderId = "",
+  sort = "newest",
   page = 1,
   pageSize = 20,
 }: {
@@ -140,6 +141,7 @@ export async function getLeads({
   state?: string;
   status?: string;
   folderId?: string;
+  sort?: "name_asc" | "name_desc" | "newest" | "oldest";
   page?: number;
   pageSize?: number;
 }) {
@@ -160,10 +162,16 @@ export async function getLeads({
   if (folderId === "unfiled") where.folderId = null;
   else if (folderId) where.folderId = folderId;
 
+  const orderBy =
+    sort === "name_asc"  ? [{ businessName: "asc"  as const }] :
+    sort === "name_desc" ? [{ businessName: "desc" as const }] :
+    sort === "oldest"    ? [{ dateCollected: "asc"  as const }] :
+                           [{ dateCollected: "desc" as const }];
+
   const [leads, total] = await Promise.all([
     prisma.lead.findMany({
       where,
-      orderBy: [{ dataQualityScore: "desc" }, { dateCollected: "desc" }],
+      orderBy,
       skip: (page - 1) * pageSize,
       take: pageSize,
     }),

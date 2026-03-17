@@ -9,14 +9,26 @@ import { prisma } from "@/lib/prisma";
 export async function getLeadsForFolderAction(params: {
   folderId: string;
   search?: string;
+  sort?: "name_asc" | "name_desc" | "newest" | "oldest";
   page?: number;
 }) {
   return getLeads({
     folderId: params.folderId,
     search: params.search || "",
+    sort: params.sort || "newest",
     page: params.page || 1,
     pageSize: 20,
   });
+}
+
+export async function getAllLeadsForExportAction(folderId: string) {
+  return getLeads({ folderId, pageSize: 5000 });
+}
+
+export async function bulkDeleteLeadsAction(ids: string[]) {
+  if (!ids.length) return;
+  await prisma.lead.deleteMany({ where: { id: { in: ids } } });
+  revalidatePath("/leads");
 }
 
 export async function createLeadAction(formData: FormData) {
