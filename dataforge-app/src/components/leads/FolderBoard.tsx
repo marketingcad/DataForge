@@ -57,11 +57,10 @@ function FolderCard({ folder, isUnfiled, onClick, onDelete, deleting }: FolderCa
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" side="bottom">
               <DropdownMenuItem
-                className="text-destructive focus:text-destructive gap-2 cursor-pointer"
+                className="text-destructive focus:text-destructive cursor-pointer"
                 onClick={onDelete}
               >
                 <Trash2 className="h-3.5 w-3.5" />
-                Delete folder
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
