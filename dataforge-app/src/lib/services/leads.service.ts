@@ -41,6 +41,8 @@ export async function insertLead(raw: LeadInput & { folderId?: string }): Promis
       data: {
         industriesFoundIn: newIndustries,
         dataQualityScore: Math.max(existing.dataQualityScore, newScore),
+        // Move to the new folder if one was explicitly provided
+        ...(raw.folderId ? { folderId: raw.folderId } : {}),
       },
     });
 
