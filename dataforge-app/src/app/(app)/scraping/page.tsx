@@ -4,25 +4,36 @@ import { JobsTable } from "@/components/scraping/JobsTable";
 import { DomainScrapeForm } from "@/components/scraping/DomainScrapeForm";
 import { GoogleScrapeForm } from "@/components/scraping/GoogleScrapeForm";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Globe, Search, ScanSearch } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
+import { Globe, Layers, ScanSearch } from "lucide-react";
 
 export default async function ScrapingPage() {
   const { jobs } = await getJobs({});
 
   return (
     <div className="space-y-6">
-      <Tabs defaultValue="domain">
-        <TabsList className="mb-4">
-          <TabsTrigger value="domain" className="flex items-center gap-1.5">
-            <Globe className="h-4 w-4" />
+      {/* Header */}
+      <div>
+        <h1 className="text-xl font-semibold tracking-tight">Scraping</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">
+          Collect leads from websites, bulk industry search, or Google results.
+        </p>
+      </div>
+
+      <Separator />
+
+      <Tabs defaultValue="domain" className="space-y-4">
+        <TabsList className="h-9">
+          <TabsTrigger value="domain" className="flex items-center gap-1.5 text-xs">
+            <Globe className="h-3.5 w-3.5" />
             Scrape a Website
           </TabsTrigger>
-          <TabsTrigger value="bulk" className="flex items-center gap-1.5">
-            <Search className="h-4 w-4" />
+          <TabsTrigger value="bulk" className="flex items-center gap-1.5 text-xs">
+            <Layers className="h-3.5 w-3.5" />
             Bulk by Industry
           </TabsTrigger>
-          <TabsTrigger value="google" className="flex items-center gap-1.5">
-            <ScanSearch className="h-4 w-4" />
+          <TabsTrigger value="google" className="flex items-center gap-1.5 text-xs">
+            <ScanSearch className="h-3.5 w-3.5" />
             Search by Google
           </TabsTrigger>
         </TabsList>
@@ -31,12 +42,12 @@ export default async function ScrapingPage() {
           <DomainScrapeForm />
         </TabsContent>
 
-        <TabsContent value="bulk" className="space-y-6">
+        <TabsContent value="bulk" className="space-y-4">
           <JobForm />
           <JobsTable jobs={jobs} />
         </TabsContent>
 
-        <TabsContent value="google" className="mt-0" style={{ height: "calc(100vh - 10rem)" }}>
+        <TabsContent value="google" className="mt-0" style={{ height: "calc(100vh - 14rem)" }}>
           <GoogleScrapeForm />
         </TabsContent>
       </Tabs>

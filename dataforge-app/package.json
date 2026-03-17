@@ -16,6 +16,7 @@
     "@prisma/adapter-neon": "^7.5.0",
     "@prisma/client": "^7.5.0",
     "@radix-ui/react-checkbox": "^1.3.3",
+    "@radix-ui/react-radio-group": "^1.3.8",
     "@radix-ui/react-tabs": "^1.1.13",
     "@radix-ui/react-tooltip": "^1.2.8",
     "@tanstack/react-table": "^8.21.3",

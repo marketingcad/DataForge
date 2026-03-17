@@ -12,7 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Users } from "lucide-react";
 
 interface Lead {
   id: string;
@@ -31,52 +31,57 @@ interface Lead {
   industriesFoundIn: string[];
 }
 
-interface LeadTableProps {
-  leads: Lead[];
-}
-
-export function LeadTable({ leads }: LeadTableProps) {
+export function LeadTable({ leads }: { leads: Lead[] }) {
   if (leads.length === 0) {
     return (
-      <div className="text-center py-16 text-muted-foreground">
-        No leads found. Try adjusting your filters or add a new lead.
+      <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed py-20 text-center">
+        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+          <Users className="h-6 w-6 text-muted-foreground" />
+        </div>
+        <div>
+          <p className="text-sm font-medium">No leads found</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Try adjusting your filters or add a new lead.</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="rounded-md border">
+    <div className="rounded-lg border overflow-hidden">
       <Table>
         <TableHeader>
-          <TableRow>
-            <TableHead>Business</TableHead>
-            <TableHead>Phone</TableHead>
-            <TableHead>Email</TableHead>
-            <TableHead>Location</TableHead>
-            <TableHead>Industry</TableHead>
-            <TableHead>Quality</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead className="text-right">Actions</TableHead>
+          <TableRow className="bg-muted/40 hover:bg-muted/40">
+            <TableHead className="font-semibold">Business</TableHead>
+            <TableHead className="font-semibold">Phone</TableHead>
+            <TableHead className="font-semibold">Email</TableHead>
+            <TableHead className="font-semibold">Location</TableHead>
+            <TableHead className="font-semibold">Industry</TableHead>
+            <TableHead className="font-semibold">Quality</TableHead>
+            <TableHead className="font-semibold">Status</TableHead>
+            <TableHead className="text-right font-semibold">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {leads.map((lead) => (
-            <TableRow key={lead.id} className={lead.duplicateFlag ? "bg-orange-50/50" : ""}>
+            <TableRow
+              key={lead.id}
+              className={lead.duplicateFlag ? "bg-orange-50/40 dark:bg-orange-950/10" : ""}
+            >
               <TableCell>
                 <div className="flex items-center gap-2">
                   {lead.duplicateFlag && (
                     <AlertTriangle className="h-3.5 w-3.5 text-orange-500 shrink-0" />
                   )}
                   <div>
-                    <p className="font-medium leading-none">{lead.businessName}</p>
+                    <p className="font-medium text-sm leading-none">{lead.businessName}</p>
                     {lead.contactPerson && (
-                      <p className="text-xs text-muted-foreground mt-0.5">{lead.contactPerson}</p>
+                      <p className="text-xs text-muted-foreground mt-1">{lead.contactPerson}</p>
                     )}
                   </div>
                 </div>
               </TableCell>
-              <TableCell className="tabular-nums text-sm">{lead.phone}</TableCell>
-              <TableCell className="text-sm text-muted-foreground">
+              <TableCell className="tabular-nums text-sm text-muted-foreground">{lead.phone || "—"}</TableCell>
+              <TableCell className="text-sm text-muted-foreground max-w-[160px] truncate">
                 {lead.email ?? "—"}
               </TableCell>
               <TableCell className="text-sm text-muted-foreground">
@@ -91,7 +96,7 @@ export function LeadTable({ leads }: LeadTableProps) {
                       </Badge>
                     ))}
                     {lead.industriesFoundIn.length > 2 && (
-                      <Badge variant="secondary" className="text-xs">
+                      <Badge variant="outline" className="text-xs text-muted-foreground">
                         +{lead.industriesFoundIn.length - 2}
                       </Badge>
                     )}
@@ -109,9 +114,9 @@ export function LeadTable({ leads }: LeadTableProps) {
               <TableCell className="text-right">
                 <Link
                   href={`/leads/${lead.id}`}
-                  className="text-sm font-medium text-blue-600 hover:underline"
+                  className="text-xs font-medium text-primary hover:underline underline-offset-4"
                 >
-                  View
+                  View →
                 </Link>
               </TableCell>
             </TableRow>

@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
-import { saveLeadsAction, LeadRow } from "@/actions/domain-scrape.actions";
+import { LeadRow } from "@/actions/domain-scrape.actions";
+import { SaveLeadsModal } from "@/components/scraping/SaveLeadsModal";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -34,7 +35,7 @@ export function GoogleScrapeForm() {
   const [statusMsg, setStatusMsg] = useState("");
   const [errorMsg,  setErrorMsg]  = useState("");
   const [summary,   setSummary]   = useState<{ leadsFound: number; pagesVisited: number; elapsed: number } | null>(null);
-  const [saving,    setSaving]    = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
   const [maxLeads,  setMaxLeads]  = useState(50);
   const [timeLimit, setTimeLimit] = useState(120);
 
@@ -125,13 +126,10 @@ export function GoogleScrapeForm() {
     setRows((prev) => prev.map((r) => ({ ...r, selected: !allSelected })));
   }
 
-  async function handleSave() {
+  function openSaveModal() {
     const selected = rows.filter((r) => r.selected);
     if (!selected.length) { toast.error("Select at least one lead."); return; }
-    setSaving(true);
-    const result = await saveLeadsAction(selected);
-    setSaving(false);
-    toast.success(`${result.saved} saved · ${result.duplicates} duplicates · ${result.failed} failed`);
+    setModalOpen(true);
   }
 
   function copyText(text: string, label: string) {
@@ -166,11 +164,9 @@ export function GoogleScrapeForm() {
             Reset
           </Button>
           {rows.length > 0 && (
-            <Button size="sm" onClick={handleSave} disabled={saving || selectedCount === 0}>
-              {saving
-                ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
-                : <Save className="h-4 w-4 mr-1.5" />}
-              {saving ? "Saving…" : `Save Selected (${selectedCount})`}
+            <Button size="sm" onClick={openSaveModal} disabled={selectedCount === 0}>
+              <Save className="h-4 w-4 mr-1.5" />
+              Save Selected ({selectedCount})
             </Button>
           )}
         </div>
@@ -188,13 +184,17 @@ export function GoogleScrapeForm() {
               <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Google Search URL
               </Label>
-              <Textarea
-                ref={urlRef}
-                placeholder={`Paste a Google search result URL here.\n\nExample:\nhttps://www.google.com/search?q=plumbing+companies+in+new+jersey`}
-                className="min-h-[160px] text-xs font-mono resize-none leading-relaxed"
-              />
+              <div className="relative">
+                <Textarea
+                  ref={urlRef}
+                  placeholder={`Paste a Google search result URL here.\n\nExample:\nhttps://www.google.com/search?q=plumbing+companies+in+new+jersey`}
+                  className="h-[140px] max-h-[140px] text-xs font-mono resize-none leading-relaxed overflow-y-auto"
+                />
+                {/* Bottom fade — hides overflow text without scrollbar flash */}
+                <div className="pointer-events-none absolute bottom-0 inset-x-0 h-8 rounded-b-md bg-gradient-to-t from-background to-transparent" />
+              </div>
               <p className="text-[11px] text-muted-foreground">
-                Open Google, search for your query, then copy and paste the full URL from the browser address bar.
+                Open Google, search for your query, then copy and paste the full URL from the address bar.
               </p>
             </div>
 
@@ -304,11 +304,9 @@ export function GoogleScrapeForm() {
               )}
             </div>
             {rows.length > 0 && !isCrawling && (
-              <Button size="sm" onClick={handleSave} disabled={saving || selectedCount === 0}>
-                {saving
-                  ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
-                  : <Save className="h-4 w-4 mr-1.5" />}
-                {saving ? "Saving…" : `Save (${selectedCount})`}
+              <Button size="sm" onClick={openSaveModal} disabled={selectedCount === 0}>
+                <Save className="h-4 w-4 mr-1.5" />
+                Save ({selectedCount})
               </Button>
             )}
           </div>
@@ -464,6 +462,13 @@ export function GoogleScrapeForm() {
         </div>
 
       </div>
+
+      <SaveLeadsModal
+        open={modalOpen}
+        onOpenChange={setModalOpen}
+        leads={rows.filter((r) => r.selected)}
+        onSaved={() => {}}
+      />
     </div>
   );
 }

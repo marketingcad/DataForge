@@ -11,7 +11,7 @@ import { LeadInput, InsertResult } from "@/types/lead";
  *   is updated with any new industry and a recalculated score.
  * - If no duplicate, a new lead is created.
  */
-export async function insertLead(raw: LeadInput): Promise<InsertResult> {
+export async function insertLead(raw: LeadInput & { folderId?: string }): Promise<InsertResult> {
   const phone = normalizePhone(raw.phone);
   const email = raw.email ? normalizeEmail(raw.email) : "";
   const website = raw.website ? normalizeWebsite(raw.website) : "";
@@ -68,6 +68,7 @@ export async function insertLead(raw: LeadInput): Promise<InsertResult> {
       source: raw.source,
       industriesFoundIn: industries,
       dataQualityScore: score,
+      folderId: raw.folderId || null,
     },
   });
 
@@ -128,6 +129,7 @@ export async function getLeads({
   industry = "",
   state = "",
   status = "",
+  folderId = "",
   page = 1,
   pageSize = 20,
 }: {
@@ -135,6 +137,7 @@ export async function getLeads({
   industry?: string;
   state?: string;
   status?: string;
+  folderId?: string;
   page?: number;
   pageSize?: number;
 }) {
@@ -152,6 +155,8 @@ export async function getLeads({
   if (industry) where.industriesFoundIn = { has: industry };
   if (state) where.state = { equals: state, mode: "insensitive" };
   if (status) where.recordStatus = status;
+  if (folderId === "unfiled") where.folderId = null;
+  else if (folderId) where.folderId = folderId;
 
   const [leads, total] = await Promise.all([
     prisma.lead.findMany({

@@ -19,17 +19,24 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       {/* ── Sidebar ── */}
       <aside className="hidden md:flex w-56 flex-col border-r bg-background shrink-0">
         {/* Brand */}
-        <div className="flex h-14 items-center gap-2 px-5 border-b shrink-0">
-          <Database className="h-5 w-5 text-blue-600 shrink-0" />
-          <span className="font-semibold text-sm tracking-tight">DataForge</span>
+        <div className="flex h-14 items-center gap-2.5 px-5 border-b shrink-0">
+          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-blue-600 shrink-0">
+            <Database className="h-4 w-4 text-white" />
+          </div>
+          <span className="font-bold text-sm tracking-tight">DataForge</span>
         </div>
 
         {/* Nav */}
         <div className="flex-1 overflow-y-auto py-4">
-          <p className="px-5 mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">
-            Menu
+          <p className="px-5 mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">
+            Navigation
           </p>
           <SidebarNav />
+        </div>
+
+        {/* Footer */}
+        <div className="border-t px-4 py-3">
+          <p className="text-[10px] text-muted-foreground/40 text-center">DataForge v1.0</p>
         </div>
       </aside>
 
