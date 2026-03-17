@@ -175,8 +175,8 @@ export function FolderLeadsModal({ folder, open, onOpenChange }: Props) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="max-h-[90vh] flex flex-col p-0 gap-0"
-        style={{ width: "calc(100% - 40px)", maxWidth: "calc(100% - 40px)" }}
+        className="flex flex-col p-0 gap-0"
+        style={{ width: "calc(100vw - 40px)", maxWidth: "calc(100vw - 40px)", height: "calc(100vh - 60px)" }}
       >
         {/* ── Header ── */}
         <DialogHeader className="px-6 py-4 border-b shrink-0">
@@ -280,13 +280,15 @@ export function FolderLeadsModal({ folder, open, onOpenChange }: Props) {
         )}
 
         {/* ── Table ── */}
-        <div className="flex-1 overflow-auto">
-          {loading ? (
-            <div className="flex items-center justify-center py-16 text-muted-foreground gap-2">
-              <Loader2 className="h-5 w-5 animate-spin" />
-              <span className="text-sm">Loading…</span>
+        <div className="flex-1 overflow-auto relative">
+          {/* Full-area loading overlay */}
+          {loading && (
+            <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/70 backdrop-blur-[2px]">
+              <Loader2 className="h-9 w-9 animate-spin text-primary" />
             </div>
-          ) : leads.length === 0 ? (
+          )}
+
+          {!loading && leads.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2">
               <Folder className="h-10 w-10 text-muted-foreground/20" />
               <p className="text-sm">{debSearch ? "No leads match your search" : "No leads in this folder"}</p>
