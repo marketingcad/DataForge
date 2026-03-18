@@ -1,18 +1,21 @@
-import { Megaphone } from "lucide-react";
+/**
+ * page.tsx — thin role router
+ * Reads the session role and delegates to the correct view component.
+ * Business logic lives in _views/BossDashboard.tsx and _views/AgentDashboard.tsx
+ */
+import { auth } from "@/lib/auth";
+import { redirect } from "next/navigation";
+import type { Role } from "@/lib/rbac/roles";
+import { BossDashboard } from "./_views/BossDashboard";
+import { AgentDashboard } from "./_views/AgentDashboard";
 
-export default function MarketingPage() {
-  return (
-    <div className="flex flex-col items-center justify-center h-full gap-4 text-center">
-      <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-primary/10">
-        <Megaphone className="h-7 w-7 text-primary" />
-      </div>
-      <div>
-        <h1 className="text-lg font-semibold">Marketing Department</h1>
-        <p className="text-sm text-muted-foreground mt-1 max-w-sm">
-          This department is coming soon. Campaign management, outreach tools,
-          and CRM integrations will live here.
-        </p>
-      </div>
-    </div>
-  );
+export default async function MarketingPage() {
+  const session = await auth();
+  if (!session) redirect("/sign-in");
+
+  const role = (session.user as unknown as Record<string, unknown>)?.role as Role | undefined;
+  if (!role || !["boss", "admin", "sales_rep"].includes(role)) redirect("/unauthorized");
+
+  if (role === "boss" || role === "admin") return <BossDashboard />;
+  return <AgentDashboard userId={session.user.id!} />;
 }

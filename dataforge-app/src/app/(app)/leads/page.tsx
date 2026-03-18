@@ -4,19 +4,26 @@ import { getIndustries } from "@/lib/industry/service";
 import { getFolders } from "@/lib/folders/service";
 import { getLeads } from "@/lib/leads/service";
 import { auth } from "@/lib/auth";
+import { withDbRetry } from "@/lib/prisma";
+import { redirect } from "next/navigation";
 import { Building2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import Link from "next/link";
 
 export default async function LeadsPage() {
   const session = await auth();
+  if (!session) redirect("/sign-in");
+  const role = (session.user as unknown as Record<string, unknown>)?.role as string;
+  if (!["boss", "admin", "lead_specialist"].includes(role)) redirect("/unauthorized");
   const userId = session?.user?.id;
 
-  const [industries, allFolders, unfiledResult] = await Promise.all([
-    userId ? getIndustries(userId) : Promise.resolve([]),
-    userId ? getFolders(userId) : Promise.resolve([]),
-    getLeads({ folderId: "unfiled", pageSize: 1 }),
-  ]);
+  const [industries, allFolders, unfiledResult] = await withDbRetry(() =>
+    Promise.all([
+      userId ? getIndustries(userId) : Promise.resolve([]),
+      userId ? getFolders(userId) : Promise.resolve([]),
+      getLeads({ folderId: "unfiled", pageSize: 1 }),
+    ])
+  );
 
   // Folders with no industryId
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

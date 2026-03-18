@@ -7,6 +7,7 @@
 import { auth } from "@/lib/auth";
 import { ROLE_DEPARTMENTS, type Role, type Department } from "./roles";
 import { getUserById } from "@/lib/users/service";
+import { withDbRetry } from "@/lib/prisma";
 
 /** Throws if the caller is not authenticated. Returns the session. */
 export async function requireAuth() {
@@ -21,7 +22,7 @@ export async function requireAuth() {
  */
 export async function requireRole(...roles: Role[]) {
   const session = await requireAuth();
-  const user = await getUserById(session.user.id!);
+  const user = await withDbRetry(() => getUserById(session.user.id!));
   if (!roles.includes(user.role as Role)) {
     throw new Error(`Access denied. Required role: ${roles.join(" or ")}`);
   }
@@ -34,7 +35,7 @@ export async function requireRole(...roles: Role[]) {
  */
 export async function requireDepartment(dept: Department) {
   const session = await requireAuth();
-  const user = await getUserById(session.user.id!);
+  const user = await withDbRetry(() => getUserById(session.user.id!));
   const allowed = ROLE_DEPARTMENTS[user.role as Role] ?? [];
   if (!allowed.includes(dept)) {
     throw new Error(`Access denied. You do not have access to the '${dept}' department.`);

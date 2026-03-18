@@ -2,7 +2,7 @@ import NextAuth from "next-auth";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
-import { prisma } from "@/lib/prisma";
+import { prisma, withDbRetry } from "@/lib/prisma";
 import { authConfig } from "@/auth.config";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -19,9 +19,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
 
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email as string },
-        });
+        const user = await withDbRetry(() =>
+          prisma.user.findUnique({
+            where: { email: credentials.email as string },
+          })
+        );
 
         if (!user?.password) return null;
 
@@ -43,9 +45,24 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       }
       return token;
     },
-    session({ session, token }) {
-      if (token.id)   session.user.id   = token.id as string;
-      if (token.role) session.user.role = token.role as string;
+    async session({ session, token }) {
+      if (token.id) session.user.id = token.id as string;
+      // Always pull fresh role from DB so role changes take effect immediately.
+      // If the DB is unavailable (Neon cold start), fall back to the JWT role
+      // so auth never breaks due to a transient DB timeout.
+      if (token.id) {
+        try {
+          const fresh = await withDbRetry(() =>
+            prisma.user.findUnique({
+              where: { id: token.id as string },
+              select: { role: true },
+            })
+          );
+          session.user.role = (fresh?.role as string) ?? (token.role as string) ?? "lead_specialist";
+        } catch {
+          session.user.role = (token.role as string) ?? "lead_specialist";
+        }
+      }
       return session;
     },
   },

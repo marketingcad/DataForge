@@ -30,3 +30,16 @@ export async function updateUserRole(id: string, role: Role) {
 export async function getUserCount() {
   return prisma.user.count();
 }
+
+export async function createUser(data: {
+  name: string;
+  email: string;
+  password: string;
+  role: Role;
+}) {
+  return prisma.user.create({ data });
+}
+
+export async function deleteUser(id: string) {
+  return prisma.user.delete({ where: { id } });
+}

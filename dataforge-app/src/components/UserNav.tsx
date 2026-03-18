@@ -4,6 +4,7 @@ import { signOutAction } from "@/actions/auth.actions";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -48,12 +49,14 @@ export function UserNav({ name, email }: UserNavProps) {
         </span>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56" align="end">
-        <DropdownMenuLabel className="font-normal">
-          <div className="flex flex-col gap-1">
-            <p className="text-sm font-medium">{name ?? "User"}</p>
-            <p className="text-xs text-muted-foreground truncate">{email}</p>
-          </div>
-        </DropdownMenuLabel>
+        <DropdownMenuGroup>
+          <DropdownMenuLabel className="font-normal">
+            <div className="flex flex-col gap-1">
+              <p className="text-sm font-medium">{name ?? "User"}</p>
+              <p className="text-xs text-muted-foreground truncate">{email}</p>
+            </div>
+          </DropdownMenuLabel>
+        </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem disabled className="text-muted-foreground">
           <User className="h-4 w-4 mr-2" />
@@ -62,7 +65,7 @@ export function UserNav({ name, email }: UserNavProps) {
         <DropdownMenuSeparator />
         <DropdownMenuItem
           className="text-destructive focus:text-destructive cursor-pointer"
-          onSelect={() => signOutAction()}
+          onClick={() => signOutAction()}
         >
           <LogOut className="h-4 w-4 mr-2" />
           Sign out

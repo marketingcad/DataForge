@@ -2,53 +2,162 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Users, ScanSearch, Megaphone, UserCog } from "lucide-react";
+import {
+  LayoutDashboard,
+  Users,
+  ScanSearch,
+  Megaphone,
+  UserCog,
+  UserCircle,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
-import { canAccessDepartment, canManageUsers, type Role } from "@/lib/rbac/roles";
+import { type Role } from "@/lib/rbac/roles";
 
-const ALL_LINKS = [
-  { href: "/dashboard",   label: "Dashboard", icon: LayoutDashboard, dept: null,       adminOnly: false },
-  { href: "/leads",       label: "Leads",     icon: Users,           dept: "leads",    adminOnly: false },
-  { href: "/scraping",    label: "Scraping",  icon: ScanSearch,      dept: "leads",    adminOnly: false },
-  { href: "/marketing",   label: "Marketing", icon: Megaphone,       dept: "marketing",adminOnly: false },
-  { href: "/admin/users", label: "Users",     icon: UserCog,         dept: null,       adminOnly: true  },
-] as const;
+interface NavItem {
+  href: string;
+  label: string;
+  icon: React.ElementType;
+}
 
-export function SidebarNav({ role }: { role: Role }) {
+interface NavSection {
+  title?: string;
+  items: NavItem[];
+}
+
+function buildSections(role: Role): NavSection[] {
+  switch (role) {
+    case "boss":
+      return [
+        {
+          items: [
+            { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+          ],
+        },
+        {
+          title: "Leads Department",
+          items: [
+            { href: "/leads",    label: "Leads",    icon: Users },
+            { href: "/scraping", label: "Scraping", icon: ScanSearch },
+          ],
+        },
+        {
+          title: "Marketing Department",
+          items: [
+            { href: "/marketing", label: "Marketing", icon: Megaphone },
+          ],
+        },
+        {
+          title: "Administration",
+          items: [
+            { href: "/admin/users", label: "Manage Users", icon: UserCog },
+          ],
+        },
+      ];
+
+    case "admin":
+      return [
+        {
+          items: [
+            { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+          ],
+        },
+        {
+          title: "Leads Department",
+          items: [
+            { href: "/leads",    label: "Leads",    icon: Users },
+            { href: "/scraping", label: "Scraping", icon: ScanSearch },
+          ],
+        },
+        {
+          title: "Marketing Department",
+          items: [
+            { href: "/marketing", label: "Marketing", icon: Megaphone },
+          ],
+        },
+        {
+          title: "Administration",
+          items: [
+            { href: "/admin/users", label: "Manage Users", icon: UserCog },
+          ],
+        },
+      ];
+
+    case "sales_rep":
+      return [
+        {
+          items: [
+            { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+          ],
+        },
+        {
+          title: "Marketing Department",
+          items: [
+            { href: "/marketing",         label: "Marketing",  icon: Megaphone },
+            { href: "/marketing/profile", label: "My Profile", icon: UserCircle },
+          ],
+        },
+      ];
+
+    case "lead_specialist":
+    default:
+      return [
+        {
+          items: [
+            { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+            { href: "/leads",     label: "Leads",     icon: Users },
+            { href: "/scraping",  label: "Scraping",  icon: ScanSearch },
+          ],
+        },
+      ];
+  }
+}
+
+function NavLink({ href, label, icon: Icon }: NavItem) {
   const pathname = usePathname();
-
-  const links = ALL_LINKS.filter((link) => {
-    if (link.adminOnly && !canManageUsers(role)) return false;
-    if (link.dept && !canAccessDepartment(role, link.dept as "leads" | "marketing")) return false;
-    return true;
-  });
+  const active = pathname === href || pathname.startsWith(href + "/");
 
   return (
-    <nav className="flex flex-col gap-0.5 px-3">
-      {links.map(({ href, label, icon: Icon }) => {
-        const active = pathname === href || pathname.startsWith(href + "/");
-        return (
-          <Link
-            key={href}
-            href={href}
-            className={cn(
-              "group flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm font-medium transition-all duration-150",
-              active
-                ? "bg-primary/10 text-primary"
-                : "text-muted-foreground hover:bg-accent hover:text-foreground"
-            )}
-          >
-            <Icon className={cn(
-              "h-3.5 w-3.5 shrink-0 transition-colors",
-              active ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
-            )} />
-            {label}
-            {active && (
-              <span className="ml-auto h-1.5 w-1.5 rounded-full bg-primary" />
-            )}
-          </Link>
-        );
-      })}
+    <Link
+      href={href}
+      className={cn(
+        "group flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm font-medium transition-all duration-150",
+        active
+          ? "bg-primary/10 text-primary"
+          : "text-muted-foreground hover:bg-accent hover:text-foreground"
+      )}
+    >
+      <Icon
+        className={cn(
+          "h-3.5 w-3.5 shrink-0 transition-colors",
+          active ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
+        )}
+      />
+      {label}
+      {active && (
+        <span className="ml-auto h-1.5 w-1.5 rounded-full bg-primary" />
+      )}
+    </Link>
+  );
+}
+
+export function SidebarNav({ role }: { role: Role }) {
+  const effectiveRole: Role = role ?? "lead_specialist";
+  const sections = buildSections(effectiveRole);
+
+  return (
+    <nav className="flex flex-col gap-4 px-3">
+      {sections.map((section, i) => (
+        <div key={i} className="flex flex-col gap-0.5">
+          {section.title && (
+            <p className="px-2.5 mb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">
+              {section.title}
+            </p>
+          )}
+          {section.items.map((item) => (
+            <NavLink key={item.href} {...item} />
+          ))}
+        </div>
+      ))}
     </nav>
   );
 }

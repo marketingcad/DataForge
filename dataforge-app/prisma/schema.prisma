@@ -14,6 +14,18 @@ enum UserRole {
   lead_specialist
 }
 
+enum CallDirection {
+  inbound
+  outbound
+}
+
+enum CallStatus {
+  completed
+  missed
+  voicemail
+  no_answer
+}
+
 enum RecordStatus {
   active
   flagged
@@ -103,12 +115,80 @@ model User {
   image         String?
   password      String?
   role          UserRole  @default(lead_specialist)
+  points        Int       @default(0)
   accounts      Account[]
   sessions      Session[]
   folders       Folder[]
   industries    Industry[]
+  callLogs      CallLog[]
+  userBadges    UserBadge[]
+  taskProgress  TaskProgress[]
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+}
+
+model CallLog {
+  id           String        @id @default(uuid())
+  agentId      String
+  agent        User          @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  contactName  String?
+  contactPhone String?
+  direction    CallDirection @default(outbound)
+  durationSecs Int           @default(0)
+  status       CallStatus    @default(completed)
+  calledAt     DateTime      @default(now())
+  notes        String?
+
+  @@index([agentId])
+  @@index([calledAt])
+}
+
+model Badge {
+  id          String      @id @default(uuid())
+  key         String      @unique
+  name        String
+  description String
+  icon        String
+  color       String      @default("#6366f1")
+  userBadges  UserBadge[]
+}
+
+model UserBadge {
+  id       String   @id @default(uuid())
+  userId   String
+  badgeId  String
+  earnedAt DateTime @default(now())
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badge    Badge    @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, badgeId])
+  @@index([userId])
+}
+
+model MarketingTask {
+  id          String         @id @default(uuid())
+  title       String
+  description String?
+  targetCalls Int
+  pointReward Int
+  startDate   DateTime
+  endDate     DateTime
+  createdAt   DateTime       @default(now())
+  progress    TaskProgress[]
+}
+
+model TaskProgress {
+  id          String        @id @default(uuid())
+  userId      String
+  taskId      String
+  callCount   Int           @default(0)
+  completed   Boolean       @default(false)
+  completedAt DateTime?
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task        MarketingTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, taskId])
+  @@index([userId])
 }
 
 model Account {
