@@ -5,7 +5,7 @@ import {
   sleep, jitter, digitsOnly, sse,
   RateLimiter,
   createBrowserContext, fetchPage, extractLinks, parseLead,
-} from "@/lib/crawler/core";
+} from "@/lib/scraping/crawler/core";
 
 export const maxDuration = 60;
 

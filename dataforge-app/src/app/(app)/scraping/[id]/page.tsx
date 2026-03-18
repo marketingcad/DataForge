@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getJobById } from "@/lib/services/scraping.service";
+import { getJobById } from "@/lib/scraping/jobs/service";
 import { JobDetailPoller } from "@/components/scraping/JobDetailPoller";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";

@@ -1,4 +1,4 @@
-import { getJobs } from "@/lib/services/scraping.service";
+import { getJobs } from "@/lib/scraping/jobs/service";
 import { JobForm } from "@/components/scraping/JobForm";
 import { JobsTable } from "@/components/scraping/JobsTable";
 import { DomainScrapeForm } from "@/components/scraping/DomainScrapeForm";

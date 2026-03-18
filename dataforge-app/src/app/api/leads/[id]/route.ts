@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { updateLead } from "@/lib/services/leads.service";
+import { updateLead } from "@/lib/leads/service";
 import { LeadInputSchema } from "@/types/lead";
 
 export async function GET(

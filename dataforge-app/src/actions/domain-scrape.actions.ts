@@ -1,6 +1,6 @@
 "use server";
 
-import { insertLead } from "@/lib/services/leads.service";
+import { insertLead } from "@/lib/leads/service";
 
 export interface LeadRow {
   businessName: string;

@@ -1,7 +1,7 @@
 "use server";
 
 import { auth } from "@/lib/auth";
-import { getFolders, createFolder, deleteFolder, updateFolderIndustry } from "@/lib/services/folders.service";
+import { getFolders, createFolder, deleteFolder, updateFolderIndustry } from "@/lib/folders/service";
 import { revalidatePath } from "next/cache";
 
 function requireUser() {

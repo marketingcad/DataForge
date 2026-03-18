@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getLeads, insertLead } from "@/lib/services/leads.service";
+import { getLeads, insertLead } from "@/lib/leads/service";
 import { LeadInputSchema } from "@/types/lead";
 
 export async function GET(req: NextRequest) {

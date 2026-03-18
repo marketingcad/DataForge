@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { LeadInputSchema } from "@/types/lead";
-import { insertLead, updateLead, getLeads } from "@/lib/services/leads.service";
+import { insertLead, updateLead, getLeads } from "@/lib/leads/service";
 import { prisma } from "@/lib/prisma";
 
 export async function getLeadsForFolderAction(params: {

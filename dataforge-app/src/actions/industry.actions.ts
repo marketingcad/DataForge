@@ -6,7 +6,7 @@ import {
   getFoldersByIndustry,
   createIndustry,
   deleteIndustry,
-} from "@/lib/services/industry.service";
+} from "@/lib/industry/service";
 import { revalidatePath } from "next/cache";
 
 async function requireUser() {

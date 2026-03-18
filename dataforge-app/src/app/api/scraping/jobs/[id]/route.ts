@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getJobById, updateJobStatus } from "@/lib/services/scraping.service";
+import { getJobById, updateJobStatus } from "@/lib/scraping/jobs/service";
 
 export async function GET(
   _req: NextRequest,

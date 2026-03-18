@@ -3,7 +3,7 @@ import {
   sleep, randInt, sse,
   createBrowserContext,
   humanMouseMove, humanScroll,
-} from "@/lib/crawler/core";
+} from "@/lib/scraping/crawler/core";
 
 export const maxDuration = 300;
 

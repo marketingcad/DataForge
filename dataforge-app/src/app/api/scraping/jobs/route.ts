@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createJob, getJobs } from "@/lib/services/scraping.service";
+import { createJob, getJobs } from "@/lib/scraping/jobs/service";
 import { ScrapingJobInputSchema } from "@/types/scraping";
 
 export async function GET(req: NextRequest) {

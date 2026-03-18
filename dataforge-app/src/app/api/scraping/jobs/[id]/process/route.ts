@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getJobById, updateJobStatus, incrementJobMetric } from "@/lib/services/scraping.service";
-import { discoverBusinesses } from "@/lib/services/discovery.service";
-import { scrapeWebsite } from "@/lib/services/webscraper.service";
-import { insertLead } from "@/lib/services/leads.service";
+import { getJobById, updateJobStatus, incrementJobMetric } from "@/lib/scraping/jobs/service";
+import { discoverBusinesses } from "@/lib/scraping/google/discovery";
+import { scrapeWebsite } from "@/lib/scraping/crawler/web-scraper";
+import { insertLead } from "@/lib/leads/service";
 
 export const maxDuration = 60;
 

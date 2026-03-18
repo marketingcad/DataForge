@@ -1,4 +1,4 @@
-import { getDashboardStats } from "@/lib/services/dashboard.service";
+import { getDashboardStats } from "@/lib/dashboard/service";
 import { StatsCard } from "@/components/dashboard/StatsCard";
 import { LeadsByIndustryChart } from "@/components/dashboard/LeadsByIndustryChart";
 import { QualityDistributionChart } from "@/components/dashboard/QualityDistributionChart";

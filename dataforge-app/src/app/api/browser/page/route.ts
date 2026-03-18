@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createBrowserContext } from "@/lib/crawler/core";
+import { createBrowserContext } from "@/lib/scraping/crawler/core";
 
 export const maxDuration = 30;
 

@@ -1,8 +1,8 @@
 import { Button } from "@/components/ui/button";
 import { IndustryBoard } from "@/components/leads/IndustryBoard";
-import { getIndustries } from "@/lib/services/industry.service";
-import { getFolders } from "@/lib/services/folders.service";
-import { getLeads } from "@/lib/services/leads.service";
+import { getIndustries } from "@/lib/industry/service";
+import { getFolders } from "@/lib/folders/service";
+import { getLeads } from "@/lib/leads/service";
 import { auth } from "@/lib/auth";
 import { Building2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
