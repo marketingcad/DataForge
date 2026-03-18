@@ -11,14 +11,18 @@ import {
   CheckCircle,
   Star,
   ShieldCheck,
-  LayoutDashboard,
   Megaphone,
   ScanSearch,
   UserCog,
+  Trophy,
 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { ROLE_LABELS, type Role } from "@/lib/rbac/roles";
 import Link from "next/link";
+import { getLeaderboard } from "@/lib/marketing/team.service";
+import { LeaderboardSection } from "@/components/marketing/LeaderboardSection";
+import { PeriodToggle } from "@/components/marketing/PeriodToggle";
+import type { Period } from "@/components/marketing/PeriodToggle";
 
 /* ─── Boss / Admin overview ─── */
 async function BossDashboard() {
@@ -236,42 +240,60 @@ async function SpecialistDashboard() {
   );
 }
 
-/* ─── Sales rep placeholder ─── */
-function SalesRepDashboard() {
+/* ─── Sales rep dashboard — leaderboard front and center ─── */
+async function SalesRepDashboard({ userId, period }: { userId: string; period: Period }) {
+  const leaderboard = await withDbRetry(() => getLeaderboard(period));
+  const myRank = leaderboard.findIndex((a) => a.id === userId) + 1;
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-lg font-semibold tracking-tight">Dashboard</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          Your marketing and outreach overview.
-        </p>
-      </div>
-      <Separator />
-      <div className="flex flex-col items-center justify-center h-48 gap-3 text-center">
-        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-pink-500/10">
-          <Megaphone className="h-6 w-6 text-pink-600" />
-        </div>
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <p className="text-sm font-medium">Marketing analytics coming soon</p>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Head to{" "}
-            <Link href="/marketing" className="text-primary hover:underline">
-              Marketing
-            </Link>{" "}
-            to get started.
+          <h1 className="text-lg font-semibold tracking-tight">Dashboard</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            {myRank > 0
+              ? `You're ranked #${myRank} on the team ${period === "yesterday" ? "yesterday" : period === "month" ? "this month" : "this week"}.`
+              : "Your marketing and outreach overview."}
           </p>
         </div>
+        <div className="flex items-center gap-3">
+          <PeriodToggle period={period} />
+          <Link
+            href="/marketing"
+            className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium hover:bg-accent transition-colors"
+          >
+            <Trophy className="h-3.5 w-3.5 text-amber-500" /> Marketing
+          </Link>
+        </div>
       </div>
+
+      <Separator />
+
+      {/* Leaderboard — full width, in their face */}
+      <LeaderboardSection leaderboard={leaderboard} period={period} />
     </div>
   );
 }
 
 /* ─── Entry point — route to correct view by role ─── */
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ period?: string }>;
+}) {
   const session = await auth();
   const role = (session?.user as unknown as Record<string, unknown>)?.role as Role | undefined;
 
   if (role === "boss" || role === "admin") return <BossDashboard />;
-  if (role === "sales_rep") return <SalesRepDashboard />;
+
+  if (role === "sales_rep") {
+    const { period: raw } = await searchParams;
+    const period: Period = (["yesterday", "week", "month"] as const).includes(raw as Period)
+      ? (raw as Period)
+      : "week";
+    return <SalesRepDashboard userId={session!.user.id!} period={period} />;
+  }
+
   return <SpecialistDashboard />;
 }

@@ -5,17 +5,19 @@
  */
 import { prisma } from "@/lib/prisma";
 
-export type LeaderboardPeriod = "today" | "week" | "month";
+export type LeaderboardPeriod = "yesterday" | "week" | "month";
 
-function periodSince(period: LeaderboardPeriod): Date {
+function periodRange(period: LeaderboardPeriod): { gte: Date; lte?: Date } {
   const now = new Date();
-  if (period === "today") {
-    const d = new Date(now); d.setHours(0, 0, 0, 0); return d;
+  if (period === "yesterday") {
+    const start = new Date(now); start.setDate(now.getDate() - 1); start.setHours(0, 0, 0, 0);
+    const end   = new Date(now); end.setDate(now.getDate() - 1);   end.setHours(23, 59, 59, 999);
+    return { gte: start, lte: end };
   }
   if (period === "week") {
-    const d = new Date(now); d.setDate(now.getDate() - 7); return d;
+    return { gte: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000) };
   }
-  return new Date(now.getFullYear(), now.getMonth(), 1);
+  return { gte: new Date(now.getFullYear(), now.getMonth(), 1) };
 }
 
 /** Team KPI summary: agent count + call totals for today / week / month */
@@ -37,14 +39,14 @@ export async function getTeamSummary() {
 
 /** Sorted leaderboard of all sales_rep agents for the given period */
 export async function getLeaderboard(period: LeaderboardPeriod = "week") {
-  const since = periodSince(period);
+  const range = periodRange(period);
 
   const agents = await prisma.user.findMany({
     where: { role: "sales_rep" },
     select: {
       id: true, name: true, email: true, points: true,
       callLogs: {
-        where: { calledAt: { gte: since } },
+        where: { calledAt: range },
         select: { id: true, durationSecs: true },
       },
       userBadges: {

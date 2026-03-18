@@ -16,9 +16,10 @@ import Link from "next/link";
 
 interface Props {
   userId: string;
+  period?: string;
 }
 
-export async function AgentDashboard({ userId }: Props) {
+export async function AgentDashboard({ userId, period = "week" }: Props) {
   const [stats, recentCalls, leaderboard] = await withDbRetry(() =>
     Promise.all([
       getAgentStats(userId),
