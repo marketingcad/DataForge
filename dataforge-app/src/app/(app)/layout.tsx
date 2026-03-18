@@ -6,6 +6,7 @@ import { SidebarNav } from "@/components/SidebarNav";
 import { UserNav } from "@/components/UserNav";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { NotificationBell } from "@/components/NotificationBell";
+import { FeedbackButton } from "@/components/FeedbackButton";
 import { Separator } from "@/components/ui/separator";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -56,6 +57,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
           {/* Right side */}
           <div className="flex items-center gap-2">
+            <FeedbackButton />
             <ThemeToggle />
             <NotificationBell />
             <Separator orientation="vertical" className="h-6" />

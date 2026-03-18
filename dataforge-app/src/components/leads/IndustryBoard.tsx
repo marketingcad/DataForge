@@ -73,17 +73,21 @@ interface IndustryCardProps {
   deleting?: boolean;
 }
 
+function FolderIcon({ color }: { color: string }) {
+  return (
+    <svg viewBox="0 0 48 40" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
+      <path d="M2 8C2 5.79086 3.79086 4 6 4H18L22 8H42C44.2091 8 46 9.79086 46 12V34C46 36.2091 44.2091 38 42 38H6C3.79086 38 2 36.2091 2 34V8Z" fill={color} fillOpacity="0.85" />
+      <path d="M2 14H46V34C46 36.2091 44.2091 38 42 38H6C3.79086 38 2 36.2091 2 34V14Z" fill={color} />
+    </svg>
+  );
+}
+
 function IndustryCard({ industry, onClick, onDelete, deleting }: IndustryCardProps) {
   return (
-    <div
-      className="relative w-64 shrink-0 rounded-xl border bg-card hover:border-border hover:shadow-md transition-all duration-150 overflow-hidden group"
-    >
-      {/* Colored top bar */}
-      <div className="h-1.5 w-full" style={{ backgroundColor: industry.color }} />
-
+    <div className="group relative rounded-xl border bg-card hover:shadow-md hover:border-border/80 transition-all duration-150 overflow-hidden cursor-pointer">
       {/* Three-dot menu */}
       {onDelete && (
-        <div className="absolute top-3.5 right-3 z-10" onClick={(e) => e.stopPropagation()}>
+        <div className="absolute top-2.5 right-2.5 z-10" onClick={(e) => e.stopPropagation()}>
           <DropdownMenu>
             <DropdownMenuTrigger
               render={<Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground" />}
@@ -104,62 +108,33 @@ function IndustryCard({ industry, onClick, onDelete, deleting }: IndustryCardPro
         </div>
       )}
 
-      {/* Card body */}
-      <button
-        onClick={onClick}
-        className="w-full text-left p-4 space-y-4 focus:outline-none"
-      >
-        {/* Icon + name */}
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div
-              className="flex h-9 w-9 items-center justify-center rounded-lg shrink-0"
-              style={{ backgroundColor: industry.color + "20" }}
-            >
-              <Building2 className="h-4 w-4" style={{ color: industry.color }} />
-            </div>
-            <div className="min-w-0 pr-6">
-              <p className="text-sm font-semibold truncate leading-tight">{industry.name}</p>
-              {industry.user?.name && (
-                <p className="text-[11px] text-muted-foreground truncate mt-0.5">
-                  {industry.user.name}
-                </p>
-              )}
-            </div>
+      <button onClick={onClick} className="w-full text-left p-4 flex flex-col items-center gap-3 focus:outline-none">
+        {/* Big folder icon */}
+        <div className="w-14 h-12 mt-1">
+          <FolderIcon color={industry.color} />
+        </div>
+
+        {/* Name */}
+        <div className="w-full text-center">
+          <p className="text-sm font-semibold truncate leading-tight">{industry.name}</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">
+            {format(new Date(industry.updatedAt), "MMM d, yyyy")}
+          </p>
+        </div>
+
+        {/* Stats row */}
+        <div className="w-full flex items-center justify-between pt-2 border-t">
+          <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+            <FolderOpen className="h-3 w-3" />
+            <span>{industry._count.folders}</span>
           </div>
           <Badge
-            className="shrink-0 text-xs tabular-nums font-semibold"
+            className="shrink-0 text-[10px] tabular-nums font-semibold px-1.5 py-0.5"
             style={{ backgroundColor: industry.color + "18", color: industry.color, border: "none" }}
           >
-            {industry._count.folders}
+            {industry.totalLeads.toLocaleString()} leads
           </Badge>
         </div>
-
-        {/* Meta info */}
-        <div className="space-y-1.5">
-          <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-            <FolderOpen className="h-3 w-3 shrink-0" />
-            <span>
-              {industry._count.folders} folder{industry._count.folders !== 1 ? "s" : ""}
-            </span>
-          </div>
-          <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-            <Users className="h-3 w-3 shrink-0" />
-            <span>{industry.totalLeads.toLocaleString()} lead{industry.totalLeads !== 1 ? "s" : ""}</span>
-          </div>
-          <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-            <Calendar className="h-3 w-3 shrink-0" />
-            <span>Created {format(new Date(industry.createdAt), "MMM d, yyyy")}</span>
-          </div>
-          <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-            <RefreshCw className="h-3 w-3 shrink-0" />
-            <span>Updated {format(new Date(industry.updatedAt), "MMM d, yyyy")}</span>
-          </div>
-        </div>
-
-        <p className="text-[11px] font-medium" style={{ color: industry.color }}>
-          Click to view folders →
-        </p>
       </button>
     </div>
   );
@@ -177,39 +152,27 @@ function UncategorizedCard({
 }) {
   const color = "#64748b";
   return (
-    <div className="relative w-64 shrink-0 rounded-xl border bg-card hover:border-border hover:shadow-md transition-all duration-150 overflow-hidden">
-      <div className="h-1.5 w-full" style={{ backgroundColor: color }} />
-      <button onClick={onClick} className="w-full text-left p-4 space-y-4 focus:outline-none">
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div
-              className="flex h-9 w-9 items-center justify-center rounded-lg shrink-0"
-              style={{ backgroundColor: color + "20" }}
-            >
-              <FolderOpen className="h-4 w-4" style={{ color }} />
-            </div>
-            <p className="text-sm font-semibold truncate leading-tight pr-2">Uncategorized</p>
+    <div className="group relative rounded-xl border bg-card hover:shadow-md hover:border-border/80 transition-all duration-150 overflow-hidden cursor-pointer">
+      <button onClick={onClick} className="w-full text-left p-4 flex flex-col items-center gap-3 focus:outline-none">
+        <div className="w-14 h-12 mt-1">
+          <FolderIcon color={color} />
+        </div>
+        <div className="w-full text-center">
+          <p className="text-sm font-semibold truncate leading-tight">Uncategorized</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">{count} folder{count !== 1 ? "s" : ""}</p>
+        </div>
+        <div className="w-full flex items-center justify-between pt-2 border-t">
+          <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+            <FolderOpen className="h-3 w-3" />
+            <span>{count}</span>
           </div>
           <Badge
-            className="shrink-0 text-xs tabular-nums font-semibold"
+            className="shrink-0 text-[10px] tabular-nums font-semibold px-1.5 py-0.5"
             style={{ backgroundColor: color + "18", color, border: "none" }}
           >
-            {count}
+            {totalLeads.toLocaleString()} leads
           </Badge>
         </div>
-        <div className="space-y-1.5">
-          <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-            <FolderOpen className="h-3 w-3 shrink-0" />
-            <span>{count} folder{count !== 1 ? "s" : ""}</span>
-          </div>
-          <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-            <Users className="h-3 w-3 shrink-0" />
-            <span>{totalLeads.toLocaleString()} lead{totalLeads !== 1 ? "s" : ""}</span>
-          </div>
-        </div>
-        <p className="text-[11px] font-medium" style={{ color }}>
-          Click to view folders →
-        </p>
       </button>
     </div>
   );
@@ -329,7 +292,7 @@ export function IndustryBoard({ industries: initialIndustries, unfiledFolders }:
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
         {filteredIndustries.map((industry) => (
           <IndustryCard
             key={industry.id}
@@ -349,7 +312,7 @@ export function IndustryBoard({ industries: initialIndustries, unfiledFolders }:
         )}
 
         {filteredIndustries.length === 0 && !showUncategorizedCard && search && (
-          <p className="text-sm text-muted-foreground py-12 w-full text-center">
+          <p className="text-sm text-muted-foreground py-12 col-span-full text-center">
             No categories match &ldquo;{search}&rdquo;
           </p>
         )}

@@ -9,6 +9,10 @@ import {
   Megaphone,
   UserCog,
   UserCircle,
+  LayoutGrid,
+  CalendarDays,
+  MessageSquare,
+  Flag,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { type Role } from "@/lib/rbac/roles";
@@ -47,6 +51,15 @@ function buildSections(role: Role): NavSection[] {
           ],
         },
         {
+          title: "Workspace",
+          items: [
+            { href: "/kanban",   label: "Kanban",   icon: LayoutGrid },
+            { href: "/calendar", label: "Calendar", icon: CalendarDays },
+            { href: "/chat",     label: "Chat",     icon: MessageSquare },
+            { href: "/feedback", label: "Reports",  icon: Flag },
+          ],
+        },
+        {
           title: "Administration",
           items: [
             { href: "/admin/users", label: "Manage Users", icon: UserCog },
@@ -75,6 +88,15 @@ function buildSections(role: Role): NavSection[] {
           ],
         },
         {
+          title: "Workspace",
+          items: [
+            { href: "/kanban",   label: "Kanban",   icon: LayoutGrid },
+            { href: "/calendar", label: "Calendar", icon: CalendarDays },
+            { href: "/chat",     label: "Chat",     icon: MessageSquare },
+            { href: "/feedback", label: "Reports",  icon: Flag },
+          ],
+        },
+        {
           title: "Administration",
           items: [
             { href: "/admin/users", label: "Manage Users", icon: UserCog },
@@ -96,6 +118,15 @@ function buildSections(role: Role): NavSection[] {
             { href: "/marketing/profile", label: "My Profile", icon: UserCircle },
           ],
         },
+        {
+          title: "Workspace",
+          items: [
+            { href: "/kanban",   label: "Kanban",   icon: LayoutGrid },
+            { href: "/calendar", label: "Calendar", icon: CalendarDays },
+            { href: "/chat",     label: "Chat",     icon: MessageSquare },
+            { href: "/feedback", label: "Reports",  icon: Flag },
+          ],
+        },
       ];
 
     case "lead_specialist":
@@ -106,6 +137,15 @@ function buildSections(role: Role): NavSection[] {
             { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
             { href: "/leads",     label: "Leads",     icon: Users },
             { href: "/scraping",  label: "Scraping",  icon: ScanSearch },
+          ],
+        },
+        {
+          title: "Workspace",
+          items: [
+            { href: "/kanban",   label: "Kanban",   icon: LayoutGrid },
+            { href: "/calendar", label: "Calendar", icon: CalendarDays },
+            { href: "/chat",     label: "Chat",     icon: MessageSquare },
+            { href: "/feedback", label: "Reports",  icon: Flag },
           ],
         },
       ];

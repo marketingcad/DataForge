@@ -118,13 +118,18 @@ model User {
   points        Int       @default(0)
   accounts      Account[]
   sessions      Session[]
-  folders       Folder[]
-  industries    Industry[]
-  callLogs      CallLog[]
-  userBadges    UserBadge[]
-  taskProgress  TaskProgress[]
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  folders          Folder[]
+  industries       Industry[]
+  callLogs         CallLog[]
+  userBadges       UserBadge[]
+  taskProgress     TaskProgress[]
+  feedbackReports  FeedbackReport[]
+  kanbanCreated    KanbanTask[]     @relation("KanbanCreated")
+  kanbanAssigned   KanbanTask[]     @relation("KanbanAssigned")
+  calendarEvents   CalendarEvent[]
+  chatMessages     ChatMessage[]
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 }
 
 model CallLog {
@@ -221,6 +226,100 @@ model VerificationToken {
   expires    DateTime
 
   @@id([identifier, token])
+}
+
+// ── Feedback / Bug reports ──────────────────────────────────────────────────
+enum FeedbackType {
+  bug
+  feature
+}
+
+enum FeedbackStatus {
+  open
+  in_review
+  resolved
+  closed
+}
+
+model FeedbackReport {
+  id          String         @id @default(uuid())
+  type        FeedbackType
+  title       String
+  description String
+  status      FeedbackStatus @default(open)
+  priority    String         @default("medium")
+  submittedBy String
+  user        User           @relation(fields: [submittedBy], references: [id], onDelete: Cascade)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([submittedBy])
+  @@index([status])
+}
+
+// ── Kanban ──────────────────────────────────────────────────────────────────
+enum KanbanColumn {
+  backlog
+  in_progress
+  in_review
+  done
+}
+
+enum KanbanPriority {
+  low
+  medium
+  high
+}
+
+model KanbanTask {
+  id          String         @id @default(uuid())
+  title       String
+  description String?
+  column      KanbanColumn   @default(backlog)
+  priority    KanbanPriority @default(medium)
+  dueDate     DateTime?
+  tags        String[]
+  position    Int            @default(0)
+  createdById String
+  assigneeId  String?
+  createdBy   User           @relation("KanbanCreated",  fields: [createdById], references: [id], onDelete: Cascade)
+  assignee    User?          @relation("KanbanAssigned", fields: [assigneeId],  references: [id], onDelete: SetNull)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([column])
+  @@index([createdById])
+  @@index([assigneeId])
+}
+
+// ── Calendar ─────────────────────────────────────────────────────────────────
+model CalendarEvent {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  startDate   DateTime
+  endDate     DateTime?
+  allDay      Boolean  @default(true)
+  color       String   @default("#6366f1")
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([startDate])
+  @@index([createdById])
+}
+
+// ── Chat ─────────────────────────────────────────────────────────────────────
+model ChatMessage {
+  id        String   @id @default(uuid())
+  content   String
+  senderId  String
+  sender    User     @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([senderId])
+  @@index([createdAt])
 }
 
 model ScrapingJob {
