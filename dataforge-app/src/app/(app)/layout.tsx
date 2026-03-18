@@ -13,6 +13,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (!session) redirect("/sign-in");
 
   const user = session.user;
+  const role = (user?.role as string | undefined) ?? "lead_specialist";
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
@@ -32,7 +33,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <p className="px-5 mb-1.5 text-xs font-semibold uppercase tracking-widest text-muted-foreground/50">
             Navigation
           </p>
-          <SidebarNav />
+          <SidebarNav role={role as import("@/lib/rbac/roles").Role} />
         </div>
 
         {/* Footer */}

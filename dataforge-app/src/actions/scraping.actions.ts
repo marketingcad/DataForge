@@ -4,8 +4,10 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { ScrapingJobInputSchema } from "@/types/scraping";
 import { createJob } from "@/lib/scraping/jobs/service";
+import { requireDepartment } from "@/lib/rbac/guards";
 
 export async function createJobAction(formData: FormData) {
+  await requireDepartment("leads");
   const raw = Object.fromEntries(formData.entries());
   const parsed = ScrapingJobInputSchema.safeParse(raw);
 

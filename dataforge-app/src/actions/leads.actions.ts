@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { LeadInputSchema } from "@/types/lead";
 import { insertLead, updateLead, getLeads } from "@/lib/leads/service";
 import { prisma } from "@/lib/prisma";
+import { requireDepartment } from "@/lib/rbac/guards";
 
 export async function getLeadsForFolderAction(params: {
   folderId: string;
@@ -20,6 +21,7 @@ export async function getLeadsForFolderAction(params: {
   hasContact?: boolean;
   searchField?: "business" | "contact" | "location" | "phone" | "email" | "website" | "score";
 }) {
+  await requireDepartment("leads");
   return getLeads({
     folderId: params.folderId,
     search: params.search || "",
@@ -38,16 +40,19 @@ export async function getLeadsForFolderAction(params: {
 }
 
 export async function getAllLeadsForExportAction(folderId: string) {
+  await requireDepartment("leads");
   return getLeads({ folderId, pageSize: 5000 });
 }
 
 export async function bulkDeleteLeadsAction(ids: string[]) {
+  await requireDepartment("leads");
   if (!ids.length) return;
   await prisma.lead.deleteMany({ where: { id: { in: ids } } });
   revalidatePath("/leads");
 }
 
 export async function createLeadAction(formData: FormData) {
+  await requireDepartment("leads");
   const raw = Object.fromEntries(formData.entries());
   const parsed = LeadInputSchema.safeParse(raw);
 
@@ -67,6 +72,7 @@ export async function createLeadAction(formData: FormData) {
 }
 
 export async function updateLeadAction(id: string, formData: FormData) {
+  await requireDepartment("leads");
   const raw = Object.fromEntries(formData.entries());
   const parsed = LeadInputSchema.partial().safeParse(raw);
 
@@ -82,12 +88,14 @@ export async function updateLeadAction(id: string, formData: FormData) {
 }
 
 export async function deleteLeadAction(id: string) {
+  await requireDepartment("leads");
   await prisma.lead.delete({ where: { id } });
   revalidatePath("/leads");
   redirect("/leads");
 }
 
 export async function updateLeadStatusAction(id: string, status: "active" | "flagged" | "invalid") {
+  await requireDepartment("leads");
   await prisma.lead.update({
     where: { id },
     data: { recordStatus: status },

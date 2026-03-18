@@ -36,11 +36,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   ],
   callbacks: {
     jwt({ token, user }) {
-      if (user) token.id = user.id;
+      if (user) {
+        token.id = user.id;
+        // Carry role into the JWT so middleware can read it without a DB call
+        token.role = (user as unknown as Record<string, unknown>).role as string ?? "lead_specialist";
+      }
       return token;
     },
     session({ session, token }) {
-      if (token.id) session.user.id = token.id as string;
+      if (token.id)   session.user.id   = token.id as string;
+      if (token.role) session.user.role = token.role as string;
       return session;
     },
   },

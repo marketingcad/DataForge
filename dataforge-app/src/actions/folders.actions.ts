@@ -1,37 +1,26 @@
 "use server";
 
-import { auth } from "@/lib/auth";
 import { getFolders, createFolder, deleteFolder, updateFolderIndustry } from "@/lib/folders/service";
+import { requireDepartment } from "@/lib/rbac/guards";
 import { revalidatePath } from "next/cache";
 
-function requireUser() {
-  return auth().then((s) => {
-    if (!s?.user?.id) throw new Error("Not authenticated");
-    return s.user.id;
-  });
-}
-
 export async function getFoldersAction() {
-  const userId = await requireUser();
-  return getFolders(userId);
+  const user = await requireDepartment("leads");
+  return getFolders(user.id);
 }
 
-export async function createFolderAction(
-  name: string,
-  color: string,
-  industryId?: string | null,
-) {
-  const userId = await requireUser();
-  return createFolder(userId, name.trim(), color, industryId);
+export async function createFolderAction(name: string, color: string, industryId?: string | null) {
+  const user = await requireDepartment("leads");
+  return createFolder(user.id, name.trim(), color, industryId);
 }
 
 export async function deleteFolderAction(id: string) {
-  const userId = await requireUser();
-  return deleteFolder(id, userId);
+  const user = await requireDepartment("leads");
+  return deleteFolder(id, user.id);
 }
 
 export async function updateFolderCategoryAction(id: string, industryId: string | null) {
-  const userId = await requireUser();
-  await updateFolderIndustry(id, userId, industryId);
+  const user = await requireDepartment("leads");
+  await updateFolderIndustry(id, user.id, industryId);
   revalidatePath("/leads");
 }

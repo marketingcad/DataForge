@@ -2,17 +2,26 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Users, ScanSearch } from "lucide-react";
+import { LayoutDashboard, Users, ScanSearch, Megaphone, UserCog } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { canAccessDepartment, canManageUsers, type Role } from "@/lib/rbac/roles";
 
-const links = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/leads",     label: "Leads",     icon: Users },
-  { href: "/scraping",  label: "Scraping",  icon: ScanSearch },
-];
+const ALL_LINKS = [
+  { href: "/dashboard",   label: "Dashboard", icon: LayoutDashboard, dept: null,       adminOnly: false },
+  { href: "/leads",       label: "Leads",     icon: Users,           dept: "leads",    adminOnly: false },
+  { href: "/scraping",    label: "Scraping",  icon: ScanSearch,      dept: "leads",    adminOnly: false },
+  { href: "/marketing",   label: "Marketing", icon: Megaphone,       dept: "marketing",adminOnly: false },
+  { href: "/admin/users", label: "Users",     icon: UserCog,         dept: null,       adminOnly: true  },
+] as const;
 
-export function SidebarNav() {
+export function SidebarNav({ role }: { role: Role }) {
   const pathname = usePathname();
+
+  const links = ALL_LINKS.filter((link) => {
+    if (link.adminOnly && !canManageUsers(role)) return false;
+    if (link.dept && !canAccessDepartment(role, link.dept as "leads" | "marketing")) return false;
+    return true;
+  });
 
   return (
     <nav className="flex flex-col gap-0.5 px-3">

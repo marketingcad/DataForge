@@ -21,7 +21,11 @@ export async function registerAction(formData: FormData) {
   if (existing) return { error: "An account with that email already exists." };
 
   const hashed = await bcrypt.hash(password, 12);
-  await prisma.user.create({ data: { name, email, password: hashed } });
+  // First user ever registered automatically becomes boss
+  const isFirstUser = (await prisma.user.count()) === 0;
+  await prisma.user.create({
+    data: { name, email, password: hashed, role: isFirstUser ? "boss" : "lead_specialist" },
+  });
 
   await signIn("credentials", { email, password, redirectTo: "/dashboard" });
 }
