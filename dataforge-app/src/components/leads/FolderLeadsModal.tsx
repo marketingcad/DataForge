@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNotifications } from "@/lib/notifications";
+import { formatPhone } from "@/lib/utils/normalize";
 
 type Lead = {
   id: string;
@@ -652,7 +653,7 @@ export function FolderLeadsModal({
                       <TableCell className="text-sm font-mono whitespace-nowrap">
                         <CopyCell value={lead.phone}>
                           <span className="inline-flex items-center gap-1 whitespace-nowrap">
-                            <Phone className="h-3 w-3 text-muted-foreground shrink-0" />{lead.phone}
+                            <Phone className="h-3 w-3 text-muted-foreground shrink-0" />{formatPhone(lead.phone)}
                           </span>
                         </CopyCell>
                       </TableCell>
