@@ -1,8 +1,8 @@
 import { prisma } from "@/lib/prisma";
 
-export async function getIndustries(userId: string) {
+export async function getIndustries(userId?: string) {
   const industries = await prisma.industry.findMany({
-    where: { userId },
+    where: userId ? { userId } : undefined,
     orderBy: { createdAt: "asc" },
     include: {
       _count: { select: { folders: true } },
@@ -19,9 +19,9 @@ export async function getIndustries(userId: string) {
   }));
 }
 
-export async function getFoldersByIndustry(industryId: string, userId: string) {
+export async function getFoldersByIndustry(industryId: string, userId?: string) {
   return prisma.folder.findMany({
-    where: { industryId, userId },
+    where: { industryId, ...(userId ? { userId } : {}) },
     orderBy: { createdAt: "asc" },
     include: {
       _count: { select: { leads: true } },
@@ -36,6 +36,6 @@ export async function createIndustry(userId: string, name: string, color: string
   });
 }
 
-export async function deleteIndustry(id: string, userId: string) {
-  return prisma.industry.deleteMany({ where: { id, userId } });
+export async function deleteIndustry(id: string, userId?: string) {
+  return prisma.industry.deleteMany({ where: { id, ...(userId ? { userId } : {}) } });
 }

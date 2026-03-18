@@ -18,7 +18,14 @@ export async function getUsers() {
       name:      true,
       email:     true,
       role:      true,
+      points:    true,
       createdAt: true,
+      _count: {
+        select: {
+          callLogs:   true,
+          userBadges: true,
+        },
+      },
     },
   });
 }

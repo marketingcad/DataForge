@@ -1,8 +1,10 @@
 import { Button } from "@/components/ui/button";
 import { IndustryBoard } from "@/components/leads/IndustryBoard";
+import { LeadsGlobe } from "@/components/leads/LeadsGlobe";
 import { getIndustries } from "@/lib/industry/service";
 import { getFolders } from "@/lib/folders/service";
 import { getLeads } from "@/lib/leads/service";
+import { getLeadLocations } from "@/lib/leads/locations";
 import { auth } from "@/lib/auth";
 import { withDbRetry } from "@/lib/prisma";
 import { redirect } from "next/navigation";
@@ -15,17 +17,21 @@ export default async function LeadsPage() {
   if (!session) redirect("/sign-in");
   const role = (session.user as unknown as Record<string, unknown>)?.role as string;
   if (!["boss", "admin", "lead_specialist"].includes(role)) redirect("/unauthorized");
-  const userId = session?.user?.id;
 
-  const [industries, allFolders, unfiledResult] = await withDbRetry(() =>
+  const isAdmin = role === "boss" || role === "admin";
+
+  // Boss/admin see all data; lead_specialist sees only their own
+  const scopedUserId = isAdmin ? undefined : session.user.id ?? undefined;
+
+  const [industries, allFolders, unfiledResult, locations] = await withDbRetry(() =>
     Promise.all([
-      userId ? getIndustries(userId) : Promise.resolve([]),
-      userId ? getFolders(userId) : Promise.resolve([]),
+      getIndustries(scopedUserId),
+      getFolders(scopedUserId),
       getLeads({ folderId: "unfiled", pageSize: 1 }),
+      isAdmin ? getLeadLocations() : Promise.resolve([]),
     ])
   );
 
-  // Folders with no industryId
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const unfiledFolders = (allFolders as any[]).filter((f) => !f.industryId);
 
@@ -51,6 +57,11 @@ export default async function LeadsPage() {
           </Button>
         </Link>
       </div>
+
+      {/* Globe — boss/admin only */}
+      {isAdmin && locations.length > 0 && (
+        <LeadsGlobe points={locations} />
+      )}
 
       <Separator />
 

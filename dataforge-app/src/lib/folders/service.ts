@@ -1,8 +1,8 @@
 import { prisma } from "@/lib/prisma";
 
-export async function getFolders(userId: string) {
+export async function getFolders(userId?: string) {
   return prisma.folder.findMany({
-    where: { userId },
+    where: userId ? { userId } : undefined,
     orderBy: { createdAt: "asc" },
     include: {
       _count: { select: { leads: true } },
@@ -46,17 +46,17 @@ export async function createFolder(
   });
 }
 
-export async function deleteFolder(id: string, userId: string) {
-  return prisma.folder.deleteMany({ where: { id, userId } });
+export async function deleteFolder(id: string, userId?: string) {
+  return prisma.folder.deleteMany({ where: { id, ...(userId ? { userId } : {}) } });
 }
 
 export async function updateFolderIndustry(
   id: string,
-  userId: string,
+  userId: string | undefined,
   industryId: string | null,
 ) {
   return prisma.folder.updateMany({
-    where: { id, userId },
+    where: { id, ...(userId ? { userId } : {}) },
     data: { industryId },
   });
 }

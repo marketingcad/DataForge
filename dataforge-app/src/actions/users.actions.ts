@@ -6,7 +6,7 @@ import { canCreateRole, type Role } from "@/lib/rbac/roles";
 import { getUsers, updateUserRole, createUser, deleteUser } from "@/lib/users/service";
 import { auth } from "@/lib/auth";
 import bcrypt from "bcryptjs";
-import { prisma } from "@/lib/prisma";
+import { prisma, withDbRetry } from "@/lib/prisma";
 
 export async function getUsersAction() {
   await requireRole("boss", "admin");
@@ -54,6 +54,17 @@ export async function createUserAction(formData: {
   revalidatePath("/admin/users");
 }
 
+export async function updateUserEmailAction(targetUserId: string, email: string) {
+  await requireRole("boss", "admin");
+  if (!email) throw new Error("Email is required.");
+
+  const existing = await prisma.user.findUnique({ where: { email } });
+  if (existing && existing.id !== targetUserId) throw new Error("Email is already in use by another account.");
+
+  await prisma.user.update({ where: { id: targetUserId }, data: { email } });
+  revalidatePath("/admin/users");
+}
+
 export async function deleteUserAction(targetUserId: string) {
   const actor = await requireRole("boss", "admin");
   const session = await auth();
@@ -68,4 +79,36 @@ export async function deleteUserAction(targetUserId: string) {
 
   await deleteUser(targetUserId);
   revalidatePath("/admin/users");
+}
+
+export async function getUserDetailAction(userId: string) {
+  await requireRole("boss", "admin");
+  return withDbRetry(async () => {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const weekStart  = new Date(todayStart.getTime() - 6 * 24 * 60 * 60 * 1000);
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const [user, callsToday, callsThisWeek, callsThisMonth] = await Promise.all([
+      prisma.user.findUniqueOrThrow({
+        where: { id: userId },
+        include: {
+          userBadges: {
+            include: { badge: true },
+            orderBy: { earnedAt: "desc" },
+          },
+          callLogs: {
+            orderBy: { calledAt: "desc" },
+            take: 5,
+          },
+          _count: { select: { callLogs: true, userBadges: true } },
+        },
+      }),
+      prisma.callLog.count({ where: { agentId: userId, calledAt: { gte: todayStart } } }),
+      prisma.callLog.count({ where: { agentId: userId, calledAt: { gte: weekStart  } } }),
+      prisma.callLog.count({ where: { agentId: userId, calledAt: { gte: monthStart } } }),
+    ]);
+
+    return { user, callsToday, callsThisWeek, callsThisMonth };
+  });
 }
