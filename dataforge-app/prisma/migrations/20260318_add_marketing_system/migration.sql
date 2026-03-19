@@ -1,13 +1,23 @@
 -- Marketing system: CallLog, Badge, UserBadge, MarketingTask, TaskProgress
 -- Also adds points column to User
 
-CREATE TYPE "CallDirection" AS ENUM ('inbound', 'outbound');
-CREATE TYPE "CallStatus"    AS ENUM ('completed', 'missed', 'voicemail', 'no_answer');
+DO $$ BEGIN
+  CREATE TYPE "CallDirection" AS ENUM ('inbound', 'outbound');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE TYPE "CallStatus" AS ENUM ('completed', 'missed', 'voicemail', 'no_answer');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Add points to User
-ALTER TABLE "User" ADD COLUMN "points" INTEGER NOT NULL DEFAULT 0;
+DO $$ BEGIN
+  ALTER TABLE "User" ADD COLUMN "points" INTEGER NOT NULL DEFAULT 0;
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
 
-CREATE TABLE "CallLog" (
+CREATE TABLE IF NOT EXISTS "CallLog" (
   "id"           TEXT         NOT NULL,
   "agentId"      TEXT         NOT NULL,
   "contactName"  TEXT,
@@ -20,7 +30,7 @@ CREATE TABLE "CallLog" (
   CONSTRAINT "CallLog_pkey" PRIMARY KEY ("id")
 );
 
-CREATE TABLE "Badge" (
+CREATE TABLE IF NOT EXISTS "Badge" (
   "id"          TEXT NOT NULL,
   "key"         TEXT NOT NULL,
   "name"        TEXT NOT NULL,
@@ -30,7 +40,7 @@ CREATE TABLE "Badge" (
   CONSTRAINT "Badge_pkey" PRIMARY KEY ("id")
 );
 
-CREATE TABLE "UserBadge" (
+CREATE TABLE IF NOT EXISTS "UserBadge" (
   "id"       TEXT         NOT NULL,
   "userId"   TEXT         NOT NULL,
   "badgeId"  TEXT         NOT NULL,
@@ -38,7 +48,7 @@ CREATE TABLE "UserBadge" (
   CONSTRAINT "UserBadge_pkey" PRIMARY KEY ("id")
 );
 
-CREATE TABLE "MarketingTask" (
+CREATE TABLE IF NOT EXISTS "MarketingTask" (
   "id"          TEXT         NOT NULL,
   "title"       TEXT         NOT NULL,
   "description" TEXT,
@@ -50,7 +60,7 @@ CREATE TABLE "MarketingTask" (
   CONSTRAINT "MarketingTask_pkey" PRIMARY KEY ("id")
 );
 
-CREATE TABLE "TaskProgress" (
+CREATE TABLE IF NOT EXISTS "TaskProgress" (
   "id"          TEXT         NOT NULL,
   "userId"      TEXT         NOT NULL,
   "taskId"      TEXT         NOT NULL,
@@ -61,13 +71,13 @@ CREATE TABLE "TaskProgress" (
 );
 
 -- Indexes
-CREATE INDEX "CallLog_agentId_idx"    ON "CallLog"("agentId");
-CREATE INDEX "CallLog_calledAt_idx"   ON "CallLog"("calledAt");
-CREATE UNIQUE INDEX "Badge_key_key"   ON "Badge"("key");
-CREATE INDEX "UserBadge_userId_idx"   ON "UserBadge"("userId");
-CREATE UNIQUE INDEX "UserBadge_userId_badgeId_key" ON "UserBadge"("userId", "badgeId");
-CREATE INDEX "TaskProgress_userId_idx" ON "TaskProgress"("userId");
-CREATE UNIQUE INDEX "TaskProgress_userId_taskId_key" ON "TaskProgress"("userId", "taskId");
+CREATE INDEX IF NOT EXISTS "CallLog_agentId_idx"    ON "CallLog"("agentId");
+CREATE INDEX IF NOT EXISTS "CallLog_calledAt_idx"   ON "CallLog"("calledAt");
+CREATE UNIQUE INDEX IF NOT EXISTS "Badge_key_key"   ON "Badge"("key");
+CREATE INDEX IF NOT EXISTS "UserBadge_userId_idx"   ON "UserBadge"("userId");
+CREATE UNIQUE INDEX IF NOT EXISTS "UserBadge_userId_badgeId_key" ON "UserBadge"("userId", "badgeId");
+CREATE INDEX IF NOT EXISTS "TaskProgress_userId_idx" ON "TaskProgress"("userId");
+CREATE UNIQUE INDEX IF NOT EXISTS "TaskProgress_userId_taskId_key" ON "TaskProgress"("userId", "taskId");
 
 -- Foreign keys
 ALTER TABLE "CallLog"      ADD CONSTRAINT "CallLog_agentId_fkey"           FOREIGN KEY ("agentId")  REFERENCES "User"("id")          ON DELETE CASCADE ON UPDATE CASCADE;
