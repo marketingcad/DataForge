@@ -25,7 +25,7 @@ export function UserRoleSelect({ userId, currentRole, assignableRoles, isCurrent
     return <Badge variant="secondary" className="text-xs">{ROLE_LABELS[role]}</Badge>;
   }
 
-  function handleChange(newRole: string) {
+  function handleChange(newRole: string | null) {
     if (!newRole) return;
     const r = newRole as Role;
     setRole(r);
