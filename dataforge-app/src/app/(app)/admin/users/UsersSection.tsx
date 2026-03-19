@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react";
 import type { Role } from "@/lib/rbac/roles";
-import { UserCard, type UserData } from "./UserCard";
-export type { SectionStyle } from "./UserCard";
+import { UserCard, type UserData, type SectionStyle } from "./UserCard";
+export type { SectionStyle };
 
 const STORAGE_KEY = "dataforge_pinned_users";
 
