@@ -111,17 +111,34 @@ const STEALTH_SCRIPT = `
 `;
 
 export async function createBrowserContext() {
-  const { chromium } = await import("playwright");
-  const browser = await chromium.launch({
-    headless: true,
-    args: [
-      "--disable-blink-features=AutomationControlled",
-      "--disable-dev-shm-usage",
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--window-size=1920,1080",
-    ],
-  });
+  const isVercel = !!process.env.VERCEL;
+
+  let browser: import("playwright-core").Browser;
+
+  if (isVercel) {
+    const chromium = await import("@sparticuz/chromium-min");
+    const { chromium: playwrightChromium } = await import("playwright-core");
+    const executablePath = await chromium.default.executablePath(
+      "https://github.com/Sparticuz/chromium/releases/download/v131.0.1/chromium-v131.0.1-pack.tar"
+    );
+    browser = await playwrightChromium.launch({
+      args: chromium.default.args,
+      executablePath,
+      headless: true,
+    });
+  } else {
+    const { chromium } = await import("playwright");
+    browser = await chromium.launch({
+      headless: true,
+      args: [
+        "--disable-blink-features=AutomationControlled",
+        "--disable-dev-shm-usage",
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--window-size=1920,1080",
+      ],
+    });
+  }
   const context = await browser.newContext({
     userAgent:
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
