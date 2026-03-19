@@ -12,6 +12,6 @@ export default defineConfig({
     // POSTGRES_PRISMA_URL      → pooled, injected by Vercel Postgres
     // POSTGRES_URL_NON_POOLING → direct connection, used for migrations
     // DATABASE_URL             → fallback for local development
-    url: process.env["POSTGRES_PRISMA_URL"] ?? process.env["DATABASE_URL"],
+    url: process.env["POSTGRES_URL_NON_POOLING"] ?? process.env["POSTGRES_PRISMA_URL"] ?? process.env["DATABASE_URL"],
   },
 });
