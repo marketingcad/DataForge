@@ -14,7 +14,8 @@ export default function LeadsGlobeInner({ points }: Props) {
   useEffect(() => {
     if (!chartRef.current) return;
 
-    let root: { dispose: () => void } | null = null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let root: any = null;
     let cancelled = false;
 
     (async () => {
