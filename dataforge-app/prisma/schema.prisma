@@ -130,6 +130,8 @@ model User {
   kanbanComments   KanbanComment[]  @relation("KanbanCommentAuthor")
   calendarEvents   CalendarEvent[]
   chatMessages     ChatMessage[]
+  chatRoomsCreated ChatRoom[]       @relation("ChatRoomCreator")
+  chatRoomMembers  ChatRoomMember[]
   notifications    DbNotification[]
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
@@ -366,14 +368,49 @@ model DbNotification {
 }
 
 // ── Chat ─────────────────────────────────────────────────────────────────────
+enum ChatRoomType {
+  general
+  group
+}
+
+model ChatRoom {
+  id          String         @id @default(uuid())
+  name        String
+  type        ChatRoomType   @default(group)
+  createdById String
+  createdBy   User           @relation("ChatRoomCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  members     ChatRoomMember[]
+  messages    ChatMessage[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([createdById])
+}
+
+model ChatRoomMember {
+  id       String   @id @default(uuid())
+  roomId   String
+  userId   String
+  room     ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  joinedAt DateTime @default(now())
+
+  @@unique([roomId, userId])
+  @@index([roomId])
+  @@index([userId])
+}
+
 model ChatMessage {
   id        String   @id @default(uuid())
   content   String
   senderId  String
+  roomId    String
   sender    User     @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  room      ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
 
   @@index([senderId])
+  @@index([roomId])
   @@index([createdAt])
 }
 
