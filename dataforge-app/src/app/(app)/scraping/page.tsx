@@ -29,10 +29,10 @@ export default async function ScrapingPage() {
             <Globe className="h-3.5 w-3.5" />
             Scrape a Website
           </TabsTrigger>
-          <TabsTrigger value="bulk" className="flex items-center gap-1.5 text-sm">
+          {/* <TabsTrigger value="bulk" className="flex items-center gap-1.5 text-sm">
             <Layers className="h-3.5 w-3.5" />
             Bulk by Industry
-          </TabsTrigger>
+          </TabsTrigger> */}
           <TabsTrigger value="google" className="flex items-center gap-1.5 text-sm">
             <ScanSearch className="h-3.5 w-3.5" />
             Search by Google

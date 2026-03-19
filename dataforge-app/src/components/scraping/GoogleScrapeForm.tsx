@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback } from "react";
 import { LeadRow } from "@/actions/domain-scrape.actions";
 import { SaveLeadsModal } from "@/components/scraping/SaveLeadsModal";
+import { ScrapingTrivia } from "@/components/scraping/ScrapingTrivia";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -265,6 +266,7 @@ export function GoogleScrapeForm() {
                   <span>Idle — paste a URL and click Start.</span>
                 )}
               </div>
+              <ScrapingTrivia visible={isCrawling} interval={4000} />
             </div>
           </div>
 
@@ -335,10 +337,10 @@ export function GoogleScrapeForm() {
                   <TableRow>
                     <TableCell colSpan={9} className="h-[400px] text-center text-muted-foreground align-middle">
                       {isCrawling ? (
-                        <span className="flex flex-col items-center gap-3">
+                        <span className="flex flex-col items-center gap-4">
                           <Loader2 className="h-8 w-8 animate-spin" />
                           <span className="text-sm font-medium">Looking for leads…</span>
-                          <span className="text-xs max-w-sm text-center">{statusMsg}</span>
+                          <ScrapingTrivia visible={isCrawling} />
                         </span>
                       ) : errorMsg ? (
                         <span className="flex flex-col items-center gap-2 text-destructive">

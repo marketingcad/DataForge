@@ -10,8 +10,8 @@ function scopedUserId(user: { id: string; role: string }): string | undefined {
 }
 
 export async function getFoldersAction() {
-  const user = await requireDepartment("leads");
-  return getFolders(scopedUserId(user));
+  await requireDepartment("leads");
+  return getFolders(); // all roles see all folders
 }
 
 export async function createFolderAction(name: string, color: string, industryId?: string | null) {

@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback } from "react";
 import { LeadRow } from "@/actions/domain-scrape.actions";
 import { SaveLeadsModal } from "@/components/scraping/SaveLeadsModal";
+import { ScrapingTrivia } from "@/components/scraping/ScrapingTrivia";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -192,6 +193,8 @@ export function DomainScrapeForm() {
           </span>
         )}
       </form>
+
+      <ScrapingTrivia visible={isCrawling} />
 
       {/* Table */}
       <div className="rounded-md border">

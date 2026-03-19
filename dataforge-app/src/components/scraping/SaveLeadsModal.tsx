@@ -26,7 +26,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  Loader2, FolderOpen, FolderPlus, Check, Folder, ChevronDown,
+  Loader2, FolderOpen, FolderPlus, Check, Folder, ChevronDown, Search,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -71,6 +71,8 @@ export function SaveLeadsModal({ open, onOpenChange, leads, onSaved }: SaveLeads
   const [newIndustryId, setNewIndustryId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [creatingFolder, setCreatingFolder] = useState(false);
+  const [search, setSearch] = useState("");
+  const [filterIndustryId, setFilterIndustryId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -129,6 +131,12 @@ export function SaveLeadsModal({ open, onOpenChange, leads, onSaved }: SaveLeads
 
   const selectedIndustry = industries.find((i) => i.id === newIndustryId);
 
+  const filteredFolders = folders.filter((f) => {
+    const matchSearch = f.name.toLowerCase().includes(search.toLowerCase());
+    const matchIndustry = filterIndustryId === null || f.industry?.id === filterIndustryId;
+    return matchSearch && matchIndustry;
+  });
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
@@ -142,14 +150,51 @@ export function SaveLeadsModal({ open, onOpenChange, leads, onSaved }: SaveLeads
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
+        <div className="space-y-3 py-2">
+          {/* Search + industry filter */}
+          {!loadingFolders && folders.length > 0 && (
+            <div className="space-y-2">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  placeholder="Search folders…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-8 h-8 text-sm"
+                />
+              </div>
+              {industries.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setFilterIndustryId(null)}
+                    className={cn("text-xs px-2.5 py-1 rounded-full border transition-colors", filterIndustryId === null ? "bg-blue-600 text-white border-blue-600" : "border-border hover:bg-muted")}
+                  >
+                    All
+                  </button>
+                  {industries.map((ind) => (
+                    <button
+                      key={ind.id}
+                      type="button"
+                      onClick={() => setFilterIndustryId(ind.id === filterIndustryId ? null : ind.id)}
+                      className={cn("text-xs px-2.5 py-1 rounded-full border transition-colors flex items-center gap-1.5", filterIndustryId === ind.id ? "bg-blue-600 text-white border-blue-600" : "border-border hover:bg-muted")}
+                    >
+                      <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: ind.color }} />
+                      {ind.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {loadingFolders ? (
             <div className="flex items-center justify-center py-8 text-muted-foreground gap-2">
               <Loader2 className="h-4 w-4 animate-spin" />
               <span className="text-sm">Loading folders…</span>
             </div>
           ) : (
-            <RadioGroup value={selectedFolder} onValueChange={setSelectedFolder} className="gap-1.5">
+            <RadioGroup value={selectedFolder} onValueChange={setSelectedFolder} className="gap-1.5 max-h-60 overflow-y-auto pr-1">
               {/* No folder option */}
               <label
                 className={cn(
@@ -170,7 +215,10 @@ export function SaveLeadsModal({ open, onOpenChange, leads, onSaved }: SaveLeads
               </label>
 
               {/* Existing folders */}
-              {folders.map((folder) => (
+              {filteredFolders.length === 0 && search && (
+                <p className="text-xs text-muted-foreground text-center py-4">No folders match &quot;{search}&quot;</p>
+              )}
+              {filteredFolders.map((folder) => (
                 <label
                   key={folder.id}
                   className={cn(
