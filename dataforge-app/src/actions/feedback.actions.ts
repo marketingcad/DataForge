@@ -1,7 +1,7 @@
 "use server";
 
 import { requireAuth, requireRole } from "@/lib/rbac/guards";
-import { createFeedback, updateFeedbackStatus } from "@/lib/feedback/service";
+import { createFeedback, updateFeedbackStatus, addFeedbackComment } from "@/lib/feedback/service";
 import { withDbRetry } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import type { FeedbackType, FeedbackStatus } from "@/generated/prisma/enums";
@@ -31,4 +31,16 @@ export async function updateFeedbackStatusAction(id: string, status: FeedbackSta
   await withDbRetry(() => updateFeedbackStatus(id, status));
   revalidatePath("/feedback");
   return { success: true };
+}
+
+export async function addFeedbackCommentAction(reportId: string, content: string) {
+  const session = await requireAuth();
+  if (!content?.trim()) return { error: "Comment cannot be empty." };
+
+  const comment = await withDbRetry(() =>
+    addFeedbackComment(reportId, session.user.id!, content.trim())
+  );
+
+  revalidatePath("/feedback");
+  return { success: true, comment };
 }

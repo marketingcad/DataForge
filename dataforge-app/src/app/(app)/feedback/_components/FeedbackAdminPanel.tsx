@@ -1,10 +1,18 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Bug, Lightbulb, Search, User, ChevronDown } from "lucide-react";
+import { Bug, Lightbulb, Search, User, ChevronDown, MessageSquare } from "lucide-react";
 import { updateFeedbackStatusAction } from "@/actions/feedback.actions";
 import type { FeedbackStatus, FeedbackType } from "@/generated/prisma/enums";
 import { Input } from "@/components/ui/input";
+import { FeedbackDetailModal } from "./FeedbackDetailModal";
+
+type Comment = {
+  id: string;
+  content: string;
+  createdAt: Date;
+  author: { id: string; name: string | null; email: string; role: string };
+};
 
 type Report = {
   id: string;
@@ -15,9 +23,9 @@ type Report = {
   priority: string;
   createdAt: Date;
   user: { id: string; name: string | null; email: string; role: string };
+  comments: Comment[];
 };
 
-// Map our DB statuses → board columns
 const COLUMNS: { status: FeedbackStatus; label: string; color: string; border: string; dot: string }[] = [
   { status: "open",      label: "Bug / Feature", color: "text-violet-600 dark:text-violet-400", border: "border-t-violet-500", dot: "bg-violet-500" },
   { status: "in_review", label: "In Progress",   color: "text-blue-600 dark:text-blue-400",     border: "border-t-blue-500",   dot: "bg-blue-500"   },
@@ -26,7 +34,7 @@ const COLUMNS: { status: FeedbackStatus; label: string; color: string; border: s
 ];
 
 const TYPE_STYLES: Record<FeedbackType, { label: string; bg: string; icon: React.ElementType }> = {
-  bug:     { label: "Bug",     bg: "bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-400",     icon: Bug },
+  bug:     { label: "Bug",     bg: "bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-400",         icon: Bug },
   feature: { label: "Feature", bg: "bg-violet-100 text-violet-700 dark:bg-violet-950/50 dark:text-violet-400", icon: Lightbulb },
 };
 
@@ -37,8 +45,7 @@ const PRIORITY_STYLES: Record<string, string> = {
 };
 
 function getInitials(name: string | null, email: string) {
-  const n = name ?? email;
-  return n.slice(0, 2).toUpperCase();
+  return (name ?? email).slice(0, 2).toUpperCase();
 }
 
 function ReportCard({
@@ -46,16 +53,21 @@ function ReportCard({
   index,
   isAdmin,
   onStatusChange,
+  onClick,
 }: {
   report: Report;
   index: number;
   isAdmin: boolean;
   onStatusChange: (id: string, status: FeedbackStatus) => void;
+  onClick: () => void;
 }) {
   const TypeIcon = TYPE_STYLES[report.type].icon;
 
   return (
-    <div className="rounded-xl border bg-card p-4 space-y-3 hover:shadow-sm transition-shadow">
+    <div
+      onClick={onClick}
+      className="rounded-xl border bg-card p-4 space-y-3 hover:shadow-md hover:border-primary/30 transition-all cursor-pointer"
+    >
       {/* Number + Title */}
       <div>
         <p className="text-[11px] text-muted-foreground/60 font-mono mb-1">
@@ -89,25 +101,34 @@ function ReportCard({
           </span>
         </div>
 
-        {isAdmin ? (
-          <div className="relative">
-            <select
-              defaultValue={report.status}
-              onChange={(e) => onStatusChange(report.id, e.target.value as FeedbackStatus)}
-              className="appearance-none text-[10px] font-medium bg-muted/60 hover:bg-muted border border-border rounded-md pl-2 pr-5 py-1 cursor-pointer focus:outline-none"
-            >
-              <option value="open">Open</option>
-              <option value="in_review">In Progress</option>
-              <option value="closed">Rejected</option>
-              <option value="resolved">Completed</option>
-            </select>
-            <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 h-2.5 w-2.5 text-muted-foreground" />
-          </div>
-        ) : (
-          <span className="text-[10px] text-muted-foreground/60">
-            {new Date(report.createdAt).toLocaleDateString()}
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {report.comments.length > 0 && (
+            <div className="flex items-center gap-0.5 text-[10px] text-muted-foreground/60">
+              <MessageSquare className="h-3 w-3" />
+              {report.comments.length}
+            </div>
+          )}
+          {isAdmin && (
+            <div className="relative" onClick={(e) => e.stopPropagation()}>
+              <select
+                value={report.status}
+                onChange={(e) => onStatusChange(report.id, e.target.value as FeedbackStatus)}
+                className="appearance-none text-[10px] font-medium bg-muted/60 hover:bg-muted border border-border rounded-md pl-2 pr-5 py-1 cursor-pointer focus:outline-none"
+              >
+                <option value="open">Open</option>
+                <option value="in_review">In Progress</option>
+                <option value="closed">Rejected</option>
+                <option value="resolved">Completed</option>
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 h-2.5 w-2.5 text-muted-foreground" />
+            </div>
+          )}
+          {!isAdmin && (
+            <span className="text-[10px] text-muted-foreground/60">
+              {new Date(report.createdAt).toLocaleDateString()}
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -116,19 +137,20 @@ function ReportCard({
 function KanbanColumn({
   col,
   reports,
-  startIndex,
+  globalReports,
   isAdmin,
   onStatusChange,
+  onCardClick,
 }: {
   col: typeof COLUMNS[number];
   reports: Report[];
-  startIndex: number;
+  globalReports: Report[];
   isAdmin: boolean;
   onStatusChange: (id: string, status: FeedbackStatus) => void;
+  onCardClick: (report: Report) => void;
 }) {
   return (
     <div className="flex flex-col min-w-0">
-      {/* Column header */}
       <div className={`rounded-t-xl border-t-2 ${col.border} bg-card border border-b-0 px-4 py-3 flex items-center gap-2`}>
         <span className={`h-2 w-2 rounded-full ${col.dot} shrink-0`} />
         <span className={`text-sm font-semibold ${col.color}`}>{col.label}</span>
@@ -136,19 +158,18 @@ function KanbanColumn({
           {reports.length}
         </span>
       </div>
-
-      {/* Cards */}
       <div className="flex-1 border border-t-0 rounded-b-xl bg-muted/20 p-3 space-y-3 min-h-[120px]">
         {reports.length === 0 ? (
           <p className="text-xs text-muted-foreground/40 text-center py-6">No items</p>
         ) : (
-          reports.map((r, i) => (
+          reports.map((r) => (
             <ReportCard
               key={r.id}
               report={r}
-              index={startIndex + i + 1}
+              index={globalReports.indexOf(r) + 1}
               isAdmin={isAdmin}
               onStatusChange={onStatusChange}
+              onClick={() => onCardClick(r)}
             />
           ))
         )}
@@ -169,6 +190,7 @@ export function FeedbackAdminPanel({
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<FeedbackType | "all">("all");
   const [localReports, setLocalReports] = useState(reports);
+  const [selected, setSelected] = useState<Report | null>(null);
 
   function handleStatusChange(id: string, status: FeedbackStatus) {
     setLocalReports((prev) => prev.map((r) => (r.id === id ? { ...r, status } : r)));
@@ -181,6 +203,9 @@ export function FeedbackAdminPanel({
     if (typeFilter !== "all" && r.type !== typeFilter) return false;
     return true;
   });
+
+  // Keep selected in sync with localReports (e.g. after status change from outside modal)
+  const selectedSync = selected ? (localReports.find((r) => r.id === selected.id) ?? selected) : null;
 
   return (
     <div className="space-y-4">
@@ -234,9 +259,10 @@ export function FeedbackAdminPanel({
               key={col.status}
               col={col}
               reports={colReports}
-              startIndex={localReports.indexOf(colReports[0] ?? ({} as Report))}
+              globalReports={localReports}
               isAdmin={isAdmin}
               onStatusChange={handleStatusChange}
+              onCardClick={setSelected}
             />
           );
         })}
@@ -244,6 +270,17 @@ export function FeedbackAdminPanel({
 
       {filtered.length === 0 && (
         <p className="text-center text-sm text-muted-foreground py-10">No reports match your filters.</p>
+      )}
+
+      {/* Detail modal */}
+      {selectedSync && (
+        <FeedbackDetailModal
+          report={selectedSync}
+          index={localReports.indexOf(selectedSync) + 1}
+          isAdmin={isAdmin}
+          onClose={() => setSelected(null)}
+          onStatusChange={handleStatusChange}
+        />
       )}
     </div>
   );

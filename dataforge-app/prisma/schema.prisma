@@ -123,7 +123,8 @@ model User {
   callLogs         CallLog[]
   userBadges       UserBadge[]
   taskProgress     TaskProgress[]
-  feedbackReports  FeedbackReport[]
+  feedbackReports    FeedbackReport[]
+  feedbackComments   FeedbackComment[] @relation("FeedbackCommentAuthor")
   kanbanCreated    KanbanTask[]     @relation("KanbanCreated")
   kanbanAssigned   KanbanTask[]     @relation("KanbanAssigned")
   kanbanComments   KanbanComment[]  @relation("KanbanCommentAuthor")
@@ -244,19 +245,33 @@ enum FeedbackStatus {
 }
 
 model FeedbackReport {
-  id          String         @id @default(uuid())
+  id          String            @id @default(uuid())
   type        FeedbackType
   title       String
   description String
-  status      FeedbackStatus @default(open)
-  priority    String         @default("medium")
+  status      FeedbackStatus    @default(open)
+  priority    String            @default("medium")
   submittedBy String
-  user        User           @relation(fields: [submittedBy], references: [id], onDelete: Cascade)
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  user        User              @relation(fields: [submittedBy], references: [id], onDelete: Cascade)
+  comments    FeedbackComment[]
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
 
   @@index([submittedBy])
   @@index([status])
+}
+
+model FeedbackComment {
+  id        String         @id @default(uuid())
+  reportId  String
+  authorId  String
+  content   String
+  report    FeedbackReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  author    User           @relation("FeedbackCommentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  createdAt DateTime       @default(now())
+
+  @@index([reportId])
+  @@index([authorId])
 }
 
 // ── Kanban ──────────────────────────────────────────────────────────────────
