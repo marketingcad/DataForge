@@ -6,9 +6,10 @@ import { GoogleScrapeForm } from "@/components/scraping/GoogleScrapeForm";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Globe, Layers, ScanSearch } from "lucide-react";
+import { withDbRetry } from "@/lib/prisma";
 
 export default async function ScrapingPage() {
-  const { jobs } = await getJobs({});
+  const { jobs } = await withDbRetry(() => getJobs({})).catch(() => ({ jobs: [] }));
 
   return (
     <div className="space-y-6">
@@ -50,6 +51,7 @@ export default async function ScrapingPage() {
         <TabsContent value="google" className="mt-0" style={{ height: "calc(100vh - 14rem)" }}>
           <GoogleScrapeForm />
         </TabsContent>
+
       </Tabs>
     </div>
   );

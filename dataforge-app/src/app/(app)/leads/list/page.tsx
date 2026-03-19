@@ -10,6 +10,7 @@ import { getFolders } from "@/lib/folders/service";
 import { auth } from "@/lib/auth";
 import { Separator } from "@/components/ui/separator";
 import { ArrowLeft, Plus } from "lucide-react";
+import { redirect } from "next/navigation";
 
 interface PageProps {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
@@ -21,6 +22,9 @@ function getString(v: string | string[] | undefined): string {
 
 export default async function LeadsListPage({ searchParams }: PageProps) {
   const [params, session] = await Promise.all([searchParams, auth()]);
+  if (!session) redirect("/sign-in");
+  const role = (session.user as unknown as Record<string, unknown>)?.role as string;
+  if (!["boss", "admin", "lead_specialist"].includes(role)) redirect("/unauthorized");
 
   const folderId = getString(params.folder);
 
@@ -34,7 +38,7 @@ export default async function LeadsListPage({ searchParams }: PageProps) {
       page: Number(getString(params.page)) || 1,
       pageSize: 20,
     }),
-    session?.user?.id ? getFolders(session.user.id) : Promise.resolve([]),
+    getFolders(),
   ]);
 
   return (

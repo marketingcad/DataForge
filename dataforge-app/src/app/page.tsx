@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Database, Search, BarChart3, Users, CheckCircle, ArrowRight, Zap, Shield, Globe } from "lucide-react";
+import { Database, Search, BarChart3, Users, ArrowRight, Zap, Shield, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
@@ -16,10 +16,7 @@ export default function HomePage() {
             </Link>
             <div className="flex items-center gap-3">
               <Link href="/sign-in">
-                <Button variant="ghost" size="sm">Sign in</Button>
-              </Link>
-              <Link href="/sign-up">
-                <Button size="sm">Get started</Button>
+                <Button size="sm">Sign in</Button>
               </Link>
             </div>
           </div>
@@ -41,13 +38,10 @@ export default function HomePage() {
             DataForge discovers businesses via Google Maps, scrapes contact details automatically, and keeps your lead database clean with intelligent deduplication.
           </p>
           <div className="flex items-center justify-center gap-4">
-            <Link href="/sign-up">
-              <Button size="lg" className="gap-2">
-                Start for free <ArrowRight className="h-4 w-4" />
-              </Button>
-            </Link>
             <Link href="/sign-in">
-              <Button size="lg" variant="outline">Sign in</Button>
+              <Button size="lg" className="gap-2">
+                Sign in <ArrowRight className="h-4 w-4" />
+              </Button>
             </Link>
           </div>
         </div>
@@ -126,10 +120,10 @@ export default function HomePage() {
       <section className="py-20 px-4 bg-blue-600 text-white text-center">
         <div className="max-w-2xl mx-auto">
           <h2 className="text-3xl font-bold mb-4">Ready to start forging leads?</h2>
-          <p className="text-blue-100 text-lg mb-8">Sign up free and run your first scraping job in minutes.</p>
-          <Link href="/sign-up">
+          <p className="text-blue-100 text-lg mb-8">Sign in and run your first scraping job in minutes.</p>
+          <Link href="/sign-in">
             <Button size="lg" variant="secondary" className="gap-2">
-              Get started <ArrowRight className="h-4 w-4" />
+              Sign in <ArrowRight className="h-4 w-4" />
             </Button>
           </Link>
         </div>

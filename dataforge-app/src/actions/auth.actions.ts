@@ -37,10 +37,15 @@ export async function loginAction(formData: FormData) {
   try {
     await signIn("credentials", { email, password, redirectTo: "/dashboard" });
   } catch (err: unknown) {
+    // Re-throw Next.js redirect (this is how a successful login works)
+    if (err instanceof Error && (err as { digest?: string }).digest?.startsWith("NEXT_REDIRECT")) {
+      throw err;
+    }
+    const type = (err as { type?: string }).type;
     const message = err instanceof Error ? err.message : String(err);
-    if (message.includes("CredentialsSignin")) {
+    if (type === "CredentialsSignin" || message.includes("CredentialsSignin")) {
       return { error: "Invalid email or password." };
     }
-    throw err;
+    return { error: "Invalid email or password." };
   }
 }

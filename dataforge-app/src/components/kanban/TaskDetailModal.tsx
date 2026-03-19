@@ -20,13 +20,40 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { DatePicker } from "@/components/ui/date-picker";
 import {
-  Calendar, Tag, User as UserIcon, CheckCircle2, RotateCcw, Send,
+  Combobox,
+  ComboboxInput,
+  ComboboxContent,
+  ComboboxList,
+  ComboboxItem,
+  ComboboxEmpty,
+} from "@/components/ui/combobox";
+import {
+  Calendar, User as UserIcon, CheckCircle2, RotateCcw, Send,
   Clock, MessageSquare, Loader2,
 } from "lucide-react";
 import { moveTaskAction, addCommentAction, updateTaskAction } from "@/actions/kanban.actions";
+import { ContextPicker } from "./ContextPicker";
 import type { KanbanColumn, KanbanPriority } from "@/generated/prisma/enums";
 import type { KanbanTaskData as Task, KanbanCommentData as Comment, KanbanUserData as User } from "./types";
+
+const TAG_PALETTE = [
+  "bg-violet-100 text-violet-700 dark:bg-violet-900/50 dark:text-violet-300",
+  "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/50 dark:text-cyan-300",
+  "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300",
+  "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300",
+  "bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-300",
+  "bg-pink-100 text-pink-700 dark:bg-pink-900/50 dark:text-pink-300",
+  "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300",
+  "bg-teal-100 text-teal-700 dark:bg-teal-900/50 dark:text-teal-300",
+];
+
+function getTagColor(tag: string) {
+  let hash = 0;
+  for (let i = 0; i < tag.length; i++) hash = tag.charCodeAt(i) + ((hash << 5) - hash);
+  return TAG_PALETTE[Math.abs(hash) % TAG_PALETTE.length];
+}
 
 const PRIORITY_CONFIG: Record<KanbanPriority, { label: string; color: string }> = {
   low:    { label: "Low",    color: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400" },
@@ -70,8 +97,9 @@ export function TaskDetailModal({ task: initialTask, open, onOpenChange, isAdmin
   const [editTitle, setEditTitle] = useState(task.title);
   const [editDesc, setEditDesc] = useState(task.description ?? "");
   const [editPriority, setEditPriority] = useState<KanbanPriority>(task.priority);
-  const [editDueDate, setEditDueDate] = useState(task.dueDate ? new Date(task.dueDate).toISOString().split("T")[0] : "");
-  const [editAssigneeId, setEditAssigneeId] = useState(task.assignee?.id ?? "none");
+  const [editDueDate, setEditDueDate] = useState<Date | undefined>(task.dueDate ? new Date(task.dueDate) : undefined);
+  const [editAssigneeId, setEditAssigneeId] = useState<string | null>(task.assignee?.id ?? null);
+  const [editTags, setEditTags] = useState<string[]>(task.tags);
   const endRef = useRef<HTMLDivElement>(null);
 
   // Sync when task prop changes
@@ -118,8 +146,9 @@ export function TaskDetailModal({ task: initialTask, open, onOpenChange, isAdmin
         title: editTitle,
         description: editDesc || undefined,
         priority: editPriority,
-        dueDate: editDueDate || null,
-        assigneeId: editAssigneeId === "none" ? null : editAssigneeId,
+        dueDate: editDueDate ? editDueDate.toISOString().split("T")[0] : null,
+        assigneeId: editAssigneeId,
+        tags: editTags,
       });
       if (res.success && res.task) {
         const updated = {
@@ -173,8 +202,8 @@ export function TaskDetailModal({ task: initialTask, open, onOpenChange, isAdmin
               </span>
             )}
             {task.tags.map((t) => (
-              <span key={t} className="flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">
-                <Tag className="h-2.5 w-2.5" />{t}
+              <span key={t} className={`text-[11px] font-medium px-2 py-0.5 rounded-md ${getTagColor(t)}`}>
+                {t}
               </span>
             ))}
           </div>
@@ -199,39 +228,60 @@ export function TaskDetailModal({ task: initialTask, open, onOpenChange, isAdmin
 
           {/* Edit fields (admin only) */}
           {editMode && isAdmin && (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-4">
+              {/* Labels with @Add context */}
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Priority</Label>
-                <Select value={editPriority} onValueChange={(v) => setEditPriority(v as KanbanPriority)}>
-                  <SelectTrigger className="w-full h-8 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="low">Low</SelectItem>
-                    <SelectItem value="medium">Medium</SelectItem>
-                    <SelectItem value="high">High</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label className="text-xs text-muted-foreground font-medium">Labels</Label>
+                <div className="rounded-lg border bg-muted/20 px-3 py-2 flex flex-wrap items-center gap-1.5 min-h-9">
+                  <ContextPicker selected={editTags} onChange={setEditTags} />
+                  {editTags.map((tag) => (
+                    <span key={tag} className={`flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full ${getTagColor(tag)}`}>
+                      {tag}
+                      <button type="button" onClick={() => setEditTags((p) => p.filter((t) => t !== tag))} className="opacity-60 hover:opacity-100">×</button>
+                    </span>
+                  ))}
+                </div>
               </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground font-medium">Priority</Label>
+                  <Select value={editPriority} onValueChange={(v) => setEditPriority(v as KanbanPriority)}>
+                    <SelectTrigger className="w-full h-9 text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="low">🟢 Low</SelectItem>
+                      <SelectItem value="medium">🟡 Medium</SelectItem>
+                      <SelectItem value="high">🔴 High</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground font-medium">Due Date</Label>
+                  <DatePicker
+                    value={editDueDate}
+                    onChange={setEditDueDate}
+                    placeholder="Pick a date"
+                  />
+                </div>
+              </div>
+
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Due Date</Label>
-                <Input type="date" value={editDueDate} onChange={(e) => setEditDueDate(e.target.value)} className="h-8 text-xs" />
-              </div>
-              <div className="col-span-2 space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Assign To</Label>
-                <Select value={editAssigneeId} onValueChange={(v) => setEditAssigneeId(v ?? "none")}>
-                  <SelectTrigger className="w-full h-8 text-xs">
-                    <SelectValue placeholder="Unassigned" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">— Unassigned —</SelectItem>
-                    {assignableUsers.map((u) => (
-                      <SelectItem key={u.id} value={u.id}>
-                        {u.name ?? u.id} · {u.role.replace("_", " ")}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label className="text-xs text-muted-foreground font-medium">Assign To</Label>
+                <Combobox value={editAssigneeId} onValueChange={(v) => setEditAssigneeId(v)}>
+                  <ComboboxInput placeholder="Search team member…" showClear className="w-full" />
+                  <ComboboxContent>
+                    <ComboboxEmpty>No members found.</ComboboxEmpty>
+                    <ComboboxList>
+                      {assignableUsers.map((u) => (
+                        <ComboboxItem key={u.id} value={u.id}>
+                          {u.name ?? u.id} · {u.role.replace("_", " ")}
+                        </ComboboxItem>
+                      ))}
+                    </ComboboxList>
+                  </ComboboxContent>
+                </Combobox>
               </div>
             </div>
           )}

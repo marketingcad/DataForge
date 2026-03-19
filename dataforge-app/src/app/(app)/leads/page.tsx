@@ -20,8 +20,8 @@ export default async function LeadsPage() {
 
   const isAdmin = role === "boss" || role === "admin";
 
-  // Boss/admin see all data; lead_specialist sees only their own
-  const scopedUserId = isAdmin ? undefined : session.user.id ?? undefined;
+  // All roles see all leads
+  const scopedUserId = undefined;
 
   const [industries, allFolders, unfiledResult, locations] = await withDbRetry(() =>
     Promise.all([

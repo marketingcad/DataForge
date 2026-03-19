@@ -162,19 +162,19 @@ function NavLink({ href, label, icon: Icon }: NavItem) {
       className={cn(
         "group flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm font-medium transition-all duration-150",
         active
-          ? "bg-primary/10 text-primary"
+          ? "bg-blue-600/10 text-blue-600"
           : "text-muted-foreground hover:bg-accent hover:text-foreground"
       )}
     >
       <Icon
         className={cn(
           "h-3.5 w-3.5 shrink-0 transition-colors",
-          active ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
+          active ? "text-blue-600" : "text-muted-foreground group-hover:text-foreground"
         )}
       />
       {label}
       {active && (
-        <span className="ml-auto h-1.5 w-1.5 rounded-full bg-primary" />
+        <span className="ml-auto h-1.5 w-1.5 rounded-full bg-blue-600" />
       )}
     </Link>
   );

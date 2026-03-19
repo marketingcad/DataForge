@@ -4,6 +4,8 @@ import { useEffect, useState, useCallback } from "react";
 import { JobStatusBadge } from "./JobStatusBadge";
 import { Progress } from "@/components/ui/progress";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Loader2, Play } from "lucide-react";
 
 interface Job {
   id: string;
@@ -23,6 +25,7 @@ interface Job {
 
 export function JobDetailPoller({ initialJob }: { initialJob: Job }) {
   const [job, setJob] = useState(initialJob);
+  const [starting, setStarting] = useState(false);
 
   const poll = useCallback(async () => {
     const res = await fetch(`/api/scraping/jobs/${job.id}`);
@@ -31,6 +34,13 @@ export function JobDetailPoller({ initialJob }: { initialJob: Job }) {
       setJob(data);
     }
   }, [job.id]);
+
+  async function startNow() {
+    setStarting(true);
+    await fetch(`/api/scraping/jobs/${job.id}/process`, { method: "POST" });
+    await poll();
+    setStarting(false);
+  }
 
   useEffect(() => {
     if (job.status === "completed" || job.status === "failed") return;
@@ -76,7 +86,13 @@ export function JobDetailPoller({ initialJob }: { initialJob: Job }) {
       )}
 
       {job.status === "pending" && (
-        <p className="text-sm text-muted-foreground">Job is queued and will start on the next cron tick (every minute).</p>
+        <div className="flex items-center gap-3">
+          <p className="text-sm text-muted-foreground">Job is queued and ready to run.</p>
+          <Button size="sm" onClick={startNow} disabled={starting} className="gap-1.5">
+            {starting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
+            {starting ? "Starting…" : "Start Now"}
+          </Button>
+        </div>
       )}
     </div>
   );
