@@ -1,9 +1,13 @@
 "use client";
 
 import { useState, useTransition, useRef, useEffect } from "react";
-import { X, Bug, Lightbulb, Send, ChevronDown, ChevronRight, CheckCircle2, Clock, Circle, XCircle } from "lucide-react";
+import { X, Bug, Lightbulb, Send, ChevronDown, ChevronRight, CheckCircle2, Clock, Circle, XCircle, Loader2, MessageSquare } from "lucide-react";
 import { addFeedbackCommentAction, updateFeedbackStatusAction } from "@/actions/feedback.actions";
 import type { FeedbackStatus, FeedbackType } from "@/generated/prisma/enums";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 
 type Comment = {
   id: string;
@@ -24,26 +28,41 @@ type Report = {
   comments: Comment[];
 };
 
-const TYPE_STYLES: Record<FeedbackType, { label: string; bg: string; icon: React.ElementType }> = {
-  bug:     { label: "Bug",     bg: "bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-400",         icon: Bug },
-  feature: { label: "Feature", bg: "bg-violet-100 text-violet-700 dark:bg-violet-950/50 dark:text-violet-400", icon: Lightbulb },
+const TYPE_CFG: Record<FeedbackType, { label: string; bg: string; text: string; icon: React.ElementType }> = {
+  bug:     { label: "Bug",     bg: "bg-rose-100 dark:bg-rose-950/50",     text: "text-rose-600 dark:text-rose-400",     icon: Bug },
+  feature: { label: "Feature", bg: "bg-violet-100 dark:bg-violet-950/50", text: "text-violet-600 dark:text-violet-400", icon: Lightbulb },
 };
 
-const PRIORITY_STYLES: Record<string, string> = {
-  high:   "bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-400",
-  medium: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
-  low:    "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400",
+const PRIORITY_CFG: Record<string, { bg: string; text: string; dot: string }> = {
+  high:   { bg: "bg-rose-100 dark:bg-rose-950/50",   text: "text-rose-600 dark:text-rose-400",   dot: "bg-rose-500" },
+  medium: { bg: "bg-amber-100 dark:bg-amber-950/50", text: "text-amber-600 dark:text-amber-400", dot: "bg-amber-500" },
+  low:    { bg: "bg-sky-100 dark:bg-sky-950/50",     text: "text-sky-600 dark:text-sky-400",     dot: "bg-sky-500" },
 };
 
-const STATUS_CONFIG: Record<FeedbackStatus, { label: string; icon: React.ElementType; color: string }> = {
-  open:      { label: "Open",        icon: Circle,       color: "text-blue-500" },
-  in_review: { label: "In Progress", icon: Clock,        color: "text-amber-500" },
-  resolved:  { label: "Completed",   icon: CheckCircle2, color: "text-emerald-500" },
-  closed:    { label: "Rejected",    icon: XCircle,      color: "text-rose-500" },
+const STATUS_CFG: Record<FeedbackStatus, { label: string; icon: React.ElementType; color: string; bg: string }> = {
+  open:      { label: "Open",        icon: Circle,       color: "text-blue-600",    bg: "bg-blue-50 dark:bg-blue-950/40" },
+  in_review: { label: "In Progress", icon: Clock,        color: "text-amber-600",   bg: "bg-amber-50 dark:bg-amber-950/40" },
+  resolved:  { label: "Completed",   icon: CheckCircle2, color: "text-emerald-600", bg: "bg-emerald-50 dark:bg-emerald-950/40" },
+  closed:    { label: "Rejected",    icon: XCircle,      color: "text-rose-600",    bg: "bg-rose-50 dark:bg-rose-950/40" },
 };
+
+const AVATAR_COLORS = [
+  "bg-blue-500", "bg-violet-500", "bg-emerald-500", "bg-amber-500",
+  "bg-rose-500", "bg-cyan-500", "bg-pink-500", "bg-indigo-500",
+];
+
+function avatarColor(str: string) {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) h = str.charCodeAt(i) + ((h << 5) - h);
+  return AVATAR_COLORS[Math.abs(h) % AVATAR_COLORS.length];
+}
 
 function getInitials(name: string | null, email: string) {
-  return (name ?? email).slice(0, 2).toUpperCase();
+  const n = name ?? email;
+  const parts = n.split(/[\s@]/);
+  return parts.length >= 2
+    ? (parts[0][0] + parts[1][0]).toUpperCase()
+    : n.slice(0, 2).toUpperCase();
 }
 
 function timeAgo(date: Date) {
@@ -58,28 +77,44 @@ function timeAgo(date: Date) {
   return new Date(date).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 
-function formatDate(date: Date) {
+function formatFullDate(date: Date) {
   return new Date(date).toLocaleDateString(undefined, {
     month: "long", day: "numeric", year: "numeric",
     hour: "numeric", minute: "2-digit",
   });
 }
 
-function Section({ title, defaultOpen = true, children }: { title: string; defaultOpen?: boolean; children: React.ReactNode }) {
+function Avatar({ name, email, size = "md" }: { name: string | null; email: string; size?: "sm" | "md" | "lg" }) {
+  const s = size === "sm" ? "h-7 w-7 text-[10px]" : size === "lg" ? "h-10 w-10 text-sm" : "h-8 w-8 text-xs";
+  return (
+    <div className={`${s} rounded-full ${avatarColor(email)} flex items-center justify-center font-bold text-white shrink-0`}>
+      {getInitials(name, email)}
+    </div>
+  );
+}
+
+function Section({ title, badge, defaultOpen = true, children }: {
+  title: string; badge?: number; defaultOpen?: boolean; children: React.ReactNode;
+}) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="border-t">
+    <div>
       <button
         onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center justify-between px-5 py-3 hover:bg-accent/50 transition-colors"
+        className="w-full flex items-center justify-between px-5 py-3 hover:bg-accent/40 transition-colors group"
       >
-        <span className="text-xs font-semibold text-foreground">{title}</span>
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-semibold">{title}</span>
+          {badge !== undefined && (
+            <span className="text-[10px] font-medium bg-muted text-muted-foreground rounded-full px-1.5 py-0.5 leading-none">{badge}</span>
+          )}
+        </div>
         {open
-          ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-          : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+          ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground group-hover:text-foreground transition-colors" />
+          : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground group-hover:text-foreground transition-colors" />
         }
       </button>
-      {open && <div className="px-5 pb-4">{children}</div>}
+      {open && <div className="px-5 pb-5">{children}</div>}
     </div>
   );
 }
@@ -101,13 +136,14 @@ export function FeedbackDetailModal({
   const [comment, setComment] = useState("");
   const [pending, startTransition] = useTransition();
   const bottomRef = useRef<HTMLDivElement>(null);
-  const TypeIcon = TYPE_STYLES[report.type].icon;
-  const statusCfg = STATUS_CONFIG[report.status];
+
+  const typeCfg = TYPE_CFG[report.type];
+  const TypeIcon = typeCfg.icon;
+  const statusCfg = STATUS_CFG[report.status];
   const StatusIcon = statusCfg.icon;
+  const priCfg = PRIORITY_CFG[report.priority] ?? PRIORITY_CFG.medium;
 
-  // Keep in sync if parent updates
   useEffect(() => { setReport(initial); }, [initial]);
-
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [report.comments.length]);
@@ -132,97 +168,106 @@ export function FeedbackDetailModal({
 
   return (
     <>
-      {/* Backdrop — clicking closes */}
-      <div
-        className="fixed inset-0 z-40 bg-black/20"
-        onClick={onClose}
-      />
+      <div className="fixed inset-0 z-40 bg-black/30 backdrop-blur-[2px]" onClick={onClose} />
 
-      {/* Side panel */}
-      <div className="fixed top-0 right-0 z-50 h-full w-full max-w-md flex flex-col bg-card border-l shadow-2xl">
-        {/* Top bar */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b shrink-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${TYPE_STYLES[report.type].bg}`}>
-              <TypeIcon className="h-2.5 w-2.5" />
-              {TYPE_STYLES[report.type].label}
+      <div className="fixed top-0 right-0 z-50 h-full w-full max-w-[420px] flex flex-col bg-background border-l shadow-2xl animate-in slide-in-from-right duration-200">
+
+        {/* ── Header ── */}
+        <div className="flex items-center justify-between px-5 py-4 border-b shrink-0">
+          <div className="flex items-center gap-2">
+            {/* Type badge */}
+            <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${typeCfg.bg} ${typeCfg.text}`}>
+              <TypeIcon className="h-3 w-3" />
+              {typeCfg.label}
             </span>
-            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full capitalize ${PRIORITY_STYLES[report.priority] ?? PRIORITY_STYLES.medium}`}>
+            {/* Priority badge */}
+            <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${priCfg.bg} ${priCfg.text}`}>
+              <span className={`h-1.5 w-1.5 rounded-full ${priCfg.dot}`} />
               {report.priority.charAt(0).toUpperCase() + report.priority.slice(1)}
             </span>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
+          <button onClick={onClose} className="h-7 w-7 rounded-lg flex items-center justify-center hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        {/* Scrollable body */}
+        {/* ── Scrollable body ── */}
         <div className="flex-1 overflow-y-auto">
-          {/* Title + meta */}
-          <div className="px-5 py-4 space-y-1">
-            <p className="text-[11px] text-muted-foreground/60 font-mono">#{String(index).padStart(3, "0")}</p>
-            <h2 className="text-base font-bold leading-snug">{report.title}</h2>
-            <p className="text-xs text-muted-foreground">Submitted {timeAgo(report.createdAt)}</p>
+
+          {/* Title block */}
+          <div className="px-5 pt-5 pb-4">
+            <p className="text-[11px] font-mono text-muted-foreground/50 mb-1.5">#{String(index).padStart(3, "0")}</p>
+            <h2 className="text-lg font-bold leading-tight tracking-tight">{report.title}</h2>
+            <p className="text-xs text-muted-foreground mt-1.5">Submitted {timeAgo(report.createdAt)}</p>
           </div>
 
-          {/* Status row */}
-          <div className="px-5 py-3 border-t flex items-center gap-3">
-            <StatusIcon className={`h-4 w-4 ${statusCfg.color}`} />
-            <div className="flex-1">
-              <span className={`text-sm font-medium ${statusCfg.color}`}>{statusCfg.label}</span>
-              <p className="text-[11px] text-muted-foreground">{formatDate(report.createdAt)}</p>
+          <Separator />
+
+          {/* Status + admin control */}
+          <div className="px-5 py-4 flex items-center gap-3">
+            <div className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 ${statusCfg.bg}`}>
+              <StatusIcon className={`h-4 w-4 ${statusCfg.color}`} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className={`text-sm font-semibold ${statusCfg.color}`}>{statusCfg.label}</p>
+              <p className="text-[11px] text-muted-foreground truncate">{formatFullDate(report.createdAt)}</p>
             </div>
             {isAdmin && (
-              <div className="relative">
-                <select
-                  value={report.status}
-                  onChange={(e) => handleStatusChange(e.target.value as FeedbackStatus)}
-                  className="appearance-none text-xs bg-muted border border-border rounded-lg pl-2.5 pr-6 py-1.5 cursor-pointer focus:outline-none font-medium"
-                >
-                  <option value="open">Open</option>
-                  <option value="in_review">In Progress</option>
-                  <option value="resolved">Completed</option>
-                  <option value="closed">Rejected</option>
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
-              </div>
+              <Select value={report.status} onValueChange={(v) => { if (v) handleStatusChange(v as FeedbackStatus); }}>
+                <SelectTrigger className="w-[130px] h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="open">Open</SelectItem>
+                  <SelectItem value="in_review">In Progress</SelectItem>
+                  <SelectItem value="resolved">Completed</SelectItem>
+                  <SelectItem value="closed">Rejected</SelectItem>
+                </SelectContent>
+              </Select>
             )}
           </div>
 
           {/* Submitter */}
-          <div className="px-5 py-3 border-t flex items-center gap-3">
-            <div className="h-7 w-7 rounded-full bg-muted flex items-center justify-center text-[10px] font-bold shrink-0">
-              {getInitials(report.user.name, report.user.email)}
-            </div>
+          <div className="px-5 pb-4 flex items-center gap-3">
+            <Avatar name={report.user.name} email={report.user.email} size="md" />
             <div>
-              <p className="text-xs font-medium">{report.user.name ?? report.user.email.split("@")[0]}</p>
-              <p className="text-[10px] text-muted-foreground capitalize">{report.user.role.replace("_", " ")}</p>
+              <p className="text-sm font-medium">{report.user.name ?? report.user.email.split("@")[0]}</p>
+              <p className="text-xs text-muted-foreground capitalize">{report.user.role.replace(/_/g, " ")}</p>
             </div>
           </div>
 
+          <Separator />
+
           {/* Description */}
           <Section title="Description">
-            <p className="text-sm leading-relaxed whitespace-pre-wrap text-muted-foreground">{report.description}</p>
+            <p className="text-sm leading-relaxed text-muted-foreground whitespace-pre-wrap">{report.description}</p>
           </Section>
 
+          <Separator />
+
           {/* Discussion */}
-          <Section title={`Discussion · ${report.comments.length}`}>
+          <Section title="Discussion" badge={report.comments.length}>
             {report.comments.length === 0 ? (
-              <p className="text-xs text-muted-foreground/50 text-center py-4">No comments yet. Be the first to share your thoughts!</p>
+              <div className="flex flex-col items-center gap-2 py-6 text-center">
+                <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
+                  <MessageSquare className="h-5 w-5 text-muted-foreground/40" />
+                </div>
+                <p className="text-xs text-muted-foreground/60">No comments yet.</p>
+              </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-5">
                 {report.comments.map((c) => (
                   <div key={c.id} className="flex gap-3">
-                    <div className="h-7 w-7 rounded-full bg-muted flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">
-                      {getInitials(c.author.name, c.author.email)}
-                    </div>
+                    <Avatar name={c.author.name} email={c.author.email} size="sm" />
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-baseline gap-2 mb-1">
-                        <span className="text-xs font-semibold">{c.author.name ?? c.author.email.split("@")[0]}</span>
-                        <span className="text-[10px] text-muted-foreground/50 capitalize">{c.author.role.replace("_", " ")}</span>
-                        <span className="text-[10px] text-muted-foreground/40 ml-auto">{timeAgo(c.createdAt)}</span>
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <span className="text-sm font-semibold">{c.author.name ?? c.author.email.split("@")[0]}</span>
+                        <span className="text-[10px] text-muted-foreground capitalize bg-muted px-1.5 py-0.5 rounded-md">{c.author.role.replace(/_/g, " ")}</span>
+                        <span className="text-[10px] text-muted-foreground/50 ml-auto">{timeAgo(c.createdAt)}</span>
                       </div>
-                      <p className="text-sm leading-relaxed whitespace-pre-wrap">{c.content}</p>
+                      <div className="rounded-xl bg-muted/50 border px-3.5 py-2.5">
+                        <p className="text-sm leading-relaxed whitespace-pre-wrap">{c.content}</p>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -231,29 +276,33 @@ export function FeedbackDetailModal({
             )}
           </Section>
 
-          <div className="h-4" />
+          <div className="h-2" />
         </div>
 
-        {/* Comment input — pinned to bottom */}
-        <div className="px-5 py-3 border-t shrink-0 space-y-2">
-          <p className="text-xs font-semibold text-foreground">Add a comment</p>
-          <div className="flex gap-2 items-end">
-            <textarea
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submitComment(); }}
-              placeholder="Add a comment… Type @ to mention someone"
-              rows={2}
-              className="flex-1 resize-none rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/50"
-            />
-            <button
+        {/* ── Comment composer ── */}
+        <div className="px-5 py-4 border-t shrink-0 bg-background space-y-3">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Add a comment</p>
+          <Textarea
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submitComment(); }}
+            placeholder="Write a comment… (Ctrl+Enter to post)"
+            rows={3}
+            className="resize-none text-sm"
+          />
+          <div className="flex justify-end">
+            <Button
               onClick={submitComment}
               disabled={!comment.trim() || pending}
-              className="h-9 px-4 flex items-center gap-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-xs font-medium transition-colors shrink-0"
+              size="sm"
+              className="bg-blue-600 hover:bg-blue-700 text-white gap-1.5"
             >
-              <Send className="h-3.5 w-3.5" />
+              {pending
+                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                : <Send className="h-3.5 w-3.5" />
+              }
               Post
-            </button>
+            </Button>
           </div>
         </div>
       </div>
