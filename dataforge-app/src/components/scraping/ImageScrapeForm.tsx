@@ -232,7 +232,8 @@ export function ImageScrapeForm() {
     phone: l.phone ?? undefined,
     address: l.address ?? undefined,
     email: l.email ?? undefined,
-    website: l.website ?? undefined,
+    website: l.website ?? "",
+    sourceUrl: "",
   }));
 
   return (
