@@ -5,26 +5,30 @@ import { createUserAction } from "@/actions/users.actions";
 import { ROLE_LABELS, ROLE_CAN_CREATE, type Role } from "@/lib/rbac/roles";
 import { useNotifications } from "@/lib/notifications";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogTrigger,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { UserPlus, Eye, EyeOff } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { UserPlus, Eye, EyeOff, AlertCircle, Loader2 } from "lucide-react";
 
 const ROLE_ORDER: Role[] = ["boss", "admin", "lead_specialist", "sales_rep"];
 
-interface Props {
-  actorRole: Role;
-}
+const ROLE_DESC: Record<Role, string> = {
+  boss:            "Full access to everything",
+  admin:           "Full access, manages users",
+  lead_specialist: "Leads department only",
+  sales_rep:       "Marketing department only",
+};
+
+interface Props { actorRole: Role }
 
 export function CreateUserDialog({ actorRole }: Props) {
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const [showPassword, setShowPassword] = useState(false);
+  const [selectedRole, setSelectedRole] = useState<Role>("lead_specialist");
   const [error, setError] = useState<string | null>(null);
   const { add } = useNotifications();
 
@@ -37,8 +41,8 @@ export function CreateUserDialog({ actorRole }: Props) {
     const data = {
       name:     (fd.get("name")     as string).trim(),
       email:    (fd.get("email")    as string).trim(),
-      password: fd.get("password")  as string,
-      role:     fd.get("role")      as Role,
+      password:  fd.get("password") as string,
+      role:      selectedRole,
     };
 
     startTransition(async () => {
@@ -54,61 +58,41 @@ export function CreateUserDialog({ actorRole }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger
-        render={
-          <Button className="gap-2">
-            <UserPlus className="h-4 w-4" />
-            Create User
-          </Button>
-        }
-      />
+      <DialogTrigger render={
+        <Button className="gap-2 bg-blue-600 hover:bg-blue-700 text-white">
+          <UserPlus className="h-4 w-4" />
+          Create User
+        </Button>
+      } />
 
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Create New User</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4 py-2">
-          {/* Name + Email row */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                Full Name
-              </label>
-              <input
-                name="name"
-                type="text"
-                placeholder="Jane Smith"
-                className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              />
+        <form onSubmit={handleSubmit} className="space-y-5 py-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Full Name</Label>
+              <Input id="name" name="name" placeholder="Jane Smith" />
             </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                Email <span className="text-destructive">*</span>
-              </label>
-              <input
-                name="email"
-                type="email"
-                required
-                placeholder="jane@company.com"
-                className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              />
+            <div className="space-y-2">
+              <Label htmlFor="email">Email <span className="text-destructive">*</span></Label>
+              <Input id="email" name="email" type="email" required placeholder="jane@company.com" />
             </div>
           </div>
 
-          {/* Password */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              Password <span className="text-destructive">*</span>
-            </label>
+          <div className="space-y-2">
+            <Label htmlFor="password">Password <span className="text-destructive">*</span></Label>
             <div className="relative">
-              <input
+              <Input
+                id="password"
                 name="password"
                 type={showPassword ? "text" : "password"}
                 required
                 minLength={8}
                 placeholder="Minimum 8 characters"
-                className="w-full rounded-lg border bg-background px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                className="pr-10"
               />
               <button
                 type="button"
@@ -120,48 +104,44 @@ export function CreateUserDialog({ actorRole }: Props) {
             </div>
           </div>
 
-          {/* Role */}
           <div className="space-y-2">
-            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              Role <span className="text-destructive">*</span>
-            </label>
+            <Label>Role <span className="text-destructive">*</span></Label>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {ROLE_ORDER.filter((r) => assignableRoles.includes(r)).map((r) => (
-                <label
+                <button
                   key={r}
-                  className="relative flex cursor-pointer rounded-lg border p-3 gap-3 has-[:checked]:border-primary has-[:checked]:bg-primary/5 transition-colors hover:bg-muted/40"
+                  type="button"
+                  onClick={() => setSelectedRole(r)}
+                  className={`flex items-start gap-3 rounded-lg border p-3 text-left transition-all ${
+                    selectedRole === r
+                      ? "border-blue-600 bg-blue-600/5 ring-1 ring-blue-600"
+                      : "hover:bg-muted/40 border-border"
+                  }`}
                 >
-                  <input
-                    type="radio"
-                    name="role"
-                    value={r}
-                    required
-                    defaultChecked={r === "lead_specialist"}
-                    className="mt-0.5 accent-primary"
-                  />
+                  <div className={`mt-0.5 h-4 w-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                    selectedRole === r ? "border-blue-600" : "border-muted-foreground"
+                  }`}>
+                    {selectedRole === r && <div className="h-2 w-2 rounded-full bg-blue-600" />}
+                  </div>
                   <div>
                     <p className="text-sm font-medium">{ROLE_LABELS[r]}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {r === "boss"            && "Full access to everything"}
-                      {r === "admin"           && "Full access, manages users"}
-                      {r === "lead_specialist" && "Leads department only"}
-                      {r === "sales_rep"       && "Marketing department only"}
-                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{ROLE_DESC[r]}</p>
                   </div>
-                </label>
+                </button>
               ))}
             </div>
           </div>
 
           {error && (
-            <p className="rounded-lg bg-destructive/10 border border-destructive/20 px-3 py-2 text-sm text-destructive">
-              {error}
-            </p>
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
           )}
 
           <DialogFooter showCloseButton>
-            <Button type="submit" disabled={pending} className="gap-2">
-              <UserPlus className="h-4 w-4" />
+            <Button type="submit" disabled={pending} className="gap-2 bg-blue-600 hover:bg-blue-700 text-white">
+              {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
               {pending ? "Creating…" : "Create User"}
             </Button>
           </DialogFooter>
