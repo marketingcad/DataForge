@@ -66,10 +66,10 @@ export function ScrapingTrivia({ visible, interval = 5000 }: ScrapingTriviaProps
 
   return (
     <div
-      className="flex items-start gap-2.5 rounded-lg border border-blue-200 dark:border-blue-900 bg-blue-50 dark:bg-blue-950/30 px-3.5 py-3 text-xs text-blue-700 dark:text-blue-300 transition-opacity duration-400"
+      className="flex items-start gap-2.5 rounded-lg border bg-muted/40 px-3.5 py-3 text-xs text-muted-foreground transition-opacity duration-400"
       style={{ opacity: fade ? 1 : 0 }}
     >
-      <Lightbulb className="h-3.5 w-3.5 shrink-0 mt-0.5 text-blue-500" />
+      <Lightbulb className="h-3.5 w-3.5 shrink-0 mt-0.5" />
       <span className="leading-relaxed">{TRIVIA[index]}</span>
     </div>
   );
