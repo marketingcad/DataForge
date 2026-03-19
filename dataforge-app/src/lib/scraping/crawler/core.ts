@@ -98,6 +98,22 @@ export function detectBlock(html: string): boolean {
   );
 }
 
+// ─── Browser launch queue (prevents ETXTBSY on concurrent cold-starts) ────────
+//
+// When multiple tabs start crawling simultaneously they all try to extract the
+// Chromium binary to /tmp at the same time → "spawn ETXTBSY". Serialising the
+// *launch* step fixes this; crawls still run fully in parallel afterwards.
+
+let _launchQueue: Promise<void> = Promise.resolve();
+
+function serialisedLaunch<T>(fn: () => Promise<T>): Promise<T> {
+  let resolve!: () => void;
+  const ticket = new Promise<void>((r) => { resolve = r; });
+  const prev   = _launchQueue;
+  _launchQueue = _launchQueue.then(() => ticket);
+  return prev.then(() => fn()).finally(resolve);
+}
+
 // ─── Stealth browser ──────────────────────────────────────────────────────────
 
 const STEALTH_SCRIPT = `
@@ -113,32 +129,32 @@ const STEALTH_SCRIPT = `
 export async function createBrowserContext() {
   const isVercel = !!process.env.VERCEL;
 
-  let browser: import("playwright-core").Browser;
-
-  if (isVercel) {
-    const chromium = await import("@sparticuz/chromium-min");
-    const { chromium: playwrightChromium } = await import("playwright-core");
-    const executablePath = await chromium.default.executablePath(
-      "https://github.com/Sparticuz/chromium/releases/download/v131.0.1/chromium-v131.0.1-pack.tar"
-    );
-    browser = await playwrightChromium.launch({
-      args: chromium.default.args,
-      executablePath,
-      headless: true,
-    });
-  } else {
-    const { chromium } = await import("playwright");
-    browser = await chromium.launch({
-      headless: true,
-      args: [
-        "--disable-blink-features=AutomationControlled",
-        "--disable-dev-shm-usage",
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--window-size=1920,1080",
-      ],
-    });
-  }
+  const browser: import("playwright-core").Browser = await serialisedLaunch(async () => {
+    if (isVercel) {
+      const chromium = await import("@sparticuz/chromium-min");
+      const { chromium: playwrightChromium } = await import("playwright-core");
+      const executablePath = await chromium.default.executablePath(
+        "https://github.com/Sparticuz/chromium/releases/download/v131.0.1/chromium-v131.0.1-pack.tar"
+      );
+      return playwrightChromium.launch({
+        args: chromium.default.args,
+        executablePath,
+        headless: true,
+      });
+    } else {
+      const { chromium } = await import("playwright");
+      return chromium.launch({
+        headless: true,
+        args: [
+          "--disable-blink-features=AutomationControlled",
+          "--disable-dev-shm-usage",
+          "--no-sandbox",
+          "--disable-setuid-sandbox",
+          "--window-size=1920,1080",
+        ],
+      });
+    }
+  });
   const context = await browser.newContext({
     userAgent:
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
@@ -183,7 +199,7 @@ export async function humanMouseMove(page: import("playwright").Page) {
 export async function fetchPage(
   url: string,
   context: import("playwright").BrowserContext,
-  retries = MAX_RETRIES
+  _retries = MAX_RETRIES
 ): Promise<FetchResult> {
   const page = await context.newPage();
   try {
@@ -215,9 +231,8 @@ export async function fetchPage(
   } finally {
     await page.close();
   }
-
-  void retries; // consumed by caller retry loop
 }
+
 
 // ─── Link extraction ──────────────────────────────────────────────────────────
 
