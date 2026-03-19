@@ -172,7 +172,7 @@ export function FeedbackAdminPanel({
 
   function handleStatusChange(id: string, status: FeedbackStatus) {
     setLocalReports((prev) => prev.map((r) => (r.id === id ? { ...r, status } : r)));
-    startTransition(() => updateFeedbackStatusAction(id, status));
+    startTransition(async () => { await updateFeedbackStatusAction(id, status); });
   }
 
   const filtered = localReports.filter((r) => {
@@ -229,8 +229,6 @@ export function FeedbackAdminPanel({
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         {COLUMNS.map((col) => {
           const colReports = filtered.filter((r) => r.status === col.status);
-          // Compute global start index for card numbering
-          const startIndex = localReports.findIndex((r) => r.status === col.status);
           return (
             <KanbanColumn
               key={col.status}
