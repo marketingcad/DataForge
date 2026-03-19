@@ -57,10 +57,14 @@ function CrawlInstance({
   const rowCounter = useRef(0);
   const urlRef     = useRef<HTMLTextAreaElement>(null);
 
-  // Notify parent whenever status or lead count changes
+  // Notify parent whenever status or lead count changes.
+  // Use a ref so the effect never re-runs just because the parent re-renders
+  // (which would create a new inline arrow and cause an infinite loop).
+  const onUpdateRef = useRef(onUpdate);
+  useEffect(() => { onUpdateRef.current = onUpdate; });
   useEffect(() => {
-    onUpdate(status, rows.length);
-  }, [status, rows.length, onUpdate]);
+    onUpdateRef.current(status, rows.length);
+  }, [status, rows.length]);
 
   const stopCrawl = useCallback(() => {
     sourceRef.current?.close();
