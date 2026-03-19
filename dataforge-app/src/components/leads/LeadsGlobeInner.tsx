@@ -108,7 +108,8 @@ export default function LeadsGlobeInner({ points }: Props) {
           return Math.max(4, Math.min(14, 4 + (count / maxCount) * 10));
         });
 
-        circle.events.on("click", function (ev) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        circle.events.on("click", function (ev: any) {
           const data = ev.target.dataItem?.dataContext as { long: number; lat: number } | undefined;
           if (!data) return;
           dotClicked = true;
@@ -150,7 +151,8 @@ export default function LeadsGlobeInner({ points }: Props) {
         });
       });
 
-      chart.chartContainer.events.on("click", function (ev) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      chart.chartContainer.events.on("click", function (ev: any) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         if (!(ev.target as any).dataItem) {
           chart.animate({ key: "zoomLevel", to: 1, duration: 800 });
