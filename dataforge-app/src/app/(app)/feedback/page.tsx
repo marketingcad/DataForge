@@ -5,8 +5,9 @@ import { getFeedback } from "@/lib/feedback/service";
 import { Separator } from "@/components/ui/separator";
 import { FeedbackAdminPanel } from "./_components/FeedbackAdminPanel";
 import { FeedbackMyReports } from "./_components/FeedbackMyReports";
+import { FeedbackPageSubmitButton } from "./_components/FeedbackPageSubmitButton";
 import type { Role } from "@/lib/rbac/roles";
-import { Flag } from "lucide-react";
+import { Bug } from "lucide-react";
 
 export default async function FeedbackPage() {
   const session = await auth();
@@ -21,26 +22,31 @@ export default async function FeedbackPage() {
   );
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-5">
+      <div className="flex items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <Flag className="h-4 w-4 text-primary" />
-            <h1 className="text-lg font-semibold tracking-tight">Bug & Feature Reports</h1>
+            <Bug className="h-4 w-4 text-primary" />
+            <h1 className="text-lg font-semibold tracking-tight">Bug Reports &amp; Feature Requests</h1>
           </div>
           <p className="text-sm text-muted-foreground mt-0.5">
-            {isAdmin
-              ? `${reports.length} report${reports.length !== 1 ? "s" : ""} submitted by the team`
-              : "Your submitted reports"}
+            Track and manage feedback to improve the app
           </p>
         </div>
+        <FeedbackPageSubmitButton />
       </div>
 
       <Separator />
 
       {isAdmin
-        ? <FeedbackAdminPanel reports={reports as Parameters<typeof FeedbackAdminPanel>[0]["reports"]} />
-        : <FeedbackMyReports reports={reports as Parameters<typeof FeedbackMyReports>[0]["reports"]} userId={userId} />
+        ? <FeedbackAdminPanel
+            reports={reports as Parameters<typeof FeedbackAdminPanel>[0]["reports"]}
+            isAdmin
+          />
+        : <FeedbackMyReports
+            reports={reports as Parameters<typeof FeedbackMyReports>[0]["reports"]}
+            userId={userId}
+          />
       }
     </div>
   );
