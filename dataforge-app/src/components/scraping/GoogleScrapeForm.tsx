@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { LeadRow } from "@/actions/domain-scrape.actions";
 import { SaveLeadsModal } from "@/components/scraping/SaveLeadsModal";
 import { ScrapingTrivia } from "@/components/scraping/ScrapingTrivia";
@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/tooltip";
 import {
   Loader2, StopCircle, Save, Copy, Trash2, Globe,
-  ExternalLink, Mail, Phone, PlayCircle, RotateCcw,
+  ExternalLink, Mail, Phone, PlayCircle, RotateCcw, Plus, X,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -30,7 +30,20 @@ interface TableRow extends LeadRow {
 
 type CrawlStatus = "idle" | "crawling" | "done" | "stopped";
 
-export function GoogleScrapeForm() {
+interface TabMeta {
+  status: CrawlStatus;
+  count: number;
+}
+
+// ── Individual crawl instance ────────────────────────────────────────────────
+
+function CrawlInstance({
+  hidden,
+  onUpdate,
+}: {
+  hidden: boolean;
+  onUpdate: (status: CrawlStatus, count: number) => void;
+}) {
   const [rows,      setRows]      = useState<TableRow[]>([]);
   const [status,    setStatus]    = useState<CrawlStatus>("idle");
   const [statusMsg, setStatusMsg] = useState("");
@@ -43,6 +56,11 @@ export function GoogleScrapeForm() {
   const sourceRef  = useRef<EventSource | null>(null);
   const rowCounter = useRef(0);
   const urlRef     = useRef<HTMLTextAreaElement>(null);
+
+  // Notify parent whenever status or lead count changes
+  useEffect(() => {
+    onUpdate(status, rows.length);
+  }, [status, rows.length, onUpdate]);
 
   const stopCrawl = useCallback(() => {
     sourceRef.current?.close();
@@ -62,7 +80,6 @@ export function GoogleScrapeForm() {
     setStatusMsg("Connecting…");
     rowCounter.current = 0;
 
-    // Detect if it's a full Google URL or just a query string
     const isGoogleUrl = raw.startsWith("http") && raw.includes("google.");
     const params = new URLSearchParams({
       ...(isGoogleUrl ? { googleUrl: raw } : { query: raw }),
@@ -143,7 +160,7 @@ export function GoogleScrapeForm() {
   const isCrawling    = status === "crawling";
 
   return (
-    <div className="flex flex-col h-full">
+    <div className={`flex flex-col h-full ${hidden ? "hidden" : ""}`}>
 
       {/* ── Top bar ── */}
       <div className="flex items-center justify-between pb-4 border-b mb-0">
@@ -191,7 +208,6 @@ export function GoogleScrapeForm() {
                   placeholder={`Paste a Google search result URL here.\n\nExample:\nhttps://www.google.com/search?q=plumbing+companies+in+new+jersey`}
                   className="h-[140px] max-h-[140px] text-xs font-mono resize-none leading-relaxed overflow-y-auto"
                 />
-                {/* Bottom fade — hides overflow text without scrollbar flash */}
                 <div className="pointer-events-none absolute bottom-0 inset-x-0 h-8 rounded-b-md bg-gradient-to-t from-background to-transparent" />
               </div>
               <p className="text-[11px] text-muted-foreground">
@@ -210,9 +226,7 @@ export function GoogleScrapeForm() {
                 <span className="text-sm font-medium tabular-nums">{maxLeads}</span>
               </div>
               <Slider
-                min={5}
-                max={200}
-                step={5}
+                min={5} max={200} step={5}
                 value={[maxLeads]}
                 onValueChange={(v) => setMaxLeads(Array.isArray(v) ? v[0] : v)}
               />
@@ -230,9 +244,7 @@ export function GoogleScrapeForm() {
                 <span className="text-sm font-medium tabular-nums">{timeLimit}s</span>
               </div>
               <Slider
-                min={30}
-                max={300}
-                step={10}
+                min={30} max={300} step={10}
                 value={[timeLimit]}
                 onValueChange={(v) => setTimeLimit(Array.isArray(v) ? v[0] : v)}
               />
@@ -272,11 +284,7 @@ export function GoogleScrapeForm() {
 
           {/* Start button pinned to bottom of panel */}
           <div className="p-4 border-t bg-background">
-            <Button
-              className="w-full"
-              onClick={startCrawl}
-              disabled={isCrawling}
-            >
+            <Button className="w-full" onClick={startCrawl} disabled={isCrawling}>
               {isCrawling
                 ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Crawling…</>
                 : <><PlayCircle className="h-4 w-4 mr-2" />Start Crawl</>}
@@ -462,7 +470,6 @@ export function GoogleScrapeForm() {
             </Table>
           </div>
         </div>
-
       </div>
 
       <SaveLeadsModal
@@ -471,6 +478,120 @@ export function GoogleScrapeForm() {
         leads={rows.filter((r) => r.selected)}
         onSaved={() => {}}
       />
+    </div>
+  );
+}
+
+// ── Tab manager ──────────────────────────────────────────────────────────────
+
+interface Tab {
+  id: number;
+  label: string;
+}
+
+let tabIdCounter = 1;
+
+export function GoogleScrapeForm() {
+  const [tabs,      setTabs]      = useState<Tab[]>([{ id: 1, label: "Search 1" }]);
+  const [activeId,  setActiveId]  = useState(1);
+  const [tabMeta,   setTabMeta]   = useState<Record<number, TabMeta>>({ 1: { status: "idle", count: 0 } });
+
+  function addTab() {
+    const id    = ++tabIdCounter;
+    const label = `Search ${id}`;
+    setTabs((prev) => [...prev, { id, label }]);
+    setTabMeta((prev) => ({ ...prev, [id]: { status: "idle", count: 0 } }));
+    setActiveId(id);
+  }
+
+  function closeTab(id: number, e: React.MouseEvent) {
+    e.stopPropagation();
+    if (tabs.length === 1) return; // keep at least one
+    const idx     = tabs.findIndex((t) => t.id === id);
+    const newTabs = tabs.filter((t) => t.id !== id);
+    setTabs(newTabs);
+    setTabMeta((prev) => { const n = { ...prev }; delete n[id]; return n; });
+    if (activeId === id) {
+      setActiveId(newTabs[Math.max(0, idx - 1)].id);
+    }
+  }
+
+  function handleUpdate(id: number, status: CrawlStatus, count: number) {
+    setTabMeta((prev) => ({ ...prev, [id]: { status, count } }));
+  }
+
+  return (
+    <div className="flex flex-col h-full gap-0">
+
+      {/* ── Tab bar ── */}
+      <div className="flex items-center gap-1 border-b pb-0 mb-4 overflow-x-auto">
+        {tabs.map((tab) => {
+          const meta    = tabMeta[tab.id] ?? { status: "idle", count: 0 };
+          const isActive = tab.id === activeId;
+          const isCrawling = meta.status === "crawling";
+
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveId(tab.id)}
+              className={[
+                "group relative flex items-center gap-1.5 px-3.5 py-2 text-sm rounded-t-md border border-b-0 transition-colors shrink-0",
+                isActive
+                  ? "bg-background text-foreground border-border -mb-px z-10"
+                  : "bg-muted/40 text-muted-foreground border-transparent hover:bg-muted/70",
+              ].join(" ")}
+            >
+              {/* Crawling dot */}
+              {isCrawling && (
+                <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse shrink-0" />
+              )}
+              <span className="max-w-[120px] truncate">{tab.label}</span>
+
+              {/* Lead count badge */}
+              {meta.count > 0 && !isCrawling && (
+                <span className="text-[10px] bg-muted rounded px-1 tabular-nums font-medium">
+                  {meta.count}
+                </span>
+              )}
+              {isCrawling && meta.count > 0 && (
+                <span className="text-[10px] bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 rounded px-1 tabular-nums font-medium">
+                  {meta.count}
+                </span>
+              )}
+
+              {/* Close button — only when more than 1 tab */}
+              {tabs.length > 1 && (
+                <span
+                  onClick={(e) => closeTab(tab.id, e)}
+                  className="ml-0.5 rounded p-0.5 opacity-0 group-hover:opacity-100 hover:bg-muted-foreground/20 transition-opacity"
+                >
+                  <X className="h-3 w-3" />
+                </span>
+              )}
+            </button>
+          );
+        })}
+
+        {/* Add tab button */}
+        <button
+          onClick={addTab}
+          className="flex items-center gap-1 px-2.5 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-t-md transition-colors shrink-0"
+          title="Add new crawler"
+        >
+          <Plus className="h-4 w-4" />
+        </button>
+      </div>
+
+      {/* ── Instances (all mounted, hidden when not active) ── */}
+      <div className="flex-1 min-h-0">
+        {tabs.map((tab) => (
+          <CrawlInstance
+            key={tab.id}
+            hidden={tab.id !== activeId}
+            onUpdate={(status, count) => handleUpdate(tab.id, status, count)}
+          />
+        ))}
+      </div>
     </div>
   );
 }
