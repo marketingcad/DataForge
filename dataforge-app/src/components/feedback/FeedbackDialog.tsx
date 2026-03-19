@@ -114,7 +114,7 @@ export function FeedbackDialog({ onClose }: Props) {
       {/* Priority */}
       <div className="space-y-1.5">
         <Label>Priority</Label>
-        <Select value={priority} onValueChange={setPriority}>
+        <Select value={priority} onValueChange={(v) => { if (v) setPriority(v); }}>
           <SelectTrigger>
             <SelectValue />
           </SelectTrigger>
