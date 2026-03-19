@@ -4,7 +4,6 @@ import { useState, useTransition, useRef, useEffect } from "react";
 import { X, Bug, Lightbulb, Send, ChevronDown, ChevronRight, CheckCircle2, Clock, Circle, XCircle, Loader2, MessageSquare } from "lucide-react";
 import { addFeedbackCommentAction, updateFeedbackStatusAction } from "@/actions/feedback.actions";
 import type { FeedbackStatus, FeedbackType } from "@/generated/prisma/enums";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -203,27 +202,38 @@ export function FeedbackDetailModal({
 
           <Separator />
 
-          {/* Status + admin control */}
-          <div className="px-5 py-4 flex items-center gap-3">
-            <div className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 ${statusCfg.bg}`}>
-              <StatusIcon className={`h-4 w-4 ${statusCfg.color}`} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className={`text-sm font-semibold ${statusCfg.color}`}>{statusCfg.label}</p>
-              <p className="text-[11px] text-muted-foreground truncate">{formatFullDate(report.createdAt)}</p>
+          {/* Status row */}
+          <div className="px-5 py-4 space-y-3">
+            <div className="flex items-center gap-3">
+              <div className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 ${statusCfg.bg}`}>
+                <StatusIcon className={`h-4 w-4 ${statusCfg.color}`} />
+              </div>
+              <div>
+                <p className={`text-sm font-semibold ${statusCfg.color}`}>{statusCfg.label}</p>
+                <p className="text-[11px] text-muted-foreground">{formatFullDate(report.createdAt)}</p>
+              </div>
             </div>
             {isAdmin && (
-              <Select value={report.status} onValueChange={(v) => { if (v) handleStatusChange(v as FeedbackStatus); }}>
-                <SelectTrigger className="w-[130px] h-8 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="open">Open</SelectItem>
-                  <SelectItem value="in_review">In Progress</SelectItem>
-                  <SelectItem value="resolved">Completed</SelectItem>
-                  <SelectItem value="closed">Rejected</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="grid grid-cols-4 gap-1.5">
+                {(Object.entries(STATUS_CFG) as [FeedbackStatus, typeof STATUS_CFG[FeedbackStatus]][]).map(([key, cfg]) => {
+                  const Icon = cfg.icon;
+                  const active = report.status === key;
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => handleStatusChange(key)}
+                      className={`flex flex-col items-center gap-1 rounded-lg px-1 py-2 text-[10px] font-semibold border transition-all ${
+                        active
+                          ? `${cfg.bg} ${cfg.color} border-current/30`
+                          : "border-border bg-muted/30 text-muted-foreground hover:bg-accent hover:text-foreground"
+                      }`}
+                    >
+                      <Icon className="h-3.5 w-3.5" />
+                      {cfg.label}
+                    </button>
+                  );
+                })}
+              </div>
             )}
           </div>
 
