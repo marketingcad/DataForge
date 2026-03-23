@@ -79,91 +79,6 @@ var parseAddr = function(addr) {
 };
 `;
 
-// ─── Popup data extractor (shared between first attempt and retry) ─────────────
-
-async function readPopupData(
-  page: import("playwright").Page,
-  businessName: string,
-  utils: string
-): Promise<{
-  phone?: string; email?: string; website?: string;
-  address?: string; city?: string; state?: string;
-  hours?: string; rating?: string;
-} | null> {
-  return page.evaluate(function(args: [string, string]) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    var parseField: (text: string, label: string) => string | undefined = null as any;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    var isExternal: (href: string) => boolean = null as any;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    var extractHost: (href: string) => string = null as any;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    var realUrl: (href: string) => string = null as any;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    var parseAddr: (text: string) => { city?: string; state?: string } = null as any;
-    var u = args[0]; var bname = args[1];
-    eval(u);
-
-    var popup = document.querySelector("g-sticky-content-container") as HTMLElement | null;
-    if (!popup || !(popup.innerText || "").trim()) return null;
-
-    var nameLower = bname.toLowerCase().trim();
-    var container: HTMLElement = popup;
-    var blocks = Array.prototype.slice.call(popup.querySelectorAll("block-component")) as HTMLElement[];
-
-    var findBlock = function(exact: boolean): HTMLElement | null {
-      for (var b = 0; b < blocks.length; b++) {
-        var els = Array.prototype.slice.call(
-          blocks[b].querySelectorAll("h1,h2,h3,h4,[role='heading'],.kp-header")
-        ) as HTMLElement[];
-        for (var h = 0; h < els.length; h++) {
-          var t = (els[h].innerText || "").trim().toLowerCase();
-          if (!t || t.length < 2) continue;
-          if (exact ? t === nameLower : (t.includes(nameLower) || nameLower.includes(t))) return blocks[b];
-        }
-      }
-      return null;
-    };
-    var matched = findBlock(true) || findBlock(false);
-    if (matched) container = matched;
-
-    var fullText = container.innerText || "";
-    var allLinks = Array.prototype.slice.call(container.querySelectorAll("a[href]")) as HTMLAnchorElement[];
-
-    var telLink = container.querySelector('a[href^="tel:"]') as HTMLAnchorElement | null;
-    var phone: string | undefined = (telLink?.href ? telLink.href.replace(/^tel:/i, "").trim() : undefined) || undefined;
-    if (!phone) phone = parseField(fullText, "Phone");
-    if (!phone) { var pm = fullText.match(/(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}/); if (pm) phone = pm[0].trim(); }
-
-    var mailtoLink = container.querySelector('a[href^="mailto:"]') as HTMLAnchorElement | null;
-    var email: string | undefined = (mailtoLink?.href ? mailtoLink.href.replace(/^mailto:/i, "").split("?")[0].trim() : undefined) || undefined;
-
-    var siteLink: HTMLAnchorElement | undefined = allLinks.find(function(a) {
-      return ((a.innerText || (a as HTMLElement).textContent) || "").trim().toLowerCase() === "website" && isExternal(a.href);
-    });
-    if (!siteLink) {
-      var psVal = parseField(fullText, "Products and Services");
-      if (psVal) siteLink = allLinks.find(function(a) { return isExternal(a.href) && ((a.innerText || "").trim() === psVal || extractHost(a.href) === psVal!.replace(/^www\./, "")); });
-    }
-    if (!siteLink) siteLink = allLinks.find(function(a) { if (!isExternal(a.href)) return false; var r = realUrl(a.href); return r.indexOf("/maps/") === -1 && r.indexOf("maps.google.") === -1; });
-
-    var address: string | undefined = parseField(fullText, "Address") || undefined;
-    var addrParsed = parseAddr(address || "");
-    var hours: string | undefined = parseField(fullText, "Hours") || undefined;
-
-    var rating: string | undefined;
-    var rEl = container.querySelector('[aria-label*="Rated"],[aria-label*="stars"]') as HTMLElement | null;
-    if (rEl) { var rm = (rEl.getAttribute("aria-label") || "").match(/(\d+\.?\d*)/); if (rm) rating = rm[1]; }
-
-    return {
-      phone, email,
-      website: siteLink ? extractHost(siteLink.href) : undefined,
-      address, city: addrParsed.city, state: addrParsed.state,
-      hours, rating,
-    };
-  }, [utils, businessName] as [string, string]);
-}
-
 // ─── Google SERP extractor ────────────────────────────────────────────────────
 
 async function extractFromSerp(
@@ -216,89 +131,8 @@ async function extractFromSerp(
     await page.waitForSelector('[role="heading"], h3, #search, #rso', { timeout: 15000 })
       .catch(() => {});
     await sleep(randInt(800, 1400));
-
-    // ── Scroll-until-stable: loop the results panel until nothing new loads ─────
-    //
-    // Google lazy-renders results as the user scrolls the results sidebar.
-    // We find the scrollable container by walking up from the first visible
-    // heading (no class names — those change with every Google deploy).
-    // We keep scrolling until [role="heading"] count is stable for 3 rounds.
-
-    emit("status", { message: "Scrolling to discover all results…" });
-
-    // Find and cache the scrollable ancestor of the first result heading.
-    // Returns the element's index in a predictable node list so we can pass
-    // it back across the page boundary without serialisation issues.
-    const findScrollablePanel = async (): Promise<void> => {
-      await page.evaluate(function() {
-        // Walk up from the first heading to find its nearest scrollable ancestor
-        var heading = document.querySelector('[role="heading"]') as HTMLElement | null;
-        if (!heading) { window.scrollBy(0, 600); return; }
-
-        var el: HTMLElement | null = heading.parentElement;
-        while (el && el !== document.body) {
-          if (el.scrollHeight > el.clientHeight + 50) {
-            var st = window.getComputedStyle(el);
-            if (/auto|scroll/.test(st.overflow + " " + st.overflowY)) {
-              // Tag it so subsequent calls can find it instantly
-              el.setAttribute("data-results-panel", "1");
-              el.scrollTop += 600;
-              window.scrollBy(0, 100);
-              return;
-            }
-          }
-          el = el.parentElement;
-        }
-        // No scrollable ancestor found — fall back to window
-        window.scrollBy(0, 600);
-      });
-    };
-
-    // Subsequent scrolls reuse the tagged element for speed
-    const scrollPanel = () => page.evaluate(function() {
-      var panel = document.querySelector("[data-results-panel]") as HTMLElement | null;
-      if (panel && panel.scrollHeight > panel.clientHeight + 50) {
-        panel.scrollTop += 600;
-        window.scrollBy(0, 100);
-      } else {
-        window.scrollBy(0, 600);
-      }
-    });
-
-    const resetPanel = () => page.evaluate(function() {
-      window.scrollTo(0, 0);
-      var panel = document.querySelector("[data-results-panel]") as HTMLElement | null;
-      if (panel) panel.scrollTop = 0;
-    });
-
-    // First scroll: locates and tags the panel
-    await findScrollablePanel();
-    await sleep(700);
-
-    let prevCount = 0;
-    let stable = 0;
-    const MAX_SCROLL = 40;
-
-    for (let s = 0; s < MAX_SCROLL && stable < 3; s++) {
-      await scrollPanel();
-      await sleep(600);
-
-      const nowCount: number = await page.evaluate(function() {
-        return document.querySelectorAll('[role="heading"]').length;
-      });
-
-      if (nowCount === prevCount) {
-        stable++;
-      } else {
-        emit("status", { message: `Discovering results… (${nowCount} so far)` });
-        stable = 0;
-        prevCount = nowCount;
-      }
-    }
-
-    // Scroll back to the top so clicking starts from result #1
-    await resetPanel();
-    await sleep(600);
+    await humanScroll(page);
+    await sleep(randInt(400, 700));
 
     const bodyText = await page.evaluate(() => document.body?.innerText?.toLowerCase() ?? "");
     if (
@@ -309,128 +143,224 @@ async function extractFromSerp(
       emit("status", { message: "Google showed a CAPTCHA — results may be limited" });
     }
 
-    // ── Step 1: Collect businesses + any data visible in the SERP card ──────────
+    // ── Step 1: Collect all business names from #search ───────────────────────
     //
-    // We collect name + whatever phone/address is visible right in the result
-    // card (no click needed). This becomes the fallback if the popup fails.
+    // Starting point: #search contains the list of results.
+    // Each business has a [role="heading"] — leaf headings only (no child headings).
 
     emit("status", { message: "Reading result list…" });
 
-    type Snippet = { name: string; phone?: string; address?: string; city?: string; state?: string };
+    const businessNames: string[] = await page.evaluate(function() {
+      var root = document.querySelector("#search") || document.body;
+      return Array.prototype.slice.call(root.querySelectorAll('[role="heading"]'))
+        // Leaf headings only — skip wrappers that contain child headings
+        .filter(function(el: Element) { return !el.querySelector('[role="heading"]'); })
+        .map(function(el: HTMLElement) {
+          // Prefer the inner <span> text (e.g. <div role="heading"><span>209 NYC Dental</span></div>)
+          var span = el.querySelector("span");
+          return ((span ? span.innerText : el.innerText) || "").trim();
+        })
+        .filter(function(name: string) {
+          return name.length > 1 &&
+            !/^(more places|see (all|more)|sponsored|advertisement|people also|related searches|open now)/i
+              .test(name);
+        });
+    });
 
-    const serpSnippets: Snippet[] = await page.evaluate(function(utils: string) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      var parseField: (text: string, label: string) => string | undefined = null as any;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      var parseAddr: (text: string) => { city?: string; state?: string } = null as any;
-      eval(utils);
-
-      // Use the tagged scrollable panel found during scroll-discovery,
-      // or fall back to the role="main" region, then body.
-      var root = (
-        document.querySelector("[data-results-panel]") ||
-        document.querySelector('[role="main"]') ||
-        document.querySelector('#search') ||
-        document.querySelector('#rso') ||
-        document.body
-      ) as HTMLElement;
-      var allHeadings = Array.prototype.slice.call(
-        root.querySelectorAll('[role="heading"]')
-      ).filter(function(el: Element) {
-        return !el.querySelector('[role="heading"]');
-      }) as HTMLElement[];
-
-      var results: Array<{ name: string; phone?: string; address?: string; city?: string; state?: string }> = [];
-
-      for (var j = 0; j < allHeadings.length; j++) {
-        var el = allHeadings[j];
-        var span = el.querySelector("span");
-        var name = ((span ? span.innerText : el.innerText) || "").trim();
-        if (!name || name.length <= 1) continue;
-        // Skip UI labels — NOT business names (no name-based dedup: same-named
-        // chains at different addresses are all valid separate leads)
-        if (/^(more places|see (all|more)|sponsored|advertisement|people also|related searches|open now|directions|website|call|share|save|hours|menu|order|book|reviews)/i.test(name)) continue;
-
-        // Walk up to find a result card with enough text lines
-        var card: HTMLElement = el;
-        for (var k = 0; k < 10 && card.parentElement; k++) {
-          card = card.parentElement as HTMLElement;
-          if ((card.innerText || "").split("\n").filter(function(s: string) { return s.trim(); }).length >= 4) break;
-        }
-        var cardText = card.innerText || "";
-        var phone: string | undefined = parseField(cardText, "Phone") || undefined;
-        if (!phone) {
-          var pm = cardText.match(/(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}/);
-          if (pm) phone = pm[0].trim();
-        }
-        var addr: string | undefined = parseField(cardText, "Address") || undefined;
-        var parsed = parseAddr(addr || "");
-
-        results.push({ name, phone, address: addr, city: parsed.city, state: parsed.state });
-      }
-      return results;
-    }, UTILS);
-
-    if (serpSnippets.length === 0) {
+    if (businessNames.length === 0) {
       emit("status", { message: "No Places list found — trying knowledge panels…" });
     } else {
-      emit("status", { message: `Found ${serpSnippets.length} businesses — loading details…` });
+      emit("status", {
+        message: `Found ${businessNames.length} businesses — loading details…`,
+      });
     }
 
-    // ── Step 2: Click each result → enrich with popup data → always emit ──────
+    // ── Step 2: Click each result → popup updates → extract from popup ────────
     //
-    // Every business detected in Step 1 MUST produce a lead row.
-    // Popup data enriches it (phone, email, website, full address).
-    // If the popup can't be read, the SERP snippet data is used as fallback.
-    // A lead is NEVER silently dropped.
+    // Clicking a result opens/updates g-sticky-content-container on the right.
+    // That popup has the FULL data: complete address, phone number, website link.
 
-    for (let i = 0; i < serpSnippets.length && leadsEmitted < maxLeads; i++) {
-      const snippet = serpSnippets[i];
-      const name = snippet.name;
+    const seenNames = new Set<string>();
 
-      emit("status", { message: `[${i + 1}/${serpSnippets.length}] ${name}…` });
+    for (let i = 0; i < businessNames.length && leadsEmitted < maxLeads; i++) {
+      const name = businessNames[i];
+      if (!name || seenNames.has(name.toLowerCase())) continue;
+      seenNames.add(name.toLowerCase());
 
-      // ── Try to click the result heading by position (not text) ───────────────
-      // Using .nth(i) means two "Joe's Plumbing" branches each get their own
-      // click — text-based matching would always hit the first one.
-      let clicked = false;
-      for (let attempt = 0; attempt < 2 && !clicked; attempt++) {
-        try {
-          if (attempt > 0) await sleep(1000);
-          const heading = page.locator(
-            '[data-results-panel] [role="heading"]:not(:has([role="heading"])), ' +
-            '[role="main"] [role="heading"]:not(:has([role="heading"])), ' +
-            '#search [role="heading"]:not(:has([role="heading"])), ' +
-            '[role="heading"]:not(:has([role="heading"]))'
-          ).nth(i);
-          await heading.scrollIntoViewIfNeeded({ timeout: 4000 });
-          await heading.click({ timeout: 5000, force: true });
-          clicked = true;
-        } catch { /* retry */ }
+      emit("status", { message: `[${i + 1}/${businessNames.length}] ${name}…` });
+
+      // ── Click the result heading (found by text, not by index) ───────────────
+
+      try {
+        const safeText = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const heading = page.locator(
+          '#search [role="heading"]:not(:has([role="heading"]))'
+        ).filter({ hasText: new RegExp(safeText, "i") }).first();
+
+        await heading.scrollIntoViewIfNeeded({ timeout: 4000 });
+        await heading.click({ timeout: 5000, force: true });
+      } catch {
+        emit("status", { message: `Could not click result ${i + 1} — skipping` });
+        continue;
       }
 
-      // ── Try to read popup (up to 2 attempts with increasing wait) ────────────
-      let popupData: Awaited<ReturnType<typeof readPopupData>> = null;
-      if (clicked) {
-        await sleep(1800);
-        popupData = await readPopupData(page, name, UTILS);
-        if (!popupData) {
-          await sleep(1500);
-          popupData = await readPopupData(page, name, UTILS);
+      // Fixed wait for popup to load — no complex heading-change detection
+      await sleep(1800);
+
+      // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      // STAGE 4 — Scrape data from the verified block-component
+      // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      // Scope entirely inside g-sticky-content-container to avoid reading
+      // block-components from other parts of the page.
+
+      const data: {
+        popupName?: string;
+        phone?: string; email?: string; website?: string;
+        address?: string; city?: string; state?: string;
+        hours?: string; rating?: string;
+      } | null = await page.evaluate(function(args: [string, string]) {
+        // Type declarations for helpers injected by eval(utils) below.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        var parseField: (text: string, label: string) => string | undefined = null as any;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        var isExternal: (href: string) => boolean = null as any;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        var extractHost: (href: string) => string = null as any;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        var realUrl: (href: string) => string = null as any;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        var parseAddr: (text: string) => { city?: string; state?: string } = null as any;
+        var utils = args[0];
+        var businessName = args[1];
+        eval(utils); // assigns actual implementations to the typed vars above
+
+        var popup = document.querySelector("g-sticky-content-container") as HTMLElement | null;
+        if (!popup || !(popup.innerText || "").trim()) return null;
+
+        // Find the block-component inside the popup whose heading matches
+        var nameLower = businessName.toLowerCase().trim();
+        var container: HTMLElement = popup;
+        var blocks = Array.prototype.slice.call(
+          popup.querySelectorAll("block-component")
+        ) as HTMLElement[];
+
+        var findBlock = function(exact: boolean): HTMLElement | null {
+          for (var b = 0; b < blocks.length; b++) {
+            var els = Array.prototype.slice.call(
+              blocks[b].querySelectorAll("h1, h2, h3, h4, [role='heading'], .kp-header")
+            ) as HTMLElement[];
+            for (var h = 0; h < els.length; h++) {
+              var t = (els[h].innerText || "").trim().toLowerCase();
+              if (!t || t.length < 2) continue;
+              if (exact ? t === nameLower : (t.includes(nameLower) || nameLower.includes(t))) {
+                return blocks[b];
+              }
+            }
+          }
+          return null;
+        };
+
+        var matched = findBlock(true) || findBlock(false);
+        if (matched) container = matched;
+
+        var popupName = ""; // kept for type compatibility, not used for naming
+
+        var fullText = container.innerText || "";
+        var allLinks = Array.prototype.slice.call(
+          container.querySelectorAll("a[href]")
+        ) as HTMLAnchorElement[];
+
+        // Phone: tel: link → "Phone:" label → embedded pattern
+        var telLink = container.querySelector('a[href^="tel:"]') as HTMLAnchorElement | null;
+        var phone: string | undefined =
+          (telLink && telLink.href ? telLink.href.replace(/^tel:/i, "").trim() : undefined) || undefined;
+        if (!phone) phone = parseField(fullText, "Phone");
+        if (!phone) {
+          var pm = fullText.match(/(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}/);
+          if (pm) phone = pm[0].trim();
         }
+
+        // Email
+        var mailtoLink = container.querySelector('a[href^="mailto:"]') as HTMLAnchorElement | null;
+        var email: string | undefined =
+          (mailtoLink && mailtoLink.href
+            ? mailtoLink.href.replace(/^mailto:/i, "").split("?")[0].trim()
+            : undefined) || undefined;
+
+        // Website: "Website" button > "Products and Services" link > first external
+        var siteLink: HTMLAnchorElement | undefined = allLinks.find(function(a: HTMLAnchorElement) {
+          var txt = ((a.innerText || (a as HTMLElement).textContent) || "").trim().toLowerCase();
+          return txt === "website" && isExternal(a.href);
+        });
+        if (!siteLink) {
+          var psVal = parseField(fullText, "Products and Services");
+          if (psVal) {
+            siteLink = allLinks.find(function(a: HTMLAnchorElement) {
+              return isExternal(a.href) && (
+                (a.innerText || "").trim() === psVal ||
+                extractHost(a.href) === psVal!.replace(/^www\./, "")
+              );
+            });
+          }
+        }
+        if (!siteLink) {
+          siteLink = allLinks.find(function(a: HTMLAnchorElement) {
+            if (!isExternal(a.href)) return false;
+            var real = realUrl(a.href);
+            return real.indexOf("/maps/") === -1 && real.indexOf("maps.google.") === -1;
+          });
+        }
+        var website: string | undefined = siteLink ? extractHost(siteLink.href) : undefined;
+
+        var address: string | undefined = parseField(fullText, "Address") || undefined;
+        var addrParsed = parseAddr(address || "");
+        var hours: string | undefined = parseField(fullText, "Hours") || undefined;
+
+        var rating: string | undefined;
+        var rEl = container.querySelector('[aria-label*="Rated"], [aria-label*="stars"]') as HTMLElement | null;
+        if (rEl) {
+          var rm = (rEl.getAttribute("aria-label") || "").match(/(\d+\.?\d*)/);
+          if (rm) rating = rm[1];
+        }
+
+        return {
+          popupName,
+          phone, email, website, address,
+          city: addrParsed.city, state: addrParsed.state,
+          hours, rating,
+        };
+      }, [UTILS, name] as [string, string]);
+
+      // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      // STAGE 5 — Emit lead (popup already verified to have updated in Stage 3)
+      // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      // Stage 3 already confirmed the popup heading changed, meaning it loaded
+      // fresh data for the business we just clicked. We trust the popup as the
+      // authoritative source — use its name if available, else the list name.
+
+      if (!data) {
+        emit("status", { message: `No data found in popup for "${name}" — skipping` });
+        continue;
       }
 
-      // ── Always emit — popup enriches the snippet, never drops the lead ───────
+      // Use the list heading name — it's already clean (inner span text only).
+      // data.popupName has extra garbage: ratings, category, aria labels, etc.
+      const finalName = name;
+
+      // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      // STAGE 6 — Emit verified lead and move to next result
+      // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
       emit("lead", {
-        businessName: name,
-        website:      popupData?.website ?? "",
-        phone:        popupData?.phone ?? snippet.phone,
-        email:        popupData?.email,
-        address:      popupData?.address ?? snippet.address,
-        city:         popupData?.city ?? snippet.city,
-        state:        popupData?.state ?? snippet.state,
-        hours:        popupData?.hours,
-        snippet:      popupData?.rating ? `${popupData.rating} ★` : undefined,
+        businessName: finalName,
+        website:      data.website ?? "",
+        phone:        data.phone,
+        email:        data.email,
+        address:      data.address,
+        city:         data.city,
+        state:        data.state,
+        hours:        data.hours,
+        snippet:      data.rating ? `${data.rating} ★` : undefined,
         sourceUrl:    queryOrUrl,
       });
       leadsEmitted++;
