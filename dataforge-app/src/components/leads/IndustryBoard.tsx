@@ -34,7 +34,10 @@ import {
   Plus,
   Search,
   X,
+  LayoutGrid,
+  List,
 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -198,7 +201,8 @@ export function IndustryBoard({ industries: initialIndustries, unfiledFolders }:
   const [savingCategory, startSavingCategory] = useTransition();
 
   // Filter
-  const [search, setSearch] = useState("");
+  const [search, setSearch]       = useState("");
+  const [viewMode, setViewMode]   = useState<"grid" | "list">("grid");
 
   const unfiledLeads = unfiledFolders.reduce((sum, f) => sum + f._count.leads, 0);
 
@@ -281,6 +285,26 @@ export function IndustryBoard({ industries: initialIndustries, unfiledFolders }:
         </p>
 
         <div className="ml-auto flex items-center gap-2">
+          <TooltipProvider>
+            <div className="flex items-center gap-1 rounded-lg border p-1">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant={viewMode === "grid" ? "secondary" : "ghost"} size="icon" className="h-7 w-7" onClick={() => setViewMode("grid")}>
+                    <LayoutGrid className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Grid view</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant={viewMode === "list" ? "secondary" : "ghost"} size="icon" className="h-7 w-7" onClick={() => setViewMode("list")}>
+                    <List className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>List view</TooltipContent>
+              </Tooltip>
+            </div>
+          </TooltipProvider>
           <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setCreateCategoryOpen(true)}>
             <Plus className="h-4 w-4" />
             New Industry
@@ -292,31 +316,70 @@ export function IndustryBoard({ industries: initialIndustries, unfiledFolders }:
         </div>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-        {filteredIndustries.map((industry) => (
-          <IndustryCard
-            key={industry.id}
-            industry={industry}
-            onClick={() => setSelected(industry)}
-            onDelete={() => handleDeleteIndustry(industry)}
-            deleting={deletingId === industry.id}
-          />
-        ))}
-
-        {showUncategorizedCard && (
-          <UncategorizedCard
-            count={unfiledFolders.length}
-            totalLeads={unfiledLeads}
-            onClick={() => setShowUncategorized(true)}
-          />
-        )}
-
-        {filteredIndustries.length === 0 && !showUncategorizedCard && search && (
-          <p className="text-sm text-muted-foreground py-12 col-span-full text-center">
-            No industries match &ldquo;{search}&rdquo;
-          </p>
-        )}
-      </div>
+      {viewMode === "grid" ? (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+          {filteredIndustries.map((industry) => (
+            <IndustryCard
+              key={industry.id}
+              industry={industry}
+              onClick={() => setSelected(industry)}
+              onDelete={() => handleDeleteIndustry(industry)}
+              deleting={deletingId === industry.id}
+            />
+          ))}
+          {showUncategorizedCard && (
+            <UncategorizedCard
+              count={unfiledFolders.length}
+              totalLeads={unfiledLeads}
+              onClick={() => setShowUncategorized(true)}
+            />
+          )}
+          {filteredIndustries.length === 0 && !showUncategorizedCard && search && (
+            <p className="text-sm text-muted-foreground py-12 col-span-full text-center">
+              No industries match &ldquo;{search}&rdquo;
+            </p>
+          )}
+        </div>
+      ) : (
+        <div className="flex flex-col divide-y rounded-lg border overflow-hidden">
+          {filteredIndustries.map((industry) => (
+            <div key={industry.id} className="flex items-center gap-3 px-4 py-3 hover:bg-muted/50 transition-colors group">
+              <button className="flex items-center gap-3 flex-1 min-w-0 text-left" onClick={() => setSelected(industry)}>
+                <div className="h-8 w-8 flex items-center justify-center rounded-md shrink-0" style={{ backgroundColor: industry.color + "20" }}>
+                  <Building2 className="h-4 w-4" style={{ color: industry.color }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold truncate">{industry.name}</p>
+                  <p className="text-xs text-muted-foreground">{industry._count.folders} folder{industry._count.folders !== 1 ? "s" : ""} · {industry.totalLeads.toLocaleString()} leads</p>
+                </div>
+              </button>
+              <button
+                onClick={() => handleDeleteIndustry(industry)}
+                disabled={deletingId === industry.id}
+                className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+              >
+                {deletingId === industry.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+              </button>
+            </div>
+          ))}
+          {showUncategorizedCard && (
+            <button className="flex items-center gap-3 px-4 py-3 hover:bg-muted/50 transition-colors text-left" onClick={() => setShowUncategorized(true)}>
+              <div className="h-8 w-8 flex items-center justify-center rounded-md shrink-0 bg-muted">
+                <FolderOpen className="h-4 w-4 text-muted-foreground" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold">Uncategorized</p>
+                <p className="text-xs text-muted-foreground">{unfiledFolders.length} folder{unfiledFolders.length !== 1 ? "s" : ""} · {unfiledLeads.toLocaleString()} leads</p>
+              </div>
+            </button>
+          )}
+          {filteredIndustries.length === 0 && !showUncategorizedCard && search && (
+            <p className="text-sm text-muted-foreground py-12 text-center">
+              No industries match &ldquo;{search}&rdquo;
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Create category dialog */}
       <Dialog open={createCategoryOpen} onOpenChange={(v) => { if (!v) { setCategoryName(""); setCategoryColor(COLOR_SWATCHES[0]); } setCreateCategoryOpen(v); }}>
