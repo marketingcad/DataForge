@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -22,6 +22,7 @@ export function LeadFilters() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const setParam = useCallback(
     (key: string, value: string) => {
@@ -58,8 +59,8 @@ export function LeadFilters() {
           defaultValue={searchParams.get("search") ?? undefined}
           onChange={(e) => {
             const value = e.target.value;
-            const timeout = setTimeout(() => setParam("search", value), 350);
-            return () => clearTimeout(timeout);
+            if (searchTimer.current) clearTimeout(searchTimer.current);
+            searchTimer.current = setTimeout(() => setParam("search", value), 350);
           }}
         />
       </div>
