@@ -41,6 +41,7 @@ export async function insertLead(raw: LeadInput & { folderId?: string; savedById
       data: {
         industriesFoundIn: newIndustries,
         dataQualityScore: Math.max(existing.dataQualityScore, newScore),
+        duplicateFlag: true,
         // Move to the new folder if one was explicitly provided
         ...(raw.folderId ? { folderId: raw.folderId } : {}),
       },

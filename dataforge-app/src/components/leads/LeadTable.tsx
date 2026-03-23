@@ -65,12 +65,12 @@ export function LeadTable({ leads }: { leads: Lead[] }) {
           {leads.map((lead) => (
             <TableRow
               key={lead.id}
-              className={lead.duplicateFlag ? "bg-orange-50/40 dark:bg-orange-950/10" : ""}
+              className={lead.duplicateFlag ? "bg-rose-50/60 dark:bg-rose-950/20 border-l-2 border-l-rose-500" : ""}
             >
               <TableCell>
                 <div className="flex items-center gap-2">
                   {lead.duplicateFlag && (
-                    <AlertTriangle className="h-3.5 w-3.5 text-orange-500 shrink-0" />
+                    <AlertTriangle className="h-3.5 w-3.5 text-rose-500 shrink-0" />
                   )}
                   <div>
                     <p className="font-medium text-sm leading-none">{lead.businessName}</p>
