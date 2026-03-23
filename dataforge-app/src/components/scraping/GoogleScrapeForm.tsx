@@ -37,12 +37,17 @@ interface TabMeta {
 
 // ── Individual crawl instance ────────────────────────────────────────────────
 
+const BASE_TIME_LIMIT = 180;
+const EXTRA_PER_TAB   = 60;
+
 function CrawlInstance({
   hidden,
   onUpdate,
+  tabCount,
 }: {
   hidden: boolean;
   onUpdate: (status: CrawlStatus, count: number) => void;
+  tabCount: number;
 }) {
   const [rows,      setRows]      = useState<TableRow[]>([]);
   const [status,    setStatus]    = useState<CrawlStatus>("idle");
@@ -51,7 +56,14 @@ function CrawlInstance({
   const [summary,   setSummary]   = useState<{ leadsFound: number; pagesVisited: number; elapsed: number } | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [maxLeads,  setMaxLeads]  = useState(50);
-  const [timeLimit, setTimeLimit] = useState(180);
+  const [timeLimit, setTimeLimit] = useState(() => BASE_TIME_LIMIT + (tabCount - 1) * EXTRA_PER_TAB);
+
+  // Auto-adjust time limit when tabs are added/removed (only when idle)
+  useEffect(() => {
+    if (status === "idle") {
+      setTimeLimit(Math.min(BASE_TIME_LIMIT + (tabCount - 1) * EXTRA_PER_TAB, 300));
+    }
+  }, [tabCount, status]);
 
   const sourceRef  = useRef<EventSource | null>(null);
   const rowCounter = useRef(0);
@@ -592,6 +604,7 @@ export function GoogleScrapeForm() {
           <CrawlInstance
             key={tab.id}
             hidden={tab.id !== activeId}
+            tabCount={tabs.length}
             onUpdate={(status, count) => handleUpdate(tab.id, status, count)}
           />
         ))}
