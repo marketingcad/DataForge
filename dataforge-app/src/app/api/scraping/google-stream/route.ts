@@ -180,22 +180,29 @@ async function extractFromSerp(
     // Clicking a result opens/updates g-sticky-content-container on the right.
     // That popup has the FULL data: complete address, phone number, website link.
 
-    const seenNames = new Set<string>();
+    // Track how many times each name has been seen so far, so that
+    // the Nth duplicate clicks the Nth DOM occurrence, not always the first.
+    const nameOccurrences = new Map<string, number>();
 
     for (let i = 0; i < businessNames.length && leadsEmitted < maxLeads; i++) {
       const name = businessNames[i];
-      if (!name || seenNames.has(name.toLowerCase())) continue;
-      seenNames.add(name.toLowerCase());
+      if (!name) continue;
 
       emit("status", { message: `[${i + 1}/${businessNames.length}] ${name}…` });
 
-      // ── Click the result heading (found by text, not by index) ───────────────
+      // ── Click the result heading ──────────────────────────────────────────────
+      // Use occurrence index so duplicate-named businesses (e.g. chain branches)
+      // each click their own row instead of always hitting the first match.
+
+      const nameLower = name.toLowerCase();
+      const occurrence = nameOccurrences.get(nameLower) ?? 0;
+      nameOccurrences.set(nameLower, occurrence + 1);
 
       try {
         const safeText = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
         const heading = page.locator(
           '#search [role="heading"]:not(:has([role="heading"]))'
-        ).filter({ hasText: new RegExp(safeText, "i") }).first();
+        ).filter({ hasText: new RegExp(safeText, "i") }).nth(occurrence);
 
         await heading.scrollIntoViewIfNeeded({ timeout: 4000 });
         await heading.click({ timeout: 5000, force: true });
