@@ -191,20 +191,27 @@ async function extractFromSerp(
 
       // ── Click the result heading (found by text, not by index) ───────────────
 
-      try {
-        const safeText = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        const heading = page.locator(
-          '#search [role="heading"]:not(:has([role="heading"]))'
-        ).filter({ hasText: new RegExp(safeText, "i") }).first();
+      let clicked = false;
+      for (let attempt = 0; attempt < 2 && !clicked; attempt++) {
+        try {
+          if (attempt > 0) await sleep(1000);
+          const safeText = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          const heading = page.locator(
+            '#search [role="heading"]:not(:has([role="heading"]))'
+          ).filter({ hasText: new RegExp(safeText, "i") }).first();
 
-        await heading.scrollIntoViewIfNeeded({ timeout: 4000 });
-        await heading.click({ timeout: 5000, force: true });
-      } catch {
+          await heading.scrollIntoViewIfNeeded({ timeout: 4000 });
+          await heading.click({ timeout: 5000, force: true });
+          clicked = true;
+        } catch { /* will retry or skip */ }
+      }
+      if (!clicked) {
         emit("status", { message: `Could not click result ${i + 1} — skipping` });
         continue;
       }
 
-      // Fixed wait for popup to load — no complex heading-change detection
+      // Wait for the popup to load. We try up to 3 times with increasing delays
+      // so that slow-loading popups are not silently skipped.
       await sleep(1800);
 
       // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -338,8 +345,79 @@ async function extractFromSerp(
       // fresh data for the business we just clicked. We trust the popup as the
       // authoritative source — use its name if available, else the list name.
 
+      // Retry once if popup was empty (gave it 1800ms but may need more time)
       if (!data) {
-        emit("status", { message: `No data found in popup for "${name}" — skipping` });
+        await sleep(1500);
+        const retryData: typeof data = await page.evaluate(function(args: [string, string]) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          var parseField: (text: string, label: string) => string | undefined = null as any;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          var isExternal: (href: string) => boolean = null as any;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          var extractHost: (href: string) => string = null as any;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          var realUrl: (href: string) => string = null as any;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          var parseAddr: (text: string) => { city?: string; state?: string } = null as any;
+          var utils = args[0]; var businessName = args[1];
+          eval(utils);
+          var popup = document.querySelector("g-sticky-content-container") as HTMLElement | null;
+          if (!popup || !(popup.innerText || "").trim()) return null;
+          var nameLower = businessName.toLowerCase().trim();
+          var container: HTMLElement = popup;
+          var blocks = Array.prototype.slice.call(popup.querySelectorAll("block-component")) as HTMLElement[];
+          var findBlock = function(exact: boolean): HTMLElement | null {
+            for (var b = 0; b < blocks.length; b++) {
+              var els = Array.prototype.slice.call(blocks[b].querySelectorAll("h1,h2,h3,h4,[role='heading'],.kp-header")) as HTMLElement[];
+              for (var h = 0; h < els.length; h++) {
+                var t = (els[h].innerText || "").trim().toLowerCase();
+                if (!t || t.length < 2) continue;
+                if (exact ? t === nameLower : (t.includes(nameLower) || nameLower.includes(t))) return blocks[b];
+              }
+            }
+            return null;
+          };
+          var matched = findBlock(true) || findBlock(false);
+          if (matched) container = matched;
+          var fullText = container.innerText || "";
+          var allLinks = Array.prototype.slice.call(container.querySelectorAll("a[href]")) as HTMLAnchorElement[];
+          var telLink = container.querySelector('a[href^="tel:"]') as HTMLAnchorElement | null;
+          var phone: string | undefined = (telLink && telLink.href ? telLink.href.replace(/^tel:/i, "").trim() : undefined) || undefined;
+          if (!phone) phone = parseField(fullText, "Phone");
+          if (!phone) { var pm = fullText.match(/(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}/); if (pm) phone = pm[0].trim(); }
+          var mailtoLink = container.querySelector('a[href^="mailto:"]') as HTMLAnchorElement | null;
+          var email: string | undefined = (mailtoLink && mailtoLink.href ? mailtoLink.href.replace(/^mailto:/i, "").split("?")[0].trim() : undefined) || undefined;
+          var siteLink: HTMLAnchorElement | undefined = allLinks.find(function(a) { var txt = ((a.innerText || (a as HTMLElement).textContent) || "").trim().toLowerCase(); return txt === "website" && isExternal(a.href); });
+          if (!siteLink) { var psVal = parseField(fullText, "Products and Services"); if (psVal) siteLink = allLinks.find(function(a) { return isExternal(a.href) && ((a.innerText || "").trim() === psVal || extractHost(a.href) === psVal!.replace(/^www\./, "")); }); }
+          if (!siteLink) siteLink = allLinks.find(function(a) { if (!isExternal(a.href)) return false; var real = realUrl(a.href); return real.indexOf("/maps/") === -1 && real.indexOf("maps.google.") === -1; });
+          var website: string | undefined = siteLink ? extractHost(siteLink.href) : undefined;
+          var address: string | undefined = parseField(fullText, "Address") || undefined;
+          var addrParsed = parseAddr(address || "");
+          var hours: string | undefined = parseField(fullText, "Hours") || undefined;
+          var rating: string | undefined;
+          var rEl = container.querySelector('[aria-label*="Rated"],[aria-label*="stars"]') as HTMLElement | null;
+          if (rEl) { var rm = (rEl.getAttribute("aria-label") || "").match(/(\d+\.?\d*)/); if (rm) rating = rm[1]; }
+          return { popupName: "", phone, email, website, address, city: addrParsed.city, state: addrParsed.state, hours, rating };
+        }, [UTILS, name] as [string, string]);
+
+        if (!retryData) {
+          emit("status", { message: `No data found in popup for "${name}" — skipping` });
+          continue;
+        }
+        emit("lead", {
+          businessName: name,
+          website:      retryData.website ?? "",
+          phone:        retryData.phone,
+          email:        retryData.email,
+          address:      retryData.address,
+          city:         retryData.city,
+          state:        retryData.state,
+          hours:        retryData.hours,
+          snippet:      retryData.rating ? `${retryData.rating} ★` : undefined,
+          sourceUrl:    queryOrUrl,
+        });
+        leadsEmitted++;
+        await sleep(randInt(150, 300));
         continue;
       }
 
