@@ -70,7 +70,6 @@ export function SaveLeadsModal({ open, onOpenChange, leads, onSaved }: SaveLeads
   const [newColor, setNewColor] = useState(PRESET_COLORS[0].value);
   const [newIndustryId, setNewIndustryId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [creatingFolder, setCreatingFolder] = useState(false);
   const [search, setSearch] = useState("");
   const [filterIndustryId, setFilterIndustryId] = useState<string | null>(null);
 
@@ -86,37 +85,39 @@ export function SaveLeadsModal({ open, onOpenChange, leads, onSaved }: SaveLeads
       .catch(() => {}); // industries are optional — silent fail
   }, [open]);
 
-  async function handleCreateFolder() {
-    if (!newName.trim()) return;
-    setCreatingFolder(true);
-    try {
-      const raw = await createFolderAction(newName.trim(), newColor, newIndustryId);
-      const ind = industries.find((i) => i.id === newIndustryId) ?? null;
-      const folder: FolderItem = {
-        ...(raw as { id: string; name: string; color: string }),
-        _count: { leads: 0 },
-        industry: ind ? { id: ind.id, name: ind.name, color: ind.color } : null,
-      };
-      setFolders((prev) => [...prev, folder]);
-      setSelectedFolder(folder.id);
-      setCreatingNew(false);
-      setNewName("");
-      setNewIndustryId(null);
-    } catch {
-      toast.error("Failed to create folder");
-    } finally {
-      setCreatingFolder(false);
-    }
-  }
-
   async function handleSave() {
     setSaving(true);
     try {
-      const folderId = selectedFolder === "none" ? undefined : selectedFolder;
+      let folderId: string | undefined;
+
+      if (selectedFolder === "new") {
+        // Must have a name
+        if (!newName.trim()) {
+          toast.error("Please enter a folder name.");
+          setSaving(false);
+          return;
+        }
+        // Create the folder on the fly
+        const raw = await createFolderAction(newName.trim(), newColor, newIndustryId);
+        const created = raw as { id: string; name: string; color: string };
+        const ind = industries.find((i) => i.id === newIndustryId) ?? null;
+        const folder: FolderItem = {
+          ...created,
+          _count: { leads: 0 },
+          industry: ind ? { id: ind.id, name: ind.name, color: ind.color } : null,
+        };
+        setFolders((prev) => [...prev, folder]);
+        folderId = created.id;
+      } else {
+        folderId = selectedFolder === "none" ? undefined : selectedFolder;
+      }
+
       const result = await saveLeadsAction(leads, folderId);
       onSaved(result);
       onOpenChange(false);
-      const folderName = folders.find((f) => f.id === folderId)?.name;
+      const folderName = folderId
+        ? (folders.find((f) => f.id === folderId)?.name ?? newName.trim())
+        : undefined;
       addNotif({
         type: "success",
         title: `${result.saved} lead${result.saved !== 1 ? "s" : ""} saved${folderName ? ` to "${folderName}"` : ""}`,
@@ -261,15 +262,18 @@ export function SaveLeadsModal({ open, onOpenChange, leads, onSaved }: SaveLeads
           {!creatingNew ? (
             <button
               type="button"
-              onClick={() => setCreatingNew(true)}
+              onClick={() => { setCreatingNew(true); setSelectedFolder("new"); }}
               className="flex items-center gap-2 text-sm text-primary hover:text-primary/80 transition-colors font-medium"
             >
               <FolderPlus className="h-4 w-4" />
               Create new folder
             </button>
           ) : (
-            <div className="rounded-lg border bg-muted/20 p-4 space-y-3">
-              <p className="text-sm font-medium">New folder</p>
+            <div className="rounded-lg border border-primary bg-primary/5 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium">New folder</p>
+                <span className="text-[10px] font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-full">Selected</span>
+              </div>
 
               {/* Name */}
               <div className="space-y-1.5">
@@ -278,7 +282,7 @@ export function SaveLeadsModal({ open, onOpenChange, leads, onSaved }: SaveLeads
                   placeholder="e.g. HVAC Houston 2025"
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleCreateFolder()}
+                  onKeyDown={(e) => e.key === "Enter" && handleSave()}
                   autoFocus
                   className="h-8 text-sm"
                 />
@@ -368,17 +372,8 @@ export function SaveLeadsModal({ open, onOpenChange, leads, onSaved }: SaveLeads
               <div className="flex gap-2">
                 <Button
                   size="sm"
-                  onClick={handleCreateFolder}
-                  disabled={!newName.trim() || creatingFolder}
-                  className="h-7 text-xs"
-                >
-                  {creatingFolder && <Loader2 className="h-3 w-3 mr-1.5 animate-spin" />}
-                  Create
-                </Button>
-                <Button
-                  size="sm"
                   variant="ghost"
-                  onClick={() => { setCreatingNew(false); setNewName(""); setNewIndustryId(null); }}
+                  onClick={() => { setCreatingNew(false); setNewName(""); setNewIndustryId(null); setSelectedFolder("none"); }}
                   className="h-7 text-xs"
                 >
                   Cancel
