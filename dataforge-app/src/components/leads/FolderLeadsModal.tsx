@@ -204,7 +204,7 @@ export function FolderLeadsModal({
     } finally {
       setLoading(false);
     }
-  }, [open, folder.id, debSearch, searchField, sort, page, minScore, maxScore, status, stateFilter, hasEmail, hasWebsite, hasContact]);
+  }, [open, folder.id, debSearch, searchField, sort, page, minScore, maxScore, status, stateFilter, hasEmail, hasWebsite, hasContact, filterUserId]);
 
   useEffect(() => { fetchLeads(); }, [fetchLeads]);
 
