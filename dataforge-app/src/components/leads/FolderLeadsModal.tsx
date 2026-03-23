@@ -77,6 +77,7 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   allIndustries?: IndustryOption[];
   currentIndustryId?: string | null;
+  filterUserId?: string;
   onFolderDeleted?: (id: string) => void;
   onCategoryChanged?: (id: string) => void;
 }
@@ -139,6 +140,7 @@ function exportToCSV(leads: Lead[], filename: string) {
 export function FolderLeadsModal({
   folder, open, onOpenChange,
   allIndustries = [], currentIndustryId,
+  filterUserId,
   onFolderDeleted, onCategoryChanged,
 }: Props) {
   const [leads, setLeads]           = useState<Lead[]>([]);
@@ -194,6 +196,7 @@ export function FolderLeadsModal({
         hasEmail: hasEmail || undefined,
         hasWebsite: hasWebsite || undefined,
         hasContact: hasContact || undefined,
+        savedById: filterUserId,
       });
       setLeads(r.leads as Lead[]);
       setTotal(r.total);

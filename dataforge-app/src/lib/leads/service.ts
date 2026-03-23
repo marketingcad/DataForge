@@ -11,7 +11,7 @@ import { LeadInput, InsertResult } from "@/types/lead";
  *   is updated with any new industry and a recalculated score.
  * - If no duplicate, a new lead is created.
  */
-export async function insertLead(raw: LeadInput & { folderId?: string }): Promise<InsertResult> {
+export async function insertLead(raw: LeadInput & { folderId?: string; savedById?: string }): Promise<InsertResult> {
   const phone = normalizePhone(raw.phone);
   const email = raw.email ? normalizeEmail(raw.email) : "";
   const website = raw.website ? normalizeWebsite(raw.website) : "";
@@ -72,6 +72,7 @@ export async function insertLead(raw: LeadInput & { folderId?: string }): Promis
       industriesFoundIn: industries,
       dataQualityScore: score,
       folderId: raw.folderId || null,
+      savedById: raw.savedById || null,
     },
   });
 
@@ -142,6 +143,7 @@ export async function getLeads({
   hasWebsite,
   hasContact,
   searchField = "business",
+  savedById,
 }: {
   search?: string;
   industry?: string;
@@ -157,6 +159,7 @@ export async function getLeads({
   hasWebsite?: boolean;
   hasContact?: boolean;
   searchField?: "business" | "contact" | "location" | "phone" | "email" | "website" | "score";
+  savedById?: string;
 }) {
   const where: Record<string, unknown> = {};
 
@@ -196,6 +199,7 @@ export async function getLeads({
   if (hasEmail) where.email = { not: null };
   if (hasWebsite) where.website = { not: null };
   if (hasContact) where.contactPerson = { not: null };
+  if (savedById) where.savedById = savedById;
 
   const orderBy =
     sort === "name_asc"  ? [{ businessName: "asc"  as const }] :

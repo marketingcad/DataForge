@@ -1,6 +1,7 @@
 "use server";
 
 import { insertLead } from "@/lib/leads/service";
+import { requireAuth } from "@/lib/rbac/guards";
 
 export interface LeadRow {
   businessName: string;
@@ -24,6 +25,8 @@ export async function saveLeadsAction(
   leads: LeadRow[],
   folderId?: string
 ): Promise<SaveLeadsResult> {
+  const session = await requireAuth();
+  const savedById = session.user.id!;
   let saved = 0, duplicates = 0, failed = 0;
 
   for (const lead of leads) {
@@ -39,6 +42,7 @@ export async function saveLeadsAction(
         state: lead.state,
         source: `crawl:${lead.sourceUrl}`,
         folderId: folderId || undefined,
+        savedById,
       });
       if (result.status === "created") saved++;
       else duplicates++;

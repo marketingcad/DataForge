@@ -10,14 +10,14 @@ function scopedUserId(user: { id: string; role: string }): string | undefined {
   return (user.role as Role) === "lead_specialist" ? user.id : undefined;
 }
 
-export async function getIndustriesAction() {
+export async function getIndustriesAction(savedById?: string) {
   const user = await requireDepartment("leads");
-  return getIndustries(scopedUserId(user));
+  return getIndustries(scopedUserId(user), savedById);
 }
 
-export async function getFoldersByIndustryAction(industryId: string) {
+export async function getFoldersByIndustryAction(industryId: string, savedById?: string) {
   const user = await requireDepartment("leads");
-  return getFoldersByIndustry(industryId, scopedUserId(user));
+  return getFoldersByIndustry(industryId, scopedUserId(user), savedById);
 }
 
 export async function createIndustryAction(name: string, color: string) {

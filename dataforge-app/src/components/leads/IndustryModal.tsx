@@ -52,6 +52,7 @@ interface IndustryModalProps {
   onOpenChange: (v: boolean) => void;
   unfiledFolders?: FolderData[];
   allIndustries?: IndustryOption[];
+  filterUserId?: string;
 }
 
 function FolderCard({
@@ -121,7 +122,7 @@ function FolderCard({
   );
 }
 
-export function IndustryModal({ industry, open, onOpenChange, unfiledFolders, allIndustries = [] }: IndustryModalProps) {
+export function IndustryModal({ industry, open, onOpenChange, unfiledFolders, allIndustries = [], filterUserId }: IndustryModalProps) {
   const [folders, setFolders] = useState<FolderData[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedFolder, setSelectedFolder] = useState<FolderData | null>(null);
@@ -131,7 +132,7 @@ export function IndustryModal({ industry, open, onOpenChange, unfiledFolders, al
     setLoading(true);
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const data = await getFoldersByIndustryAction(industry.id) as any[];
+      const data = await getFoldersByIndustryAction(industry.id, filterUserId) as any[];
       setFolders(data);
     } finally {
       setLoading(false);
@@ -277,6 +278,7 @@ export function IndustryModal({ industry, open, onOpenChange, unfiledFolders, al
           onOpenChange={(v) => { if (!v) setSelectedFolder(null); }}
           allIndustries={allIndustries}
           currentIndustryId={industry?.id ?? null}
+          filterUserId={filterUserId}
           onFolderDeleted={(id) => {
             setFolders((prev) => prev.filter((f) => f.id !== id));
             setSelectedFolder(null);

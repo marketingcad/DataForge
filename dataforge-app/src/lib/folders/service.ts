@@ -1,15 +1,27 @@
 import { prisma } from "@/lib/prisma";
 
-export async function getFolders(userId?: string) {
-  return prisma.folder.findMany({
+export async function getFolders(userId?: string, savedById?: string) {
+  const folders = await prisma.folder.findMany({
     where: userId ? { userId } : undefined,
     orderBy: { createdAt: "asc" },
     include: {
       _count: { select: { leads: true } },
       user: { select: { name: true, email: true } },
       industry: { select: { id: true, name: true, color: true } },
+      ...(savedById ? { leads: { where: { savedById }, select: { id: true } } } : {}),
     },
   });
+
+  return folders
+    .map((f) => ({
+      ...f,
+      _count: {
+        leads: savedById
+          ? (f as unknown as { leads: { id: string }[] }).leads.length
+          : f._count.leads,
+      },
+    }))
+    .filter((f) => !savedById || f._count.leads > 0);
 }
 
 export async function getFoldersWithLeads(userId: string) {

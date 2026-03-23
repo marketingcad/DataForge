@@ -96,14 +96,18 @@ model Lead {
   industriesFoundIn String[]
   lastUpdated       DateTime     @updatedAt
 
-  folderId String?
-  folder   Folder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  folderId  String?
+  folder    Folder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+
+  savedById String?
+  savedBy   User?   @relation("LeadSavedBy", fields: [savedById], references: [id], onDelete: SetNull)
 
   @@index([phone])
   @@index([email])
   @@index([website])
   @@index([city, state])
   @@index([folderId])
+  @@index([savedById])
 }
 
 // ── Auth.js (NextAuth v5) required models ──────────────────────────────────
@@ -133,6 +137,7 @@ model User {
   chatRoomsCreated ChatRoom[]       @relation("ChatRoomCreator")
   chatRoomMembers  ChatRoomMember[]
   notifications    DbNotification[]
+  savedLeads       Lead[]           @relation("LeadSavedBy")
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 }

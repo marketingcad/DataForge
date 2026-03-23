@@ -20,6 +20,7 @@ export async function getLeadsForFolderAction(params: {
   hasWebsite?: boolean;
   hasContact?: boolean;
   searchField?: "business" | "contact" | "location" | "phone" | "email" | "website" | "score";
+  savedById?: string;
 }) {
   await requireDepartment("leads");
   return getLeads({
@@ -36,6 +37,7 @@ export async function getLeadsForFolderAction(params: {
     hasWebsite: params.hasWebsite,
     hasContact: params.hasContact,
     searchField: params.searchField || "business",
+    savedById: params.savedById,
   });
 }
 
@@ -52,7 +54,7 @@ export async function bulkDeleteLeadsAction(ids: string[]) {
 }
 
 export async function createLeadAction(formData: FormData) {
-  await requireDepartment("leads");
+  const user = await requireDepartment("leads");
   const raw = Object.fromEntries(formData.entries());
   const parsed = LeadInputSchema.safeParse(raw);
 
@@ -60,7 +62,7 @@ export async function createLeadAction(formData: FormData) {
     return { error: parsed.error.flatten().fieldErrors };
   }
 
-  const result = await insertLead(parsed.data);
+  const result = await insertLead({ ...parsed.data, savedById: user.id });
 
   revalidatePath("/leads");
 

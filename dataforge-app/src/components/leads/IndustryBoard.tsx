@@ -181,9 +181,10 @@ function UncategorizedCard({
 interface IndustryBoardProps {
   industries: IndustryData[];
   unfiledFolders: FolderData[];
+  filterUserId?: string;
 }
 
-export function IndustryBoard({ industries: initialIndustries, unfiledFolders }: IndustryBoardProps) {
+export function IndustryBoard({ industries: initialIndustries, unfiledFolders, filterUserId }: IndustryBoardProps) {
   const router = useRouter();
   const [industries, setIndustries] = useState<IndustryData[]>(initialIndustries);
   const [selected, setSelected] = useState<IndustryData | null>(null);
@@ -434,6 +435,7 @@ export function IndustryBoard({ industries: initialIndustries, unfiledFolders }:
           open={!!selected}
           onOpenChange={(v) => { if (!v) setSelected(null); }}
           allIndustries={industries.map((i) => ({ id: i.id, name: i.name, color: i.color }))}
+          filterUserId={filterUserId}
         />
       )}
 
@@ -444,6 +446,7 @@ export function IndustryBoard({ industries: initialIndustries, unfiledFolders }:
         onOpenChange={setShowUncategorized}
         unfiledFolders={unfiledFolders}
         allIndustries={industries.map((i) => ({ id: i.id, name: i.name, color: i.color }))}
+        filterUserId={filterUserId}
       />
 
       {/* Create folder modal */}
