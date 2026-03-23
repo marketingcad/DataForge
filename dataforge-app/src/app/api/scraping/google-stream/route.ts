@@ -217,41 +217,88 @@ async function extractFromSerp(
       .catch(() => {});
     await sleep(randInt(800, 1400));
 
-    // ── Scroll to load ALL results (Google lazy-renders below the fold) ───────
+    // ── Scroll-until-stable: loop the results panel until nothing new loads ─────
     //
-    // Local search results are often only partially rendered on first load.
-    // We scroll the results panel (and the window) in steps so every result
-    // gets a chance to appear in the DOM before we collect headings.
-    emit("status", { message: "Scrolling to load all results…" });
-    await page.evaluate(async function() {
-      var STEP = 400, PAUSE = 250;
-      // Candidate scroll containers: Maps panel, regular search, whole body
-      var containers: HTMLElement[] = Array.prototype.slice.call(
-        document.querySelectorAll('[role="main"], .m6QErb, #search, #rso, #rcnt')
-      );
-      containers.push(document.documentElement, document.body);
+    // Google lazy-renders results as the user scrolls the results sidebar.
+    // We find the scrollable container by walking up from the first visible
+    // heading (no class names — those change with every Google deploy).
+    // We keep scrolling until [role="heading"] count is stable for 3 rounds.
 
-      // Scroll each container that actually has overflow content
-      for (var pass = 0; pass < 8; pass++) {
-        for (var c = 0; c < containers.length; c++) {
-          var el = containers[c];
-          if (el && el.scrollHeight > el.clientHeight + 50) {
-            el.scrollTop += STEP;
+    emit("status", { message: "Scrolling to discover all results…" });
+
+    // Find and cache the scrollable ancestor of the first result heading.
+    // Returns the element's index in a predictable node list so we can pass
+    // it back across the page boundary without serialisation issues.
+    const findScrollablePanel = async (): Promise<void> => {
+      await page.evaluate(function() {
+        // Walk up from the first heading to find its nearest scrollable ancestor
+        var heading = document.querySelector('[role="heading"]') as HTMLElement | null;
+        if (!heading) { window.scrollBy(0, 600); return; }
+
+        var el: HTMLElement | null = heading.parentElement;
+        while (el && el !== document.body) {
+          if (el.scrollHeight > el.clientHeight + 50) {
+            var st = window.getComputedStyle(el);
+            if (/auto|scroll/.test(st.overflow + " " + st.overflowY)) {
+              // Tag it so subsequent calls can find it instantly
+              el.setAttribute("data-results-panel", "1");
+              el.scrollTop += 600;
+              window.scrollBy(0, 100);
+              return;
+            }
           }
+          el = el.parentElement;
         }
-        window.scrollBy(0, STEP);
-        await new Promise(function(r) { setTimeout(r, PAUSE); });
+        // No scrollable ancestor found — fall back to window
+        window.scrollBy(0, 600);
+      });
+    };
+
+    // Subsequent scrolls reuse the tagged element for speed
+    const scrollPanel = () => page.evaluate(function() {
+      var panel = document.querySelector("[data-results-panel]") as HTMLElement | null;
+      if (panel && panel.scrollHeight > panel.clientHeight + 50) {
+        panel.scrollTop += 600;
+        window.scrollBy(0, 100);
+      } else {
+        window.scrollBy(0, 600);
       }
     });
-    await sleep(800);
 
-    // Scroll back to top so clicks work correctly (index 0 = topmost result)
-    await page.evaluate(function() {
+    const resetPanel = () => page.evaluate(function() {
       window.scrollTo(0, 0);
-      var containers = document.querySelectorAll('[role="main"], .m6QErb, #search, #rso');
-      Array.prototype.forEach.call(containers, function(el: HTMLElement) { el.scrollTop = 0; });
+      var panel = document.querySelector("[data-results-panel]") as HTMLElement | null;
+      if (panel) panel.scrollTop = 0;
     });
-    await sleep(500);
+
+    // First scroll: locates and tags the panel
+    await findScrollablePanel();
+    await sleep(700);
+
+    let prevCount = 0;
+    let stable = 0;
+    const MAX_SCROLL = 40;
+
+    for (let s = 0; s < MAX_SCROLL && stable < 3; s++) {
+      await scrollPanel();
+      await sleep(600);
+
+      const nowCount: number = await page.evaluate(function() {
+        return document.querySelectorAll('[role="heading"]').length;
+      });
+
+      if (nowCount === prevCount) {
+        stable++;
+      } else {
+        emit("status", { message: `Discovering results… (${nowCount} so far)` });
+        stable = 0;
+        prevCount = nowCount;
+      }
+    }
+
+    // Scroll back to the top so clicking starts from result #1
+    await resetPanel();
+    await sleep(600);
 
     const bodyText = await page.evaluate(() => document.body?.innerText?.toLowerCase() ?? "");
     if (
@@ -278,8 +325,10 @@ async function extractFromSerp(
       var parseAddr: (text: string) => { city?: string; state?: string } = null as any;
       eval(utils);
 
-      // Use the most specific results container available; fall back to body
+      // Use the tagged scrollable panel found during scroll-discovery,
+      // or fall back to the role="main" region, then body.
       var root = (
+        document.querySelector("[data-results-panel]") ||
         document.querySelector('[role="main"]') ||
         document.querySelector('#search') ||
         document.querySelector('#rso') ||
@@ -353,9 +402,10 @@ async function extractFromSerp(
           if (attempt > 0) await sleep(1000);
           const safeText = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
           const heading = page.locator(
+            '[data-results-panel] [role="heading"]:not(:has([role="heading"])), ' +
             '[role="main"] [role="heading"]:not(:has([role="heading"])), ' +
             '#search [role="heading"]:not(:has([role="heading"])), ' +
-            '#rso [role="heading"]:not(:has([role="heading"]))'
+            '[role="heading"]:not(:has([role="heading"]))'
           ).filter({ hasText: new RegExp(safeText, "i") }).first();
           await heading.scrollIntoViewIfNeeded({ timeout: 4000 });
           await heading.click({ timeout: 5000, force: true });
