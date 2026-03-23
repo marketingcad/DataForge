@@ -55,7 +55,7 @@ function buildSections(role: Role): NavSection[] {
           items: [
             { href: "/kanban",   label: "Kanban",   icon: LayoutGrid },
             { href: "/calendar", label: "Calendar", icon: CalendarDays },
-            { href: "/chat",     label: "Chat",     icon: MessageSquare },
+            // { href: "/chat",     label: "Chat",     icon: MessageSquare }, // hidden — WIP
             { href: "/feedback", label: "Reports",  icon: Flag },
           ],
         },
@@ -92,7 +92,7 @@ function buildSections(role: Role): NavSection[] {
           items: [
             { href: "/kanban",   label: "Kanban",   icon: LayoutGrid },
             { href: "/calendar", label: "Calendar", icon: CalendarDays },
-            { href: "/chat",     label: "Chat",     icon: MessageSquare },
+            // { href: "/chat",     label: "Chat",     icon: MessageSquare }, // hidden — WIP
             { href: "/feedback", label: "Reports",  icon: Flag },
           ],
         },
@@ -123,7 +123,7 @@ function buildSections(role: Role): NavSection[] {
           items: [
             { href: "/kanban",   label: "Kanban",   icon: LayoutGrid },
             { href: "/calendar", label: "Calendar", icon: CalendarDays },
-            { href: "/chat",     label: "Chat",     icon: MessageSquare },
+            // { href: "/chat",     label: "Chat",     icon: MessageSquare }, // hidden — WIP
             { href: "/feedback", label: "Reports",  icon: Flag },
           ],
         },
@@ -144,7 +144,7 @@ function buildSections(role: Role): NavSection[] {
           items: [
             { href: "/kanban",   label: "Kanban",   icon: LayoutGrid },
             { href: "/calendar", label: "Calendar", icon: CalendarDays },
-            { href: "/chat",     label: "Chat",     icon: MessageSquare },
+            // { href: "/chat",     label: "Chat",     icon: MessageSquare }, // hidden — WIP
             { href: "/feedback", label: "Reports",  icon: Flag },
           ],
         },
