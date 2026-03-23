@@ -216,8 +216,42 @@ async function extractFromSerp(
     await page.waitForSelector('[role="heading"], h3, #search, #rso', { timeout: 15000 })
       .catch(() => {});
     await sleep(randInt(800, 1400));
-    await humanScroll(page);
-    await sleep(randInt(400, 700));
+
+    // ── Scroll to load ALL results (Google lazy-renders below the fold) ───────
+    //
+    // Local search results are often only partially rendered on first load.
+    // We scroll the results panel (and the window) in steps so every result
+    // gets a chance to appear in the DOM before we collect headings.
+    emit("status", { message: "Scrolling to load all results…" });
+    await page.evaluate(async function() {
+      var STEP = 400, PAUSE = 250;
+      // Candidate scroll containers: Maps panel, regular search, whole body
+      var containers: HTMLElement[] = Array.prototype.slice.call(
+        document.querySelectorAll('[role="main"], .m6QErb, #search, #rso, #rcnt')
+      );
+      containers.push(document.documentElement, document.body);
+
+      // Scroll each container that actually has overflow content
+      for (var pass = 0; pass < 8; pass++) {
+        for (var c = 0; c < containers.length; c++) {
+          var el = containers[c];
+          if (el && el.scrollHeight > el.clientHeight + 50) {
+            el.scrollTop += STEP;
+          }
+        }
+        window.scrollBy(0, STEP);
+        await new Promise(function(r) { setTimeout(r, PAUSE); });
+      }
+    });
+    await sleep(800);
+
+    // Scroll back to top so clicks work correctly (index 0 = topmost result)
+    await page.evaluate(function() {
+      window.scrollTo(0, 0);
+      var containers = document.querySelectorAll('[role="main"], .m6QErb, #search, #rso');
+      Array.prototype.forEach.call(containers, function(el: HTMLElement) { el.scrollTop = 0; });
+    });
+    await sleep(500);
 
     const bodyText = await page.evaluate(() => document.body?.innerText?.toLowerCase() ?? "");
     if (
@@ -244,7 +278,13 @@ async function extractFromSerp(
       var parseAddr: (text: string) => { city?: string; state?: string } = null as any;
       eval(utils);
 
-      var root = document.querySelector("#search") || document.body;
+      // Use the most specific results container available; fall back to body
+      var root = (
+        document.querySelector('[role="main"]') ||
+        document.querySelector('#search') ||
+        document.querySelector('#rso') ||
+        document.body
+      ) as HTMLElement;
       var allHeadings = Array.prototype.slice.call(
         root.querySelectorAll('[role="heading"]')
       ).filter(function(el: Element) {
@@ -313,7 +353,9 @@ async function extractFromSerp(
           if (attempt > 0) await sleep(1000);
           const safeText = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
           const heading = page.locator(
-            '#search [role="heading"]:not(:has([role="heading"]))'
+            '[role="main"] [role="heading"]:not(:has([role="heading"])), ' +
+            '#search [role="heading"]:not(:has([role="heading"])), ' +
+            '#rso [role="heading"]:not(:has([role="heading"]))'
           ).filter({ hasText: new RegExp(safeText, "i") }).first();
           await heading.scrollIntoViewIfNeeded({ timeout: 4000 });
           await heading.click({ timeout: 5000, force: true });
