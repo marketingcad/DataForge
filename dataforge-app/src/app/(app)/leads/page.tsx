@@ -38,7 +38,7 @@ export default async function LeadsPage({
       getFolders(scopedUserId, savedById),
       getLeads({ folderId: "unfiled", pageSize: 1, savedById }),
       isAdmin ? getLeadLocations() : Promise.resolve([]),
-      isAdmin ? getUsers() : Promise.resolve([]),
+      isAdmin ? getUsers().then((u) => u.filter((x) => x.role === "lead_specialist")) : Promise.resolve([]),
     ])
   );
 
