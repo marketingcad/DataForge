@@ -51,7 +51,7 @@ function CrawlInstance({
   const [summary,   setSummary]   = useState<{ leadsFound: number; pagesVisited: number; elapsed: number } | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [maxLeads,  setMaxLeads]  = useState(50);
-  const [timeLimit, setTimeLimit] = useState(120);
+  const [timeLimit, setTimeLimit] = useState(180);
 
   const sourceRef  = useRef<EventSource | null>(null);
   const rowCounter = useRef(0);
