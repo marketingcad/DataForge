@@ -340,7 +340,6 @@ async function extractFromSerp(
         return !el.querySelector('[role="heading"]');
       }) as HTMLElement[];
 
-      var seen = new Set<string>();
       var results: Array<{ name: string; phone?: string; address?: string; city?: string; state?: string }> = [];
 
       for (var j = 0; j < allHeadings.length; j++) {
@@ -348,9 +347,9 @@ async function extractFromSerp(
         var span = el.querySelector("span");
         var name = ((span ? span.innerText : el.innerText) || "").trim();
         if (!name || name.length <= 1) continue;
-        if (/^(more places|see (all|more)|sponsored|advertisement|people also|related searches|open now)/i.test(name)) continue;
-        if (seen.has(name.toLowerCase())) continue;
-        seen.add(name.toLowerCase());
+        // Skip UI labels — NOT business names (no name-based dedup: same-named
+        // chains at different addresses are all valid separate leads)
+        if (/^(more places|see (all|more)|sponsored|advertisement|people also|related searches|open now|directions|website|call|share|save|hours|menu|order|book|reviews)/i.test(name)) continue;
 
         // Walk up to find a result card with enough text lines
         var card: HTMLElement = el;
@@ -385,28 +384,25 @@ async function extractFromSerp(
     // If the popup can't be read, the SERP snippet data is used as fallback.
     // A lead is NEVER silently dropped.
 
-    const seenNames = new Set<string>();
-
     for (let i = 0; i < serpSnippets.length && leadsEmitted < maxLeads; i++) {
       const snippet = serpSnippets[i];
       const name = snippet.name;
-      if (seenNames.has(name.toLowerCase())) continue;
-      seenNames.add(name.toLowerCase());
 
       emit("status", { message: `[${i + 1}/${serpSnippets.length}] ${name}…` });
 
-      // ── Try to click the result heading (up to 2 attempts) ───────────────────
+      // ── Try to click the result heading by position (not text) ───────────────
+      // Using .nth(i) means two "Joe's Plumbing" branches each get their own
+      // click — text-based matching would always hit the first one.
       let clicked = false;
       for (let attempt = 0; attempt < 2 && !clicked; attempt++) {
         try {
           if (attempt > 0) await sleep(1000);
-          const safeText = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
           const heading = page.locator(
             '[data-results-panel] [role="heading"]:not(:has([role="heading"])), ' +
             '[role="main"] [role="heading"]:not(:has([role="heading"])), ' +
             '#search [role="heading"]:not(:has([role="heading"])), ' +
             '[role="heading"]:not(:has([role="heading"]))'
-          ).filter({ hasText: new RegExp(safeText, "i") }).first();
+          ).nth(i);
           await heading.scrollIntoViewIfNeeded({ timeout: 4000 });
           await heading.click({ timeout: 5000, force: true });
           clicked = true;
