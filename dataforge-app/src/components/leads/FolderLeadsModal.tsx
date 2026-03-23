@@ -288,13 +288,13 @@ export function FolderLeadsModal({
     try {
       await updateFolderCategoryAction(folder.id, industryId);
       const name = allIndustries.find((i) => i.id === industryId)?.name ?? "Uncategorized";
-      addNotif({ type: "info", title: `Industry changed`, message: `"${folder.name}" moved to ${name}.` });
+      addNotif({ type: "info", title: `Category changed`, message: `"${folder.name}" moved to ${name}.` });
       setShowChangeCategory(false);
       setCategorySearch("");
       onOpenChange(false);
       onCategoryChanged?.(folder.id);
     } catch {
-      addNotif({ type: "error", title: "Industry change failed", message: "Something went wrong. Please try again." });
+      addNotif({ type: "error", title: "Category change failed", message: "Something went wrong. Please try again." });
     } finally {
       setSavingCategory(false);
     }
@@ -318,7 +318,7 @@ export function FolderLeadsModal({
               const currentIndustry = allIndustries.find((i) => i.id === currentIndustryId) ?? null;
               return (
                 <div className="flex items-center gap-1 text-[11px] text-muted-foreground mb-1.5">
-                  <span>All Industries</span>
+                  <span>All Categories</span>
                   <ChevronRight className="h-3 w-3 shrink-0 text-muted-foreground/40" />
                   {currentIndustry ? (
                     <span className="flex items-center gap-1">
@@ -366,7 +366,7 @@ export function FolderLeadsModal({
                       onClick={() => { setCategorySearch(""); setShowChangeCategory(true); }}
                     >
                       <Tags className="h-3 w-3" />
-                      Change industry
+                      Change category
                     </DropdownMenuItem>
                   )}
                   {allIndustries.length > 0 && <DropdownMenuSeparator />}
@@ -718,7 +718,7 @@ export function FolderLeadsModal({
         <DialogContent showCloseButton className="max-w-sm p-0 overflow-hidden">
           <DialogHeader className="px-4 pt-4 pb-3 border-b">
             <DialogTitle className="text-sm font-semibold">
-              Change industry —{" "}
+              Change category —{" "}
               <span className="text-muted-foreground font-normal">{folder.name}</span>
             </DialogTitle>
           </DialogHeader>
@@ -727,7 +727,7 @@ export function FolderLeadsModal({
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
               <Input
-                placeholder="Search industries…"
+                placeholder="Search categories…"
                 value={categorySearch}
                 onChange={(e) => setCategorySearch(e.target.value)}
                 className="pl-8 h-9 text-sm"

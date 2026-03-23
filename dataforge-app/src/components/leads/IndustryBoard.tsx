@@ -25,9 +25,6 @@ import { deleteIndustryAction, createIndustryAction } from "@/actions/industry.a
 import {
   Building2,
   FolderOpen,
-  Users,
-  Calendar,
-  RefreshCw,
   MoreVertical,
   Trash2,
   Loader2,
@@ -219,10 +216,10 @@ export function IndustryBoard({ industries: initialIndustries, unfiledFolders }:
     try {
       await deleteIndustryAction(industry.id);
       setIndustries((prev) => prev.filter((i) => i.id !== industry.id));
-      toast.success(`Industry "${industry.name}" deleted`);
+      toast.success(`Category "${industry.name}" deleted`);
       router.refresh();
     } catch {
-      toast.error("Failed to delete industry");
+      toast.error("Failed to delete category");
     } finally {
       setDeletingId(null);
     }
@@ -246,13 +243,13 @@ export function IndustryBoard({ industries: initialIndustries, unfiledFolders }:
             user: null,
           },
         ]);
-        toast.success(`Industry "${ind.name}" created`);
+        toast.success(`Category "${ind.name}" created`);
         setCategoryName("");
         setCategoryColor(COLOR_SWATCHES[0]);
         setCreateCategoryOpen(false);
         router.refresh();
       } catch {
-        toast.error("Failed to create industry");
+        toast.error("Failed to create category");
       }
     });
   }
@@ -265,7 +262,7 @@ export function IndustryBoard({ industries: initialIndustries, unfiledFolders }:
         <div className="relative flex-1 max-w-xs">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
           <Input
-            placeholder="Filter industries…"
+            placeholder="Filter categories…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-8 pr-7 h-8 text-sm"
@@ -281,7 +278,7 @@ export function IndustryBoard({ industries: initialIndustries, unfiledFolders }:
         </div>
 
         <p className="text-xs text-muted-foreground hidden sm:block">
-          {filteredIndustries.length} of {industries.length} industr{industries.length !== 1 ? "ies" : "y"}
+          {filteredIndustries.length} of {industries.length} categor{industries.length !== 1 ? "ies" : "y"}
         </p>
 
         <div className="ml-auto flex items-center gap-2">
@@ -307,7 +304,7 @@ export function IndustryBoard({ industries: initialIndustries, unfiledFolders }:
           </TooltipProvider>
           <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setCreateCategoryOpen(true)}>
             <Plus className="h-4 w-4" />
-            New Industry
+            New Category
           </Button>
           <Button size="sm" className="gap-1.5" onClick={() => setCreateFolderOpen(true)}>
             <Plus className="h-4 w-4" />
@@ -336,7 +333,7 @@ export function IndustryBoard({ industries: initialIndustries, unfiledFolders }:
           )}
           {filteredIndustries.length === 0 && !showUncategorizedCard && search && (
             <p className="text-sm text-muted-foreground py-12 col-span-full text-center">
-              No industries match &ldquo;{search}&rdquo;
+              No categories match &ldquo;{search}&rdquo;
             </p>
           )}
         </div>
@@ -375,7 +372,7 @@ export function IndustryBoard({ industries: initialIndustries, unfiledFolders }:
           )}
           {filteredIndustries.length === 0 && !showUncategorizedCard && search && (
             <p className="text-sm text-muted-foreground py-12 text-center">
-              No industries match &ldquo;{search}&rdquo;
+              No categories match &ldquo;{search}&rdquo;
             </p>
           )}
         </div>
@@ -385,7 +382,7 @@ export function IndustryBoard({ industries: initialIndustries, unfiledFolders }:
       <Dialog open={createCategoryOpen} onOpenChange={(v) => { if (!v) { setCategoryName(""); setCategoryColor(COLOR_SWATCHES[0]); } setCreateCategoryOpen(v); }}>
         <DialogContent showCloseButton className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>New Industry</DialogTitle>
+            <DialogTitle>New Category</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-1">
             <div className="space-y-1.5">
@@ -424,7 +421,7 @@ export function IndustryBoard({ industries: initialIndustries, unfiledFolders }:
               className="w-full sm:w-auto"
             >
               {savingCategory && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-              Create Industry
+              Create Category
             </Button>
           </DialogFooter>
         </DialogContent>
