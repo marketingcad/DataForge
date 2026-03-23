@@ -13,11 +13,12 @@ import { Badge } from "@/components/ui/badge";
 import {
   Folder,
   Inbox,
-  Users,
-  Calendar,
-  RefreshCw,
   Loader2,
+  LayoutGrid,
+  List,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { format } from "date-fns";
 
 type FolderData = {
@@ -140,6 +141,7 @@ export function IndustryModal({ industry, open, onOpenChange, unfiledFolders, al
 
   const allFolders = industry ? folders : (unfiledFolders ?? []);
   const totalLeads = allFolders.reduce((sum, f) => sum + f._count.leads, 0);
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
   return (
     <>
@@ -160,13 +162,42 @@ export function IndustryModal({ industry, open, onOpenChange, unfiledFolders, al
                   <Folder className="h-4 w-4" style={{ color: industry.color }} />
                 </div>
               )}
-              <div>
+              <div className="flex-1 min-w-0">
                 <DialogTitle className="text-base font-semibold">
                   {industry ? industry.name : "Uncategorized Folders"}
                 </DialogTitle>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   {allFolders.length} folder{allFolders.length !== 1 ? "s" : ""} · {totalLeads.toLocaleString()} leads
                 </p>
+              </div>
+              {/* View toggle */}
+              <div className="flex items-center gap-1 rounded-lg border p-1 shrink-0">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant={viewMode === "grid" ? "secondary" : "ghost"}
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={() => setViewMode("grid")}
+                    >
+                      <LayoutGrid className="h-3.5 w-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Grid view</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant={viewMode === "list" ? "secondary" : "ghost"}
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={() => setViewMode("list")}
+                    >
+                      <List className="h-3.5 w-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>List view</TooltipContent>
+                </Tooltip>
               </div>
             </div>
           </DialogHeader>
@@ -186,16 +217,49 @@ export function IndustryModal({ industry, open, onOpenChange, unfiledFolders, al
               </div>
             )}
 
-            <div className="flex flex-wrap gap-4">
-              {allFolders.map((folder) => (
-                <FolderCard
-                  key={folder.id}
-                  folder={folder}
-                  isUnfiled={!industry}
-                  onClick={() => setSelectedFolder(folder)}
-                />
-              ))}
-            </div>
+            {viewMode === "grid" ? (
+              <div className="flex flex-wrap gap-4">
+                {allFolders.map((folder) => (
+                  <FolderCard
+                    key={folder.id}
+                    folder={folder}
+                    isUnfiled={!industry}
+                    onClick={() => setSelectedFolder(folder)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-col divide-y rounded-lg border overflow-hidden">
+                {allFolders.map((folder) => (
+                  <button
+                    key={folder.id}
+                    onClick={() => setSelectedFolder(folder)}
+                    className="flex items-center gap-3 px-4 py-3 hover:bg-muted/50 transition-colors text-left group"
+                  >
+                    <div
+                      className="h-8 w-8 flex items-center justify-center rounded-md shrink-0"
+                      style={{ backgroundColor: folder.color + "20" }}
+                    >
+                      {!industry
+                        ? <Inbox className="h-4 w-4" style={{ color: folder.color }} />
+                        : <Folder className="h-4 w-4" style={{ color: folder.color }} />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold truncate">{folder.name}</p>
+                      {folder.user?.name && (
+                        <p className="text-xs text-muted-foreground">{folder.user.name}</p>
+                      )}
+                    </div>
+                    <span
+                      className="text-xs font-medium px-2 py-0.5 rounded-full shrink-0"
+                      style={{ backgroundColor: folder.color + "18", color: folder.color }}
+                    >
+                      {folder._count.leads} lead{folder._count.leads !== 1 ? "s" : ""}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>
