@@ -280,14 +280,15 @@ export function IndustryBoard({ industries: initialIndustries, unfiledFolders, f
           )}
         </div>
 
+        {filterUsers && filterUsers.length > 0 && (
+          <LeadsUserFilter users={filterUsers} currentFilter={filterUserId} />
+        )}
+
         <p className="text-xs text-muted-foreground hidden sm:block">
           {filteredIndustries.length} of {industries.length} categor{industries.length !== 1 ? "ies" : "y"}
         </p>
 
         <div className="ml-auto flex items-center gap-2">
-          {filterUsers && filterUsers.length > 0 && (
-            <LeadsUserFilter users={filterUsers} currentFilter={filterUserId} />
-          )}
           <TooltipProvider>
             <div className="flex items-center gap-1 rounded-lg border p-1">
               <Tooltip>
