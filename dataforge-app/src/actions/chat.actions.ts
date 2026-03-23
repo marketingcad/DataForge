@@ -19,7 +19,7 @@ export async function pollMessagesAction(roomId: string, since: string) {
 
 export async function createRoomAction(name: string, memberIds: string[]) {
   const session = await requireAuth();
-  const role = (session.user as Record<string, unknown>).role as string;
+  const role = (session.user as unknown as Record<string, unknown>).role as string;
   if (role !== "boss" && role !== "admin") return { error: "Only boss/admin can create group chats." };
   if (!name?.trim()) return { error: "Room name is required." };
   const room = await withDbRetry(() => createChatRoom(name.trim(), session.user.id!, memberIds));
