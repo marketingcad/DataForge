@@ -79,6 +79,91 @@ var parseAddr = function(addr) {
 };
 `;
 
+// ─── Popup data extractor (shared between first attempt and retry) ─────────────
+
+async function readPopupData(
+  page: import("playwright").Page,
+  businessName: string,
+  utils: string
+): Promise<{
+  phone?: string; email?: string; website?: string;
+  address?: string; city?: string; state?: string;
+  hours?: string; rating?: string;
+} | null> {
+  return page.evaluate(function(args: [string, string]) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    var parseField: (text: string, label: string) => string | undefined = null as any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    var isExternal: (href: string) => boolean = null as any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    var extractHost: (href: string) => string = null as any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    var realUrl: (href: string) => string = null as any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    var parseAddr: (text: string) => { city?: string; state?: string } = null as any;
+    var u = args[0]; var bname = args[1];
+    eval(u);
+
+    var popup = document.querySelector("g-sticky-content-container") as HTMLElement | null;
+    if (!popup || !(popup.innerText || "").trim()) return null;
+
+    var nameLower = bname.toLowerCase().trim();
+    var container: HTMLElement = popup;
+    var blocks = Array.prototype.slice.call(popup.querySelectorAll("block-component")) as HTMLElement[];
+
+    var findBlock = function(exact: boolean): HTMLElement | null {
+      for (var b = 0; b < blocks.length; b++) {
+        var els = Array.prototype.slice.call(
+          blocks[b].querySelectorAll("h1,h2,h3,h4,[role='heading'],.kp-header")
+        ) as HTMLElement[];
+        for (var h = 0; h < els.length; h++) {
+          var t = (els[h].innerText || "").trim().toLowerCase();
+          if (!t || t.length < 2) continue;
+          if (exact ? t === nameLower : (t.includes(nameLower) || nameLower.includes(t))) return blocks[b];
+        }
+      }
+      return null;
+    };
+    var matched = findBlock(true) || findBlock(false);
+    if (matched) container = matched;
+
+    var fullText = container.innerText || "";
+    var allLinks = Array.prototype.slice.call(container.querySelectorAll("a[href]")) as HTMLAnchorElement[];
+
+    var telLink = container.querySelector('a[href^="tel:"]') as HTMLAnchorElement | null;
+    var phone: string | undefined = (telLink?.href ? telLink.href.replace(/^tel:/i, "").trim() : undefined) || undefined;
+    if (!phone) phone = parseField(fullText, "Phone");
+    if (!phone) { var pm = fullText.match(/(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}/); if (pm) phone = pm[0].trim(); }
+
+    var mailtoLink = container.querySelector('a[href^="mailto:"]') as HTMLAnchorElement | null;
+    var email: string | undefined = (mailtoLink?.href ? mailtoLink.href.replace(/^mailto:/i, "").split("?")[0].trim() : undefined) || undefined;
+
+    var siteLink: HTMLAnchorElement | undefined = allLinks.find(function(a) {
+      return ((a.innerText || (a as HTMLElement).textContent) || "").trim().toLowerCase() === "website" && isExternal(a.href);
+    });
+    if (!siteLink) {
+      var psVal = parseField(fullText, "Products and Services");
+      if (psVal) siteLink = allLinks.find(function(a) { return isExternal(a.href) && ((a.innerText || "").trim() === psVal || extractHost(a.href) === psVal!.replace(/^www\./, "")); });
+    }
+    if (!siteLink) siteLink = allLinks.find(function(a) { if (!isExternal(a.href)) return false; var r = realUrl(a.href); return r.indexOf("/maps/") === -1 && r.indexOf("maps.google.") === -1; });
+
+    var address: string | undefined = parseField(fullText, "Address") || undefined;
+    var addrParsed = parseAddr(address || "");
+    var hours: string | undefined = parseField(fullText, "Hours") || undefined;
+
+    var rating: string | undefined;
+    var rEl = container.querySelector('[aria-label*="Rated"],[aria-label*="stars"]') as HTMLElement | null;
+    if (rEl) { var rm = (rEl.getAttribute("aria-label") || "").match(/(\d+\.?\d*)/); if (rm) rating = rm[1]; }
+
+    return {
+      phone, email,
+      website: siteLink ? extractHost(siteLink.href) : undefined,
+      address, city: addrParsed.city, state: addrParsed.state,
+      hours, rating,
+    };
+  }, [utils, businessName] as [string, string]);
+}
+
 // ─── Google SERP extractor ────────────────────────────────────────────────────
 
 async function extractFromSerp(
@@ -143,54 +228,85 @@ async function extractFromSerp(
       emit("status", { message: "Google showed a CAPTCHA — results may be limited" });
     }
 
-    // ── Step 1: Collect all business names from #search ───────────────────────
+    // ── Step 1: Collect businesses + any data visible in the SERP card ──────────
     //
-    // Starting point: #search contains the list of results.
-    // Each business has a [role="heading"] — leaf headings only (no child headings).
+    // We collect name + whatever phone/address is visible right in the result
+    // card (no click needed). This becomes the fallback if the popup fails.
 
     emit("status", { message: "Reading result list…" });
 
-    const businessNames: string[] = await page.evaluate(function() {
-      var root = document.querySelector("#search") || document.body;
-      return Array.prototype.slice.call(root.querySelectorAll('[role="heading"]'))
-        // Leaf headings only — skip wrappers that contain child headings
-        .filter(function(el: Element) { return !el.querySelector('[role="heading"]'); })
-        .map(function(el: HTMLElement) {
-          // Prefer the inner <span> text (e.g. <div role="heading"><span>209 NYC Dental</span></div>)
-          var span = el.querySelector("span");
-          return ((span ? span.innerText : el.innerText) || "").trim();
-        })
-        .filter(function(name: string) {
-          return name.length > 1 &&
-            !/^(more places|see (all|more)|sponsored|advertisement|people also|related searches|open now)/i
-              .test(name);
-        });
-    });
+    type Snippet = { name: string; phone?: string; address?: string; city?: string; state?: string };
 
-    if (businessNames.length === 0) {
+    const serpSnippets: Snippet[] = await page.evaluate(function(utils: string) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      var parseField: (text: string, label: string) => string | undefined = null as any;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      var parseAddr: (text: string) => { city?: string; state?: string } = null as any;
+      eval(utils);
+
+      var root = document.querySelector("#search") || document.body;
+      var allHeadings = Array.prototype.slice.call(
+        root.querySelectorAll('[role="heading"]')
+      ).filter(function(el: Element) {
+        return !el.querySelector('[role="heading"]');
+      }) as HTMLElement[];
+
+      var seen = new Set<string>();
+      var results: Array<{ name: string; phone?: string; address?: string; city?: string; state?: string }> = [];
+
+      for (var j = 0; j < allHeadings.length; j++) {
+        var el = allHeadings[j];
+        var span = el.querySelector("span");
+        var name = ((span ? span.innerText : el.innerText) || "").trim();
+        if (!name || name.length <= 1) continue;
+        if (/^(more places|see (all|more)|sponsored|advertisement|people also|related searches|open now)/i.test(name)) continue;
+        if (seen.has(name.toLowerCase())) continue;
+        seen.add(name.toLowerCase());
+
+        // Walk up to find a result card with enough text lines
+        var card: HTMLElement = el;
+        for (var k = 0; k < 10 && card.parentElement; k++) {
+          card = card.parentElement as HTMLElement;
+          if ((card.innerText || "").split("\n").filter(function(s: string) { return s.trim(); }).length >= 4) break;
+        }
+        var cardText = card.innerText || "";
+        var phone: string | undefined = parseField(cardText, "Phone") || undefined;
+        if (!phone) {
+          var pm = cardText.match(/(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}/);
+          if (pm) phone = pm[0].trim();
+        }
+        var addr: string | undefined = parseField(cardText, "Address") || undefined;
+        var parsed = parseAddr(addr || "");
+
+        results.push({ name, phone, address: addr, city: parsed.city, state: parsed.state });
+      }
+      return results;
+    }, UTILS);
+
+    if (serpSnippets.length === 0) {
       emit("status", { message: "No Places list found — trying knowledge panels…" });
     } else {
-      emit("status", {
-        message: `Found ${businessNames.length} businesses — loading details…`,
-      });
+      emit("status", { message: `Found ${serpSnippets.length} businesses — loading details…` });
     }
 
-    // ── Step 2: Click each result → popup updates → extract from popup ────────
+    // ── Step 2: Click each result → enrich with popup data → always emit ──────
     //
-    // Clicking a result opens/updates g-sticky-content-container on the right.
-    // That popup has the FULL data: complete address, phone number, website link.
+    // Every business detected in Step 1 MUST produce a lead row.
+    // Popup data enriches it (phone, email, website, full address).
+    // If the popup can't be read, the SERP snippet data is used as fallback.
+    // A lead is NEVER silently dropped.
 
     const seenNames = new Set<string>();
 
-    for (let i = 0; i < businessNames.length && leadsEmitted < maxLeads; i++) {
-      const name = businessNames[i];
-      if (!name || seenNames.has(name.toLowerCase())) continue;
+    for (let i = 0; i < serpSnippets.length && leadsEmitted < maxLeads; i++) {
+      const snippet = serpSnippets[i];
+      const name = snippet.name;
+      if (seenNames.has(name.toLowerCase())) continue;
       seenNames.add(name.toLowerCase());
 
-      emit("status", { message: `[${i + 1}/${businessNames.length}] ${name}…` });
+      emit("status", { message: `[${i + 1}/${serpSnippets.length}] ${name}…` });
 
-      // ── Click the result heading (found by text, not by index) ───────────────
-
+      // ── Try to click the result heading (up to 2 attempts) ───────────────────
       let clicked = false;
       for (let attempt = 0; attempt < 2 && !clicked; attempt++) {
         try {
@@ -199,246 +315,34 @@ async function extractFromSerp(
           const heading = page.locator(
             '#search [role="heading"]:not(:has([role="heading"]))'
           ).filter({ hasText: new RegExp(safeText, "i") }).first();
-
           await heading.scrollIntoViewIfNeeded({ timeout: 4000 });
           await heading.click({ timeout: 5000, force: true });
           clicked = true;
-        } catch { /* will retry or skip */ }
-      }
-      if (!clicked) {
-        emit("status", { message: `Could not click result ${i + 1} — skipping` });
-        continue;
+        } catch { /* retry */ }
       }
 
-      // Wait for the popup to load. We try up to 3 times with increasing delays
-      // so that slow-loading popups are not silently skipped.
-      await sleep(1800);
-
-      // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-      // STAGE 4 — Scrape data from the verified block-component
-      // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-      // Scope entirely inside g-sticky-content-container to avoid reading
-      // block-components from other parts of the page.
-
-      const data: {
-        popupName?: string;
-        phone?: string; email?: string; website?: string;
-        address?: string; city?: string; state?: string;
-        hours?: string; rating?: string;
-      } | null = await page.evaluate(function(args: [string, string]) {
-        // Type declarations for helpers injected by eval(utils) below.
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        var parseField: (text: string, label: string) => string | undefined = null as any;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        var isExternal: (href: string) => boolean = null as any;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        var extractHost: (href: string) => string = null as any;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        var realUrl: (href: string) => string = null as any;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        var parseAddr: (text: string) => { city?: string; state?: string } = null as any;
-        var utils = args[0];
-        var businessName = args[1];
-        eval(utils); // assigns actual implementations to the typed vars above
-
-        var popup = document.querySelector("g-sticky-content-container") as HTMLElement | null;
-        if (!popup || !(popup.innerText || "").trim()) return null;
-
-        // Find the block-component inside the popup whose heading matches
-        var nameLower = businessName.toLowerCase().trim();
-        var container: HTMLElement = popup;
-        var blocks = Array.prototype.slice.call(
-          popup.querySelectorAll("block-component")
-        ) as HTMLElement[];
-
-        var findBlock = function(exact: boolean): HTMLElement | null {
-          for (var b = 0; b < blocks.length; b++) {
-            var els = Array.prototype.slice.call(
-              blocks[b].querySelectorAll("h1, h2, h3, h4, [role='heading'], .kp-header")
-            ) as HTMLElement[];
-            for (var h = 0; h < els.length; h++) {
-              var t = (els[h].innerText || "").trim().toLowerCase();
-              if (!t || t.length < 2) continue;
-              if (exact ? t === nameLower : (t.includes(nameLower) || nameLower.includes(t))) {
-                return blocks[b];
-              }
-            }
-          }
-          return null;
-        };
-
-        var matched = findBlock(true) || findBlock(false);
-        if (matched) container = matched;
-
-        var popupName = ""; // kept for type compatibility, not used for naming
-
-        var fullText = container.innerText || "";
-        var allLinks = Array.prototype.slice.call(
-          container.querySelectorAll("a[href]")
-        ) as HTMLAnchorElement[];
-
-        // Phone: tel: link → "Phone:" label → embedded pattern
-        var telLink = container.querySelector('a[href^="tel:"]') as HTMLAnchorElement | null;
-        var phone: string | undefined =
-          (telLink && telLink.href ? telLink.href.replace(/^tel:/i, "").trim() : undefined) || undefined;
-        if (!phone) phone = parseField(fullText, "Phone");
-        if (!phone) {
-          var pm = fullText.match(/(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}/);
-          if (pm) phone = pm[0].trim();
+      // ── Try to read popup (up to 2 attempts with increasing wait) ────────────
+      let popupData: Awaited<ReturnType<typeof readPopupData>> = null;
+      if (clicked) {
+        await sleep(1800);
+        popupData = await readPopupData(page, name, UTILS);
+        if (!popupData) {
+          await sleep(1500);
+          popupData = await readPopupData(page, name, UTILS);
         }
-
-        // Email
-        var mailtoLink = container.querySelector('a[href^="mailto:"]') as HTMLAnchorElement | null;
-        var email: string | undefined =
-          (mailtoLink && mailtoLink.href
-            ? mailtoLink.href.replace(/^mailto:/i, "").split("?")[0].trim()
-            : undefined) || undefined;
-
-        // Website: "Website" button > "Products and Services" link > first external
-        var siteLink: HTMLAnchorElement | undefined = allLinks.find(function(a: HTMLAnchorElement) {
-          var txt = ((a.innerText || (a as HTMLElement).textContent) || "").trim().toLowerCase();
-          return txt === "website" && isExternal(a.href);
-        });
-        if (!siteLink) {
-          var psVal = parseField(fullText, "Products and Services");
-          if (psVal) {
-            siteLink = allLinks.find(function(a: HTMLAnchorElement) {
-              return isExternal(a.href) && (
-                (a.innerText || "").trim() === psVal ||
-                extractHost(a.href) === psVal!.replace(/^www\./, "")
-              );
-            });
-          }
-        }
-        if (!siteLink) {
-          siteLink = allLinks.find(function(a: HTMLAnchorElement) {
-            if (!isExternal(a.href)) return false;
-            var real = realUrl(a.href);
-            return real.indexOf("/maps/") === -1 && real.indexOf("maps.google.") === -1;
-          });
-        }
-        var website: string | undefined = siteLink ? extractHost(siteLink.href) : undefined;
-
-        var address: string | undefined = parseField(fullText, "Address") || undefined;
-        var addrParsed = parseAddr(address || "");
-        var hours: string | undefined = parseField(fullText, "Hours") || undefined;
-
-        var rating: string | undefined;
-        var rEl = container.querySelector('[aria-label*="Rated"], [aria-label*="stars"]') as HTMLElement | null;
-        if (rEl) {
-          var rm = (rEl.getAttribute("aria-label") || "").match(/(\d+\.?\d*)/);
-          if (rm) rating = rm[1];
-        }
-
-        return {
-          popupName,
-          phone, email, website, address,
-          city: addrParsed.city, state: addrParsed.state,
-          hours, rating,
-        };
-      }, [UTILS, name] as [string, string]);
-
-      // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-      // STAGE 5 — Emit lead (popup already verified to have updated in Stage 3)
-      // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-      // Stage 3 already confirmed the popup heading changed, meaning it loaded
-      // fresh data for the business we just clicked. We trust the popup as the
-      // authoritative source — use its name if available, else the list name.
-
-      // Retry once if popup was empty (gave it 1800ms but may need more time)
-      if (!data) {
-        await sleep(1500);
-        const retryData: typeof data = await page.evaluate(function(args: [string, string]) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          var parseField: (text: string, label: string) => string | undefined = null as any;
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          var isExternal: (href: string) => boolean = null as any;
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          var extractHost: (href: string) => string = null as any;
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          var realUrl: (href: string) => string = null as any;
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          var parseAddr: (text: string) => { city?: string; state?: string } = null as any;
-          var utils = args[0]; var businessName = args[1];
-          eval(utils);
-          var popup = document.querySelector("g-sticky-content-container") as HTMLElement | null;
-          if (!popup || !(popup.innerText || "").trim()) return null;
-          var nameLower = businessName.toLowerCase().trim();
-          var container: HTMLElement = popup;
-          var blocks = Array.prototype.slice.call(popup.querySelectorAll("block-component")) as HTMLElement[];
-          var findBlock = function(exact: boolean): HTMLElement | null {
-            for (var b = 0; b < blocks.length; b++) {
-              var els = Array.prototype.slice.call(blocks[b].querySelectorAll("h1,h2,h3,h4,[role='heading'],.kp-header")) as HTMLElement[];
-              for (var h = 0; h < els.length; h++) {
-                var t = (els[h].innerText || "").trim().toLowerCase();
-                if (!t || t.length < 2) continue;
-                if (exact ? t === nameLower : (t.includes(nameLower) || nameLower.includes(t))) return blocks[b];
-              }
-            }
-            return null;
-          };
-          var matched = findBlock(true) || findBlock(false);
-          if (matched) container = matched;
-          var fullText = container.innerText || "";
-          var allLinks = Array.prototype.slice.call(container.querySelectorAll("a[href]")) as HTMLAnchorElement[];
-          var telLink = container.querySelector('a[href^="tel:"]') as HTMLAnchorElement | null;
-          var phone: string | undefined = (telLink && telLink.href ? telLink.href.replace(/^tel:/i, "").trim() : undefined) || undefined;
-          if (!phone) phone = parseField(fullText, "Phone");
-          if (!phone) { var pm = fullText.match(/(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}/); if (pm) phone = pm[0].trim(); }
-          var mailtoLink = container.querySelector('a[href^="mailto:"]') as HTMLAnchorElement | null;
-          var email: string | undefined = (mailtoLink && mailtoLink.href ? mailtoLink.href.replace(/^mailto:/i, "").split("?")[0].trim() : undefined) || undefined;
-          var siteLink: HTMLAnchorElement | undefined = allLinks.find(function(a) { var txt = ((a.innerText || (a as HTMLElement).textContent) || "").trim().toLowerCase(); return txt === "website" && isExternal(a.href); });
-          if (!siteLink) { var psVal = parseField(fullText, "Products and Services"); if (psVal) siteLink = allLinks.find(function(a) { return isExternal(a.href) && ((a.innerText || "").trim() === psVal || extractHost(a.href) === psVal!.replace(/^www\./, "")); }); }
-          if (!siteLink) siteLink = allLinks.find(function(a) { if (!isExternal(a.href)) return false; var real = realUrl(a.href); return real.indexOf("/maps/") === -1 && real.indexOf("maps.google.") === -1; });
-          var website: string | undefined = siteLink ? extractHost(siteLink.href) : undefined;
-          var address: string | undefined = parseField(fullText, "Address") || undefined;
-          var addrParsed = parseAddr(address || "");
-          var hours: string | undefined = parseField(fullText, "Hours") || undefined;
-          var rating: string | undefined;
-          var rEl = container.querySelector('[aria-label*="Rated"],[aria-label*="stars"]') as HTMLElement | null;
-          if (rEl) { var rm = (rEl.getAttribute("aria-label") || "").match(/(\d+\.?\d*)/); if (rm) rating = rm[1]; }
-          return { popupName: "", phone, email, website, address, city: addrParsed.city, state: addrParsed.state, hours, rating };
-        }, [UTILS, name] as [string, string]);
-
-        if (!retryData) {
-          emit("status", { message: `No data found in popup for "${name}" — skipping` });
-          continue;
-        }
-        emit("lead", {
-          businessName: name,
-          website:      retryData.website ?? "",
-          phone:        retryData.phone,
-          email:        retryData.email,
-          address:      retryData.address,
-          city:         retryData.city,
-          state:        retryData.state,
-          hours:        retryData.hours,
-          snippet:      retryData.rating ? `${retryData.rating} ★` : undefined,
-          sourceUrl:    queryOrUrl,
-        });
-        leadsEmitted++;
-        await sleep(randInt(150, 300));
-        continue;
       }
 
-      // Use the list heading name — it's already clean (inner span text only).
-      // data.popupName has extra garbage: ratings, category, aria labels, etc.
-      const finalName = name;
-
-      // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-      // STAGE 6 — Emit verified lead and move to next result
-      // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
+      // ── Always emit — popup enriches the snippet, never drops the lead ───────
       emit("lead", {
-        businessName: finalName,
-        website:      data.website ?? "",
-        phone:        data.phone,
-        email:        data.email,
-        address:      data.address,
-        city:         data.city,
-        state:        data.state,
-        hours:        data.hours,
-        snippet:      data.rating ? `${data.rating} ★` : undefined,
+        businessName: name,
+        website:      popupData?.website ?? "",
+        phone:        popupData?.phone ?? snippet.phone,
+        email:        popupData?.email,
+        address:      popupData?.address ?? snippet.address,
+        city:         popupData?.city ?? snippet.city,
+        state:        popupData?.state ?? snippet.state,
+        hours:        popupData?.hours,
+        snippet:      popupData?.rating ? `${popupData.rating} ★` : undefined,
         sourceUrl:    queryOrUrl,
       });
       leadsEmitted++;
