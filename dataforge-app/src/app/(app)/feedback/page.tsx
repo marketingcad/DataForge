@@ -4,7 +4,6 @@ import { withDbRetry } from "@/lib/prisma";
 import { getFeedback } from "@/lib/feedback/service";
 import { Separator } from "@/components/ui/separator";
 import { FeedbackAdminPanel } from "./_components/FeedbackAdminPanel";
-import { FeedbackMyReports } from "./_components/FeedbackMyReports";
 import { FeedbackPageSubmitButton } from "./_components/FeedbackPageSubmitButton";
 import type { Role } from "@/lib/rbac/roles";
 import { Bug } from "lucide-react";
@@ -15,11 +14,9 @@ export default async function FeedbackPage() {
 
   const role = (session.user as unknown as Record<string, unknown>)?.role as Role;
   const isAdmin = role === "boss" || role === "admin";
-  const userId = session.user.id!;
 
-  const reports = await withDbRetry(() =>
-    getFeedback(isAdmin ? undefined : { submittedBy: userId })
-  );
+  // All users see all reports; only boss/admin can change status
+  const reports = await withDbRetry(() => getFeedback());
 
   return (
     <div className="space-y-5">
@@ -38,16 +35,10 @@ export default async function FeedbackPage() {
 
       <Separator />
 
-      {isAdmin
-        ? <FeedbackAdminPanel
-            reports={reports as Parameters<typeof FeedbackAdminPanel>[0]["reports"]}
-            isAdmin
-          />
-        : <FeedbackMyReports
-            reports={reports as Parameters<typeof FeedbackMyReports>[0]["reports"]}
-            userId={userId}
-          />
-      }
+      <FeedbackAdminPanel
+        reports={reports as Parameters<typeof FeedbackAdminPanel>[0]["reports"]}
+        isAdmin={isAdmin}
+      />
     </div>
   );
 }

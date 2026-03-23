@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Bug, Lightbulb, MessageSquare } from "lucide-react";
 import type { FeedbackStatus, FeedbackType } from "@/generated/prisma/enums";
 import { FeedbackDetailModal } from "./FeedbackDetailModal";
@@ -34,6 +34,13 @@ const STATUS_CONFIG: Record<FeedbackStatus, { label: string; color: string }> = 
 export function FeedbackMyReports({ reports, userId }: { reports: Report[]; userId: string }) {
   const [selected, setSelected] = useState<Report | null>(null);
 
+  const numberMap = useMemo(() => {
+    const sorted = [...reports].sort(
+      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    );
+    return new Map(sorted.map((r, i) => [r.id, i + 1]));
+  }, [reports]);
+
   if (reports.length === 0) {
     return (
       <div className="py-16 text-center text-muted-foreground space-y-2">
@@ -49,8 +56,9 @@ export function FeedbackMyReports({ reports, userId }: { reports: Report[]; user
   return (
     <>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {reports.map((r, i) => {
+        {reports.map((r) => {
           const cfg = STATUS_CONFIG[r.status];
+          const num = numberMap.get(r.id) ?? 0;
           return (
             <div
               key={r.id}
@@ -61,7 +69,7 @@ export function FeedbackMyReports({ reports, userId }: { reports: Report[]; user
                 {r.type === "bug"
                   ? <Bug className="h-3.5 w-3.5 text-rose-500 shrink-0" />
                   : <Lightbulb className="h-3.5 w-3.5 text-violet-500 shrink-0" />}
-                <span className="text-[11px] font-mono text-muted-foreground/50">#{String(i + 1).padStart(3, "0")}</span>
+                <span className="text-[11px] font-mono text-muted-foreground/50">#{String(num).padStart(3, "0")}</span>
                 <span className="text-sm font-semibold flex-1 truncate">{r.title}</span>
                 <span className={`text-xs font-medium shrink-0 ${cfg.color}`}>{cfg.label}</span>
               </div>
@@ -83,7 +91,7 @@ export function FeedbackMyReports({ reports, userId }: { reports: Report[]; user
       {selected && (
         <FeedbackDetailModal
           report={selected}
-          index={reports.indexOf(selected) + 1}
+          index={numberMap.get(selected.id) ?? 1}
           isAdmin={false}
           onClose={() => setSelected(null)}
         />

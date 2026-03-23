@@ -37,13 +37,10 @@ interface TabMeta {
 
 // ── Individual crawl instance ────────────────────────────────────────────────
 
-const BASE_TIME_LIMIT = 180;
-const EXTRA_PER_TAB   = 60;
 
 function CrawlInstance({
   hidden,
   onUpdate,
-  tabCount,
 }: {
   hidden: boolean;
   onUpdate: (status: CrawlStatus, count: number) => void;
@@ -56,14 +53,9 @@ function CrawlInstance({
   const [summary,   setSummary]   = useState<{ leadsFound: number; pagesVisited: number; elapsed: number } | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [maxLeads,  setMaxLeads]  = useState(50);
-  const [timeLimit, setTimeLimit] = useState(() => BASE_TIME_LIMIT + (tabCount - 1) * EXTRA_PER_TAB);
+  const [timeLimit, setTimeLimit] = useState(0);
 
-  // Auto-adjust time limit when tabs are added/removed (only when idle)
-  useEffect(() => {
-    if (status === "idle") {
-      setTimeLimit(Math.min(BASE_TIME_LIMIT + (tabCount - 1) * EXTRA_PER_TAB, 300));
-    }
-  }, [tabCount, status]);
+  // No auto-adjust — user controls the time limit manually
 
   const sourceRef  = useRef<EventSource | null>(null);
   const rowCounter = useRef(0);
@@ -257,15 +249,17 @@ function CrawlInstance({
                 <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Time Limit
                 </Label>
-                <span className="text-sm font-medium tabular-nums">{timeLimit}s</span>
+                <span className="text-sm font-medium tabular-nums">
+                  {timeLimit === 0 ? "No limit" : `${timeLimit}s`}
+                </span>
               </div>
               <Slider
-                min={30} max={300} step={10}
+                min={0} max={300} step={10}
                 value={[timeLimit]}
                 onValueChange={(v) => setTimeLimit(Array.isArray(v) ? v[0] : v)}
               />
               <div className="flex justify-between text-[11px] text-muted-foreground">
-                <span>30s</span><span>5m</span>
+                <span>No limit</span><span>5m</span>
               </div>
             </div>
 

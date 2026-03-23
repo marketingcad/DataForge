@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback, useTransition } from "react";
-import { Bell, Trash2, ExternalLink } from "lucide-react";
+import { Bell, Trash2, ExternalLink, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, format } from "date-fns";
 import { cn } from "@/lib/utils";
 import {
   getMyNotificationsAction,
@@ -30,9 +30,17 @@ const TYPE_DOT: Record<string, string> = {
   info:    "bg-blue-500",
 };
 
+const TYPE_BADGE: Record<string, { bg: string; text: string; label: string }> = {
+  success: { bg: "bg-emerald-100 dark:bg-emerald-950/50", text: "text-emerald-700 dark:text-emerald-400", label: "Success" },
+  error:   { bg: "bg-rose-100 dark:bg-rose-950/50",     text: "text-rose-700 dark:text-rose-400",     label: "Error"   },
+  warning: { bg: "bg-amber-100 dark:bg-amber-950/50",   text: "text-amber-700 dark:text-amber-400",   label: "Warning" },
+  info:    { bg: "bg-blue-100 dark:bg-blue-950/50",     text: "text-blue-700 dark:text-blue-400",     label: "Info"    },
+};
+
 export function NotificationBell() {
   const [notifications, setNotifications] = useState<DbNotif[]>([]);
   const [open, setOpen] = useState(false);
+  const [selected, setSelected] = useState<DbNotif | null>(null);
   const [, startTransition] = useTransition();
   const ref = useRef<HTMLDivElement>(null);
 
@@ -93,6 +101,61 @@ export function NotificationBell() {
         )}
       </Button>
 
+      {/* Detail modal */}
+      {selected && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          onClick={() => setSelected(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border bg-card shadow-xl mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal header */}
+            <div className="flex items-center justify-between px-5 py-3.5 border-b">
+              <div className="flex items-center gap-2">
+                <span className={cn("h-2 w-2 rounded-full shrink-0", TYPE_DOT[selected.type] ?? "bg-blue-500")} />
+                <span className="text-sm font-semibold">Notification</span>
+                {(() => {
+                  const badge = TYPE_BADGE[selected.type] ?? TYPE_BADGE.info;
+                  return (
+                    <span className={cn("text-[10px] font-semibold px-2 py-0.5 rounded-full", badge.bg, badge.text)}>
+                      {badge.label}
+                    </span>
+                  );
+                })()}
+              </div>
+              <button
+                onClick={() => setSelected(null)}
+                className="text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Modal body */}
+            <div className="px-5 py-4 space-y-3">
+              <h3 className="text-sm font-semibold leading-snug">{selected.title}</h3>
+              {selected.message && (
+                <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">{selected.message}</p>
+              )}
+              <p className="text-xs text-muted-foreground/50">
+                {format(new Date(selected.createdAt), "MMM d, yyyy 'at' h:mm a")}
+              </p>
+              {selected.link && (
+                <Link
+                  href={selected.link}
+                  onClick={() => setSelected(null)}
+                  className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline font-medium"
+                >
+                  View details <ExternalLink className="h-3 w-3" />
+                </Link>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {open && (
         <div className="absolute right-0 top-full mt-2 w-80 z-50 rounded-lg border bg-popover shadow-xl overflow-hidden">
           {/* Header */}
@@ -131,7 +194,7 @@ export function NotificationBell() {
               notifications.map((n) => (
                 <div
                   key={n.id}
-                  onClick={() => handleMarkRead(n.id)}
+                  onClick={() => { setSelected(n); setOpen(false); handleMarkRead(n.id); }}
                   className={cn("px-4 py-3 cursor-pointer transition-colors hover:bg-accent", !n.read && "bg-primary/5")}
                 >
                   <div className="flex items-start gap-2.5">
@@ -141,17 +204,10 @@ export function NotificationBell() {
                         <p className="text-xs font-medium leading-tight">{n.title}</p>
                         {!n.read && <span className="mt-1 h-1.5 w-1.5 rounded-full bg-primary shrink-0" />}
                       </div>
-                      {n.message && <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">{n.message}</p>}
-                      <div className="flex items-center justify-between mt-1">
-                        <p className="text-[10px] text-muted-foreground/50">
-                          {formatDistanceToNow(new Date(n.createdAt), { addSuffix: true })}
-                        </p>
-                        {n.link && (
-                          <Link href={n.link} onClick={(e) => e.stopPropagation()} className="text-[10px] text-primary hover:underline flex items-center gap-0.5">
-                            View <ExternalLink className="h-2.5 w-2.5" />
-                          </Link>
-                        )}
-                      </div>
+                      {n.message && <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug line-clamp-2">{n.message}</p>}
+                      <p className="text-[10px] text-muted-foreground/50 mt-1">
+                        {formatDistanceToNow(new Date(n.createdAt), { addSuffix: true })}
+                      </p>
                     </div>
                   </div>
                 </div>

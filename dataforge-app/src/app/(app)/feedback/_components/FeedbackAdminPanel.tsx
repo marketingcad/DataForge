@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect, useMemo } from "react";
 import { Bug, Lightbulb, Search, MessageSquare, AlertCircle, Zap, ChevronDown } from "lucide-react";
 import { updateFeedbackStatusAction } from "@/actions/feedback.actions";
 import type { FeedbackStatus, FeedbackType } from "@/generated/prisma/enums";
@@ -111,7 +111,7 @@ function ReportCard({
   onClick,
 }: {
   report: Report;
-  index: number;
+  index: number | undefined;
   onClick: () => void;
 }) {
   const typeCfg = TYPE_CFG[report.type];
@@ -176,12 +176,13 @@ function ReportCard({
 function KanbanColumn({
   col,
   reports,
-  globalReports,
+  numberMap,
   onCardClick,
 }: {
   col: typeof COLUMNS[number];
   reports: Report[];
   globalReports: Report[];
+  numberMap: Map<string, number>;
   onCardClick: (report: Report) => void;
 }) {
   return (
@@ -209,7 +210,7 @@ function KanbanColumn({
             <ReportCard
               key={r.id}
               report={r}
-              index={globalReports.indexOf(r) + 1}
+              index={numberMap.get(r.id)}
               onClick={() => onCardClick(r)}
             />
           ))
@@ -232,6 +233,17 @@ export function FeedbackAdminPanel({
   const [typeFilter, setTypeFilter] = useState<FeedbackType | "all">("all");
   const [localReports, setLocalReports] = useState(reports);
   const [selected, setSelected] = useState<Report | null>(null);
+
+  // Sync with server-refreshed props
+  useEffect(() => { setLocalReports(reports); }, [reports]);
+
+  // Stable number map: oldest report = #1
+  const numberMap = useMemo(() => {
+    const sorted = [...localReports].sort(
+      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    );
+    return new Map(sorted.map((r, i) => [r.id, i + 1]));
+  }, [localReports]);
 
   function handleStatusChange(id: string, status: FeedbackStatus) {
     setLocalReports((prev) => prev.map((r) => (r.id === id ? { ...r, status } : r)));
@@ -294,6 +306,7 @@ export function FeedbackAdminPanel({
             col={col}
             reports={filtered.filter((r) => r.status === col.status)}
             globalReports={localReports}
+            numberMap={numberMap}
             onCardClick={setSelected}
           />
         ))}
@@ -306,7 +319,7 @@ export function FeedbackAdminPanel({
       {selectedSync && (
         <FeedbackDetailModal
           report={selectedSync}
-          index={localReports.indexOf(selectedSync) + 1}
+          index={numberMap.get(selectedSync.id) ?? 1}
           isAdmin={isAdmin}
           onClose={() => setSelected(null)}
           onStatusChange={handleStatusChange}

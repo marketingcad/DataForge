@@ -11,9 +11,10 @@ import { submitFeedbackAction } from "@/actions/feedback.actions";
 
 interface Props {
   onClose: () => void;
+  onSuccess?: () => void;
 }
 
-export function FeedbackDialog({ onClose }: Props) {
+export function FeedbackDialog({ onClose, onSuccess }: Props) {
   const [type, setType] = useState<"bug" | "feature">("bug");
   const [priority, setPriority] = useState("medium");
   const [error, setError] = useState<string | null>(null);
@@ -31,6 +32,7 @@ export function FeedbackDialog({ onClose }: Props) {
       const res = await submitFeedbackAction(fd);
       if (res.error) { setError(res.error); return; }
       setSuccess(true);
+      onSuccess?.();
       setTimeout(onClose, 1500);
     });
   }

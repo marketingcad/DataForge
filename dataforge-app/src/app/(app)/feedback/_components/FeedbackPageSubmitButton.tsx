@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 import { FeedbackDialog } from "@/components/feedback/FeedbackDialog";
 
 export function FeedbackPageSubmitButton() {
   const [open, setOpen] = useState(false);
+  const router = useRouter();
 
   return (
     <>
@@ -30,7 +32,10 @@ export function FeedbackPageSubmitButton() {
               <p className="text-sm font-semibold">Bug / Feature Report</p>
               <button onClick={() => setOpen(false)} className="text-muted-foreground hover:text-foreground text-lg leading-none">×</button>
             </div>
-            <FeedbackDialog onClose={() => setOpen(false)} />
+            <FeedbackDialog
+              onClose={() => setOpen(false)}
+              onSuccess={() => router.refresh()}
+            />
           </div>
         </div>
       )}
