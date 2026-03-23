@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { Users } from "lucide-react";
 
@@ -11,16 +11,19 @@ interface Props {
 
 export function LeadsUserFilter({ users, currentFilter }: Props) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   function handleChange(value: string | null) {
     if (!value) return;
-    const url = new URL(window.location.href);
+    const params = new URLSearchParams(searchParams.toString());
     if (value === "all") {
-      url.searchParams.delete("filter");
+      params.delete("filter");
     } else {
-      url.searchParams.set("filter", value);
+      params.set("filter", value);
     }
-    router.push(url.pathname + url.search);
+    const qs = params.toString();
+    router.push(pathname + (qs ? `?${qs}` : ""));
   }
 
   const selectedUser = users.find((u) => u.id === currentFilter);

@@ -102,6 +102,7 @@ export default async function LeadsPage({
         </div>
       ) : (
         <IndustryBoard
+          key={filterUserId ?? "all"}
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           industries={industries as any}
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
