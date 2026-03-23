@@ -1,7 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { IndustryBoard } from "@/components/leads/IndustryBoard";
 import { LeadsGlobe } from "@/components/leads/LeadsGlobe";
-import { LeadsUserFilter } from "@/components/leads/LeadsUserFilter";
 import { getIndustries } from "@/lib/industry/service";
 import { getFolders } from "@/lib/folders/service";
 import { getLeads } from "@/lib/leads/service";
@@ -62,12 +61,6 @@ export default async function LeadsPage({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {isAdmin && users.length > 0 && (
-            <LeadsUserFilter
-              users={users.map((u) => ({ id: u.id, name: u.name, email: u.email }))}
-              currentFilter={filterUserId}
-            />
-          )}
           <Link href="/leads/new">
             <Button size="sm" variant="outline" className="gap-1.5">
               Add Lead
@@ -108,6 +101,7 @@ export default async function LeadsPage({
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           unfiledFolders={unfiledFolders as any}
           filterUserId={filterUserId}
+          filterUsers={isAdmin && users.length > 0 ? users.map((u) => ({ id: u.id, name: u.name, email: u.email })) : undefined}
         />
       )}
     </div>

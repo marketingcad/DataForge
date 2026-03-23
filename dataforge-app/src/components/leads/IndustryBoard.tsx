@@ -35,6 +35,7 @@ import {
   List,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { LeadsUserFilter } from "./LeadsUserFilter";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -182,9 +183,10 @@ interface IndustryBoardProps {
   industries: IndustryData[];
   unfiledFolders: FolderData[];
   filterUserId?: string;
+  filterUsers?: { id: string; name: string | null; email: string }[];
 }
 
-export function IndustryBoard({ industries: initialIndustries, unfiledFolders, filterUserId }: IndustryBoardProps) {
+export function IndustryBoard({ industries: initialIndustries, unfiledFolders, filterUserId, filterUsers }: IndustryBoardProps) {
   const router = useRouter();
   const [industries, setIndustries] = useState<IndustryData[]>(initialIndustries);
   const [selected, setSelected] = useState<IndustryData | null>(null);
@@ -283,6 +285,9 @@ export function IndustryBoard({ industries: initialIndustries, unfiledFolders, f
         </p>
 
         <div className="ml-auto flex items-center gap-2">
+          {filterUsers && filterUsers.length > 0 && (
+            <LeadsUserFilter users={filterUsers} currentFilter={filterUserId} />
+          )}
           <TooltipProvider>
             <div className="flex items-center gap-1 rounded-lg border p-1">
               <Tooltip>
