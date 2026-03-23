@@ -10,7 +10,7 @@ export default async function ChatPage() {
   if (!session) redirect("/sign-in");
 
   const userId = session.user.id!;
-  const role   = (session.user as Record<string, unknown>).role as Role;
+  const role   = (session.user as unknown as Record<string, unknown>).role as Role;
 
   // Ensure General room exists
   await withDbRetry(() => getOrCreateGeneralRoom(userId));
