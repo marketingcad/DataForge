@@ -21,7 +21,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { format } from "date-fns";
 
 type FolderData = {
@@ -174,6 +174,7 @@ export function IndustryModal({ industry, open, onOpenChange, unfiledFolders, al
                 </p>
               </div>
               {/* View toggle */}
+              <TooltipProvider>
               <div className="flex items-center gap-1 rounded-lg border p-1 shrink-0">
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -202,6 +203,7 @@ export function IndustryModal({ industry, open, onOpenChange, unfiledFolders, al
                   <TooltipContent>List view</TooltipContent>
                 </Tooltip>
               </div>
+              </TooltipProvider>
             </div>
           </DialogHeader>
 
