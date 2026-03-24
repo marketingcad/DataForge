@@ -31,10 +31,11 @@ async function BossDashboard() {
   );
 
   const roleGroups: Record<Role, number> = {
-    boss:            0,
-    admin:           0,
-    lead_specialist: 0,
-    sales_rep:       0,
+    boss:              0,
+    admin:             0,
+    lead_data_analyst: 0,
+    lead_specialist:   0,
+    sales_rep:         0,
   };
   for (const u of users) roleGroups[u.role as Role]++;
 
