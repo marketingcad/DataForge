@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
 import { getJobById, updateJobStatus, incrementJobMetric } from "@/lib/scraping/jobs/service";
 import { discoverBusinesses } from "@/lib/scraping/google/discovery";
 import { scrapeWebsite } from "@/lib/scraping/crawler/web-scraper";
@@ -55,34 +56,16 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
     return NextResponse.json({ status: "failed", error: errorMsg });
   }
 
-  // Update discovered count
-  await Promise.all(leads.map(() => incrementJobMetric(id, "leadsDiscovered")));
-
-  // Insert all leads
-  for (const lead of leads) {
-    try {
-      const result = await insertLead({
-        businessName: lead.businessName,
-        phone:        lead.phone ?? "N/A",
-        email:        lead.email,
-        website:      lead.website,
-        city:         lead.city,
-        state:        lead.state,
-        category:     job.industry,
-        source:       `GoogleMaps:keyword_${job.keywordId}`,
-      });
-
-      if (result.status === "duplicate") {
-        await incrementJobMetric(id, "duplicatesFound");
-      } else {
-        await incrementJobMetric(id, "leadsProcessed");
-      }
-    } catch {
-      await incrementJobMetric(id, "failedRecords");
-    }
-  }
-
-  await updateJobStatus(id, "completed", { completedTime: new Date() });
+  // Store leads as pending buffer — user decides where to save them
+  await prisma.scrapingJob.update({
+    where: { id },
+    data: {
+      status:          "completed",
+      completedTime:   new Date(),
+      leadsDiscovered: leads.length,
+      pendingLeads:    leads as never,
+    },
+  });
 
   // Update keyword schedule on success
   try {
@@ -90,7 +73,7 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
     await onKeywordJobSuccess(kw.id, kw.intervalHours);
   } catch { /* keyword may have been deleted */ }
 
-  return NextResponse.json({ status: "completed", leads: leads.length });
+  return NextResponse.json({ status: "completed", pending: leads.length });
 }
 
 // ─── Standard SerpAPI job (unchanged) ─────────────────────────────────────────

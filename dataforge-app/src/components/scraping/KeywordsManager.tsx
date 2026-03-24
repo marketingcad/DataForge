@@ -12,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -32,9 +33,21 @@ import {
   Pencil,
   Loader2,
   ExternalLink,
+  Inbox,
 } from "lucide-react";
+import { getFoldersAction } from "@/actions/folders.actions";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+
+interface PendingLead {
+  businessName: string;
+  phone?: string;
+  email?: string;
+  website?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+}
 
 interface KeywordRow {
   id: string;
@@ -52,6 +65,8 @@ interface KeywordRow {
     id: string;
     status: string;
     leadsProcessed: number;
+    leadsDiscovered: number;
+    pendingLeads: PendingLead[] | null;
     createdAt: string;
   }[];
 }
@@ -118,6 +133,14 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
 
   // Delete confirm
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+
+  // Pending leads save dialog
+  const [saveTarget, setSaveTarget] = useState<{ jobId: string; leads: PendingLead[]; keyword: string } | null>(null);
+  const [saveFolderId, setSaveFolderId] = useState("");
+  const [saveCategory, setSaveCategory] = useState("");
+  const [folders, setFolders] = useState<{ id: string; name: string }[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [saveResult, setSaveResult] = useState<{ saved: number; duplicates: number; failed: number } | null>(null);
 
   // Run now loading state per keyword
   const [runningId, setRunningId] = useState<string | null>(null);
@@ -209,6 +232,51 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
     await fetch(`/api/keywords/${id}`, { method: "DELETE" });
     setKeywords((prev) => prev.filter((k) => k.id !== id));
     setDeleteConfirm(null);
+  }
+
+  async function openSaveDialog(kw: KeywordRow) {
+    const job = kw.jobs[0];
+    if (!job?.pendingLeads?.length) return;
+    setSaveTarget({ jobId: job.id, leads: job.pendingLeads, keyword: `${kw.keyword} — ${kw.location}` });
+    setSaveFolderId("");
+    setSaveCategory(kw.keyword);
+    setSaveResult(null);
+    try {
+      const result = await getFoldersAction();
+      setFolders(result.map((f) => ({ id: f.id, name: f.name })));
+    } catch {
+      setFolders([]);
+    }
+  }
+
+  async function handleCommit() {
+    if (!saveTarget) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/scraping/jobs/${saveTarget.jobId}/commit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          folderId: saveFolderId || undefined,
+          category: saveCategory.trim() || undefined,
+        }),
+      });
+      if (res.ok) {
+        const result = await res.json();
+        setSaveResult(result);
+        // Clear pending leads locally on the keyword row
+        setKeywords((prev) =>
+          prev.map((k) => ({
+            ...k,
+            jobs: k.jobs.map((j) =>
+              j.id === saveTarget.jobId ? { ...j, pendingLeads: null, leadsProcessed: result.saved } : j
+            ),
+          }))
+        );
+      }
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function handleRunNow(id: string) {
@@ -326,6 +394,15 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
                         {kw.failedAttempts}/5 failures
                       </Badge>
                     )}
+                    {job?.pendingLeads && job.pendingLeads.length > 0 && (
+                      <button
+                        onClick={() => openSaveDialog(kw)}
+                        className="inline-flex items-center gap-1 rounded-full border border-blue-300 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 hover:bg-blue-100 dark:border-blue-700 dark:bg-blue-950/30 dark:text-blue-400 dark:hover:bg-blue-950/50 transition-colors"
+                      >
+                        <Inbox className="h-3 w-3" />
+                        {job.pendingLeads.length} leads ready — click to save
+                      </button>
+                    )}
                   </div>
 
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
@@ -441,6 +518,89 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
             >
               {editSaving ? "Saving…" : "Save changes"}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Save pending leads dialog ────────────────────────────── */}
+      <Dialog open={!!saveTarget} onOpenChange={(o) => { if (!o && !saving) { setSaveTarget(null); setSaveResult(null); } }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Save scraped leads</DialogTitle>
+            <DialogDescription>
+              {saveTarget?.keyword} · {saveTarget?.leads.length} leads ready
+            </DialogDescription>
+          </DialogHeader>
+
+          {!saveResult ? (
+            <div className="space-y-4 py-1">
+              {/* Lead preview */}
+              <div className="rounded-md border divide-y max-h-48 overflow-y-auto text-xs">
+                {saveTarget?.leads.map((lead, i) => (
+                  <div key={i} className="px-3 py-2 flex items-center gap-3">
+                    <span className="font-medium truncate flex-1">{lead.businessName}</span>
+                    {lead.phone && <span className="text-muted-foreground shrink-0">{lead.phone}</span>}
+                    {lead.city && <span className="text-muted-foreground shrink-0">{lead.city}{lead.state ? `, ${lead.state}` : ""}</span>}
+                  </div>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Save to folder (optional)</Label>
+                  <Select value={saveFolderId} onValueChange={(v) => setSaveFolderId(v ?? "")}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="No folder" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">No folder</SelectItem>
+                      {folders.map((f) => (
+                        <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Category</Label>
+                  <Input
+                    placeholder="e.g. dentist"
+                    value={saveCategory}
+                    onChange={(e) => setSaveCategory(e.target.value)}
+                  />
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="py-6 flex flex-col items-center gap-3 text-center">
+              <CheckCircle2 className="h-10 w-10 text-emerald-500" />
+              <p className="font-medium">Leads saved!</p>
+              <div className="flex gap-4 text-sm text-muted-foreground">
+                <span className="text-emerald-600 font-medium">{saveResult.saved} saved</span>
+                {saveResult.duplicates > 0 && <span>{saveResult.duplicates} duplicates</span>}
+                {saveResult.failed > 0 && <span className="text-rose-500">{saveResult.failed} failed</span>}
+              </div>
+            </div>
+          )}
+
+          <Separator />
+          <DialogFooter>
+            {!saveResult ? (
+              <>
+                <Button variant="ghost" onClick={() => setSaveTarget(null)} disabled={saving}>Cancel</Button>
+                <Button onClick={handleCommit} disabled={saving}>
+                  {saving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving…</> : `Save ${saveTarget?.leads.length ?? ""} leads`}
+                </Button>
+              </>
+            ) : (
+              <>
+                <Link href="/leads">
+                  <Button variant="outline" className="gap-1.5" onClick={() => setSaveTarget(null)}>
+                    Go to Leads <ExternalLink className="h-3.5 w-3.5" />
+                  </Button>
+                </Link>
+                <Button onClick={() => { setSaveTarget(null); setSaveResult(null); }}>Done</Button>
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -438,6 +438,7 @@ model ScrapingJob {
 
   keywordId        String?
   keyword          ScrapingKeyword? @relation(fields: [keywordId], references: [id], onDelete: SetNull)
+  pendingLeads     Json?
 
   startTime        DateTime?
   completedTime    DateTime?
