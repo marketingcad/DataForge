@@ -430,6 +430,9 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
                       <MapPin className="h-3 w-3" />
                       {kw.location}
                     </span>
+                    <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                      up to {kw.maxLeads} leads/run
+                    </span>
 
                     {isDisabledByFailure && (
                       <Badge variant="destructive" className="text-xs gap-1">
@@ -466,7 +469,6 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
                   </div>
 
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                    <span>Max {kw.maxLeads} leads/run</span>
                     <span>{intervalLabel(kw.intervalHours)}</span>
                     <span>Last run: {relativeTime(kw.lastRunAt)}</span>
                     <span>Next: {kw.enabled ? nextRunLabel(kw.nextRunAt) : "Paused"}</span>
