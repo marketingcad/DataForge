@@ -13,13 +13,14 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { UserPlus, Eye, EyeOff, AlertCircle, Loader2 } from "lucide-react";
 
-const ROLE_ORDER: Role[] = ["boss", "admin", "lead_specialist", "sales_rep"];
+const ROLE_ORDER: Role[] = ["boss", "admin", "lead_data_analyst", "lead_specialist", "sales_rep"];
 
 const ROLE_DESC: Record<Role, string> = {
-  boss:            "Full access to everything",
-  admin:           "Full access, manages users",
-  lead_specialist: "Leads department only",
-  sales_rep:       "Marketing department only",
+  boss:              "Full access to everything",
+  admin:             "Full access, manages users",
+  lead_data_analyst: "Leads department + auto scraping",
+  lead_specialist:   "Leads department only",
+  sales_rep:         "Marketing department only",
 };
 
 interface Props { actorRole: Role }
