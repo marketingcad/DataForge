@@ -304,7 +304,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
     }
 
     // Poll job until completed or failed
-    setRunningLabel("Scraping…");
+    setRunningLabel("Queued — waiting for worker…");
     const MAX_POLLS = 60; // 5 min max (5s interval)
     for (let i = 0; i < MAX_POLLS; i++) {
       await new Promise((r) => setTimeout(r, 5000));
@@ -313,12 +313,16 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
         if (!poll.ok) break;
         const job = await poll.json();
 
-        // Show live count + status while running
-        if (job.status === "running") {
+        // Show live status based on job phase
+        if (job.status === "pending") {
+          setRunningLabel(`Queued — waiting for worker… (${Math.round((i + 1) * 5)}s)`);
+        } else if (job.status === "running") {
           if (job.leadsDiscovered > 0) {
-            setRunningLabel(`${job.leadsDiscovered} lead${job.leadsDiscovered !== 1 ? "s" : ""} found…`);
+            setRunningLabel(`${job.leadsDiscovered} lead${job.leadsDiscovered !== 1 ? "s" : ""} found — scraping…`);
           } else if (job.errorMessage) {
             setRunningLabel(job.errorMessage);
+          } else {
+            setRunningLabel("Browser launched — searching Google…");
           }
         }
 
@@ -355,8 +359,13 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
         }
 
         if (job.status === "failed") {
-          setRunToast({ id: kwId, msg: `Scraping failed: ${job.errorMessage ?? "unknown error"}`, ok: false });
-          break;
+          const errMsg = job.errorMessage ?? "Unknown error";
+          setRunningLabel(`Failed: ${errMsg}`);
+          setRunToast({ id: kwId, msg: `Failed: ${errMsg}`, ok: false });
+          // Leave runningId set so user sees the error on the row, clear after delay
+          setTimeout(() => setRunningId(null), 15000);
+          setTimeout(() => setRunToast(null), 15000);
+          return;
         }
       } catch {
         break;
