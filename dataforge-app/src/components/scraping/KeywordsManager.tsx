@@ -44,7 +44,6 @@ import {
   Check,
 } from "lucide-react";
 import { getFoldersAction } from "@/actions/folders.actions";
-import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -650,11 +649,23 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
               {/* Lead preview */}
               <div className="space-y-1.5">
                 <Label>Scraped leads <span className="text-muted-foreground font-normal">({saveTarget?.leads.length})</span></Label>
-                <div className="rounded-lg border divide-y max-h-40 overflow-y-auto">
+                <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
                   {saveTarget?.leads.map((lead, i) => (
-                    <div key={i} className="px-3 py-2 flex items-center gap-2 text-xs">
-                      <span className="font-medium truncate flex-1">{lead.businessName}</span>
-                      {lead.phone && <span className="text-muted-foreground shrink-0">{lead.phone}</span>}
+                    <div key={i} className="flex items-center gap-3 rounded-lg border border-border px-3 py-2.5 bg-muted/20">
+                      <div className="flex h-7 w-7 items-center justify-center rounded-md bg-muted shrink-0 text-xs font-medium text-muted-foreground">
+                        {i + 1}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{lead.businessName}</p>
+                        {(lead.phone || lead.city) && (
+                          <p className="text-xs text-muted-foreground truncate mt-0.5">
+                            {[lead.phone, lead.city && lead.state ? `${lead.city}, ${lead.state}` : lead.city].filter(Boolean).join(" · ")}
+                          </p>
+                        )}
+                      </div>
+                      {lead.website && (
+                        <span className="text-xs text-muted-foreground shrink-0 truncate max-w-[80px]">{lead.website}</span>
+                      )}
                     </div>
                   ))}
                 </div>
