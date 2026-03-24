@@ -424,8 +424,16 @@ export async function extractFromSerp(
 }
 
 // ─── Google Maps keyword scraper ──────────────────────────────────────────────
-// Navigates directly to Google Maps, scrolls the results list, clicks each
-// business card, and reads the detail panel — phone, website, address, etc.
+// 1. Opens google.com/maps/search/
+// 2. Types keyword + location into the search input
+// 3. Waits for div[role="feed"] (the results sidebar)
+// 4. For each div[role="feed"] > div > div[role="article"]:
+//    - reads business name from .fontHeadlineSmall
+//    - clicks the article to open the detail popup
+//    - reads address from [data-item-id="address"]
+//    - reads phone from [data-tooltip="Copy phone number"]
+//    - reads website from [data-tooltip="Open website"]
+// 5. Presses Escape to close popup, scrolls feed, repeats
 
 export async function scrapeGoogleMapsHeadless(
   keyword: string,
@@ -435,8 +443,7 @@ export async function scrapeGoogleMapsHeadless(
   onLead?: (lead: SerpLead, count: number) => void
 ): Promise<SerpLead[]> {
   const leads: SerpLead[] = [];
-  const query = encodeURIComponent(`${keyword} ${location}`);
-  const mapsUrl = `https://www.google.com/maps/search/${query}`;
+  const searchQuery = `${keyword} ${location}`;
 
   let browser: import("playwright").Browser | null = null;
   let context: import("playwright").BrowserContext | null = null;
@@ -447,143 +454,146 @@ export async function scrapeGoogleMapsHeadless(
     context = bc.context;
     const page = await context.newPage();
 
+    // ── Step 1: open Google Maps search page ──────────────────────────────────
     onLog?.("Opening Google Maps…");
-    await page.goto(mapsUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
-    await sleep(2000);
+    await page.goto("https://www.google.com/maps/search/", {
+      waitUntil: "domcontentloaded",
+      timeout: 30000,
+    });
+    await sleep(1500);
 
-    // Accept consent if shown
+    // Accept consent wall if present
     try {
       const consent = page.locator(
-        'button:has-text("Accept all"), button:has-text("I agree"), button:has-text("Agree"), form[action*="consent"] button'
+        'button:has-text("Accept all"), button:has-text("I agree"), button:has-text("Agree")'
       ).first();
       if (await consent.isVisible({ timeout: 3000 })) {
         await consent.click();
-        await sleep(1200);
+        await sleep(1000);
         onLog?.("Accepted consent dialog");
       }
-    } catch { /* no consent */ }
+    } catch { /* no consent wall */ }
 
-    // Wait for the results feed
-    onLog?.("Waiting for results list…");
-    const feedSel = '[role="feed"]';
+    // ── Step 2: type the search query ─────────────────────────────────────────
+    onLog?.(`Searching for "${searchQuery}"…`);
+    const input = page.locator(
+      'div[aria-label="Google Maps"] div[role="search"] form input'
+    ).first();
+    await input.click();
+    await sleep(300);
+    for (const char of searchQuery) {
+      await page.keyboard.type(char, { delay: randInt(40, 90) });
+    }
+    await sleep(400);
+    await page.keyboard.press("Enter");
+
+    // ── Step 3: wait for the results feed ─────────────────────────────────────
+    onLog?.("Waiting for results…");
     try {
-      await page.waitForSelector(feedSel, { timeout: 15000 });
+      await page.waitForSelector('div[role="feed"]', { timeout: 15000 });
     } catch {
-      onLog?.("No results feed found — Google Maps layout may have changed or CAPTCHA blocked");
+      onLog?.("No results feed appeared — possible CAPTCHA or layout change");
       return leads;
     }
-
     await sleep(1000);
 
-    let noNewLeadsRounds = 0;
+    // Track which articles we have already processed (by name)
+    const seen = new Set<string>();
+    let staleRounds = 0;
 
-    while (leads.length < maxLeads && noNewLeadsRounds < 4) {
-      // Get all result cards currently visible in the feed
-      const cards = await page.locator(`${feedSel} > div`).all();
-      const prevCount = leads.length;
+    // ── Step 4: scrape loop ────────────────────────────────────────────────────
+    while (leads.length < maxLeads && staleRounds < 4) {
+      const childDivs = await page.locator('div[role="feed"] > div').all();
+      let gotNewLead = false;
 
-      for (const card of cards) {
+      for (const child of childDivs) {
         if (leads.length >= maxLeads) break;
 
-        // Skip dividers / ads — real cards have an anchor with href containing /maps/place/
-        const anchor = card.locator('a[href*="/maps/place/"]').first();
-        const href = await anchor.getAttribute("href").catch(() => null);
-        if (!href) continue;
+        const article = child.locator('div[role="article"]').first();
+        if (!(await article.isVisible().catch(() => false))) continue;
 
-        // Get name from the card
-        const nameEl = card.locator(".qBF1Pd, .fontHeadlineSmall, [aria-label]").first();
-        let businessName = await nameEl.innerText({ timeout: 2000 }).catch(() => "");
-        businessName = businessName.trim();
-        if (!businessName || businessName.length < 2) {
-          // fallback: read aria-label from the anchor
-          businessName = (await anchor.getAttribute("aria-label") ?? "").replace(/^·.*/, "").trim();
+        // Business name from .fontHeadlineSmall inside the article
+        const nameEl = article.locator(".fontHeadlineSmall").first();
+        const businessName = (await nameEl.innerText({ timeout: 2000 }).catch(() => "")).trim();
+        if (!businessName || seen.has(businessName)) continue;
+        seen.add(businessName);
+
+        onLog?.(`[${leads.length + 1}] ${businessName}`);
+
+        // Click the article to open the detail popup
+        await article.click({ timeout: 4000 }).catch(() => null);
+
+        // Wait for the popup — identified by aria-label matching the business name
+        try {
+          await page.waitForSelector(
+            `[aria-label="${businessName.replace(/"/g, '\\"')}"]`,
+            { timeout: 6000 }
+          );
+        } catch {
+          // Popup may use a slightly different label — just wait a moment
+          await sleep(1500);
         }
-        if (!businessName) continue;
 
-        onLog?.(`[${leads.length + 1}/${maxLeads}] ${businessName}`);
+        // ── Step 5: extract from detail popup ─────────────────────────────────
+        const details = await page.evaluate((name: string) => {
+          function innerText(el: Element | null): string {
+            if (!el) return "";
+            // Walk to the deepest text-bearing child
+            let node: Element = el;
+            while (node.children.length === 1 && node.children[0].textContent?.trim()) {
+              node = node.children[0];
+            }
+            return (node as HTMLElement).innerText?.trim() ?? node.textContent?.trim() ?? "";
+          }
 
-        // Click the card to open the detail panel
-        try {
-          await anchor.click({ timeout: 4000 });
-        } catch { continue; }
+          const address = innerText(document.querySelector('[data-item-id="address"]'));
+          const phone   = innerText(document.querySelector('[data-tooltip="Copy phone number"]'));
+          const website = innerText(document.querySelector('[data-tooltip="Open website"]'));
 
-        // Wait for the detail panel heading to confirm it opened
-        try {
-          await page.waitForSelector('h1.DUwDvf, h1[class*="fontHeadlineLarge"], [role="main"] h1', { timeout: 6000 });
-        } catch { /* panel may have opened without h1 */ }
-        await sleep(1200);
-
-        // Extract from detail panel using stable data-item-id attributes
-        const lead = await page.evaluate((bName: string) => {
-          // Phone
-          const phoneBtn = document.querySelector('button[data-item-id^="phone:"], a[href^="tel:"]');
-          const phone = phoneBtn
-            ? (phoneBtn.getAttribute("data-item-id") ?? "").replace("phone:tel:", "").replace("phone:", "") ||
-              (phoneBtn.getAttribute("href") ?? "").replace("tel:", "")
-            : undefined;
-
-          // Website
-          const siteLink = document.querySelector('a[data-item-id="authority"], a[href][data-value="Website"]') as HTMLAnchorElement | null;
-          const website = siteLink?.href
-            ? (() => { try { return new URL(siteLink.href).hostname.replace(/^www\./, ""); } catch { return undefined; } })()
-            : undefined;
-
-          // Address
-          const addrBtn = document.querySelector('button[data-item-id="address"]') as HTMLElement | null;
-          const address = addrBtn?.innerText?.trim() || undefined;
-
-          // City / state from address
+          // City / state parsed from address
           let city: string | undefined, state: string | undefined;
           if (address) {
             const parts = address.split(",").map((s: string) => s.trim());
             for (let i = parts.length - 1; i >= 0; i--) {
-              const m = parts[i].match(/^([A-Z]{2})\s*\d*/);
+              const m = parts[i].match(/^([A-Z]{2})(\s+\d{5})?$/);
               if (m) { state = m[1]; city = parts[i - 1]; break; }
             }
           }
 
-          // Rating
-          const ratingEl = document.querySelector('span.ceNzKf[aria-label], span[aria-label*="star"]') as HTMLElement | null;
-          const ratingMatch = (ratingEl?.getAttribute("aria-label") ?? "").match(/[\d.]+/);
-          const rating = ratingMatch ? ratingMatch[0] : undefined;
-
-          // Confirmed name from panel h1 (more reliable)
-          const h1 = document.querySelector('h1.DUwDvf, h1[class*="fontHeadlineLarge"], [role="main"] h1') as HTMLElement | null;
-          const confirmedName = h1?.innerText?.trim() || bName;
-
-          return { businessName: confirmedName, phone: phone || undefined, website, address, city, state, rating };
+          return {
+            businessName: name,
+            address: address || undefined,
+            phone:   phone   || undefined,
+            website: website || undefined,
+            city,
+            state,
+          };
         }, businessName);
 
-        if (lead.businessName) {
-          leads.push(lead);
-          onLead?.(lead, leads.length);
-        }
+        leads.push(details);
+        onLead?.(details, leads.length);
+        gotNewLead = true;
 
-        // Go back to results list
-        await page.goBack({ waitUntil: "domcontentloaded", timeout: 10000 }).catch(() => {});
-        await sleep(800);
-
-        // Re-wait for feed after navigation
-        await page.waitForSelector(feedSel, { timeout: 8000 }).catch(() => {});
-        await sleep(500);
+        // Close the popup and return to the feed
+        await page.keyboard.press("Escape");
+        await sleep(600);
       }
 
-      // If we didn't get any new leads this round, try scrolling to load more
-      if (leads.length === prevCount) {
-        noNewLeadsRounds++;
-        onLog?.(`Scrolling for more results… (${leads.length} so far)`);
-        // Scroll the results panel (left sidebar)
+      if (!gotNewLead) {
+        staleRounds++;
+        onLog?.(`Scrolling for more… (${leads.length} leads so far)`);
+        // Scroll the feed panel to reveal more results
         await page.evaluate(() => {
-          const feed = document.querySelector('[role="feed"]');
-          if (feed) feed.scrollTop += 1200;
+          const feed = document.querySelector('div[role="feed"]');
+          if (feed) feed.scrollTop += 1400;
         });
-        await sleep(1500);
+        await sleep(1800);
       } else {
-        noNewLeadsRounds = 0;
+        staleRounds = 0;
       }
     }
 
-    onLog?.(`Done — scraped ${leads.length} lead${leads.length !== 1 ? "s" : ""}`);
+    onLog?.(`Done — ${leads.length} lead${leads.length !== 1 ? "s" : ""} scraped`);
     await page.close();
   } finally {
     await context?.close().catch(() => {});
