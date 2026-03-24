@@ -30,8 +30,11 @@ import {
   AlertTriangle,
   CheckCircle2,
   Pencil,
+  Loader2,
+  ExternalLink,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 interface KeywordRow {
   id: string;
@@ -115,6 +118,10 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
 
   // Delete confirm
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+
+  // Run now loading state per keyword
+  const [runningId, setRunningId] = useState<string | null>(null);
+  const [runToast, setRunToast] = useState<{ id: string; msg: string; ok: boolean } | null>(null);
 
   function openEdit(kw: KeywordRow) {
     setEditTarget(kw);
@@ -205,9 +212,21 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
   }
 
   async function handleRunNow(id: string) {
-    const res = await fetch(`/api/keywords/${id}/run`, { method: "POST" });
-    if (res.ok) {
-      startTransition(() => router.refresh());
+    setRunningId(id);
+    setRunToast(null);
+    try {
+      const res = await fetch(`/api/keywords/${id}/run`, { method: "POST" });
+      if (res.ok) {
+        setRunToast({ id, msg: "Scraping started — leads will appear on the Leads page.", ok: true });
+        startTransition(() => router.refresh());
+      } else {
+        setRunToast({ id, msg: "Failed to start scraping. Try again.", ok: false });
+      }
+    } catch {
+      setRunToast({ id, msg: "Failed to start scraping. Try again.", ok: false });
+    } finally {
+      setRunningId(null);
+      setTimeout(() => setRunToast(null), 6000);
     }
   }
 
@@ -224,6 +243,23 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
           Add Keyword
         </Button>
       </div>
+
+      {/* Run toast */}
+      {runToast && (
+        <div className={`flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm ${
+          runToast.ok
+            ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400"
+            : "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-800 dark:bg-rose-950/30 dark:text-rose-400"
+        }`}>
+          {runToast.ok ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <AlertTriangle className="h-4 w-4 shrink-0" />}
+          <span>{runToast.msg}</span>
+          {runToast.ok && (
+            <Link href="/leads" className="ml-auto flex items-center gap-1 underline underline-offset-2 font-medium">
+              Go to Leads <ExternalLink className="h-3 w-3" />
+            </Link>
+          )}
+        </div>
+      )}
 
       {/* Empty state */}
       {keywords.length === 0 && (
@@ -326,10 +362,13 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
                     variant="outline"
                     className="gap-1.5 h-8"
                     onClick={() => handleRunNow(kw.id)}
+                    disabled={runningId === kw.id}
                     title="Run now"
                   >
-                    <Play className="h-3.5 w-3.5" />
-                    Run now
+                    {runningId === kw.id
+                      ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      : <Play className="h-3.5 w-3.5" />}
+                    {runningId === kw.id ? "Starting…" : "Run now"}
                   </Button>
                   <Button
                     size="sm"
