@@ -12,8 +12,15 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
-  DialogDescription,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Separator } from "@/components/ui/separator";
 import {
   Select,
   SelectContent,
@@ -21,7 +28,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
 import {
   Plus,
   Play,
@@ -34,8 +40,11 @@ import {
   Loader2,
   ExternalLink,
   Inbox,
+  ChevronDown,
+  Check,
 } from "lucide-react";
 import { getFoldersAction } from "@/actions/folders.actions";
+import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -629,82 +638,108 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
 
       {/* ── Save pending leads dialog ────────────────────────────── */}
       <Dialog open={!!saveTarget} onOpenChange={(o) => { if (!o && !saving) { setSaveTarget(null); setSaveResult(null); } }}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent showCloseButton className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Save scraped leads</DialogTitle>
-            <DialogDescription>
-              {saveTarget?.keyword} · {saveTarget?.leads.length} leads ready
-            </DialogDescription>
+            <DialogTitle>
+              {!saveResult ? `Save ${saveTarget?.leads.length} scraped leads` : "Leads saved!"}
+            </DialogTitle>
           </DialogHeader>
 
           {!saveResult ? (
             <div className="space-y-4 py-1">
               {/* Lead preview */}
-              <div className="rounded-md border divide-y max-h-48 overflow-y-auto text-xs">
-                {saveTarget?.leads.map((lead, i) => (
-                  <div key={i} className="px-3 py-2 flex items-center gap-3">
-                    <span className="font-medium truncate flex-1">{lead.businessName}</span>
-                    {lead.phone && <span className="text-muted-foreground shrink-0">{lead.phone}</span>}
-                    {lead.city && <span className="text-muted-foreground shrink-0">{lead.city}{lead.state ? `, ${lead.state}` : ""}</span>}
-                  </div>
-                ))}
+              <div className="space-y-1.5">
+                <Label>Scraped leads <span className="text-muted-foreground font-normal">({saveTarget?.leads.length})</span></Label>
+                <div className="rounded-lg border divide-y max-h-40 overflow-y-auto">
+                  {saveTarget?.leads.map((lead, i) => (
+                    <div key={i} className="px-3 py-2 flex items-center gap-2 text-xs">
+                      <span className="font-medium truncate flex-1">{lead.businessName}</span>
+                      {lead.phone && <span className="text-muted-foreground shrink-0">{lead.phone}</span>}
+                    </div>
+                  ))}
+                </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label>Save to folder (optional)</Label>
-                  <Select value={saveFolderId} onValueChange={(v) => setSaveFolderId(v ?? "")}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="No folder" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="">No folder</SelectItem>
-                      {folders.map((f) => (
-                        <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Category</Label>
-                  <Input
-                    placeholder="e.g. dentist"
-                    value={saveCategory}
-                    onChange={(e) => setSaveCategory(e.target.value)}
-                  />
-                </div>
+              {/* Folder picker — matches CreateFolderModal industry dropdown */}
+              <div className="space-y-1.5">
+                <Label>Folder <span className="text-muted-foreground font-normal">(optional)</span></Label>
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    render={<Button variant="outline" className="w-full justify-between font-normal" />}
+                  >
+                    <span className="text-muted-foreground">
+                      {saveFolderId ? (folders.find(f => f.id === saveFolderId)?.name ?? "No folder") : "No folder"}
+                    </span>
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="w-56">
+                    <DropdownMenuItem onClick={() => setSaveFolderId("")}>
+                      <span className="text-muted-foreground">No folder</span>
+                      {!saveFolderId && <Check className="ml-auto h-4 w-4" />}
+                    </DropdownMenuItem>
+                    {folders.length > 0 && <DropdownMenuSeparator />}
+                    {folders.map((f) => (
+                      <DropdownMenuItem key={f.id} onClick={() => setSaveFolderId(f.id)}>
+                        {f.name}
+                        {saveFolderId === f.id && <Check className="ml-auto h-4 w-4" />}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+
+              {/* Category */}
+              <div className="space-y-1.5">
+                <Label>Category <span className="text-muted-foreground font-normal">(optional)</span></Label>
+                <Input
+                  placeholder="e.g. shawarma"
+                  value={saveCategory}
+                  onChange={(e) => setSaveCategory(e.target.value)}
+                />
               </div>
             </div>
           ) : (
-            <div className="py-6 flex flex-col items-center gap-3 text-center">
-              <CheckCircle2 className="h-10 w-10 text-emerald-500" />
-              <p className="font-medium">Leads saved!</p>
-              <div className="flex gap-4 text-sm text-muted-foreground">
-                <span className="text-emerald-600 font-medium">{saveResult.saved} saved</span>
-                {saveResult.duplicates > 0 && <span>{saveResult.duplicates} duplicates</span>}
-                {saveResult.failed > 0 && <span className="text-rose-500">{saveResult.failed} failed</span>}
+            <div className="space-y-4 py-1">
+              <div className="rounded-lg border p-4 bg-muted/40 space-y-3">
+                <div className="flex items-center gap-2 text-sm">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                  <span className="font-medium text-emerald-600">{saveResult.saved} lead{saveResult.saved !== 1 ? "s" : ""} saved</span>
+                </div>
+                {saveResult.duplicates > 0 && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <span className="h-4 w-4 shrink-0" />
+                    {saveResult.duplicates} duplicate{saveResult.duplicates !== 1 ? "s" : ""} skipped
+                  </div>
+                )}
+                {saveResult.failed > 0 && (
+                  <div className="flex items-center gap-2 text-sm text-rose-500">
+                    <AlertTriangle className="h-4 w-4 shrink-0" />
+                    {saveResult.failed} failed
+                  </div>
+                )}
               </div>
             </div>
           )}
 
-          <Separator />
           <DialogFooter>
             {!saveResult ? (
-              <>
-                <Button variant="ghost" onClick={() => setSaveTarget(null)} disabled={saving}>Cancel</Button>
-                <Button onClick={handleCommit} disabled={saving}>
-                  {saving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving…</> : `Save ${saveTarget?.leads.length ?? ""} leads`}
-                </Button>
-              </>
+              <Button
+                onClick={handleCommit}
+                disabled={saving}
+                className="w-full sm:w-auto"
+              >
+                {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                {saving ? "Saving…" : `Save ${saveTarget?.leads.length ?? ""} leads`}
+              </Button>
             ) : (
-              <>
-                <Link href="/leads">
-                  <Button variant="outline" className="gap-1.5" onClick={() => setSaveTarget(null)}>
+              <div className="flex gap-2 w-full">
+                <Link href="/leads" className="flex-1">
+                  <Button variant="outline" className="w-full gap-1.5" onClick={() => setSaveTarget(null)}>
                     Go to Leads <ExternalLink className="h-3.5 w-3.5" />
                   </Button>
                 </Link>
-                <Button onClick={() => { setSaveTarget(null); setSaveResult(null); }}>Done</Button>
-              </>
+                <Button className="flex-1" onClick={() => { setSaveTarget(null); setSaveResult(null); }}>Done</Button>
+              </div>
             )}
           </DialogFooter>
         </DialogContent>
