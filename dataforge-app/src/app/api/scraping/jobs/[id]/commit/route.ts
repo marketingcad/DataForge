@@ -13,12 +13,16 @@ export async function POST(
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
-  const { folderId, category } = await req.json();
+  const { folderId, category, leads: bodyLeads } = await req.json();
 
   const job = await prisma.scrapingJob.findUnique({ where: { id } });
   if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
 
-  const pending = (job.pendingLeads ?? []) as unknown as SerpLead[];
+  // Use leads passed from client (selected subset) or fall back to full pendingLeads
+  const pending: SerpLead[] = bodyLeads?.length
+    ? (bodyLeads as SerpLead[])
+    : (job.pendingLeads ?? []) as unknown as SerpLead[];
+
   if (pending.length === 0) {
     return NextResponse.json({ saved: 0, duplicates: 0, failed: 0 });
   }

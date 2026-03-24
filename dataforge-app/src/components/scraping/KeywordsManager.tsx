@@ -6,7 +6,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Dialog,
   DialogContent,
@@ -15,13 +14,6 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Separator } from "@/components/ui/separator";
 import {
   Select,
@@ -42,23 +34,13 @@ import {
   Loader2,
   ExternalLink,
   Inbox,
-  ChevronDown,
-  Check,
   Folder,
-  FolderOpen,
-  FolderPlus,
   Search,
 } from "lucide-react";
-import { getFoldersAction, createFolderAction } from "@/actions/folders.actions";
-import { getIndustriesAction } from "@/actions/industry.actions";
+import { getFoldersAction } from "@/actions/folders.actions";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-
-const PRESET_COLORS = [
-  "#6366f1", "#3b82f6", "#10b981", "#f59e0b",
-  "#f43f5e", "#8b5cf6", "#64748b",
-];
 
 interface PendingLead {
   businessName: string;
@@ -157,16 +139,13 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
 
   // Pending leads save dialog
   const [saveTarget, setSaveTarget] = useState<{ jobId: string; leads: PendingLead[]; keyword: string } | null>(null);
+  const [tableLeads, setTableLeads] = useState<PendingLead[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [tableSearch, setTableSearch] = useState("");
+  const [filterHas, setFilterHas] = useState<{ phone: boolean; email: boolean; website: boolean }>({ phone: false, email: false, website: false });
   const [saveFolderId, setSaveFolderId] = useState("none");
   const [saveCategory, setSaveCategory] = useState("");
   const [folders, setFolders] = useState<{ id: string; name: string; color: string; _count: { leads: number }; industry: { id: string; name: string; color: string } | null }[]>([]);
-  const [industries, setIndustries] = useState<{ id: string; name: string; color: string }[]>([]);
-  const [folderSearch, setFolderSearch] = useState("");
-  const [filterIndustryId, setFilterIndustryId] = useState<string | null>(null);
-  const [creatingNewFolder, setCreatingNewFolder] = useState(false);
-  const [newFolderName, setNewFolderName] = useState("");
-  const [newFolderColor, setNewFolderColor] = useState(PRESET_COLORS[0]);
-  const [newFolderIndustryId, setNewFolderIndustryId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveResult, setSaveResult] = useState<{ saved: number; duplicates: number; failed: number } | null>(null);
 
@@ -266,23 +245,20 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
   async function openSaveDialog(kw: KeywordRow) {
     const job = kw.jobs[0];
     if (!job?.pendingLeads?.length) return;
-    setSaveTarget({ jobId: job.id, leads: job.pendingLeads, keyword: `${kw.keyword} — ${kw.location}` });
+    const leads = job.pendingLeads;
+    setSaveTarget({ jobId: job.id, leads, keyword: `${kw.keyword} — ${kw.location}` });
+    setTableLeads(leads);
+    setSelectedIds(new Set(leads.map((_, i) => i)));
+    setTableSearch("");
+    setFilterHas({ phone: false, email: false, website: false });
     setSaveFolderId("none");
     setSaveCategory(kw.keyword);
     setSaveResult(null);
-    setFolderSearch("");
-    setFilterIndustryId(null);
-    setCreatingNewFolder(false);
-    setNewFolderName("");
-    setNewFolderColor(PRESET_COLORS[0]);
-    setNewFolderIndustryId(null);
     try {
-      const [f, ind] = await Promise.all([getFoldersAction(), getIndustriesAction()]);
+      const f = await getFoldersAction();
       setFolders(f as unknown as typeof folders);
-      setIndustries(ind as unknown as typeof industries);
     } catch {
       setFolders([]);
-      setIndustries([]);
     }
   }
 
@@ -290,14 +266,9 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
     if (!saveTarget) return;
     setSaving(true);
     try {
-      let resolvedFolderId: string | undefined;
-      if (saveFolderId === "new") {
-        if (!newFolderName.trim()) { setSaving(false); return; }
-        const created = await createFolderAction(newFolderName.trim(), newFolderColor, newFolderIndustryId) as { id: string };
-        resolvedFolderId = created.id;
-      } else if (saveFolderId !== "none") {
-        resolvedFolderId = saveFolderId;
-      }
+      const resolvedFolderId = saveFolderId !== "none" ? saveFolderId : undefined;
+
+      const selectedLeads = tableLeads.filter((_, i) => selectedIds.has(i));
 
       const res = await fetch(`/api/scraping/jobs/${saveTarget.jobId}/commit`, {
         method: "POST",
@@ -305,12 +276,12 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
         body: JSON.stringify({
           folderId: resolvedFolderId,
           category: saveCategory.trim() || undefined,
+          leads: selectedLeads,
         }),
       });
       if (res.ok) {
         const result = await res.json();
         setSaveResult(result);
-        // Clear pending leads locally on the keyword row
         setKeywords((prev) =>
           prev.map((k) => ({
             ...k,
@@ -323,6 +294,22 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
     } finally {
       setSaving(false);
     }
+  }
+
+  function toggleSelectAll(visible: PendingLead[]) {
+    const visibleIndexes = visible.map((_, i) => tableLeads.indexOf(visible[i]));
+    const allSelected = visibleIndexes.every(i => selectedIds.has(i));
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      visibleIndexes.forEach(i => allSelected ? next.delete(i) : next.add(i));
+      return next;
+    });
+  }
+
+  function deleteSelected() {
+    const remaining = tableLeads.filter((_, i) => !selectedIds.has(i));
+    setTableLeads(remaining);
+    setSelectedIds(new Set(remaining.map((_, i) => i)));
   }
 
   async function handleRunNow(kwId: string) {
@@ -674,197 +661,212 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
 
       {/* ── Save pending leads dialog ────────────────────────────── */}
       <Dialog open={!!saveTarget} onOpenChange={(o) => { if (!o && !saving) { setSaveTarget(null); setSaveResult(null); } }}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
+        <DialogContent className="max-w-5xl max-h-[90vh] flex flex-col p-0 gap-0">
+          <DialogHeader className="px-6 pt-5 pb-4 border-b shrink-0">
             <DialogTitle className="flex items-center gap-2">
-              <FolderOpen className="h-5 w-5 text-primary" />
-              Save {saveTarget?.leads.length} lead{(saveTarget?.leads.length ?? 0) !== 1 ? "s" : ""}
+              <Inbox className="h-5 w-5 text-primary" />
+              Scraped leads — {saveTarget?.keyword}
+              <Badge variant="secondary" className="ml-1">{tableLeads.length} total</Badge>
             </DialogTitle>
-            <DialogDescription>
-              {saveTarget?.keyword} — choose a folder or save unfiled.
-            </DialogDescription>
+            <DialogDescription className="sr-only">Review and save scraped leads</DialogDescription>
           </DialogHeader>
 
           {!saveResult ? (
-            <div className="space-y-3 py-2">
-
-              {/* Search + industry filter */}
-              {folders.length > 0 && (
-                <div className="space-y-2">
-                  <div className="relative">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                    <Input
-                      placeholder="Search folders…"
-                      value={folderSearch}
-                      onChange={(e) => setFolderSearch(e.target.value)}
-                      className="pl-8 h-8 text-sm"
-                    />
-                  </div>
-                  {industries.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5">
-                      <button type="button" onClick={() => setFilterIndustryId(null)}
-                        className={cn("text-xs px-2.5 py-1 rounded-full border transition-colors",
-                          filterIndustryId === null ? "bg-blue-600 text-white border-blue-600" : "border-border hover:bg-muted")}>
-                        All
-                      </button>
-                      {industries.map((ind) => (
-                        <button key={ind.id} type="button"
-                          onClick={() => setFilterIndustryId(ind.id === filterIndustryId ? null : ind.id)}
-                          className={cn("text-xs px-2.5 py-1 rounded-full border transition-colors flex items-center gap-1.5",
-                            filterIndustryId === ind.id ? "bg-blue-600 text-white border-blue-600" : "border-border hover:bg-muted")}>
-                          <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: ind.color }} />
-                          {ind.name}
-                        </button>
-                      ))}
-                    </div>
-                  )}
+            <>
+              {/* Toolbar */}
+              <div className="flex items-center gap-2 px-6 py-3 border-b shrink-0 flex-wrap">
+                <div className="relative flex-1 min-w-[200px]">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input
+                    placeholder="Search by business name…"
+                    value={tableSearch}
+                    onChange={(e) => setTableSearch(e.target.value)}
+                    className="pl-8 h-8 text-sm"
+                  />
                 </div>
-              )}
-
-              {/* Folder radio list */}
-              <RadioGroup value={saveFolderId} onValueChange={setSaveFolderId} className="gap-1.5 max-h-52 overflow-y-auto pr-1">
-                <label className={cn("flex items-center gap-3 rounded-lg border px-3 py-2.5 cursor-pointer transition-all",
-                  saveFolderId === "none" ? "border-primary bg-primary/5" : "border-border hover:bg-muted/40")}>
-                  <RadioGroupItem value="none" id="save-folder-none" />
-                  <div className="flex h-7 w-7 items-center justify-center rounded-md bg-muted">
-                    <Folder className="h-3.5 w-3.5 text-muted-foreground" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium">Unfiled</p>
-                    <p className="text-xs text-muted-foreground">No folder assigned</p>
-                  </div>
-                </label>
-
-                {folders
-                  .filter(f => f.name.toLowerCase().includes(folderSearch.toLowerCase()) &&
-                    (filterIndustryId === null || f.industry?.id === filterIndustryId))
-                  .map((f) => (
-                    <label key={f.id} className={cn("flex items-center gap-3 rounded-lg border px-3 py-2.5 cursor-pointer transition-all",
-                      saveFolderId === f.id ? "border-primary bg-primary/5" : "border-border hover:bg-muted/40")}>
-                      <RadioGroupItem value={f.id} id={`save-folder-${f.id}`} />
-                      <div className="flex h-7 w-7 items-center justify-center rounded-md shrink-0" style={{ backgroundColor: f.color + "22" }}>
-                        <Folder className="h-3.5 w-3.5" style={{ color: f.color }} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{f.name}</p>
-                        {f.industry && (
-                          <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                            <span className="inline-block h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: f.industry.color }} />
-                            {f.industry.name}
-                          </p>
-                        )}
-                      </div>
-                      <Badge variant="secondary" className="text-xs shrink-0">{f._count.leads}</Badge>
-                    </label>
-                  ))}
-              </RadioGroup>
-
-              <Separator />
-
-              {/* Create new folder */}
-              {!creatingNewFolder ? (
-                <button type="button" onClick={() => { setCreatingNewFolder(true); setSaveFolderId("new"); }}
-                  className="flex items-center gap-2 text-sm text-primary hover:text-primary/80 transition-colors font-medium">
-                  <FolderPlus className="h-4 w-4" />
-                  Create new folder
+                <button type="button"
+                  onClick={() => setFilterHas(prev => ({ ...prev, phone: !prev.phone }))}
+                  className={cn("text-xs px-3 py-1.5 rounded-full border font-medium transition-colors",
+                    filterHas.phone ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted")}>
+                  Has Phone
                 </button>
-              ) : (
-                <div className="rounded-lg border border-primary bg-primary/5 p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium">New folder</p>
-                    <span className="text-[10px] font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-full">Selected</span>
-                  </div>
-                  <Input placeholder="e.g. Chicago Shawarma" value={newFolderName}
-                    onChange={(e) => setNewFolderName(e.target.value)} autoFocus className="h-8 text-sm" />
-                  <div className="flex gap-1.5">
-                    {PRESET_COLORS.map((c) => (
-                      <button key={c} type="button" onClick={() => setNewFolderColor(c)}
-                        className={cn("h-6 w-6 rounded-full transition-all ring-offset-2",
-                          newFolderColor === c ? "ring-2 ring-foreground scale-110" : "hover:scale-105")}
-                        style={{ backgroundColor: c }}>
-                        {newFolderColor === c && <Check className="h-3 w-3 text-white mx-auto" />}
-                      </button>
-                    ))}
-                  </div>
-                  {industries.length > 0 && (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger render={<Button variant="outline" size="sm" className="w-full justify-between h-8 text-sm font-normal" />}>
+                <button type="button"
+                  onClick={() => setFilterHas(prev => ({ ...prev, email: !prev.email }))}
+                  className={cn("text-xs px-3 py-1.5 rounded-full border font-medium transition-colors",
+                    filterHas.email ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted")}>
+                  Has Email
+                </button>
+                <button type="button"
+                  onClick={() => setFilterHas(prev => ({ ...prev, website: !prev.website }))}
+                  className={cn("text-xs px-3 py-1.5 rounded-full border font-medium transition-colors",
+                    filterHas.website ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted")}>
+                  Has Website
+                </button>
+                {selectedIds.size > 0 && (
+                  <Button size="sm" variant="destructive" className="gap-1.5 h-8 ml-auto" onClick={deleteSelected}>
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Delete {selectedIds.size} selected
+                  </Button>
+                )}
+              </div>
+
+              {/* Table */}
+              <div className="flex-1 overflow-auto min-h-0">
+                {(() => {
+                  const visible = tableLeads.filter(l => {
+                    if (tableSearch && !l.businessName.toLowerCase().includes(tableSearch.toLowerCase())) return false;
+                    if (filterHas.phone && !l.phone) return false;
+                    if (filterHas.email && !l.email) return false;
+                    if (filterHas.website && !l.website) return false;
+                    return true;
+                  });
+                  const visibleIndexes = visible.map(l => tableLeads.indexOf(l));
+                  const allVisibleSelected = visibleIndexes.length > 0 && visibleIndexes.every(i => selectedIds.has(i));
+                  const someSelected = visibleIndexes.some(i => selectedIds.has(i));
+                  return (
+                    <table className="w-full text-sm">
+                      <thead className="sticky top-0 bg-muted/80 backdrop-blur-sm border-b z-10">
+                        <tr>
+                          <th className="w-10 px-4 py-2.5 text-left">
+                            <input
+                              type="checkbox"
+                              checked={allVisibleSelected}
+                              ref={el => { if (el) el.indeterminate = someSelected && !allVisibleSelected; }}
+                              onChange={() => toggleSelectAll(visible)}
+                              className="h-4 w-4 rounded border-border cursor-pointer"
+                            />
+                          </th>
+                          <th className="w-10 px-2 py-2.5 text-left text-xs font-medium text-muted-foreground">#</th>
+                          <th className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground">Business</th>
+                          <th className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground">Address</th>
+                          <th className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground">Phone</th>
+                          <th className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground">Email</th>
+                          <th className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground">Website</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {visible.length === 0 ? (
+                          <tr>
+                            <td colSpan={7} className="px-4 py-10 text-center text-sm text-muted-foreground">
+                              No leads match your filters.
+                            </td>
+                          </tr>
+                        ) : visible.map((lead, vi) => {
+                          const realIdx = tableLeads.indexOf(lead);
+                          const isSelected = selectedIds.has(realIdx);
+                          return (
+                            <tr
+                              key={realIdx}
+                              className={cn("transition-colors cursor-pointer", isSelected ? "bg-primary/5" : "hover:bg-muted/40")}
+                              onClick={() => setSelectedIds(prev => {
+                                const next = new Set(prev);
+                                isSelected ? next.delete(realIdx) : next.add(realIdx);
+                                return next;
+                              })}
+                            >
+                              <td className="px-4 py-2.5" onClick={e => e.stopPropagation()}>
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() => setSelectedIds(prev => {
+                                    const next = new Set(prev);
+                                    isSelected ? next.delete(realIdx) : next.add(realIdx);
+                                    return next;
+                                  })}
+                                  className="h-4 w-4 rounded border-border cursor-pointer"
+                                />
+                              </td>
+                              <td className="px-2 py-2.5 text-xs text-muted-foreground">{vi + 1}</td>
+                              <td className="px-3 py-2.5 font-medium max-w-[200px] truncate">{lead.businessName}</td>
+                              <td className="px-3 py-2.5 text-muted-foreground text-xs max-w-[180px] truncate">
+                                {[lead.address, lead.city, lead.state].filter(Boolean).join(", ") || "—"}
+                              </td>
+                              <td className="px-3 py-2.5 text-xs whitespace-nowrap">{lead.phone || <span className="text-muted-foreground/50">—</span>}</td>
+                              <td className="px-3 py-2.5 text-xs max-w-[160px] truncate">{lead.email || <span className="text-muted-foreground/50">—</span>}</td>
+                              <td className="px-3 py-2.5 text-xs max-w-[160px] truncate">
+                                {lead.website ? (
+                                  <a href={lead.website} target="_blank" rel="noopener noreferrer"
+                                    className="text-primary hover:underline flex items-center gap-1"
+                                    onClick={e => e.stopPropagation()}>
+                                    {lead.website.replace(/^https?:\/\/(www\.)?/, "").split("/")[0]}
+                                    <ExternalLink className="h-3 w-3 shrink-0" />
+                                  </a>
+                                ) : <span className="text-muted-foreground/50">—</span>}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  );
+                })()}
+              </div>
+
+              {/* Footer */}
+              <div className="border-t px-6 py-4 flex items-center gap-3 flex-wrap shrink-0">
+                <Select value={saveFolderId} onValueChange={(v) => v && setSaveFolderId(v)}>
+                  <SelectTrigger className="w-[200px] h-9 text-sm">
+                    <SelectValue placeholder="No folder" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">
+                      <span className="flex items-center gap-2 text-muted-foreground">
+                        <Folder className="h-3.5 w-3.5" />
+                        No folder
+                      </span>
+                    </SelectItem>
+                    {folders.map(f => (
+                      <SelectItem key={f.id} value={f.id}>
                         <span className="flex items-center gap-2">
-                          {newFolderIndustryId ? (
-                            <>
-                              <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: industries.find(i => i.id === newFolderIndustryId)?.color }} />
-                              {industries.find(i => i.id === newFolderIndustryId)?.name}
-                            </>
-                          ) : <span className="text-muted-foreground">No industry</span>}
+                          <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: f.color }} />
+                          {f.name}
                         </span>
-                        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent className="w-52">
-                        <DropdownMenuItem onClick={() => setNewFolderIndustryId(null)}>
-                          <span className="text-muted-foreground">No industry</span>
-                          {!newFolderIndustryId && <Check className="ml-auto h-3.5 w-3.5" />}
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        {industries.map((ind) => (
-                          <DropdownMenuItem key={ind.id} className="gap-2" onClick={() => setNewFolderIndustryId(ind.id)}>
-                            <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: ind.color }} />
-                            {ind.name}
-                            {newFolderIndustryId === ind.id && <Check className="ml-auto h-3.5 w-3.5" />}
-                          </DropdownMenuItem>
-                        ))}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  )}
-                  <Button size="sm" variant="ghost" onClick={() => { setCreatingNewFolder(false); setSaveFolderId("none"); }} className="h-7 text-xs">
-                    Cancel
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Input
+                  placeholder="Category (optional)"
+                  value={saveCategory}
+                  onChange={(e) => setSaveCategory(e.target.value)}
+                  className="w-[180px] h-9 text-sm"
+                />
+                <div className="ml-auto flex items-center gap-2">
+                  <Button variant="outline" onClick={() => setSaveTarget(null)} disabled={saving}>Cancel</Button>
+                  <Button onClick={handleCommit} disabled={saving || selectedIds.size === 0}>
+                    {saving
+                      ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving…</>
+                      : <>Save {selectedIds.size} lead{selectedIds.size !== 1 ? "s" : ""} →</>}
                   </Button>
                 </div>
-              )}
-
-              {/* Category */}
-              <div className="space-y-1.5 pt-1">
-                <Label>Category <span className="text-muted-foreground font-normal">(optional)</span></Label>
-                <Input placeholder="e.g. shawarma" value={saveCategory} onChange={(e) => setSaveCategory(e.target.value)} />
               </div>
-            </div>
+            </>
           ) : (
-            <div className="space-y-4 py-2">
-              <div className="rounded-lg border p-4 bg-muted/40 space-y-3">
-                <div className="flex items-center gap-2 text-sm">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
-                  <span className="font-medium text-emerald-600">{saveResult.saved} lead{saveResult.saved !== 1 ? "s" : ""} saved</span>
+            <div className="flex-1 flex items-center justify-center p-8">
+              <div className="text-center space-y-4 max-w-sm">
+                <CheckCircle2 className="h-12 w-12 text-emerald-500 mx-auto" />
+                <div>
+                  <p className="text-lg font-semibold text-emerald-600">{saveResult.saved} lead{saveResult.saved !== 1 ? "s" : ""} saved</p>
+                  {saveResult.duplicates > 0 && (
+                    <p className="text-sm text-muted-foreground mt-1">{saveResult.duplicates} duplicate{saveResult.duplicates !== 1 ? "s" : ""} skipped</p>
+                  )}
+                  {saveResult.failed > 0 && (
+                    <p className="text-sm text-rose-500 mt-1 flex items-center justify-center gap-1">
+                      <AlertTriangle className="h-4 w-4" />{saveResult.failed} failed
+                    </p>
+                  )}
                 </div>
-                {saveResult.duplicates > 0 && (
-                  <div className="text-sm text-muted-foreground pl-6">{saveResult.duplicates} duplicate{saveResult.duplicates !== 1 ? "s" : ""} skipped</div>
-                )}
-                {saveResult.failed > 0 && (
-                  <div className="flex items-center gap-2 text-sm text-rose-500">
-                    <AlertTriangle className="h-4 w-4 shrink-0" />{saveResult.failed} failed
-                  </div>
-                )}
+                <div className="flex gap-2 justify-center pt-2">
+                  <Link href="/leads">
+                    <Button variant="outline" className="gap-1.5" onClick={() => setSaveTarget(null)}>
+                      Go to Leads <ExternalLink className="h-3.5 w-3.5" />
+                    </Button>
+                  </Link>
+                  <Button onClick={() => { setSaveTarget(null); setSaveResult(null); }}>Done</Button>
+                </div>
               </div>
             </div>
           )}
-
-          <DialogFooter>
-            {!saveResult ? (
-              <>
-                <Button variant="outline" onClick={() => setSaveTarget(null)} disabled={saving}>Cancel</Button>
-                <Button onClick={handleCommit} disabled={saving}>
-                  {saving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving…</> : <>Save {saveTarget?.leads.length} lead{(saveTarget?.leads.length ?? 0) !== 1 ? "s" : ""} →</>}
-                </Button>
-              </>
-            ) : (
-              <>
-                <Link href="/leads">
-                  <Button variant="outline" className="gap-1.5" onClick={() => setSaveTarget(null)}>
-                    Go to Leads <ExternalLink className="h-3.5 w-3.5" />
-                  </Button>
-                </Link>
-                <Button onClick={() => { setSaveTarget(null); setSaveResult(null); }}>Done</Button>
-              </>
-            )}
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 
