@@ -1,8 +1,11 @@
 import { prisma } from "@/lib/prisma";
 import { ScrapingJobInput } from "@/types/scraping";
 
-export async function createJob(input: ScrapingJobInput) {
-  return prisma.scrapingJob.create({ data: input });
+export async function createJob(input: ScrapingJobInput & { keywordId?: string }) {
+  const { keywordId, ...rest } = input;
+  return prisma.scrapingJob.create({
+    data: keywordId ? { ...rest, keywordId } : rest,
+  });
 }
 
 export async function getJobs({ page = 1, pageSize = 20, status }: { page?: number; pageSize?: number; status?: string }) {

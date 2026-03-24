@@ -7,7 +7,7 @@ import { useNotifications } from "@/lib/notifications";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 
-const ROLE_ORDER_DISPLAY: Role[] = ["boss", "admin", "lead_specialist", "sales_rep"];
+const ROLE_ORDER_DISPLAY: Role[] = ["boss", "admin", "lead_data_analyst", "lead_specialist", "sales_rep"];
 
 interface Props {
   userId: string;

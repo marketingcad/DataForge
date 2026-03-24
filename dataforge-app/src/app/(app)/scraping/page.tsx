@@ -1,15 +1,27 @@
 import { getJobs } from "@/lib/scraping/jobs/service";
+import { getKeywords } from "@/lib/keywords/service";
 import { JobForm } from "@/components/scraping/JobForm";
 import { JobsTable } from "@/components/scraping/JobsTable";
 import { DomainScrapeForm } from "@/components/scraping/DomainScrapeForm";
 import { GoogleScrapeForm } from "@/components/scraping/GoogleScrapeForm";
+import { KeywordsManager } from "@/components/scraping/KeywordsManager";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
-import { Globe, Layers, ScanSearch } from "lucide-react";
+import { Globe, Layers, ScanSearch, Wand2 } from "lucide-react";
 import { withDbRetry } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
+
+const KEYWORD_ROLES = ["boss", "admin", "lead_data_analyst"];
 
 export default async function ScrapingPage() {
-  const { jobs } = await withDbRetry(() => getJobs({})).catch(() => ({ jobs: [] }));
+  const session = await auth();
+  const role = (session?.user as Record<string, unknown>)?.role as string | undefined;
+  const canUseKeywords = role ? KEYWORD_ROLES.includes(role) : false;
+
+  const [{ jobs }, keywords] = await Promise.all([
+    withDbRetry(() => getJobs({})).catch(() => ({ jobs: [] })),
+    canUseKeywords ? withDbRetry(() => getKeywords()).catch(() => []) : Promise.resolve([]),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -37,6 +49,12 @@ export default async function ScrapingPage() {
             <ScanSearch className="h-3.5 w-3.5" />
             Search by Google
           </TabsTrigger>
+          {canUseKeywords && (
+            <TabsTrigger value="keywords" className="flex items-center gap-1.5 text-sm">
+              <Wand2 className="h-3.5 w-3.5" />
+              Auto Keywords
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="domain">
@@ -52,6 +70,12 @@ export default async function ScrapingPage() {
           <GoogleScrapeForm />
         </TabsContent>
 
+        {canUseKeywords && (
+          <TabsContent value="keywords" className="space-y-4">
+            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+            <KeywordsManager initial={keywords as any} />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );

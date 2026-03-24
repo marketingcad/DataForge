@@ -11,7 +11,6 @@ import {
   UserCircle,
   LayoutGrid,
   CalendarDays,
-  MessageSquare,
   Flag,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -124,6 +123,30 @@ function buildSections(role: Role): NavSection[] {
             { href: "/kanban",   label: "Kanban",   icon: LayoutGrid },
             { href: "/calendar", label: "Calendar", icon: CalendarDays },
             // { href: "/chat",     label: "Chat",     icon: MessageSquare }, // hidden — WIP
+            { href: "/feedback", label: "Reports",  icon: Flag },
+          ],
+        },
+      ];
+
+    case "lead_data_analyst":
+      return [
+        {
+          items: [
+            { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+          ],
+        },
+        {
+          title: "Leads Department",
+          items: [
+            { href: "/leads",    label: "Leads",    icon: Users },
+            { href: "/scraping", label: "Scraping", icon: ScanSearch },
+          ],
+        },
+        {
+          title: "Workspace",
+          items: [
+            { href: "/kanban",   label: "Kanban",   icon: LayoutGrid },
+            { href: "/calendar", label: "Calendar", icon: CalendarDays },
             { href: "/feedback", label: "Reports",  icon: Flag },
           ],
         },

@@ -1,0 +1,124 @@
+import { prisma } from "@/lib/prisma";
+
+export async function getKeywords(createdById?: string) {
+  return prisma.scrapingKeyword.findMany({
+    where: createdById ? { createdById } : undefined,
+    include: {
+      _count: { select: { jobs: true } },
+      jobs: {
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: { id: true, status: true, leadsProcessed: true, createdAt: true },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+}
+
+export async function getKeywordById(id: string) {
+  return prisma.scrapingKeyword.findUniqueOrThrow({
+    where: { id },
+    include: {
+      jobs: {
+        orderBy: { createdAt: "desc" },
+        take: 5,
+        select: {
+          id: true,
+          status: true,
+          leadsDiscovered: true,
+          leadsProcessed: true,
+          duplicatesFound: true,
+          createdAt: true,
+          completedTime: true,
+        },
+      },
+    },
+  });
+}
+
+export async function createKeyword(data: {
+  keyword: string;
+  location: string;
+  maxLeads?: number;
+  intervalHours?: number;
+  createdById?: string;
+}) {
+  const nextRunAt = new Date();
+  return prisma.scrapingKeyword.create({
+    data: {
+      keyword: data.keyword.trim(),
+      location: data.location.trim(),
+      maxLeads: data.maxLeads ?? 50,
+      intervalHours: data.intervalHours ?? 24,
+      nextRunAt,
+      createdById: data.createdById ?? null,
+    },
+  });
+}
+
+export async function updateKeyword(
+  id: string,
+  data: Partial<{
+    keyword: string;
+    location: string;
+    maxLeads: number;
+    intervalHours: number;
+    enabled: boolean;
+  }>
+) {
+  return prisma.scrapingKeyword.update({ where: { id }, data });
+}
+
+export async function deleteKeyword(id: string) {
+  return prisma.scrapingKeyword.delete({ where: { id } });
+}
+
+/** Returns keywords whose nextRunAt is due (or never set) and are enabled. */
+export async function getDueKeywords() {
+  return prisma.scrapingKeyword.findMany({
+    where: {
+      enabled: true,
+      OR: [{ nextRunAt: null }, { nextRunAt: { lte: new Date() } }],
+    },
+    orderBy: { nextRunAt: "asc" },
+  });
+}
+
+/** Called after a keyword-linked job completes successfully. */
+export async function onKeywordJobSuccess(id: string, intervalHours: number) {
+  const next = new Date(Date.now() + intervalHours * 60 * 60 * 1000);
+  return prisma.scrapingKeyword.update({
+    where: { id },
+    data: {
+      lastRunAt: new Date(),
+      nextRunAt: next,
+      failedAttempts: 0,
+      lastError: null,
+    },
+  });
+}
+
+/** Called after a keyword-linked job fails. Returns updated failedAttempts. */
+export async function onKeywordJobFailure(id: string, error: string, intervalHours: number) {
+  const kw = await prisma.scrapingKeyword.findUniqueOrThrow({ where: { id } });
+  const attempts = kw.failedAttempts + 1;
+  const MAX_FAILURES = 5;
+
+  // Back-off: retry in intervalHours, but disable after max failures
+  const next = attempts >= MAX_FAILURES
+    ? null
+    : new Date(Date.now() + intervalHours * 60 * 60 * 1000);
+
+  await prisma.scrapingKeyword.update({
+    where: { id },
+    data: {
+      lastRunAt: new Date(),
+      nextRunAt: next,
+      failedAttempts: attempts,
+      lastError: error,
+      enabled: attempts < MAX_FAILURES,
+    },
+  });
+
+  return { attempts, disabled: attempts >= MAX_FAILURES };
+}
