@@ -30,9 +30,6 @@ export async function POST(
     keywordId: id,
   });
 
-  // Trigger processing
-  const processUrl = `${req.nextUrl.origin}/api/scraping/jobs/${job.id}/process`;
-  fetch(processUrl, { method: "POST" }).catch(() => null); // fire and forget
-
+  // Return the jobId — the client calls /process directly to avoid Vercel killing fire-and-forget
   return NextResponse.json({ jobId: job.id }, { status: 201 });
 }

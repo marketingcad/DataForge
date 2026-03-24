@@ -303,6 +303,9 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
       return;
     }
 
+    // Trigger the process from the browser so Vercel doesn't kill it
+    fetch(`/api/scraping/jobs/${jobId}/process`, { method: "POST" }).catch(() => null);
+
     // Poll job until completed or failed
     setRunningLabel("Starting browser…");
     const MAX_POLLS = 60; // 5 min max (5s interval)
