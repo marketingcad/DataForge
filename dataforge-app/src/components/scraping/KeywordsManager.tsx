@@ -304,7 +304,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
     }
 
     // Poll job until completed or failed
-    setRunningLabel("Queued — waiting for worker…");
+    setRunningLabel("Starting browser…");
     const MAX_POLLS = 60; // 5 min max (5s interval)
     for (let i = 0; i < MAX_POLLS; i++) {
       await new Promise((r) => setTimeout(r, 5000));
@@ -315,14 +315,14 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
 
         // Show live status based on job phase
         if (job.status === "pending") {
-          setRunningLabel(`Queued — waiting for worker… (${Math.round((i + 1) * 5)}s)`);
+          setRunningLabel(`Starting browser… (${Math.round((i + 1) * 5)}s)`);
         } else if (job.status === "running") {
           if (job.leadsDiscovered > 0) {
-            setRunningLabel(`${job.leadsDiscovered} lead${job.leadsDiscovered !== 1 ? "s" : ""} found — scraping…`);
+            setRunningLabel(`${job.leadsDiscovered} lead${job.leadsDiscovered !== 1 ? "s" : ""} found…`);
           } else if (job.errorMessage) {
             setRunningLabel(job.errorMessage);
           } else {
-            setRunningLabel("Browser launched — searching Google…");
+            setRunningLabel("Searching Google Maps…");
           }
         }
 
