@@ -15,7 +15,7 @@ const KEYWORD_ROLES = ["boss", "admin", "lead_data_analyst"];
 
 export default async function ScrapingPage() {
   const session = await auth();
-  const role = (session?.user as Record<string, unknown>)?.role as string | undefined;
+  const role = (session?.user as unknown as Record<string, unknown>)?.role as string | undefined;
   const canUseKeywords = role ? KEYWORD_ROLES.includes(role) : false;
 
   const [{ jobs }, keywords] = await Promise.all([
