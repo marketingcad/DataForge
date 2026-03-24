@@ -661,7 +661,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
 
       {/* ── Save pending leads dialog ────────────────────────────── */}
       <Dialog open={!!saveTarget} onOpenChange={(o) => { if (!o && !saving) { setSaveTarget(null); setSaveResult(null); } }}>
-        <DialogContent className="max-w-5xl max-h-[90vh] flex flex-col p-0 gap-0">
+        <DialogContent className="w-[calc(100vw-40px)] max-w-[calc(100vw-40px)] max-h-[90vh] flex flex-col p-0 gap-0">
           <DialogHeader className="px-6 pt-5 pb-4 border-b shrink-0">
             <DialogTitle className="flex items-center gap-2">
               <Inbox className="h-5 w-5 text-primary" />
