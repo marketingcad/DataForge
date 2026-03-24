@@ -52,7 +52,13 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
       job.industry,
       job.location,
       job.maxLeads,
-      undefined,
+      (msg) => {
+        // Write live status into errorMessage so UI polling can display it
+        prisma.scrapingJob.update({
+          where: { id },
+          data: { errorMessage: msg },
+        }).catch(() => {});
+      },
       (_lead, count) => {
         // Increment leadsDiscovered live so UI polling shows real-time count
         prisma.scrapingJob.update({
@@ -76,6 +82,7 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
       completedTime:   new Date(),
       leadsDiscovered: leads.length,
       pendingLeads:    leads as never,
+      errorMessage:    null, // clear live status log
     },
   });
 

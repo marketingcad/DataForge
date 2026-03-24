@@ -313,9 +313,13 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
         if (!poll.ok) break;
         const job = await poll.json();
 
-        // Show live count while running
-        if (job.status === "running" && job.leadsDiscovered > 0) {
-          setRunningLabel(`${job.leadsDiscovered} lead${job.leadsDiscovered !== 1 ? "s" : ""} found…`);
+        // Show live count + status while running
+        if (job.status === "running") {
+          if (job.leadsDiscovered > 0) {
+            setRunningLabel(`${job.leadsDiscovered} lead${job.leadsDiscovered !== 1 ? "s" : ""} found…`);
+          } else if (job.errorMessage) {
+            setRunningLabel(job.errorMessage);
+          }
         }
 
         if (job.status === "completed") {
@@ -475,9 +479,11 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
 
                   {/* Last run result badge */}
                   {runningId === kw.id ? (
-                    <div className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400">
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                      <span>{runningLabel}</span>
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center gap-1.5 text-xs font-medium text-blue-600 dark:text-blue-400">
+                        <Loader2 className="h-3 w-3 animate-spin shrink-0" />
+                        <span>{runningLabel}</span>
+                      </div>
                     </div>
                   ) : job ? (
                     <div className="flex items-center gap-2 flex-wrap">
