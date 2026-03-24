@@ -144,6 +144,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
 
   // Run now loading state per keyword
   const [runningId, setRunningId] = useState<string | null>(null);
+  const [runningLabel, setRunningLabel] = useState<string>("Starting…");
   const [runToast, setRunToast] = useState<{ id: string; msg: string; ok: boolean } | null>(null);
 
   function openEdit(kw: KeywordRow) {
@@ -279,23 +280,82 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
     }
   }
 
-  async function handleRunNow(id: string) {
-    setRunningId(id);
+  async function handleRunNow(kwId: string) {
+    setRunningId(kwId);
+    setRunningLabel("Starting…");
     setRunToast(null);
+
+    let jobId: string;
     try {
-      const res = await fetch(`/api/keywords/${id}/run`, { method: "POST" });
-      if (res.ok) {
-        setRunToast({ id, msg: "Scraping started — leads will appear on the Leads page.", ok: true });
-        startTransition(() => router.refresh());
-      } else {
-        setRunToast({ id, msg: "Failed to start scraping. Try again.", ok: false });
+      const res = await fetch(`/api/keywords/${kwId}/run`, { method: "POST" });
+      if (!res.ok) {
+        setRunToast({ id: kwId, msg: "Failed to start scraping. Try again.", ok: false });
+        setRunningId(null);
+        setTimeout(() => setRunToast(null), 6000);
+        return;
       }
+      const data = await res.json();
+      jobId = data.jobId;
     } catch {
-      setRunToast({ id, msg: "Failed to start scraping. Try again.", ok: false });
-    } finally {
+      setRunToast({ id: kwId, msg: "Failed to start scraping. Try again.", ok: false });
       setRunningId(null);
       setTimeout(() => setRunToast(null), 6000);
+      return;
     }
+
+    // Poll job until completed or failed
+    setRunningLabel("Scraping…");
+    const MAX_POLLS = 60; // 5 min max (5s interval)
+    for (let i = 0; i < MAX_POLLS; i++) {
+      await new Promise((r) => setTimeout(r, 5000));
+      try {
+        const poll = await fetch(`/api/scraping/jobs/${jobId}`);
+        if (!poll.ok) break;
+        const job = await poll.json();
+
+        if (job.status === "completed") {
+          const pendingLeads = (job.pendingLeads as PendingLead[] | null) ?? [];
+          // Update keyword row locally with the new job data
+          setKeywords((prev) =>
+            prev.map((k) =>
+              k.id === kwId
+                ? {
+                    ...k,
+                    lastRunAt: new Date().toISOString(),
+                    jobs: [
+                      {
+                        id: jobId,
+                        status: "completed",
+                        leadsDiscovered: job.leadsDiscovered,
+                        leadsProcessed: job.leadsProcessed,
+                        pendingLeads: pendingLeads.length > 0 ? pendingLeads : null,
+                        createdAt: new Date().toISOString(),
+                      },
+                      ...k.jobs.slice(0, 4),
+                    ],
+                  }
+                : k
+            )
+          );
+          if (pendingLeads.length > 0) {
+            setRunToast({ id: kwId, msg: `Done! ${pendingLeads.length} leads ready — click the badge to save them.`, ok: true });
+          } else {
+            setRunToast({ id: kwId, msg: "Scraping done — no new leads found.", ok: true });
+          }
+          break;
+        }
+
+        if (job.status === "failed") {
+          setRunToast({ id: kwId, msg: `Scraping failed: ${job.errorMessage ?? "unknown error"}`, ok: false });
+          break;
+        }
+      } catch {
+        break;
+      }
+    }
+
+    setRunningId(null);
+    setTimeout(() => setRunToast(null), 10000);
   }
 
   return (
@@ -445,7 +505,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
                     {runningId === kw.id
                       ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       : <Play className="h-3.5 w-3.5" />}
-                    {runningId === kw.id ? "Starting…" : "Run now"}
+                    {runningId === kw.id ? runningLabel : "Run now"}
                   </Button>
                   <Button
                     size="sm"
