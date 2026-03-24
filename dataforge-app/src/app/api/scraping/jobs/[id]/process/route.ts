@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { getJobById, updateJobStatus, incrementJobMetric } from "@/lib/scraping/jobs/service";
 import { discoverBusinesses } from "@/lib/scraping/google/discovery";
 import { scrapeWebsite } from "@/lib/scraping/crawler/web-scraper";
+import { scrapeGoogleMapsHeadless } from "@/lib/scraping/google/maps-scraper";
 import { insertLead } from "@/lib/leads/service";
 import { onKeywordJobSuccess, onKeywordJobFailure, getKeywordById } from "@/lib/keywords/service";
 import { createNotification, createNotificationsForRole } from "@/lib/notifications/service";
 
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 const CHUNK_SIZE = 5;
 const MAX_KEYWORD_FAILURES = 5;
@@ -28,29 +29,89 @@ export async function POST(
     return NextResponse.json({ status: job.status, message: "Job already finished" });
   }
 
-  // Start job on first invocation
+  // ── Keyword job: use Playwright browser scraper (same as "Search by Google") ──
+  if (job.keywordId) {
+    return await processKeywordJob(job);
+  }
+
+  // ── Standard SerpAPI job ───────────────────────────────────────────────────
+  return await processStandardJob(id, job);
+}
+
+// ─── Keyword job: browser-based Google Maps scraping ──────────────────────────
+
+async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
+  const id = job.id;
+
+  await updateJobStatus(id, "running", { startTime: new Date() });
+
+  let leads: Awaited<ReturnType<typeof scrapeGoogleMapsHeadless>>;
+  try {
+    leads = await scrapeGoogleMapsHeadless(job.industry, job.location, job.maxLeads);
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : "Browser scrape failed";
+    await updateJobStatus(id, "failed", { completedTime: new Date(), errorMessage: errorMsg });
+    await handleKeywordFailure(job.keywordId!, errorMsg);
+    return NextResponse.json({ status: "failed", error: errorMsg });
+  }
+
+  // Update discovered count
+  await Promise.all(leads.map(() => incrementJobMetric(id, "leadsDiscovered")));
+
+  // Insert all leads
+  for (const lead of leads) {
+    try {
+      const result = await insertLead({
+        businessName: lead.businessName,
+        phone:        lead.phone ?? "N/A",
+        email:        lead.email,
+        website:      lead.website,
+        city:         lead.city,
+        state:        lead.state,
+        category:     job.industry,
+        source:       `GoogleMaps:keyword_${job.keywordId}`,
+      });
+
+      if (result.status === "duplicate") {
+        await incrementJobMetric(id, "duplicatesFound");
+      } else {
+        await incrementJobMetric(id, "leadsProcessed");
+      }
+    } catch {
+      await incrementJobMetric(id, "failedRecords");
+    }
+  }
+
+  await updateJobStatus(id, "completed", { completedTime: new Date() });
+
+  // Update keyword schedule on success
+  try {
+    const kw = await getKeywordById(job.keywordId!);
+    await onKeywordJobSuccess(kw.id, kw.intervalHours);
+  } catch { /* keyword may have been deleted */ }
+
+  return NextResponse.json({ status: "completed", leads: leads.length });
+}
+
+// ─── Standard SerpAPI job (unchanged) ─────────────────────────────────────────
+
+async function processStandardJob(id: string, job: Awaited<ReturnType<typeof getJobById>>) {
   if (job.status === "pending") {
     await updateJobStatus(id, "running", { startTime: new Date() });
 
-    // Discovery phase
     let businesses: Awaited<ReturnType<typeof discoverBusinesses>>;
     try {
       businesses = await discoverBusinesses(job.industry, job.location, job.maxLeads);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : "Discovery failed";
       await updateJobStatus(id, "failed", { completedTime: new Date(), errorMessage: errorMsg });
-      await handleKeywordFailure(job.keywordId, errorMsg);
       return NextResponse.json({ status: "failed", error: errorMsg });
     }
 
-    await Promise.all(
-      businesses.map(() => incrementJobMetric(id, "leadsDiscovered"))
-    );
-
+    await Promise.all(businesses.map(() => incrementJobMetric(id, "leadsDiscovered")));
     job = await getJobById(id);
   }
 
-  // Process next chunk
   const alreadyProcessed = job.leadsProcessed + job.failedRecords;
   let businesses: Awaited<ReturnType<typeof discoverBusinesses>>;
   try {
@@ -58,7 +119,6 @@ export async function POST(
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : "Discovery failed";
     await updateJobStatus(id, "failed", { completedTime: new Date(), errorMessage: errorMsg });
-    await handleKeywordFailure(job.keywordId, errorMsg);
     return NextResponse.json({ status: "failed", error: errorMsg });
   }
 
@@ -67,17 +127,16 @@ export async function POST(
   for (const biz of chunk) {
     try {
       const scrapedContact = biz.website ? await scrapeWebsite(biz.website) : {};
-
       const result = await insertLead({
         businessName: biz.businessName,
-        phone: biz.phone ?? scrapedContact.phone ?? "N/A",
-        email: scrapedContact.email,
-        website: biz.website,
+        phone:        biz.phone ?? scrapedContact.phone ?? "N/A",
+        email:        scrapedContact.email,
+        website:      biz.website,
         contactPerson: scrapedContact.contactPerson,
-        city: biz.city,
-        state: biz.state,
-        category: job.industry,
-        source: `SerpAPI:job_${id}`,
+        city:         biz.city,
+        state:        biz.state,
+        category:     job.industry,
+        source:       `SerpAPI:job_${id}`,
       });
 
       if (result.status === "duplicate") {
@@ -96,17 +155,6 @@ export async function POST(
 
   if (isDone) {
     await updateJobStatus(id, "completed", { completedTime: new Date() });
-
-    // Update keyword schedule on success
-    if (updatedJob.keywordId) {
-      try {
-        const kw = await getKeywordById(updatedJob.keywordId);
-        await onKeywordJobSuccess(kw.id, kw.intervalHours);
-      } catch {
-        // keyword may have been deleted — ignore
-      }
-    }
-
     return NextResponse.json({ status: "completed" });
   }
 
@@ -117,43 +165,39 @@ export async function POST(
   });
 }
 
-async function handleKeywordFailure(keywordId: string | null, error: string) {
-  if (!keywordId) return;
+// ─── Keyword failure handler ───────────────────────────────────────────────────
+
+async function handleKeywordFailure(keywordId: string, error: string) {
   try {
     const kw = await getKeywordById(keywordId);
     const { attempts, disabled } = await onKeywordJobFailure(kw.id, error, kw.intervalHours);
 
     if (disabled) {
-      // Notify the keyword creator
       if (kw.createdById) {
         await createNotification({
-          userId: kw.createdById,
-          type: "error",
-          title: "Keyword scraper disabled",
-          message: `The keyword "${kw.keyword} in ${kw.location}" failed ${MAX_KEYWORD_FAILURES} times and has been disabled. Last error: ${error}`,
-          link: "/scraping/keywords",
+          userId:  kw.createdById,
+          type:    "error",
+          title:   "Keyword scraper disabled",
+          message: `"${kw.keyword} in ${kw.location}" failed ${MAX_KEYWORD_FAILURES} times and has been disabled. Last error: ${error}`,
+          link:    "/scraping",
         });
       }
-      // Notify all bosses/admins
       await createNotificationsForRole(["boss", "admin"], {
-        type: "error",
-        title: "Keyword scraper disabled",
+        type:    "error",
+        title:   "Keyword scraper disabled",
         message: `Keyword "${kw.keyword} in ${kw.location}" was disabled after ${MAX_KEYWORD_FAILURES} failures. Last error: ${error}`,
-        link: "/scraping/keywords",
+        link:    "/scraping",
       });
     } else {
-      // Soft warning after each failure
       if (kw.createdById) {
         await createNotification({
-          userId: kw.createdById,
-          type: "warning",
-          title: `Keyword scrape failed (attempt ${attempts}/${MAX_KEYWORD_FAILURES})`,
-          message: `"${kw.keyword} in ${kw.location}" failed. Will retry automatically. Error: ${error}`,
-          link: "/scraping/keywords",
+          userId:  kw.createdById,
+          type:    "warning",
+          title:   `Keyword scrape failed (attempt ${attempts}/${MAX_KEYWORD_FAILURES})`,
+          message: `"${kw.keyword} in ${kw.location}" failed. Will retry. Error: ${error}`,
+          link:    "/scraping",
         });
       }
     }
-  } catch {
-    // ignore — keyword may have been deleted
-  }
+  } catch { /* keyword may have been deleted */ }
 }
