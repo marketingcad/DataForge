@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@/generated/prisma/client";
 import { auth } from "@/lib/auth";
 import { insertLead } from "@/lib/leads/service";
 import type { SerpLead } from "@/lib/scraping/google/maps-scraper";
@@ -50,7 +51,7 @@ export async function POST(
   await prisma.scrapingJob.update({
     where: { id },
     data: {
-      pendingLeads:    null,
+      pendingLeads:    Prisma.DbNull,
       leadsProcessed:  saved,
       duplicatesFound: duplicates,
       failedRecords:   failed,
