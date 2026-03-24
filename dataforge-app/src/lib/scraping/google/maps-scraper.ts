@@ -423,8 +423,9 @@ export async function extractFromSerp(
   }
 }
 
-// ─── Headless runner — no SSE, collects leads directly ────────────────────────
-// Used by the keyword auto-scraper cron jobs.
+// ─── Google Maps keyword scraper ──────────────────────────────────────────────
+// Navigates directly to Google Maps, scrolls the results list, clicks each
+// business card, and reads the detail panel — phone, website, address, etc.
 
 export async function scrapeGoogleMapsHeadless(
   keyword: string,
@@ -433,26 +434,157 @@ export async function scrapeGoogleMapsHeadless(
   onLog?: (msg: string) => void,
   onLead?: (lead: SerpLead, count: number) => void
 ): Promise<SerpLead[]> {
-  const query = `${keyword} ${location}`;
   const leads: SerpLead[] = [];
-
-  const emit = (event: string, data: unknown) => {
-    if (event === "lead") {
-      leads.push(data as SerpLead);
-      onLead?.(data as SerpLead, leads.length);
-    } else if (event === "status" && onLog) {
-      onLog((data as { message: string }).message);
-    }
-  };
+  const query = encodeURIComponent(`${keyword} ${location}`);
+  const mapsUrl = `https://www.google.com/maps/search/${query}`;
 
   let browser: import("playwright").Browser | null = null;
   let context: import("playwright").BrowserContext | null = null;
 
   try {
     const bc = await createBrowserContext();
-    browser  = bc.browser;
-    context  = bc.context;
-    await extractFromSerp(query, context, emit, maxLeads);
+    browser = bc.browser;
+    context = bc.context;
+    const page = await context.newPage();
+
+    onLog?.("Opening Google Maps…");
+    await page.goto(mapsUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
+    await sleep(2000);
+
+    // Accept consent if shown
+    try {
+      const consent = page.locator(
+        'button:has-text("Accept all"), button:has-text("I agree"), button:has-text("Agree"), form[action*="consent"] button'
+      ).first();
+      if (await consent.isVisible({ timeout: 3000 })) {
+        await consent.click();
+        await sleep(1200);
+        onLog?.("Accepted consent dialog");
+      }
+    } catch { /* no consent */ }
+
+    // Wait for the results feed
+    onLog?.("Waiting for results list…");
+    const feedSel = '[role="feed"]';
+    try {
+      await page.waitForSelector(feedSel, { timeout: 15000 });
+    } catch {
+      onLog?.("No results feed found — Google Maps layout may have changed or CAPTCHA blocked");
+      return leads;
+    }
+
+    await sleep(1000);
+
+    let noNewLeadsRounds = 0;
+
+    while (leads.length < maxLeads && noNewLeadsRounds < 4) {
+      // Get all result cards currently visible in the feed
+      const cards = await page.locator(`${feedSel} > div`).all();
+      const prevCount = leads.length;
+
+      for (const card of cards) {
+        if (leads.length >= maxLeads) break;
+
+        // Skip dividers / ads — real cards have an anchor with href containing /maps/place/
+        const anchor = card.locator('a[href*="/maps/place/"]').first();
+        const href = await anchor.getAttribute("href").catch(() => null);
+        if (!href) continue;
+
+        // Get name from the card
+        const nameEl = card.locator(".qBF1Pd, .fontHeadlineSmall, [aria-label]").first();
+        let businessName = await nameEl.innerText({ timeout: 2000 }).catch(() => "");
+        businessName = businessName.trim();
+        if (!businessName || businessName.length < 2) {
+          // fallback: read aria-label from the anchor
+          businessName = (await anchor.getAttribute("aria-label") ?? "").replace(/^·.*/, "").trim();
+        }
+        if (!businessName) continue;
+
+        onLog?.(`[${leads.length + 1}/${maxLeads}] ${businessName}`);
+
+        // Click the card to open the detail panel
+        try {
+          await anchor.click({ timeout: 4000 });
+        } catch { continue; }
+
+        // Wait for the detail panel heading to confirm it opened
+        try {
+          await page.waitForSelector('h1.DUwDvf, h1[class*="fontHeadlineLarge"], [role="main"] h1', { timeout: 6000 });
+        } catch { /* panel may have opened without h1 */ }
+        await sleep(1200);
+
+        // Extract from detail panel using stable data-item-id attributes
+        const lead = await page.evaluate((bName: string) => {
+          // Phone
+          const phoneBtn = document.querySelector('button[data-item-id^="phone:"], a[href^="tel:"]');
+          const phone = phoneBtn
+            ? (phoneBtn.getAttribute("data-item-id") ?? "").replace("phone:tel:", "").replace("phone:", "") ||
+              (phoneBtn.getAttribute("href") ?? "").replace("tel:", "")
+            : undefined;
+
+          // Website
+          const siteLink = document.querySelector('a[data-item-id="authority"], a[href][data-value="Website"]') as HTMLAnchorElement | null;
+          const website = siteLink?.href
+            ? (() => { try { return new URL(siteLink.href).hostname.replace(/^www\./, ""); } catch { return undefined; } })()
+            : undefined;
+
+          // Address
+          const addrBtn = document.querySelector('button[data-item-id="address"]') as HTMLElement | null;
+          const address = addrBtn?.innerText?.trim() || undefined;
+
+          // City / state from address
+          let city: string | undefined, state: string | undefined;
+          if (address) {
+            const parts = address.split(",").map((s: string) => s.trim());
+            for (let i = parts.length - 1; i >= 0; i--) {
+              const m = parts[i].match(/^([A-Z]{2})\s*\d*/);
+              if (m) { state = m[1]; city = parts[i - 1]; break; }
+            }
+          }
+
+          // Rating
+          const ratingEl = document.querySelector('span.ceNzKf[aria-label], span[aria-label*="star"]') as HTMLElement | null;
+          const ratingMatch = (ratingEl?.getAttribute("aria-label") ?? "").match(/[\d.]+/);
+          const rating = ratingMatch ? ratingMatch[0] : undefined;
+
+          // Confirmed name from panel h1 (more reliable)
+          const h1 = document.querySelector('h1.DUwDvf, h1[class*="fontHeadlineLarge"], [role="main"] h1') as HTMLElement | null;
+          const confirmedName = h1?.innerText?.trim() || bName;
+
+          return { businessName: confirmedName, phone: phone || undefined, website, address, city, state, rating };
+        }, businessName);
+
+        if (lead.businessName) {
+          leads.push(lead);
+          onLead?.(lead, leads.length);
+        }
+
+        // Go back to results list
+        await page.goBack({ waitUntil: "domcontentloaded", timeout: 10000 }).catch(() => {});
+        await sleep(800);
+
+        // Re-wait for feed after navigation
+        await page.waitForSelector(feedSel, { timeout: 8000 }).catch(() => {});
+        await sleep(500);
+      }
+
+      // If we didn't get any new leads this round, try scrolling to load more
+      if (leads.length === prevCount) {
+        noNewLeadsRounds++;
+        onLog?.(`Scrolling for more results… (${leads.length} so far)`);
+        // Scroll the results panel (left sidebar)
+        await page.evaluate(() => {
+          const feed = document.querySelector('[role="feed"]');
+          if (feed) feed.scrollTop += 1200;
+        });
+        await sleep(1500);
+      } else {
+        noNewLeadsRounds = 0;
+      }
+    }
+
+    onLog?.(`Done — scraped ${leads.length} lead${leads.length !== 1 ? "s" : ""}`);
+    await page.close();
   } finally {
     await context?.close().catch(() => {});
     await browser?.close().catch(() => {});
