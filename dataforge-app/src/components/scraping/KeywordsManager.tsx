@@ -313,6 +313,11 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
         if (!poll.ok) break;
         const job = await poll.json();
 
+        // Show live count while running
+        if (job.status === "running" && job.leadsDiscovered > 0) {
+          setRunningLabel(`${job.leadsDiscovered} lead${job.leadsDiscovered !== 1 ? "s" : ""} found…`);
+        }
+
         if (job.status === "completed") {
           const pendingLeads = (job.pendingLeads as PendingLead[] | null) ?? [];
           // Update keyword row locally with the new job data

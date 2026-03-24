@@ -48,7 +48,19 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
 
   let leads: Awaited<ReturnType<typeof scrapeGoogleMapsHeadless>>;
   try {
-    leads = await scrapeGoogleMapsHeadless(job.industry, job.location, job.maxLeads);
+    leads = await scrapeGoogleMapsHeadless(
+      job.industry,
+      job.location,
+      job.maxLeads,
+      undefined,
+      (_lead, count) => {
+        // Increment leadsDiscovered live so UI polling shows real-time count
+        prisma.scrapingJob.update({
+          where: { id },
+          data: { leadsDiscovered: count },
+        }).catch(() => {});
+      }
+    );
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : "Browser scrape failed";
     await updateJobStatus(id, "failed", { completedTime: new Date(), errorMessage: errorMsg });

@@ -430,7 +430,8 @@ export async function scrapeGoogleMapsHeadless(
   keyword: string,
   location: string,
   maxLeads: number,
-  onLog?: (msg: string) => void
+  onLog?: (msg: string) => void,
+  onLead?: (lead: SerpLead, count: number) => void
 ): Promise<SerpLead[]> {
   const query = `${keyword} ${location}`;
   const leads: SerpLead[] = [];
@@ -438,6 +439,7 @@ export async function scrapeGoogleMapsHeadless(
   const emit = (event: string, data: unknown) => {
     if (event === "lead") {
       leads.push(data as SerpLead);
+      onLead?.(data as SerpLead, leads.length);
     } else if (event === "status" && onLog) {
       onLog((data as { message: string }).message);
     }
