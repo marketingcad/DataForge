@@ -10,7 +10,7 @@ const ALLOWED_ROLES = ["boss", "admin", "lead_data_analyst"];
 export default async function KeywordsPage() {
   const session = await auth();
   if (!session) redirect("/sign-in");
-  const role = (session.user as Record<string, unknown>)?.role as string;
+  const role = (session.user as unknown as Record<string, unknown>)?.role as string;
   if (!ALLOWED_ROLES.includes(role)) redirect("/unauthorized");
 
   const keywords = await withDbRetry(() => getKeywords()).catch(() => []);

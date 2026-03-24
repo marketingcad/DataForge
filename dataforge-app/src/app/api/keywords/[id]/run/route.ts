@@ -11,7 +11,7 @@ export async function POST(
 ) {
   const session = await auth();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const role = (session.user as Record<string, unknown>)?.role as string;
+  const role = (session.user as unknown as Record<string, unknown>)?.role as string;
   if (!ALLOWED_ROLES.includes(role)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { id } = await params;
