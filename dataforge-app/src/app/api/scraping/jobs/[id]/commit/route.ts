@@ -17,7 +17,7 @@ export async function POST(
   const job = await prisma.scrapingJob.findUnique({ where: { id } });
   if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
 
-  const pending = (job.pendingLeads ?? []) as SerpLead[];
+  const pending = (job.pendingLeads ?? []) as unknown as SerpLead[];
   if (pending.length === 0) {
     return NextResponse.json({ saved: 0, duplicates: 0, failed: 0 });
   }
