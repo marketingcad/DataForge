@@ -6,11 +6,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
@@ -42,10 +44,21 @@ import {
   Inbox,
   ChevronDown,
   Check,
+  Folder,
+  FolderOpen,
+  FolderPlus,
+  Search,
 } from "lucide-react";
-import { getFoldersAction } from "@/actions/folders.actions";
+import { getFoldersAction, createFolderAction } from "@/actions/folders.actions";
+import { getIndustriesAction } from "@/actions/industry.actions";
+import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+
+const PRESET_COLORS = [
+  "#6366f1", "#3b82f6", "#10b981", "#f59e0b",
+  "#f43f5e", "#8b5cf6", "#64748b",
+];
 
 interface PendingLead {
   businessName: string;
@@ -144,9 +157,16 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
 
   // Pending leads save dialog
   const [saveTarget, setSaveTarget] = useState<{ jobId: string; leads: PendingLead[]; keyword: string } | null>(null);
-  const [saveFolderId, setSaveFolderId] = useState("");
+  const [saveFolderId, setSaveFolderId] = useState("none");
   const [saveCategory, setSaveCategory] = useState("");
-  const [folders, setFolders] = useState<{ id: string; name: string }[]>([]);
+  const [folders, setFolders] = useState<{ id: string; name: string; color: string; _count: { leads: number }; industry: { id: string; name: string; color: string } | null }[]>([]);
+  const [industries, setIndustries] = useState<{ id: string; name: string; color: string }[]>([]);
+  const [folderSearch, setFolderSearch] = useState("");
+  const [filterIndustryId, setFilterIndustryId] = useState<string | null>(null);
+  const [creatingNewFolder, setCreatingNewFolder] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
+  const [newFolderColor, setNewFolderColor] = useState(PRESET_COLORS[0]);
+  const [newFolderIndustryId, setNewFolderIndustryId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveResult, setSaveResult] = useState<{ saved: number; duplicates: number; failed: number } | null>(null);
 
@@ -247,14 +267,22 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
     const job = kw.jobs[0];
     if (!job?.pendingLeads?.length) return;
     setSaveTarget({ jobId: job.id, leads: job.pendingLeads, keyword: `${kw.keyword} — ${kw.location}` });
-    setSaveFolderId("");
+    setSaveFolderId("none");
     setSaveCategory(kw.keyword);
     setSaveResult(null);
+    setFolderSearch("");
+    setFilterIndustryId(null);
+    setCreatingNewFolder(false);
+    setNewFolderName("");
+    setNewFolderColor(PRESET_COLORS[0]);
+    setNewFolderIndustryId(null);
     try {
-      const result = await getFoldersAction();
-      setFolders(result.map((f) => ({ id: f.id, name: f.name })));
+      const [f, ind] = await Promise.all([getFoldersAction(), getIndustriesAction()]);
+      setFolders(f as unknown as typeof folders);
+      setIndustries(ind as unknown as typeof industries);
     } catch {
       setFolders([]);
+      setIndustries([]);
     }
   }
 
@@ -262,11 +290,20 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
     if (!saveTarget) return;
     setSaving(true);
     try {
+      let resolvedFolderId: string | undefined;
+      if (saveFolderId === "new") {
+        if (!newFolderName.trim()) { setSaving(false); return; }
+        const created = await createFolderAction(newFolderName.trim(), newFolderColor, newFolderIndustryId) as { id: string };
+        resolvedFolderId = created.id;
+      } else if (saveFolderId !== "none") {
+        resolvedFolderId = saveFolderId;
+      }
+
       const res = await fetch(`/api/scraping/jobs/${saveTarget.jobId}/commit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          folderId: saveFolderId || undefined,
+          folderId: resolvedFolderId,
           category: saveCategory.trim() || undefined,
         }),
       });
@@ -637,95 +674,172 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
 
       {/* ── Save pending leads dialog ────────────────────────────── */}
       <Dialog open={!!saveTarget} onOpenChange={(o) => { if (!o && !saving) { setSaveTarget(null); setSaveResult(null); } }}>
-        <DialogContent showCloseButton className="max-w-sm">
+        <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>
-              {!saveResult ? `Save ${saveTarget?.leads.length} scraped leads` : "Leads saved!"}
+            <DialogTitle className="flex items-center gap-2">
+              <FolderOpen className="h-5 w-5 text-primary" />
+              Save {saveTarget?.leads.length} lead{(saveTarget?.leads.length ?? 0) !== 1 ? "s" : ""}
             </DialogTitle>
+            <DialogDescription>
+              {saveTarget?.keyword} — choose a folder or save unfiled.
+            </DialogDescription>
           </DialogHeader>
 
           {!saveResult ? (
-            <div className="space-y-4 py-1">
-              {/* Lead preview */}
-              <div className="space-y-1.5">
-                <Label>Scraped leads <span className="text-muted-foreground font-normal">({saveTarget?.leads.length})</span></Label>
-                <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                  {saveTarget?.leads.map((lead, i) => (
-                    <div key={i} className="flex items-center gap-3 rounded-lg border border-border px-3 py-2.5 bg-muted/20">
-                      <div className="flex h-7 w-7 items-center justify-center rounded-md bg-muted shrink-0 text-xs font-medium text-muted-foreground">
-                        {i + 1}
+            <div className="space-y-3 py-2">
+
+              {/* Search + industry filter */}
+              {folders.length > 0 && (
+                <div className="space-y-2">
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                    <Input
+                      placeholder="Search folders…"
+                      value={folderSearch}
+                      onChange={(e) => setFolderSearch(e.target.value)}
+                      className="pl-8 h-8 text-sm"
+                    />
+                  </div>
+                  {industries.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      <button type="button" onClick={() => setFilterIndustryId(null)}
+                        className={cn("text-xs px-2.5 py-1 rounded-full border transition-colors",
+                          filterIndustryId === null ? "bg-blue-600 text-white border-blue-600" : "border-border hover:bg-muted")}>
+                        All
+                      </button>
+                      {industries.map((ind) => (
+                        <button key={ind.id} type="button"
+                          onClick={() => setFilterIndustryId(ind.id === filterIndustryId ? null : ind.id)}
+                          className={cn("text-xs px-2.5 py-1 rounded-full border transition-colors flex items-center gap-1.5",
+                            filterIndustryId === ind.id ? "bg-blue-600 text-white border-blue-600" : "border-border hover:bg-muted")}>
+                          <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: ind.color }} />
+                          {ind.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Folder radio list */}
+              <RadioGroup value={saveFolderId} onValueChange={setSaveFolderId} className="gap-1.5 max-h-52 overflow-y-auto pr-1">
+                <label className={cn("flex items-center gap-3 rounded-lg border px-3 py-2.5 cursor-pointer transition-all",
+                  saveFolderId === "none" ? "border-primary bg-primary/5" : "border-border hover:bg-muted/40")}>
+                  <RadioGroupItem value="none" id="save-folder-none" />
+                  <div className="flex h-7 w-7 items-center justify-center rounded-md bg-muted">
+                    <Folder className="h-3.5 w-3.5 text-muted-foreground" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium">Unfiled</p>
+                    <p className="text-xs text-muted-foreground">No folder assigned</p>
+                  </div>
+                </label>
+
+                {folders
+                  .filter(f => f.name.toLowerCase().includes(folderSearch.toLowerCase()) &&
+                    (filterIndustryId === null || f.industry?.id === filterIndustryId))
+                  .map((f) => (
+                    <label key={f.id} className={cn("flex items-center gap-3 rounded-lg border px-3 py-2.5 cursor-pointer transition-all",
+                      saveFolderId === f.id ? "border-primary bg-primary/5" : "border-border hover:bg-muted/40")}>
+                      <RadioGroupItem value={f.id} id={`save-folder-${f.id}`} />
+                      <div className="flex h-7 w-7 items-center justify-center rounded-md shrink-0" style={{ backgroundColor: f.color + "22" }}>
+                        <Folder className="h-3.5 w-3.5" style={{ color: f.color }} />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{lead.businessName}</p>
-                        {(lead.phone || lead.city) && (
-                          <p className="text-xs text-muted-foreground truncate mt-0.5">
-                            {[lead.phone, lead.city && lead.state ? `${lead.city}, ${lead.state}` : lead.city].filter(Boolean).join(" · ")}
+                        <p className="text-sm font-medium truncate">{f.name}</p>
+                        {f.industry && (
+                          <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                            <span className="inline-block h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: f.industry.color }} />
+                            {f.industry.name}
                           </p>
                         )}
                       </div>
-                      {lead.website && (
-                        <span className="text-xs text-muted-foreground shrink-0 truncate max-w-[80px]">{lead.website}</span>
-                      )}
-                    </div>
+                      <Badge variant="secondary" className="text-xs shrink-0">{f._count.leads}</Badge>
+                    </label>
                   ))}
-                </div>
-              </div>
+              </RadioGroup>
 
-              {/* Folder picker — matches CreateFolderModal industry dropdown */}
-              <div className="space-y-1.5">
-                <Label>Folder <span className="text-muted-foreground font-normal">(optional)</span></Label>
-                <DropdownMenu>
-                  <DropdownMenuTrigger
-                    render={<Button variant="outline" className="w-full justify-between font-normal" />}
-                  >
-                    <span className="text-muted-foreground">
-                      {saveFolderId ? (folders.find(f => f.id === saveFolderId)?.name ?? "No folder") : "No folder"}
-                    </span>
-                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent className="w-56">
-                    <DropdownMenuItem onClick={() => setSaveFolderId("")}>
-                      <span className="text-muted-foreground">No folder</span>
-                      {!saveFolderId && <Check className="ml-auto h-4 w-4" />}
-                    </DropdownMenuItem>
-                    {folders.length > 0 && <DropdownMenuSeparator />}
-                    {folders.map((f) => (
-                      <DropdownMenuItem key={f.id} onClick={() => setSaveFolderId(f.id)}>
-                        {f.name}
-                        {saveFolderId === f.id && <Check className="ml-auto h-4 w-4" />}
-                      </DropdownMenuItem>
+              <Separator />
+
+              {/* Create new folder */}
+              {!creatingNewFolder ? (
+                <button type="button" onClick={() => { setCreatingNewFolder(true); setSaveFolderId("new"); }}
+                  className="flex items-center gap-2 text-sm text-primary hover:text-primary/80 transition-colors font-medium">
+                  <FolderPlus className="h-4 w-4" />
+                  Create new folder
+                </button>
+              ) : (
+                <div className="rounded-lg border border-primary bg-primary/5 p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium">New folder</p>
+                    <span className="text-[10px] font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-full">Selected</span>
+                  </div>
+                  <Input placeholder="e.g. Chicago Shawarma" value={newFolderName}
+                    onChange={(e) => setNewFolderName(e.target.value)} autoFocus className="h-8 text-sm" />
+                  <div className="flex gap-1.5">
+                    {PRESET_COLORS.map((c) => (
+                      <button key={c} type="button" onClick={() => setNewFolderColor(c)}
+                        className={cn("h-6 w-6 rounded-full transition-all ring-offset-2",
+                          newFolderColor === c ? "ring-2 ring-foreground scale-110" : "hover:scale-105")}
+                        style={{ backgroundColor: c }}>
+                        {newFolderColor === c && <Check className="h-3 w-3 text-white mx-auto" />}
+                      </button>
                     ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
+                  </div>
+                  {industries.length > 0 && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger render={<Button variant="outline" size="sm" className="w-full justify-between h-8 text-sm font-normal" />}>
+                        <span className="flex items-center gap-2">
+                          {newFolderIndustryId ? (
+                            <>
+                              <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: industries.find(i => i.id === newFolderIndustryId)?.color }} />
+                              {industries.find(i => i.id === newFolderIndustryId)?.name}
+                            </>
+                          ) : <span className="text-muted-foreground">No industry</span>}
+                        </span>
+                        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent className="w-52">
+                        <DropdownMenuItem onClick={() => setNewFolderIndustryId(null)}>
+                          <span className="text-muted-foreground">No industry</span>
+                          {!newFolderIndustryId && <Check className="ml-auto h-3.5 w-3.5" />}
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        {industries.map((ind) => (
+                          <DropdownMenuItem key={ind.id} className="gap-2" onClick={() => setNewFolderIndustryId(ind.id)}>
+                            <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: ind.color }} />
+                            {ind.name}
+                            {newFolderIndustryId === ind.id && <Check className="ml-auto h-3.5 w-3.5" />}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                  <Button size="sm" variant="ghost" onClick={() => { setCreatingNewFolder(false); setSaveFolderId("none"); }} className="h-7 text-xs">
+                    Cancel
+                  </Button>
+                </div>
+              )}
 
               {/* Category */}
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 pt-1">
                 <Label>Category <span className="text-muted-foreground font-normal">(optional)</span></Label>
-                <Input
-                  placeholder="e.g. shawarma"
-                  value={saveCategory}
-                  onChange={(e) => setSaveCategory(e.target.value)}
-                />
+                <Input placeholder="e.g. shawarma" value={saveCategory} onChange={(e) => setSaveCategory(e.target.value)} />
               </div>
             </div>
           ) : (
-            <div className="space-y-4 py-1">
+            <div className="space-y-4 py-2">
               <div className="rounded-lg border p-4 bg-muted/40 space-y-3">
                 <div className="flex items-center gap-2 text-sm">
                   <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
                   <span className="font-medium text-emerald-600">{saveResult.saved} lead{saveResult.saved !== 1 ? "s" : ""} saved</span>
                 </div>
                 {saveResult.duplicates > 0 && (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <span className="h-4 w-4 shrink-0" />
-                    {saveResult.duplicates} duplicate{saveResult.duplicates !== 1 ? "s" : ""} skipped
-                  </div>
+                  <div className="text-sm text-muted-foreground pl-6">{saveResult.duplicates} duplicate{saveResult.duplicates !== 1 ? "s" : ""} skipped</div>
                 )}
                 {saveResult.failed > 0 && (
                   <div className="flex items-center gap-2 text-sm text-rose-500">
-                    <AlertTriangle className="h-4 w-4 shrink-0" />
-                    {saveResult.failed} failed
+                    <AlertTriangle className="h-4 w-4 shrink-0" />{saveResult.failed} failed
                   </div>
                 )}
               </div>
@@ -734,23 +848,21 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
 
           <DialogFooter>
             {!saveResult ? (
-              <Button
-                onClick={handleCommit}
-                disabled={saving}
-                className="w-full sm:w-auto"
-              >
-                {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                {saving ? "Saving…" : `Save ${saveTarget?.leads.length ?? ""} leads`}
-              </Button>
+              <>
+                <Button variant="outline" onClick={() => setSaveTarget(null)} disabled={saving}>Cancel</Button>
+                <Button onClick={handleCommit} disabled={saving}>
+                  {saving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving…</> : <>Save {saveTarget?.leads.length} lead{(saveTarget?.leads.length ?? 0) !== 1 ? "s" : ""} →</>}
+                </Button>
+              </>
             ) : (
-              <div className="flex gap-2 w-full">
-                <Link href="/leads" className="flex-1">
-                  <Button variant="outline" className="w-full gap-1.5" onClick={() => setSaveTarget(null)}>
+              <>
+                <Link href="/leads">
+                  <Button variant="outline" className="gap-1.5" onClick={() => setSaveTarget(null)}>
                     Go to Leads <ExternalLink className="h-3.5 w-3.5" />
                   </Button>
                 </Link>
-                <Button className="flex-1" onClick={() => { setSaveTarget(null); setSaveResult(null); }}>Done</Button>
-              </div>
+                <Button onClick={() => { setSaveTarget(null); setSaveResult(null); }}>Done</Button>
+              </>
             )}
           </DialogFooter>
         </DialogContent>
