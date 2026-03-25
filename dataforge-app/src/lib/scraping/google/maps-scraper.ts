@@ -556,24 +556,27 @@ export async function scrapeGoogleMapsHeadless(
             onLog?.(`Opening details panel…`);
 
             // ── Wait for the popup panel to open ──────────────────────────────
-            // Google Maps opens an in-page popup (not a navigation).
-            // The popup element has aria-label="<business name>".
-            // Fallback: wait for any of the known data-field selectors.
+            // The detail panel (NOT the article in the feed) has
+            // aria-label="<business name>". We detect it by finding that
+            // element OUTSIDE the feed container.
             await page.waitForFunction(
               (name: string) => {
-                // Check for popup with matching aria-label
+                const feed = document.querySelector('div[role="feed"]');
                 const els = document.querySelectorAll("[aria-label]");
                 for (let i = 0; i < els.length; i++) {
-                  if (els[i].getAttribute("aria-label") === name) return true;
+                  if (els[i].getAttribute("aria-label") !== name) continue;
+                  // Skip elements that live inside the feed (those are just cards)
+                  if (feed && feed.contains(els[i])) continue;
+                  return true; // found the actual detail panel
                 }
-                // Fallback: any detail-panel field is visible
-                return !!document.querySelector('[data-item-id="address"]') ||
-                       !!document.querySelector('[data-tooltip="Copy phone number"]') ||
-                       !!document.querySelector('[data-tooltip="Open website"]');
+                return false;
               },
               businessName,
-              { timeout: 8000 }
+              { timeout: 10000 }
             ).catch(() => null);
+
+            // Give the panel extra time to render address/phone/website fields
+            await sleep(800);
 
             if (leadTimedOut) return; // timed out while waiting for panel
 
@@ -587,24 +590,14 @@ export async function scrapeGoogleMapsHeadless(
             if (leadTimedOut) return;
 
             // ── Extract contact data ───────────────────────────────────────────
-            // Scope extraction to the panel for this specific business
-            // (identified by aria-label="<businessName>") so we never
-            // accidentally read data from a previously-opened stale panel.
-            const details = await page.evaluate((name: string) => {
-              // Find the panel whose aria-label matches the business name
-              let panel: HTMLElement | null = null;
-              const candidates = document.querySelectorAll("[aria-label]");
-              for (let i = 0; i < candidates.length; i++) {
-                if (candidates[i].getAttribute("aria-label") === name) {
-                  panel = candidates[i] as HTMLElement;
-                  break;
-                }
-              }
-              // Fall back to whole document if panel not found
-              const root: HTMLElement = panel ?? document.body;
-
+            // data-item-id="address", data-tooltip="Copy phone number", and
+            // data-tooltip="Open website" are unique to the detail panel —
+            // they never appear in the feed article cards — so querying from
+            // document.body is accurate and avoids the scoping bug where
+            // aria-label matching found the feed article instead of the panel.
+            const details = await page.evaluate(() => {
               function getText(sel: string): string {
-                const el = root.querySelector(sel);
+                const el = document.querySelector(sel);
                 return (el as HTMLElement | null)?.innerText?.trim() ?? "";
               }
 
@@ -621,7 +614,7 @@ export async function scrapeGoogleMapsHeadless(
                 }
               }
               return { address, phone, website, city, state };
-            }, businessName).catch(() => null);
+            }).catch(() => null);
 
             if (leadTimedOut || !details) return;
 
