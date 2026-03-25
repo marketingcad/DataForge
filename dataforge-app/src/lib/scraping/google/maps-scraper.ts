@@ -559,15 +559,15 @@ export async function scrapeGoogleMapsHeadless(
             // The detail panel (NOT the article in the feed) has
             // aria-label="<business name>". We detect it by finding that
             // element OUTSIDE the feed container.
+            // ── Step 1: wait for detail panel to open (outside the feed) ─────────
             await page.waitForFunction(
               (name: string) => {
                 const feed = document.querySelector('div[role="feed"]');
                 const els = document.querySelectorAll("[aria-label]");
                 for (let i = 0; i < els.length; i++) {
                   if (els[i].getAttribute("aria-label") !== name) continue;
-                  // Skip elements that live inside the feed (those are just cards)
-                  if (feed && feed.contains(els[i])) continue;
-                  return true; // found the actual detail panel
+                  if (feed && feed.contains(els[i])) continue; // skip feed cards
+                  return true;
                 }
                 return false;
               },
@@ -575,26 +575,33 @@ export async function scrapeGoogleMapsHeadless(
               { timeout: 10000 }
             ).catch(() => null);
 
-            // Give the panel extra time to render address/phone/website fields
-            await sleep(800);
+            if (leadTimedOut) return;
 
-            if (leadTimedOut) return; // timed out while waiting for panel
+            // ── Step 2: wait until the contact fields actually have text ──────────
+            // The panel loads its structure first, then async-fetches contact data.
+            // We poll until at least one field has real text, up to 10 s.
+            await page.waitForFunction(() => {
+              function hasText(sel: string): boolean {
+                const el = document.querySelector(sel);
+                return !!el && (el as HTMLElement).innerText?.trim().length > 0;
+              }
+              return hasText('[data-item-id="address"]') ||
+                     hasText('[data-tooltip="Copy phone number"]') ||
+                     hasText('[data-tooltip="Open website"]');
+            }, { timeout: 10000 }).catch(() => null);
+
+            if (leadTimedOut) return;
 
             // Check for CAPTCHA after panel navigation
             if (await hasCaptcha()) {
               onLog?.(`CAPTCHA detected — stopping and saving ${leads.length} lead${leads.length !== 1 ? "s" : ""} collected so far`);
-              leads.push({ businessName: "\x00CAPTCHA\x00" }); // sentinel to trigger early return below
+              leads.push({ businessName: "\x00CAPTCHA\x00" });
               return;
             }
 
             if (leadTimedOut) return;
 
-            // ── Extract contact data ───────────────────────────────────────────
-            // data-item-id="address", data-tooltip="Copy phone number", and
-            // data-tooltip="Open website" are unique to the detail panel —
-            // they never appear in the feed article cards — so querying from
-            // document.body is accurate and avoids the scoping bug where
-            // aria-label matching found the feed article instead of the panel.
+            // ── Step 3: extract contact data ───────────────────────────────────
             const details = await page.evaluate(() => {
               function getText(sel: string): string {
                 const el = document.querySelector(sel);
@@ -640,7 +647,7 @@ export async function scrapeGoogleMapsHeadless(
 
             // Close the detail panel and wait for the feed to be visible again
             await page.keyboard.press("Escape").catch(() => null);
-            await sleep(500);
+            await sleep(1200);
             const feedVisible = await page.locator('div[role="feed"]').isVisible().catch(() => false);
             if (!feedVisible) {
               await page.goBack({ waitUntil: "domcontentloaded", timeout: 10000 }).catch(() => null);
