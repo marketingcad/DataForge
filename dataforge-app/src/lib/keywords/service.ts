@@ -8,7 +8,7 @@ export async function getKeywords(createdById?: string) {
       jobs: {
         orderBy: { createdAt: "desc" },
         take: 1,
-        select: { id: true, status: true, leadsProcessed: true, leadsDiscovered: true, duplicatesFound: true, errorMessage: true, createdAt: true },
+        select: { id: true, status: true, leadsProcessed: true, leadsDiscovered: true, pendingLeads: true, errorMessage: true, createdAt: true },
       },
     },
     orderBy: { createdAt: "desc" },
