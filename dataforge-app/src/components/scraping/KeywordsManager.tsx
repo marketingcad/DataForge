@@ -151,8 +151,16 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
   const [saveResult, setSaveResult] = useState<{ saved: number; duplicates: number; failed: number } | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  // Grid vs list view
+  // Grid vs list view — persisted in localStorage
   const [view, setView] = useState<"list" | "grid">("list");
+  useEffect(() => {
+    const stored = localStorage.getItem("kw-view");
+    if (stored === "list" || stored === "grid") setView(stored);
+  }, []);
+  function handleSetView(v: "list" | "grid") {
+    setView(v);
+    localStorage.setItem("kw-view", v);
+  }
 
   // Run now loading state per keyword
   const [runningId, setRunningId] = useState<string | null>(null);
@@ -535,14 +543,14 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
           {/* View toggle */}
           <div className="flex items-center rounded-md border overflow-hidden">
             <button
-              onClick={() => setView("list")}
+              onClick={() => handleSetView("list")}
               className={cn("px-2.5 py-1.5 transition-colors", view === "list" ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground")}
               title="List view"
             >
               <List className="h-4 w-4" />
             </button>
             <button
-              onClick={() => setView("grid")}
+              onClick={() => handleSetView("grid")}
               className={cn("px-2.5 py-1.5 transition-colors", view === "grid" ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground")}
               title="Grid view"
             >
