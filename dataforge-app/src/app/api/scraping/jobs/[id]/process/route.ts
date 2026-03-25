@@ -8,7 +8,7 @@ import { insertLead } from "@/lib/leads/service";
 import { onKeywordJobSuccess, onKeywordJobFailure, getKeywordById } from "@/lib/keywords/service";
 import { createNotification, createNotificationsForRole } from "@/lib/notifications/service";
 
-export const maxDuration = 1800; // 30 minutes
+export const maxDuration = 300; // 5 minutes (hobby plan max)
 
 const CHUNK_SIZE = 5;
 const MAX_KEYWORD_FAILURES = 5;
@@ -53,8 +53,8 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
 
   let leads: Awaited<ReturnType<typeof scrapeGoogleMapsHeadless>>;
   try {
-    // Leave 3 min buffer before the 30 min hard limit for final DB writes
-    const MAX_SCRAPE_MS = 27 * 60 * 1000;
+    // Leave 30s buffer before the 5 min hard limit for final DB writes
+    const MAX_SCRAPE_MS = 270 * 1000;
     leads = await scrapeGoogleMapsHeadless(
       job.industry,
       job.location,
