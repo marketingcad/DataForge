@@ -520,57 +520,50 @@ export async function scrapeGoogleMapsHeadless(
 
         onLog?.(`[${leads.length + 1}] ${businessName}`);
 
-        // Click the article to open the detail panel
-        await article.click({ timeout: 4000 }).catch(() => null);
+        // Read current panel heading so we can detect when it changes
+        const h1Before = await page.evaluate(() => {
+          const h1 = document.querySelector("h1");
+          return (h1 as HTMLElement | null)?.innerText?.trim() ?? "";
+        });
 
-        onLog?.(`Loading details for "${businessName}"…`);
+        // Click the article — force:true ensures the click fires even if the
+        // element is partially covered by the map or a sticky header
+        await article.click({ timeout: 5000, force: true }).catch(() => null);
+        onLog?.(`Loading "${businessName}"…`);
 
-        // Wait for the detail panel to load contact data (address or phone).
-        // We wait for the panel to have ANY detail item rather than matching
-        // the name exactly — names often differ slightly between the list and panel.
+        // ── Wait for the detail panel to open ─────────────────────────────────
+        // We wait for the page's first <h1> to change from what it was before
+        // clicking. This works whether Google Maps uses URL navigation or an
+        // in-place slide-in panel, and avoids stale-data reads.
         try {
-          await page.waitForFunction(() => {
-            const panel = document.querySelector('[role="main"]');
-            if (!panel) return false;
-            return !!(
-              panel.querySelector('[data-item-id="address"]') ||
-              panel.querySelector('[data-tooltip="Copy phone number"]') ||
-              panel.querySelector('[data-tooltip="Open website"]')
-            );
-          }, null, { timeout: 8000 });
+          await page.waitForFunction(
+            (prev: string) => {
+              const h1 = document.querySelector("h1");
+              const text = (h1 as HTMLElement | null)?.innerText?.trim() ?? "";
+              return text.length > 0 && text !== prev;
+            },
+            h1Before,
+            { timeout: 8000 }
+          );
         } catch {
-          await sleep(1500);
+          // h1 didn't change — still give the panel a moment to settle
+          await sleep(2500);
         }
 
-        // ── Step 5: extract from detail panel, scoped to [role="main"] ─────────
-        const details = await page.evaluate((expectedName: string) => {
-          const panel = document.querySelector('[role="main"]') as HTMLElement | null;
-          if (!panel) return null;
+        // Small extra wait for lazy-loaded contact fields
+        await sleep(500);
 
-          // Read the panel's heading to cross-check ownership.
-          // Use a loose contains check — panel h1 may include category suffixes.
-          const h1 = panel.querySelector("h1") as HTMLElement | null;
-          const panelName = h1?.innerText?.trim().toLowerCase() ?? "";
-          const expected  = expectedName.toLowerCase();
-          // If we have a heading AND it shares no significant overlap, skip.
-          // (A safe guard: if panel name is completely different ignore it)
-          if (panelName && panelName.length > 2 && expected.length > 2) {
-            const panelWords = panelName.split(/\s+/).filter((w: string) => w.length > 2);
-            const expWords   = expected.split(/\s+/).filter((w: string) => w.length > 2);
-            const overlap    = panelWords.some((w: string) => expWords.includes(w));
-            if (!overlap) return null; // clearly a different business
+        // ── Step 5: extract contact data ───────────────────────────────────────
+        const details = await page.evaluate(() => {
+          function getText(sel: string): string {
+            const el = document.querySelector(sel);
+            return (el as HTMLElement | null)?.innerText?.trim() ?? "";
           }
 
-          function getText(el: Element | null): string {
-            if (!el) return "";
-            return (el as HTMLElement).innerText?.trim() ?? el.textContent?.trim() ?? "";
-          }
+          const address = getText('[data-item-id="address"]') || undefined;
+          const phone   = getText('[data-tooltip="Copy phone number"]') || undefined;
+          const website = getText('[data-tooltip="Open website"]') || undefined;
 
-          const address = getText(panel.querySelector('[data-item-id="address"]')) || undefined;
-          const phone   = getText(panel.querySelector('[data-tooltip="Copy phone number"]')) || undefined;
-          const website = getText(panel.querySelector('[data-tooltip="Open website"]')) || undefined;
-
-          // City / state parsed from address
           let city: string | undefined, state: string | undefined;
           if (address) {
             const parts = address.split(",").map((s: string) => s.trim());
@@ -579,18 +572,10 @@ export async function scrapeGoogleMapsHeadless(
               if (m) { state = m[1]; city = parts[i - 1]; break; }
             }
           }
-
           return { address, phone, website, city, state };
-        }, businessName);
+        });
 
-        if (!details) {
-          onLog?.(`Skipped "${businessName}" — panel showed different business`);
-          await page.keyboard.press("Escape");
-          await sleep(400);
-          continue;
-        }
-
-        onLog?.(`✓ ${businessName}${details.phone ? ` · ${details.phone}` : ""}${details.address ? ` · ${details.address.split(",")[0]}` : ""}`);
+        onLog?.(`✓ ${businessName}${details.phone ? ` · ${details.phone}` : ""}${details.address ? ` · ${details.address.split(",")[0]}` : " · no details"}`);
 
         const lead = {
           businessName,
@@ -605,9 +590,15 @@ export async function scrapeGoogleMapsHeadless(
         onLead?.(lead, leads.length);
         gotNewLead = true;
 
-        // Close the popup and return to the feed
+        // Close the detail panel and wait for the feed to be visible again
         await page.keyboard.press("Escape");
-        await sleep(600);
+        await sleep(800);
+        // If the feed is gone (full-page navigation happened), go back
+        const feedVisible = await page.locator('div[role="feed"]').isVisible().catch(() => false);
+        if (!feedVisible) {
+          await page.goBack({ waitUntil: "domcontentloaded", timeout: 10000 }).catch(() => null);
+          await sleep(1000);
+        }
       }
 
       if (!gotNewLead) {
