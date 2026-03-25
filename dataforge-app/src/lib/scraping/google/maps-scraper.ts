@@ -520,35 +520,49 @@ export async function scrapeGoogleMapsHeadless(
 
         onLog?.(`[${leads.length + 1}] ${businessName}`);
 
-        // Click the article to open the detail popup
+        // Click the article to open the detail panel
         await article.click({ timeout: 4000 }).catch(() => null);
 
-        // Wait for the popup — identified by aria-label matching the business name
+        // Wait until the [role="main"] panel heading matches this business name.
+        // This prevents reading stale data from a previously open panel.
+        const nameLower = businessName.toLowerCase();
         try {
-          await page.waitForSelector(
-            `[aria-label="${businessName.replace(/"/g, '\\"')}"]`,
-            { timeout: 6000 }
+          await page.waitForFunction(
+            (expected: string) => {
+              const panel = document.querySelector('[role="main"]');
+              if (!panel) return false;
+              const h1 = panel.querySelector("h1");
+              return !!h1 && (h1 as HTMLElement).innerText?.trim().toLowerCase() === expected;
+            },
+            nameLower,
+            { timeout: 8000 }
           );
         } catch {
-          // Popup may use a slightly different label — just wait a moment
-          await sleep(1500);
+          // Heading didn't match in time — give it one more second then check manually
+          await sleep(2000);
         }
 
-        // ── Step 5: extract from detail popup ─────────────────────────────────
+        // ── Step 5: extract from detail panel, scoped to [role="main"] ─────────
         const details = await page.evaluate((name: string) => {
-          function innerText(el: Element | null): string {
-            if (!el) return "";
-            // Walk to the deepest text-bearing child
-            let node: Element = el;
-            while (node.children.length === 1 && node.children[0].textContent?.trim()) {
-              node = node.children[0];
-            }
-            return (node as HTMLElement).innerText?.trim() ?? node.textContent?.trim() ?? "";
+          const panel = document.querySelector('[role="main"]') as HTMLElement | null;
+          if (!panel) return null;
+
+          // Verify panel is showing the correct business before reading data
+          const h1 = panel.querySelector("h1") as HTMLElement | null;
+          const panelName = h1?.innerText?.trim() ?? "";
+          if (panelName && panelName.toLowerCase() !== name.toLowerCase()) {
+            // Panel is still on a different business — skip to avoid inaccurate data
+            return null;
           }
 
-          const address = innerText(document.querySelector('[data-item-id="address"]'));
-          const phone   = innerText(document.querySelector('[data-tooltip="Copy phone number"]'));
-          const website = innerText(document.querySelector('[data-tooltip="Open website"]'));
+          function getText(el: Element | null): string {
+            if (!el) return "";
+            return (el as HTMLElement).innerText?.trim() ?? el.textContent?.trim() ?? "";
+          }
+
+          const address = getText(panel.querySelector('[data-item-id="address"]')) || undefined;
+          const phone   = getText(panel.querySelector('[data-tooltip="Copy phone number"]')) || undefined;
+          const website = getText(panel.querySelector('[data-tooltip="Open website"]')) || undefined;
 
           // City / state parsed from address
           let city: string | undefined, state: string | undefined;
@@ -560,18 +574,27 @@ export async function scrapeGoogleMapsHeadless(
             }
           }
 
-          return {
-            businessName: name,
-            address: address || undefined,
-            phone:   phone   || undefined,
-            website: website || undefined,
-            city,
-            state,
-          };
-        }, businessName);
+          return { address, phone, website, city, state };
+        }, nameLower);
 
-        leads.push(details);
-        onLead?.(details, leads.length);
+        if (!details) {
+          onLog?.(`[${leads.length + 1}] Panel mismatch for "${businessName}" — skipping`);
+          await page.keyboard.press("Escape");
+          await sleep(400);
+          continue;
+        }
+
+        const lead = {
+          businessName,
+          address: details.address,
+          phone:   details.phone,
+          website: details.website,
+          city:    details.city,
+          state:   details.state,
+        };
+
+        leads.push(lead);
+        onLead?.(lead, leads.length);
         gotNewLead = true;
 
         // Close the popup and return to the feed
