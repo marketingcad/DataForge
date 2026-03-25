@@ -49,6 +49,7 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
   // Accumulate leads locally so we can write them progressively to the DB.
   // This means if Vercel times out mid-scrape, whatever was found is still saved.
   const collectedLeads: Awaited<ReturnType<typeof scrapeGoogleMapsHeadless>> = [];
+  let lastLogMsg = ""; // track last status so we can show it when 0 leads found
 
   let leads: Awaited<ReturnType<typeof scrapeGoogleMapsHeadless>>;
   try {
@@ -57,6 +58,7 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
       job.location,
       job.maxLeads,
       (msg) => {
+        lastLogMsg = msg;
         // Write live status into errorMessage so UI polling can display it
         prisma.scrapingJob.update({
           where: { id },
@@ -109,7 +111,8 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
       completedTime:   new Date(),
       leadsDiscovered: finalLeads.length,
       pendingLeads:    finalLeads as never,
-      errorMessage:    null, // clear live status log
+      // Keep last log message when 0 leads found so the UI can show why
+      errorMessage: finalLeads.length > 0 ? null : (lastLogMsg || "No leads found"),
     },
   });
 
