@@ -71,7 +71,7 @@ export default async function ScrapingPage() {
         </TabsContent>
 
         {canUseKeywords && (
-          <TabsContent value="keywords" className="space-y-4">
+          <TabsContent value="keywords" forceMount className="space-y-4 data-[state=inactive]:hidden">
             {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
             <KeywordsManager initial={keywords as any} />
           </TabsContent>
