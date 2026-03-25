@@ -489,11 +489,27 @@ export async function scrapeGoogleMapsHeadless(
     await sleep(200);
     await page.keyboard.press("Enter");
 
+    // ── CAPTCHA detector ──────────────────────────────────────────────────────
+    const hasCaptcha = async (): Promise<boolean> => {
+      const url = page.url();
+      if (url.includes("/sorry/") || url.includes("google.com/sorry")) return true;
+      return page.evaluate(() => {
+        const body = (document.body?.innerText ?? "").toLowerCase();
+        return body.includes("unusual traffic") ||
+               body.includes("captcha") ||
+               !!document.querySelector('iframe[src*="recaptcha"], iframe[title*="reCAPTCHA"]');
+      }).catch(() => false);
+    };
+
     // ── Step 3: wait for the results feed ─────────────────────────────────────
     onLog?.("Waiting for results…");
     try {
       await page.waitForSelector('div[role="feed"]', { timeout: 15000 });
     } catch {
+      if (await hasCaptcha()) {
+        onLog?.("CAPTCHA detected — stopping and saving collected leads");
+        return leads;
+      }
       onLog?.("No results feed appeared — possible CAPTCHA or layout change");
       return leads;
     }
@@ -505,12 +521,18 @@ export async function scrapeGoogleMapsHeadless(
 
     // ── Step 4: scrape loop ────────────────────────────────────────────────────
     while (leads.length < maxLeads && staleRounds < 4) {
-      // Stop early if we're approaching the caller's time limit so the
-      // process route still has time to write the final "completed" status
+      // Stop early if we're approaching the caller's time limit
       if (maxRuntimeMs && Date.now() - startedAt >= maxRuntimeMs) {
         onLog?.(`Time limit reached — saving ${leads.length} lead${leads.length !== 1 ? "s" : ""} collected so far`);
         break;
       }
+
+      // CAPTCHA check at the top of every loop iteration
+      if (await hasCaptcha()) {
+        onLog?.(`CAPTCHA detected — stopping and saving ${leads.length} lead${leads.length !== 1 ? "s" : ""} collected so far`);
+        break;
+      }
+
       const childDivs = await page.locator('div[role="feed"] > div').all();
       let gotNewLead = false;
 
@@ -554,6 +576,12 @@ export async function scrapeGoogleMapsHeadless(
           await sleep(1500);
         }
 
+        // Check for CAPTCHA after panel navigation
+        if (await hasCaptcha()) {
+          onLog?.(`CAPTCHA detected — stopping and saving ${leads.length} lead${leads.length !== 1 ? "s" : ""} collected so far`);
+          return leads;
+        }
+
         // Small extra wait for lazy-loaded contact fields
         await sleep(300);
 
@@ -591,8 +619,6 @@ export async function scrapeGoogleMapsHeadless(
         };
 
         leads.push(lead);
-        // Await the callback so each DB write completes before the next lead
-        // is processed — prevents race conditions that corrupt pendingLeads
         await onLead?.(lead, leads.length);
         gotNewLead = true;
 
@@ -603,6 +629,11 @@ export async function scrapeGoogleMapsHeadless(
         if (!feedVisible) {
           await page.goBack({ waitUntil: "domcontentloaded", timeout: 10000 }).catch(() => null);
           await sleep(600);
+          // Check for CAPTCHA after going back
+          if (await hasCaptcha()) {
+            onLog?.(`CAPTCHA detected — stopping and saving ${leads.length} lead${leads.length !== 1 ? "s" : ""} collected so far`);
+            return leads;
+          }
         }
       }
 
