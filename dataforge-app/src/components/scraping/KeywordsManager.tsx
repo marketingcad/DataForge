@@ -479,7 +479,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
     setTimeout(() => setRunToast(null), 12000);
   }
 
-  function applyJobResult(kwId: string, jobId: string, job: { status: string; leadsDiscovered: number; leadsProcessed: number; pendingLeads: unknown; errorMessage: string | null }) {
+  function applyJobResult(kwId: string, jobId: string, job: { status: string; leadsDiscovered: number; leadsProcessed: number; duplicatesFound: number; pendingLeads: unknown; errorMessage: string | null }) {
     const pendingLeads = (job.pendingLeads as PendingLead[] | null) ?? [];
     setKeywords((prev) =>
       prev.map((k) =>
@@ -505,8 +505,8 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
     );
     if (job.status === "failed") {
       setRunToast({ id: kwId, msg: `Failed: ${job.errorMessage ?? "Unknown error"}`, ok: false });
-    } else if (pendingLeads.length > 0) {
-      setRunToast({ id: kwId, msg: `Done! ${pendingLeads.length} leads ready — click the badge to save them.`, ok: true });
+    } else if (job.leadsProcessed > 0) {
+      setRunToast({ id: kwId, msg: `Done! ${job.leadsProcessed} leads saved${job.duplicatesFound > 0 ? `, ${job.duplicatesFound} already existed` : ""}.`, ok: true });
     } else {
       setRunToast({ id: kwId, msg: "Scraping done — no new leads found.", ok: true });
     }
