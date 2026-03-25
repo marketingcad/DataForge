@@ -441,7 +441,8 @@ export async function scrapeGoogleMapsHeadless(
   maxLeads: number,
   onLog?: (msg: string) => void,
   onLead?: (lead: SerpLead, count: number) => Promise<void> | void,
-  maxRuntimeMs?: number
+  maxRuntimeMs?: number,
+  isDuplicate?: (lead: SerpLead) => boolean
 ): Promise<SerpLead[]> {
   const leads: SerpLead[] = [];
   const searchQuery = `${keyword} ${location}`;
@@ -455,6 +456,7 @@ export async function scrapeGoogleMapsHeadless(
     browser = bc.browser;
     context = bc.context;
     const page = await context.newPage();
+    page.setDefaultTimeout(15000); // cap all Playwright ops so nothing hangs forever
 
     // ── Step 1: open Google Maps search page ──────────────────────────────────
     onLog?.("Opening Google Maps…");
@@ -550,90 +552,120 @@ export async function scrapeGoogleMapsHeadless(
 
         onLog?.(`Scanning result ${leads.length + 1} of ${maxLeads}…`);
 
-        // Read current panel heading so we can detect when it changes
-        const h1Before = await page.evaluate(() => {
-          const h1 = document.querySelector("h1");
-          return (h1 as HTMLElement | null)?.innerText?.trim() ?? "";
-        });
+        // ── Per-lead 1-minute timeout guard ───────────────────────────────────
+        // If the detail panel never loads (slow network, Google throttling),
+        // abandon this lead after 60 s and move to the next one.
+        const LEAD_TIMEOUT_MS = 60_000;
+        let leadTimedOut = false;
 
-        // Click the article — force:true ensures the click fires even if the
-        // element is partially covered by the map or a sticky header
-        await article.click({ timeout: 5000, force: true }).catch(() => null);
-        onLog?.(`Opening details panel…`);
-
-        // ── Wait for the detail panel to open ─────────────────────────────────
-        try {
-          await page.waitForFunction(
-            (prev: string) => {
+        await Promise.race([
+          (async () => {
+            // Read current panel heading so we can detect when it changes
+            const h1Before = await page.evaluate(() => {
               const h1 = document.querySelector("h1");
-              const text = (h1 as HTMLElement | null)?.innerText?.trim() ?? "";
-              return text.length > 0 && text !== prev;
-            },
-            h1Before,
-            { timeout: 6000 }
-          );
-        } catch {
-          await sleep(1500);
-        }
+              return (h1 as HTMLElement | null)?.innerText?.trim() ?? "";
+            }).catch(() => "");
 
-        // Check for CAPTCHA after panel navigation
-        if (await hasCaptcha()) {
-          onLog?.(`CAPTCHA detected — stopping and saving ${leads.length} lead${leads.length !== 1 ? "s" : ""} collected so far`);
-          return leads;
-        }
+            // Click the article
+            await article.click({ timeout: 5000, force: true }).catch(() => null);
+            onLog?.(`Opening details panel…`);
 
-        // Small extra wait for lazy-loaded contact fields
-        await sleep(300);
-
-        // ── Step 5: extract contact data ───────────────────────────────────────
-        const details = await page.evaluate(() => {
-          function getText(sel: string): string {
-            const el = document.querySelector(sel);
-            return (el as HTMLElement | null)?.innerText?.trim() ?? "";
-          }
-
-          const address = getText('[data-item-id="address"]') || undefined;
-          const phone   = getText('[data-tooltip="Copy phone number"]') || undefined;
-          const website = getText('[data-tooltip="Open website"]') || undefined;
-
-          let city: string | undefined, state: string | undefined;
-          if (address) {
-            const parts = address.split(",").map((s: string) => s.trim());
-            for (let i = parts.length - 1; i >= 0; i--) {
-              const m = parts[i].match(/^([A-Z]{2})(\s+\d{5})?$/);
-              if (m) { state = m[1]; city = parts[i - 1]; break; }
+            // ── Wait for the detail panel to open ─────────────────────────────
+            try {
+              await page.waitForFunction(
+                (prev: string) => {
+                  const h1 = document.querySelector("h1");
+                  const text = (h1 as HTMLElement | null)?.innerText?.trim() ?? "";
+                  return text.length > 0 && text !== prev;
+                },
+                h1Before,
+                { timeout: 6000 }
+              );
+            } catch {
+              await sleep(1500);
             }
-          }
-          return { address, phone, website, city, state };
-        });
 
-        onLog?.(`Lead ${leads.length + 1} extracted — found ${[details.phone && "phone", details.address && "address", details.website && "website"].filter(Boolean).join(", ") || "name only"}`);
+            if (leadTimedOut) return; // timed out while waiting for panel
 
-        const lead = {
-          businessName,
-          address: details.address,
-          phone:   details.phone,
-          website: details.website,
-          city:    details.city,
-          state:   details.state,
-        };
+            // Check for CAPTCHA after panel navigation
+            if (await hasCaptcha()) {
+              onLog?.(`CAPTCHA detected — stopping and saving ${leads.length} lead${leads.length !== 1 ? "s" : ""} collected so far`);
+              leads.push({ businessName: "\x00CAPTCHA\x00" }); // sentinel to trigger early return below
+              return;
+            }
 
-        leads.push(lead);
-        await onLead?.(lead, leads.length);
-        gotNewLead = true;
+            // Small extra wait for lazy-loaded contact fields
+            await sleep(300);
+            if (leadTimedOut) return;
 
-        // Close the detail panel and wait for the feed to be visible again
-        await page.keyboard.press("Escape");
-        await sleep(500);
-        const feedVisible = await page.locator('div[role="feed"]').isVisible().catch(() => false);
-        if (!feedVisible) {
-          await page.goBack({ waitUntil: "domcontentloaded", timeout: 10000 }).catch(() => null);
-          await sleep(600);
-          // Check for CAPTCHA after going back
-          if (await hasCaptcha()) {
-            onLog?.(`CAPTCHA detected — stopping and saving ${leads.length} lead${leads.length !== 1 ? "s" : ""} collected so far`);
-            return leads;
-          }
+            // ── Extract contact data ───────────────────────────────────────────
+            const details = await page.evaluate(() => {
+              function getText(sel: string): string {
+                const el = document.querySelector(sel);
+                return (el as HTMLElement | null)?.innerText?.trim() ?? "";
+              }
+              const address = getText('[data-item-id="address"]') || undefined;
+              const phone   = getText('[data-tooltip="Copy phone number"]') || undefined;
+              const website = getText('[data-tooltip="Open website"]') || undefined;
+              let city: string | undefined, state: string | undefined;
+              if (address) {
+                const parts = address.split(",").map((s: string) => s.trim());
+                for (let i = parts.length - 1; i >= 0; i--) {
+                  const m = parts[i].match(/^([A-Z]{2})(\s+\d{5})?$/);
+                  if (m) { state = m[1]; city = parts[i - 1]; break; }
+                }
+              }
+              return { address, phone, website, city, state };
+            }).catch(() => null);
+
+            if (leadTimedOut || !details) return;
+
+            onLog?.(`Lead ${leads.length + 1} extracted — found ${[details.phone && "phone", details.address && "address", details.website && "website"].filter(Boolean).join(", ") || "name only"}`);
+
+            const lead = {
+              businessName,
+              address: details.address,
+              phone:   details.phone,
+              website: details.website,
+              city:    details.city,
+              state:   details.state,
+            };
+
+            if (isDuplicate?.(lead)) {
+              onLog?.(`Already in database — skipping`);
+              gotNewLead = true;
+            } else {
+              leads.push(lead);
+              await onLead?.(lead, leads.length);
+              gotNewLead = true;
+            }
+
+            // Close the detail panel and wait for the feed to be visible again
+            await page.keyboard.press("Escape").catch(() => null);
+            await sleep(500);
+            const feedVisible = await page.locator('div[role="feed"]').isVisible().catch(() => false);
+            if (!feedVisible) {
+              await page.goBack({ waitUntil: "domcontentloaded", timeout: 10000 }).catch(() => null);
+              await sleep(600);
+              if (await hasCaptcha()) {
+                onLog?.(`CAPTCHA detected — stopping and saving ${leads.length} lead${leads.length !== 1 ? "s" : ""} collected so far`);
+                leads.push({ businessName: "\x00CAPTCHA\x00" }); // sentinel
+              }
+            }
+          })(),
+          sleep(LEAD_TIMEOUT_MS).then(() => { leadTimedOut = true; }),
+        ]);
+
+        if (leadTimedOut) {
+          onLog?.(`Lead took over 1 minute — skipping`);
+          gotNewLead = true; // treat as progress so staleRounds doesn't fire
+          continue;
+        }
+
+        // Handle CAPTCHA sentinel
+        if (leads[leads.length - 1]?.businessName === "\x00CAPTCHA\x00") {
+          leads.pop();
+          return leads;
         }
       }
 

@@ -5,6 +5,7 @@ import { discoverBusinesses } from "@/lib/scraping/google/discovery";
 import { scrapeWebsite } from "@/lib/scraping/crawler/web-scraper";
 import { scrapeGoogleMapsHeadless } from "@/lib/scraping/google/maps-scraper";
 import { insertLead } from "@/lib/leads/service";
+import { normalizePhone, normalizeWebsite } from "@/lib/utils/normalize";
 import { onKeywordJobSuccess, onKeywordJobFailure, getKeywordById } from "@/lib/keywords/service";
 import { createNotification, createNotificationsForRole } from "@/lib/notifications/service";
 
@@ -46,6 +47,25 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
 
   await updateJobStatus(id, "running", { startTime: new Date() });
 
+  // ── Pre-fetch existing leads for duplicate skipping ────────────────────────
+  // One upfront query builds in-memory Sets so the scraper never hits the DB
+  // per lead. Any scraped lead whose phone or website already exists is skipped
+  // and the scraper continues until it finds maxLeads *new* leads.
+  const existingLeads = await prisma.lead.findMany({ select: { phone: true, website: true } });
+  const knownPhones   = new Set(existingLeads.map(l => l.phone).filter(Boolean));
+  const knownWebsites = new Set(existingLeads.map(l => l.website).filter(Boolean));
+  const isDuplicate = (lead: import("@/lib/scraping/google/maps-scraper").SerpLead): boolean => {
+    if (lead.phone) {
+      const p = normalizePhone(lead.phone);
+      if (p && knownPhones.has(p)) return true;
+    }
+    if (lead.website) {
+      const w = normalizeWebsite(lead.website);
+      if (w && knownWebsites.has(w)) return true;
+    }
+    return false;
+  };
+
   // Accumulate leads locally so we can write them progressively to the DB.
   // This means if Vercel times out mid-scrape, whatever was found is still saved.
   const collectedLeads: Awaited<ReturnType<typeof scrapeGoogleMapsHeadless>> = [];
@@ -76,7 +96,8 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
           },
         }).catch(() => {});
       },
-      MAX_SCRAPE_MS
+      MAX_SCRAPE_MS,
+      isDuplicate
     );
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : "Browser scrape failed";
