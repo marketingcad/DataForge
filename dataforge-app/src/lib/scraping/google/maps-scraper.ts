@@ -480,9 +480,15 @@ export async function scrapeGoogleMapsHeadless(
 
     // ── Step 2: type the search query ─────────────────────────────────────────
     onLog?.(`Searching for "${searchQuery}"…`);
+    // Try progressively broader selectors in case Google Maps changes its DOM
     const input = page.locator(
-      'div[aria-label="Google Maps"] div[role="search"] form input'
+      'div[aria-label="Google Maps"] div[role="search"] form input, ' +
+      'div[aria-label="Google Maps"] input[type="text"], ' +
+      'input#searchboxinput, ' +
+      'input[aria-label*="Search"], ' +
+      'input[placeholder*="Search"]'
     ).first();
+    await input.waitFor({ state: "visible", timeout: 15000 });
     await input.click();
     await sleep(200);
     for (const char of searchQuery) {
