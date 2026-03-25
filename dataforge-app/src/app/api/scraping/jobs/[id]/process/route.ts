@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@/generated/prisma/client";
 import { getJobById, updateJobStatus, incrementJobMetric } from "@/lib/scraping/jobs/service";
 import { discoverBusinesses } from "@/lib/scraping/google/discovery";
 import { scrapeWebsite } from "@/lib/scraping/crawler/web-scraper";
@@ -103,13 +104,36 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
     const errorMsg = err instanceof Error ? err.message : "Browser scrape failed";
     // If we collected some leads before the error, save them instead of failing
     if (collectedLeads.length > 0) {
+      let saved = 0, duplicates = 0, failed = 0;
+      for (const lead of collectedLeads) {
+        try {
+          const result = await insertLead({
+            businessName: lead.businessName,
+            phone:        lead.phone ?? "N/A",
+            email:        lead.email,
+            website:      lead.website,
+            address:      lead.address,
+            city:         lead.city,
+            state:        lead.state,
+            category:     job.industry,
+            source:       `GoogleMaps:keyword_${job.keywordId}`,
+          });
+          if (result.status === "duplicate") duplicates++;
+          else saved++;
+        } catch {
+          failed++;
+        }
+      }
       await prisma.scrapingJob.update({
         where: { id },
         data: {
           status:          "completed",
           completedTime:   new Date(),
           leadsDiscovered: collectedLeads.length,
-          pendingLeads:    collectedLeads as never,
+          leadsProcessed:  saved,
+          duplicatesFound: duplicates,
+          failedRecords:   failed,
+          pendingLeads:    Prisma.DbNull,
           errorMessage:    null,
         },
       });
@@ -117,7 +141,7 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
         const kw = await getKeywordById(job.keywordId!);
         await onKeywordJobSuccess(kw.id, kw.intervalHours);
       } catch { /* keyword may have been deleted */ }
-      return NextResponse.json({ status: "completed", pending: collectedLeads.length });
+      return NextResponse.json({ status: "completed", saved, duplicates });
     }
     await updateJobStatus(id, "failed", { completedTime: new Date(), errorMessage: errorMsg });
     await handleKeywordFailure(job.keywordId!, errorMsg);
@@ -131,15 +155,40 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
   }
 
   const finalLeads = leads.length > 0 ? leads : collectedLeads;
+
+  // Auto-commit leads directly into the leads table
+  let saved = 0, duplicates = 0, failed = 0;
+  for (const lead of finalLeads) {
+    try {
+      const result = await insertLead({
+        businessName: lead.businessName,
+        phone:        lead.phone ?? "N/A",
+        email:        lead.email,
+        website:      lead.website,
+        address:      lead.address,
+        city:         lead.city,
+        state:        lead.state,
+        category:     job.industry,
+        source:       `GoogleMaps:keyword_${job.keywordId}`,
+      });
+      if (result.status === "duplicate") duplicates++;
+      else saved++;
+    } catch {
+      failed++;
+    }
+  }
+
   await prisma.scrapingJob.update({
     where: { id },
     data: {
       status:          "completed",
       completedTime:   new Date(),
       leadsDiscovered: finalLeads.length,
-      pendingLeads:    finalLeads as never,
-      // Keep last log message when 0 leads found so the UI can show why
-      errorMessage: finalLeads.length > 0 ? null : (lastLogMsg || "No leads found"),
+      leadsProcessed:  saved,
+      duplicatesFound: duplicates,
+      failedRecords:   failed,
+      pendingLeads:    Prisma.DbNull,
+      errorMessage:    finalLeads.length > 0 ? null : (lastLogMsg || "No leads found"),
     },
   });
 
@@ -149,7 +198,7 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
     await onKeywordJobSuccess(kw.id, kw.intervalHours);
   } catch { /* keyword may have been deleted */ }
 
-  return NextResponse.json({ status: "completed", pending: finalLeads.length });
+  return NextResponse.json({ status: "completed", saved, duplicates });
 }
 
 // ─── Standard SerpAPI job (unchanged) ─────────────────────────────────────────
