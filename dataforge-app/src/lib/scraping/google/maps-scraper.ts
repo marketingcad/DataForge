@@ -560,30 +560,21 @@ export async function scrapeGoogleMapsHeadless(
 
         await Promise.race([
           (async () => {
-            // Read current panel heading so we can detect when it changes
-            const h1Before = await page.evaluate(() => {
-              const h1 = document.querySelector("h1");
-              return (h1 as HTMLElement | null)?.innerText?.trim() ?? "";
-            }).catch(() => "");
-
             // Click the article
+            const urlBefore = page.url();
             await article.click({ timeout: 5000, force: true }).catch(() => null);
             onLog?.(`Opening details panel…`);
 
-            // ── Wait for the detail panel to open ─────────────────────────────
-            try {
-              await page.waitForFunction(
-                (prev: string) => {
-                  const h1 = document.querySelector("h1");
-                  const text = (h1 as HTMLElement | null)?.innerText?.trim() ?? "";
-                  return text.length > 0 && text !== prev;
-                },
-                h1Before,
-                { timeout: 6000 }
+            // ── Wait for Google Maps to navigate to the place URL ──────────────
+            // Much more reliable than watching for h1 changes
+            await page.waitForURL((u) => u.toString() !== urlBefore, { timeout: 8000 })
+              .catch(() =>
+                // Fallback: wait for any detail panel selector to appear
+                page.waitForSelector(
+                  '[data-item-id="address"], [data-tooltip="Copy phone number"], [data-tooltip="Open website"]',
+                  { timeout: 4000 }
+                ).catch(() => null)
               );
-            } catch {
-              await sleep(1500);
-            }
 
             if (leadTimedOut) return; // timed out while waiting for panel
 
@@ -594,8 +585,6 @@ export async function scrapeGoogleMapsHeadless(
               return;
             }
 
-            // Small extra wait for lazy-loaded contact fields
-            await sleep(300);
             if (leadTimedOut) return;
 
             // ── Extract contact data ───────────────────────────────────────────
