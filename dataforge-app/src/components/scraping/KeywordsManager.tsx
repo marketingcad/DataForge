@@ -374,12 +374,15 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
         if (job.status === "pending") {
           setRunningLabel(`Starting browser… (${Math.round((i + 1) * 5)}s)`);
         } else if (job.status === "running") {
-          if (job.leadsDiscovered > 0) {
-            setRunningLabel(`${job.leadsDiscovered} lead${job.leadsDiscovered !== 1 ? "s" : ""} found…`);
-          } else if (job.errorMessage) {
-            setRunningLabel(job.errorMessage);
+          // Always prefer the live log message — it has the most specific status.
+          // Append lead count in parentheses when some have been found.
+          const countSuffix = job.leadsDiscovered > 0
+            ? ` (${job.leadsDiscovered} found)`
+            : "";
+          if (job.errorMessage) {
+            setRunningLabel(job.errorMessage + countSuffix);
           } else {
-            setRunningLabel("Searching Google Maps…");
+            setRunningLabel("Searching Google Maps…" + countSuffix);
           }
         }
 

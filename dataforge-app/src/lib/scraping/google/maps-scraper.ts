@@ -523,36 +523,42 @@ export async function scrapeGoogleMapsHeadless(
         // Click the article to open the detail panel
         await article.click({ timeout: 4000 }).catch(() => null);
 
-        // Wait until the [role="main"] panel heading matches this business name.
-        // This prevents reading stale data from a previously open panel.
-        const nameLower = businessName.toLowerCase();
+        onLog?.(`Loading details for "${businessName}"…`);
+
+        // Wait for the detail panel to load contact data (address or phone).
+        // We wait for the panel to have ANY detail item rather than matching
+        // the name exactly — names often differ slightly between the list and panel.
         try {
-          await page.waitForFunction(
-            (expected: string) => {
-              const panel = document.querySelector('[role="main"]');
-              if (!panel) return false;
-              const h1 = panel.querySelector("h1");
-              return !!h1 && (h1 as HTMLElement).innerText?.trim().toLowerCase() === expected;
-            },
-            nameLower,
-            { timeout: 8000 }
-          );
+          await page.waitForFunction(() => {
+            const panel = document.querySelector('[role="main"]');
+            if (!panel) return false;
+            return !!(
+              panel.querySelector('[data-item-id="address"]') ||
+              panel.querySelector('[data-tooltip="Copy phone number"]') ||
+              panel.querySelector('[data-tooltip="Open website"]')
+            );
+          }, null, { timeout: 8000 });
         } catch {
-          // Heading didn't match in time — give it one more second then check manually
-          await sleep(2000);
+          await sleep(1500);
         }
 
         // ── Step 5: extract from detail panel, scoped to [role="main"] ─────────
-        const details = await page.evaluate((name: string) => {
+        const details = await page.evaluate((expectedName: string) => {
           const panel = document.querySelector('[role="main"]') as HTMLElement | null;
           if (!panel) return null;
 
-          // Verify panel is showing the correct business before reading data
+          // Read the panel's heading to cross-check ownership.
+          // Use a loose contains check — panel h1 may include category suffixes.
           const h1 = panel.querySelector("h1") as HTMLElement | null;
-          const panelName = h1?.innerText?.trim() ?? "";
-          if (panelName && panelName.toLowerCase() !== name.toLowerCase()) {
-            // Panel is still on a different business — skip to avoid inaccurate data
-            return null;
+          const panelName = h1?.innerText?.trim().toLowerCase() ?? "";
+          const expected  = expectedName.toLowerCase();
+          // If we have a heading AND it shares no significant overlap, skip.
+          // (A safe guard: if panel name is completely different ignore it)
+          if (panelName && panelName.length > 2 && expected.length > 2) {
+            const panelWords = panelName.split(/\s+/).filter((w: string) => w.length > 2);
+            const expWords   = expected.split(/\s+/).filter((w: string) => w.length > 2);
+            const overlap    = panelWords.some((w: string) => expWords.includes(w));
+            if (!overlap) return null; // clearly a different business
           }
 
           function getText(el: Element | null): string {
@@ -575,14 +581,16 @@ export async function scrapeGoogleMapsHeadless(
           }
 
           return { address, phone, website, city, state };
-        }, nameLower);
+        }, businessName);
 
         if (!details) {
-          onLog?.(`[${leads.length + 1}] Panel mismatch for "${businessName}" — skipping`);
+          onLog?.(`Skipped "${businessName}" — panel showed different business`);
           await page.keyboard.press("Escape");
           await sleep(400);
           continue;
         }
+
+        onLog?.(`✓ ${businessName}${details.phone ? ` · ${details.phone}` : ""}${details.address ? ` · ${details.address.split(",")[0]}` : ""}`);
 
         const lead = {
           businessName,
