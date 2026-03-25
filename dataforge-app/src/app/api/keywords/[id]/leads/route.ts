@@ -8,7 +8,7 @@ export async function GET(
   const { id } = await params;
   const leads = await prisma.lead.findMany({
     where: { source: { startsWith: `GoogleMaps:keyword_${id}` } },
-    orderBy: { createdAt: "desc" },
+    orderBy: { dateCollected: "desc" },
     select: {
       id: true,
       businessName: true,
