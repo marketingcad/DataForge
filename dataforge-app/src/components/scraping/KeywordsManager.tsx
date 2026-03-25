@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,10 +36,11 @@ import {
   Inbox,
   Folder,
   Search,
+  LayoutGrid,
+  List,
 } from "lucide-react";
 import { getFoldersAction } from "@/actions/folders.actions";
 import { cn } from "@/lib/utils";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 interface PendingLead {
@@ -114,9 +115,7 @@ function intervalLabel(hours: number) {
 }
 
 export function KeywordsManager({ initial }: KeywordsManagerProps) {
-  const router = useRouter();
   const [keywords, setKeywords] = useState<KeywordRow[]>(initial);
-  const [, startTransition] = useTransition();
 
   // Add dialog
   const [addOpen, setAddOpen] = useState(false);
@@ -150,6 +149,9 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
   const [saveResult, setSaveResult] = useState<{ saved: number; duplicates: number; failed: number } | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  // Grid vs list view
+  const [view, setView] = useState<"list" | "grid">("list");
+
   // Run now loading state per keyword
   const [runningId, setRunningId] = useState<string | null>(null);
   const [runningLabel, setRunningLabel] = useState<string>("Starting…");
@@ -178,12 +180,24 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
         }),
       });
       if (res.ok) {
+        const data = await res.json();
+        const kw = data.keyword;
+        // Update local state immediately — router.refresh() won't update useState(initial)
+        setKeywords((prev) => [
+          {
+            ...kw,
+            _count: { jobs: 0 },
+            jobs: [],
+            failedAttempts: kw.failedAttempts ?? 0,
+            lastError: kw.lastError ?? null,
+          },
+          ...prev,
+        ]);
         setAddOpen(false);
         setNewKeyword("");
         setNewLocation("");
         setNewMaxLeads("50");
         setNewInterval("24");
-        startTransition(() => router.refresh());
       }
     } finally {
       setAddSaving(false);
@@ -422,15 +436,34 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
   return (
     <div className="space-y-4">
       {/* Toolbar */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">
           {keywords.length} keyword{keywords.length !== 1 ? "s" : ""} ·{" "}
           {keywords.filter((k) => k.enabled).length} active
         </p>
-        <Button size="sm" onClick={() => setAddOpen(true)} className="gap-1.5">
-          <Plus className="h-4 w-4" />
-          Add Keyword
-        </Button>
+        <div className="flex items-center gap-2">
+          {/* View toggle */}
+          <div className="flex items-center rounded-md border overflow-hidden">
+            <button
+              onClick={() => setView("list")}
+              className={cn("px-2.5 py-1.5 transition-colors", view === "list" ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground")}
+              title="List view"
+            >
+              <List className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => setView("grid")}
+              className={cn("px-2.5 py-1.5 transition-colors", view === "grid" ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground")}
+              title="Grid view"
+            >
+              <LayoutGrid className="h-4 w-4" />
+            </button>
+          </div>
+          <Button size="sm" onClick={() => setAddOpen(true)} className="gap-1.5">
+            <Plus className="h-4 w-4" />
+            Add Keyword
+          </Button>
+        </div>
       </div>
 
       {/* Run toast */}
@@ -465,151 +498,144 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
         </div>
       )}
 
-      {/* Keyword list */}
-      {keywords.length > 0 && (
+      {/* Keyword list / grid */}
+      {keywords.length > 0 && view === "list" && (
         <div className="rounded-lg border divide-y">
           {keywords.map((kw) => {
             const job = kw.jobs[0] ?? null;
             const hasFailed = kw.failedAttempts > 0;
             const isDisabledByFailure = !kw.enabled && kw.failedAttempts >= 5;
-
             return (
               <div key={kw.id} className="p-4 flex items-start gap-4">
-                {/* Enable/disable toggle */}
                 <div className="pt-0.5">
-                  <Switch
-                    checked={kw.enabled}
-                    onCheckedChange={(v) => handleToggle(kw.id, v)}
-                  />
+                  <Switch checked={kw.enabled} onCheckedChange={(v) => handleToggle(kw.id, v)} />
                 </div>
-
-                {/* Main info */}
                 <div className="flex-1 min-w-0 space-y-1.5">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-medium text-sm">{kw.keyword}</span>
                     <span className="text-muted-foreground text-xs flex items-center gap-1">
-                      <MapPin className="h-3 w-3" />
-                      {kw.location}
+                      <MapPin className="h-3 w-3" />{kw.location}
                     </span>
                     <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
                       up to {kw.maxLeads} leads/run
                     </span>
-
-                    {isDisabledByFailure && (
-                      <Badge variant="destructive" className="text-xs gap-1">
-                        <AlertTriangle className="h-3 w-3" />
-                        Disabled (5 failures)
-                      </Badge>
-                    )}
-                    {!kw.enabled && !isDisabledByFailure && (
-                      <Badge variant="outline" className="text-xs text-muted-foreground">
-                        Paused
-                      </Badge>
-                    )}
-                    {kw.enabled && !hasFailed && (
-                      <Badge variant="secondary" className="text-xs gap-1 text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800">
-                        <CheckCircle2 className="h-3 w-3" />
-                        Active
-                      </Badge>
-                    )}
-                    {hasFailed && kw.enabled && (
-                      <Badge variant="outline" className="text-xs gap-1 text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-950/20">
-                        <AlertTriangle className="h-3 w-3" />
-                        {kw.failedAttempts}/5 failures
-                      </Badge>
-                    )}
+                    {isDisabledByFailure && <Badge variant="destructive" className="text-xs gap-1"><AlertTriangle className="h-3 w-3" />Disabled (5 failures)</Badge>}
+                    {!kw.enabled && !isDisabledByFailure && <Badge variant="outline" className="text-xs text-muted-foreground">Paused</Badge>}
+                    {kw.enabled && !hasFailed && <Badge variant="secondary" className="text-xs gap-1 text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800"><CheckCircle2 className="h-3 w-3" />Active</Badge>}
+                    {hasFailed && kw.enabled && <Badge variant="outline" className="text-xs gap-1 text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-950/20"><AlertTriangle className="h-3 w-3" />{kw.failedAttempts}/5 failures</Badge>}
                     {job?.pendingLeads && job.pendingLeads.length > 0 && (
-                      <button
-                        onClick={() => openSaveDialog(kw)}
-                        className="inline-flex items-center gap-1 rounded-full border border-blue-300 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 hover:bg-blue-100 dark:border-blue-700 dark:bg-blue-950/30 dark:text-blue-400 dark:hover:bg-blue-950/50 transition-colors"
-                      >
-                        <Inbox className="h-3 w-3" />
-                        {job.pendingLeads.length} leads ready — click to save
+                      <button onClick={() => openSaveDialog(kw)} className="inline-flex items-center gap-1 rounded-full border border-blue-300 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 hover:bg-blue-100 dark:border-blue-700 dark:bg-blue-950/30 dark:text-blue-400 dark:hover:bg-blue-950/50 transition-colors">
+                        <Inbox className="h-3 w-3" />{job.pendingLeads.length} leads ready — click to save
                       </button>
                     )}
                   </div>
-
-                  {/* Last run result badge */}
                   {runningId === kw.id ? (
-                    <div className="flex flex-col gap-1">
-                      <div className="flex items-center gap-1.5 text-xs font-medium text-blue-600 dark:text-blue-400">
-                        <Loader2 className="h-3 w-3 animate-spin shrink-0" />
-                        <span>{runningLabel}</span>
-                      </div>
+                    <div className="flex items-center gap-1.5 text-xs font-medium text-blue-600 dark:text-blue-400">
+                      <Loader2 className="h-3 w-3 animate-spin shrink-0" /><span>{runningLabel}</span>
                     </div>
                   ) : job ? (
                     <div className="flex items-center gap-2 flex-wrap">
-                      {job.status === "completed" && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 px-2.5 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-400">
-                          <CheckCircle2 className="h-3 w-3" />
-                          {job.leadsDiscovered} lead{job.leadsDiscovered !== 1 ? "s" : ""} scraped last run
-                        </span>
-                      )}
-                      {job.status === "running" && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 px-2.5 py-0.5 text-xs font-medium text-blue-700 dark:text-blue-400">
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                          Scraping…
-                        </span>
-                      )}
-                      {job.status === "failed" && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800 px-2.5 py-0.5 text-xs font-medium text-rose-600 dark:text-rose-400">
-                          <AlertTriangle className="h-3 w-3" />
-                          Last run failed
-                        </span>
-                      )}
+                      {job.status === "completed" && <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 px-2.5 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-400"><CheckCircle2 className="h-3 w-3" />{job.leadsDiscovered} lead{job.leadsDiscovered !== 1 ? "s" : ""} scraped last run</span>}
+                      {job.status === "running" && <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 px-2.5 py-0.5 text-xs font-medium text-blue-700 dark:text-blue-400"><Loader2 className="h-3 w-3 animate-spin" />Scraping…</span>}
+                      {job.status === "failed" && <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800 px-2.5 py-0.5 text-xs font-medium text-rose-600 dark:text-rose-400"><AlertTriangle className="h-3 w-3" />Last run failed</span>}
                       <span className="text-xs text-muted-foreground">{relativeTime(job.createdAt)}</span>
                     </div>
                   ) : (
                     <span className="text-xs text-muted-foreground">No runs yet</span>
                   )}
-
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
                     <span>{intervalLabel(kw.intervalHours)}</span>
                     <span>Last run: {relativeTime(kw.lastRunAt)}</span>
                     <span>Next: {kw.enabled ? nextRunLabel(kw.nextRunAt) : "Paused"}</span>
                     <span>{kw._count.jobs} run{kw._count.jobs !== 1 ? "s" : ""} total</span>
                   </div>
-
-                  {kw.lastError && (
-                    <p className="text-xs text-rose-500 truncate max-w-xl">
-                      Error: {kw.lastError}
-                    </p>
-                  )}
+                  {kw.lastError && <p className="text-xs text-rose-500 truncate max-w-xl">Error: {kw.lastError}</p>}
                 </div>
-
-                {/* Actions */}
                 <div className="flex items-center gap-1 shrink-0">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="gap-1.5 h-8"
-                    onClick={() => handleRunNow(kw.id)}
-                    disabled={runningId === kw.id}
-                    title="Run now"
-                  >
-                    {runningId === kw.id
-                      ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      : <Play className="h-3.5 w-3.5" />}
+                  <Button size="sm" variant="outline" className="gap-1.5 h-8" onClick={() => handleRunNow(kw.id)} disabled={runningId === kw.id}>
+                    {runningId === kw.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
                     {runningId === kw.id ? runningLabel : "Run now"}
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
-                    onClick={() => openEdit(kw)}
-                    title="Edit"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
+                  <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground" onClick={() => openEdit(kw)} title="Edit"><Pencil className="h-3.5 w-3.5" /></Button>
+                  <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-muted-foreground hover:text-rose-500" onClick={() => setDeleteConfirm(kw.id)} title="Delete"><Trash2 className="h-3.5 w-3.5" /></Button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Keyword grid */}
+      {keywords.length > 0 && view === "grid" && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {keywords.map((kw) => {
+            const job = kw.jobs[0] ?? null;
+            const hasFailed = kw.failedAttempts > 0;
+            const isDisabledByFailure = !kw.enabled && kw.failedAttempts >= 5;
+            return (
+              <div key={kw.id} className="rounded-lg border bg-card p-4 flex flex-col gap-3">
+                {/* Card header */}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-sm leading-tight truncate">{kw.keyword}</p>
+                    <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                      <MapPin className="h-3 w-3 shrink-0" />{kw.location}
+                    </p>
+                  </div>
+                  <Switch checked={kw.enabled} onCheckedChange={(v) => handleToggle(kw.id, v)} />
+                </div>
+
+                {/* Badges */}
+                <div className="flex flex-wrap gap-1.5">
+                  <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                    up to {kw.maxLeads} leads/run
+                  </span>
+                  {isDisabledByFailure && <Badge variant="destructive" className="text-xs gap-1"><AlertTriangle className="h-3 w-3" />Disabled</Badge>}
+                  {!kw.enabled && !isDisabledByFailure && <Badge variant="outline" className="text-xs text-muted-foreground">Paused</Badge>}
+                  {kw.enabled && !hasFailed && <Badge variant="secondary" className="text-xs gap-1 text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800"><CheckCircle2 className="h-3 w-3" />Active</Badge>}
+                  {hasFailed && kw.enabled && <Badge variant="outline" className="text-xs gap-1 text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-950/20"><AlertTriangle className="h-3 w-3" />{kw.failedAttempts}/5 failures</Badge>}
+                </div>
+
+                {/* Pending leads */}
+                {job?.pendingLeads && job.pendingLeads.length > 0 && (
+                  <button onClick={() => openSaveDialog(kw)} className="w-full inline-flex items-center justify-center gap-1.5 rounded-md border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100 dark:border-blue-700 dark:bg-blue-950/30 dark:text-blue-400 dark:hover:bg-blue-950/50 transition-colors">
+                    <Inbox className="h-3.5 w-3.5" />{job.pendingLeads.length} leads ready — click to save
+                  </button>
+                )}
+
+                {/* Status */}
+                {runningId === kw.id ? (
+                  <div className="flex items-center gap-1.5 text-xs font-medium text-blue-600 dark:text-blue-400">
+                    <Loader2 className="h-3 w-3 animate-spin shrink-0" /><span className="truncate">{runningLabel}</span>
+                  </div>
+                ) : job ? (
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {job.status === "completed" && <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-400"><CheckCircle2 className="h-3 w-3" />{job.leadsDiscovered} scraped</span>}
+                    {job.status === "running" && <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 px-2 py-0.5 text-xs font-medium text-blue-700 dark:text-blue-400"><Loader2 className="h-3 w-3 animate-spin" />Scraping…</span>}
+                    {job.status === "failed" && <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800 px-2 py-0.5 text-xs font-medium text-rose-600 dark:text-rose-400"><AlertTriangle className="h-3 w-3" />Failed</span>}
+                    <span className="text-xs text-muted-foreground">{relativeTime(job.createdAt)}</span>
+                  </div>
+                ) : (
+                  <span className="text-xs text-muted-foreground">No runs yet</span>
+                )}
+
+                {/* Schedule info */}
+                <div className="text-xs text-muted-foreground space-y-0.5 border-t pt-2">
+                  <div className="flex justify-between"><span>Schedule</span><span className="font-medium text-foreground">{intervalLabel(kw.intervalHours)}</span></div>
+                  <div className="flex justify-between"><span>Last run</span><span>{relativeTime(kw.lastRunAt)}</span></div>
+                  <div className="flex justify-between"><span>Next</span><span>{kw.enabled ? nextRunLabel(kw.nextRunAt) : "Paused"}</span></div>
+                </div>
+
+                {kw.lastError && <p className="text-xs text-rose-500 truncate">Error: {kw.lastError}</p>}
+
+                {/* Actions */}
+                <div className="flex items-center gap-1 pt-1">
+                  <Button size="sm" variant="outline" className="gap-1.5 h-8 flex-1" onClick={() => handleRunNow(kw.id)} disabled={runningId === kw.id}>
+                    {runningId === kw.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
+                    {runningId === kw.id ? "Running…" : "Run now"}
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-8 w-8 p-0 text-muted-foreground hover:text-rose-500"
-                    onClick={() => setDeleteConfirm(kw.id)}
-                    title="Delete"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
+                  <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground" onClick={() => openEdit(kw)} title="Edit"><Pencil className="h-3.5 w-3.5" /></Button>
+                  <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-muted-foreground hover:text-rose-500" onClick={() => setDeleteConfirm(kw.id)} title="Delete"><Trash2 className="h-3.5 w-3.5" /></Button>
                 </div>
               </div>
             );
