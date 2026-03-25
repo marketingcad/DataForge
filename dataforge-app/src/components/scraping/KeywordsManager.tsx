@@ -455,7 +455,9 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
                       {job.status === "completed" && job.leadsDiscovered > 0 && (
                         <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 px-2.5 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-400">
                           <CheckCircle2 className="h-3 w-3" />
-                          {job.leadsProcessed} saved{job.duplicatesFound > 0 ? ` · ${job.duplicatesFound} skipped` : ""}
+                          {job.leadsProcessed > 0
+                            ? `${job.leadsProcessed} saved${job.duplicatesFound > 0 ? ` · ${job.duplicatesFound} skipped` : ""}`
+                            : `${job.leadsDiscovered} scraped`}
                         </span>
                       )}
                       {job.status === "completed" && job.leadsDiscovered === 0 && (
@@ -534,7 +536,9 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
                     {job.status === "completed" && job.leadsDiscovered > 0 && (
                       <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-400">
                         <CheckCircle2 className="h-3 w-3" />
-                        {job.leadsProcessed} saved{job.duplicatesFound > 0 ? ` · ${job.duplicatesFound} skipped` : ""}
+                        {job.leadsProcessed > 0
+                          ? `${job.leadsProcessed} saved${job.duplicatesFound > 0 ? ` · ${job.duplicatesFound} skipped` : ""}`
+                          : `${job.leadsDiscovered} scraped`}
                       </span>
                     )}
                     {job.status === "completed" && job.leadsDiscovered === 0 && (
