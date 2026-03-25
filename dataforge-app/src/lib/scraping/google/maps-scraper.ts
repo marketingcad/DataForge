@@ -458,9 +458,13 @@ export async function scrapeGoogleMapsHeadless(
     const page = await context.newPage();
     page.setDefaultTimeout(15000); // cap all Playwright ops so nothing hangs forever
 
-    // ── Step 1: open Google Maps search page ──────────────────────────────────
-    onLog?.("Opening Google Maps…");
-    await page.goto("https://www.google.com/maps/search/", {
+    // ── Step 1: navigate directly to the Maps search URL ─────────────────────
+    // e.g. https://www.google.com/maps/search/shawarma+chicago/
+    const searchUrl =
+      "https://www.google.com/maps/search/" +
+      encodeURIComponent(searchQuery).replace(/%20/g, "+") + "/";
+    onLog?.(`Opening Google Maps search…`);
+    await page.goto(searchUrl, {
       waitUntil: "domcontentloaded",
       timeout: 30000,
     });
@@ -477,25 +481,6 @@ export async function scrapeGoogleMapsHeadless(
         onLog?.("Accepted consent dialog");
       }
     } catch { /* no consent wall */ }
-
-    // ── Step 2: type the search query ─────────────────────────────────────────
-    onLog?.(`Searching for "${searchQuery}"…`);
-    // Try progressively broader selectors in case Google Maps changes its DOM
-    const input = page.locator(
-      'div[aria-label="Google Maps"] div[role="search"] form input, ' +
-      'div[aria-label="Google Maps"] input[type="text"], ' +
-      'input#searchboxinput, ' +
-      'input[aria-label*="Search"], ' +
-      'input[placeholder*="Search"]'
-    ).first();
-    await input.waitFor({ state: "visible", timeout: 15000 });
-    await input.click();
-    await sleep(200);
-    for (const char of searchQuery) {
-      await page.keyboard.type(char, { delay: randInt(20, 50) });
-    }
-    await sleep(200);
-    await page.keyboard.press("Enter");
 
     // ── CAPTCHA detector ──────────────────────────────────────────────────────
     const hasCaptcha = async (): Promise<boolean> => {
@@ -602,14 +587,31 @@ export async function scrapeGoogleMapsHeadless(
             if (leadTimedOut) return;
 
             // ── Extract contact data ───────────────────────────────────────────
-            const details = await page.evaluate(() => {
+            // Scope extraction to the panel for this specific business
+            // (identified by aria-label="<businessName>") so we never
+            // accidentally read data from a previously-opened stale panel.
+            const details = await page.evaluate((name: string) => {
+              // Find the panel whose aria-label matches the business name
+              let panel: HTMLElement | null = null;
+              const candidates = document.querySelectorAll("[aria-label]");
+              for (let i = 0; i < candidates.length; i++) {
+                if (candidates[i].getAttribute("aria-label") === name) {
+                  panel = candidates[i] as HTMLElement;
+                  break;
+                }
+              }
+              // Fall back to whole document if panel not found
+              const root: HTMLElement = panel ?? document.body;
+
               function getText(sel: string): string {
-                const el = document.querySelector(sel);
+                const el = root.querySelector(sel);
                 return (el as HTMLElement | null)?.innerText?.trim() ?? "";
               }
+
               const address = getText('[data-item-id="address"]') || undefined;
               const phone   = getText('[data-tooltip="Copy phone number"]') || undefined;
               const website = getText('[data-tooltip="Open website"]') || undefined;
+
               let city: string | undefined, state: string | undefined;
               if (address) {
                 const parts = address.split(",").map((s: string) => s.trim());
@@ -619,7 +621,7 @@ export async function scrapeGoogleMapsHeadless(
                 }
               }
               return { address, phone, website, city, state };
-            }).catch(() => null);
+            }, businessName).catch(() => null);
 
             if (leadTimedOut || !details) return;
 
