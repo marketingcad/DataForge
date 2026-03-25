@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,6 +25,7 @@ import {
 import {
   Plus,
   Play,
+  Square,
   Trash2,
   Clock,
   MapPin,
@@ -157,6 +158,53 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
   const [runningId, setRunningId] = useState<string | null>(null);
   const [runningLabel, setRunningLabel] = useState<string>("Starting…");
   const [runToast, setRunToast] = useState<{ id: string; msg: string; ok: boolean } | null>(null);
+
+  // On mount, resume live polling if any keyword already has a running job
+  useEffect(() => {
+    const runningKw = keywords.find((k) => k.jobs[0]?.status === "running");
+    if (runningKw && runningKw.jobs[0]) {
+      resumePolling(runningKw.id, runningKw.jobs[0].id);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function resumePolling(kwId: string, jobId: string) {
+    setRunningId(kwId);
+    setRunningLabel("Reconnecting…");
+    const MAX_POLLS = 60;
+    let completionHandled = false;
+    for (let i = 0; i < MAX_POLLS; i++) {
+      await new Promise((r) => setTimeout(r, 10000));
+      try {
+        const poll = await fetch(`/api/scraping/jobs/${jobId}`);
+        if (!poll.ok) break;
+        const job = await poll.json();
+        if (job.status === "running") {
+          const countSuffix = job.leadsDiscovered > 0 ? ` (${job.leadsDiscovered} found)` : "";
+          setRunningLabel((job.errorMessage || "Searching Google Maps…") + countSuffix);
+        }
+        if (job.status === "completed" || job.status === "failed") {
+          applyJobResult(kwId, jobId, job);
+          completionHandled = true;
+          break;
+        }
+      } catch { break; }
+    }
+    setRunningId(null);
+    if (!completionHandled) {
+      try {
+        const p = await fetch(`/api/scraping/jobs/${jobId}`);
+        if (p.ok) applyJobResult(kwId, jobId, await p.json());
+      } catch { /* ignore */ }
+    }
+    setTimeout(() => setRunToast(null), 12000);
+  }
+
+  async function handleStop(kwId: string, jobId: string) {
+    setRunningLabel("Stopping…");
+    await fetch(`/api/scraping/jobs/${jobId}/cancel`, { method: "POST" }).catch(() => null);
+    // The cancel route marks it failed; polling loop will pick it up
+  }
 
   function openEdit(kw: KeywordRow) {
     setEditTarget(kw);
@@ -577,10 +625,17 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
                   {kw.lastError && <p className="text-xs text-rose-500 truncate max-w-xl">Error: {kw.lastError}</p>}
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
-                  <Button size="sm" variant="outline" className="gap-1.5 h-8" onClick={() => handleRunNow(kw.id)} disabled={runningId === kw.id}>
-                    {runningId === kw.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
-                    {runningId === kw.id ? runningLabel : "Run now"}
-                  </Button>
+                  {runningId === kw.id ? (
+                    <Button size="sm" variant="outline" className="gap-1.5 h-8 text-rose-600 border-rose-300 hover:bg-rose-50" onClick={() => job && handleStop(kw.id, job.id)}>
+                      <Square className="h-3.5 w-3.5" />
+                      Stop
+                    </Button>
+                  ) : (
+                    <Button size="sm" variant="outline" className="gap-1.5 h-8" onClick={() => handleRunNow(kw.id)}>
+                      <Play className="h-3.5 w-3.5" />
+                      Run now
+                    </Button>
+                  )}
                   <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground" onClick={() => openEdit(kw)} title="Edit"><Pencil className="h-3.5 w-3.5" /></Button>
                   <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-muted-foreground hover:text-rose-500" onClick={() => setDeleteConfirm(kw.id)} title="Delete"><Trash2 className="h-3.5 w-3.5" /></Button>
                 </div>
@@ -660,11 +715,18 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
                 {kw.lastError && <p className="text-xs text-rose-500 truncate">Error: {kw.lastError}</p>}
 
                 {/* Actions */}
-                <div className="flex items-center gap-1 pt-1 mt-atuo">
-                  <Button size="sm" variant="outline" className="gap-1.5 h-8 flex-1" onClick={() => handleRunNow(kw.id)} disabled={runningId === kw.id}>
-                    {runningId === kw.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
-                    {runningId === kw.id ? "Running…" : "Run now"}
-                  </Button>
+                <div className="flex items-center gap-1 pt-1 mt-auto">
+                  {runningId === kw.id ? (
+                    <Button size="sm" variant="outline" className="gap-1.5 h-8 flex-1 text-rose-600 border-rose-300 hover:bg-rose-50" onClick={() => job && handleStop(kw.id, job.id)}>
+                      <Square className="h-3.5 w-3.5" />
+                      Stop
+                    </Button>
+                  ) : (
+                    <Button size="sm" variant="outline" className="gap-1.5 h-8 flex-1" onClick={() => handleRunNow(kw.id)}>
+                      <Play className="h-3.5 w-3.5" />
+                      Run now
+                    </Button>
+                  )}
                   <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground" onClick={() => openEdit(kw)} title="Edit"><Pencil className="h-3.5 w-3.5" /></Button>
                   <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-muted-foreground hover:text-rose-500" onClick={() => setDeleteConfirm(kw.id)} title="Delete"><Trash2 className="h-3.5 w-3.5" /></Button>
                 </div>

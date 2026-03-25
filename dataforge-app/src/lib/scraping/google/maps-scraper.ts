@@ -462,7 +462,7 @@ export async function scrapeGoogleMapsHeadless(
       waitUntil: "domcontentloaded",
       timeout: 30000,
     });
-    await sleep(1500);
+    await sleep(800);
 
     // Accept consent wall if present
     try {
@@ -482,11 +482,11 @@ export async function scrapeGoogleMapsHeadless(
       'div[aria-label="Google Maps"] div[role="search"] form input'
     ).first();
     await input.click();
-    await sleep(300);
+    await sleep(200);
     for (const char of searchQuery) {
-      await page.keyboard.type(char, { delay: randInt(40, 90) });
+      await page.keyboard.type(char, { delay: randInt(20, 50) });
     }
-    await sleep(400);
+    await sleep(200);
     await page.keyboard.press("Enter");
 
     // ── Step 3: wait for the results feed ─────────────────────────────────────
@@ -497,7 +497,7 @@ export async function scrapeGoogleMapsHeadless(
       onLog?.("No results feed appeared — possible CAPTCHA or layout change");
       return leads;
     }
-    await sleep(1000);
+    await sleep(600);
 
     // Track which articles we have already processed (by name)
     const seen = new Set<string>();
@@ -526,7 +526,7 @@ export async function scrapeGoogleMapsHeadless(
         if (!businessName || seen.has(businessName)) continue;
         seen.add(businessName);
 
-        onLog?.(`[${leads.length + 1}] ${businessName}`);
+        onLog?.(`Scanning result ${leads.length + 1} of ${maxLeads}…`);
 
         // Read current panel heading so we can detect when it changes
         const h1Before = await page.evaluate(() => {
@@ -537,12 +537,9 @@ export async function scrapeGoogleMapsHeadless(
         // Click the article — force:true ensures the click fires even if the
         // element is partially covered by the map or a sticky header
         await article.click({ timeout: 5000, force: true }).catch(() => null);
-        onLog?.(`Loading "${businessName}"…`);
+        onLog?.(`Opening details panel…`);
 
         // ── Wait for the detail panel to open ─────────────────────────────────
-        // We wait for the page's first <h1> to change from what it was before
-        // clicking. This works whether Google Maps uses URL navigation or an
-        // in-place slide-in panel, and avoids stale-data reads.
         try {
           await page.waitForFunction(
             (prev: string) => {
@@ -551,15 +548,14 @@ export async function scrapeGoogleMapsHeadless(
               return text.length > 0 && text !== prev;
             },
             h1Before,
-            { timeout: 8000 }
+            { timeout: 6000 }
           );
         } catch {
-          // h1 didn't change — still give the panel a moment to settle
-          await sleep(2500);
+          await sleep(1500);
         }
 
         // Small extra wait for lazy-loaded contact fields
-        await sleep(500);
+        await sleep(300);
 
         // ── Step 5: extract contact data ───────────────────────────────────────
         const details = await page.evaluate(() => {
@@ -583,7 +579,7 @@ export async function scrapeGoogleMapsHeadless(
           return { address, phone, website, city, state };
         });
 
-        onLog?.(`✓ ${businessName}${details.phone ? ` · ${details.phone}` : ""}${details.address ? ` · ${details.address.split(",")[0]}` : " · no details"}`);
+        onLog?.(`Lead ${leads.length + 1} extracted — found ${[details.phone && "phone", details.address && "address", details.website && "website"].filter(Boolean).join(", ") || "name only"}`);
 
         const lead = {
           businessName,
@@ -602,24 +598,22 @@ export async function scrapeGoogleMapsHeadless(
 
         // Close the detail panel and wait for the feed to be visible again
         await page.keyboard.press("Escape");
-        await sleep(800);
-        // If the feed is gone (full-page navigation happened), go back
+        await sleep(500);
         const feedVisible = await page.locator('div[role="feed"]').isVisible().catch(() => false);
         if (!feedVisible) {
           await page.goBack({ waitUntil: "domcontentloaded", timeout: 10000 }).catch(() => null);
-          await sleep(1000);
+          await sleep(600);
         }
       }
 
       if (!gotNewLead) {
         staleRounds++;
-        onLog?.(`Scrolling for more… (${leads.length} leads so far)`);
-        // Scroll the feed panel to reveal more results
+        onLog?.(`Scrolling for more results… (${leads.length} found so far)`);
         await page.evaluate(() => {
           const feed = document.querySelector('div[role="feed"]');
           if (feed) feed.scrollTop += 1400;
         });
-        await sleep(1800);
+        await sleep(1200);
       } else {
         staleRounds = 0;
       }
