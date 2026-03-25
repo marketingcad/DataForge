@@ -363,7 +363,9 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
 
     // Poll job until completed or failed
     setRunningLabel("Starting browser…");
-    const MAX_POLLS = 60; // 5 min max (5s interval)
+    const MAX_POLLS = 72; // 6 min max (5s interval)
+    let completionHandled = false;
+
     for (let i = 0; i < MAX_POLLS; i++) {
       await new Promise((r) => setTimeout(r, 5000));
       try {
@@ -371,63 +373,23 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
         if (!poll.ok) break;
         const job = await poll.json();
 
-        // Show live status based on job phase
+        // Live status label
         if (job.status === "pending") {
           setRunningLabel(`Starting browser… (${Math.round((i + 1) * 5)}s)`);
         } else if (job.status === "running") {
-          // Always prefer the live log message — it has the most specific status.
-          // Append lead count in parentheses when some have been found.
-          const countSuffix = job.leadsDiscovered > 0
-            ? ` (${job.leadsDiscovered} found)`
-            : "";
-          if (job.errorMessage) {
-            setRunningLabel(job.errorMessage + countSuffix);
-          } else {
-            setRunningLabel("Searching Google Maps…" + countSuffix);
-          }
+          const countSuffix = job.leadsDiscovered > 0 ? ` (${job.leadsDiscovered} found)` : "";
+          setRunningLabel((job.errorMessage || "Searching Google Maps…") + countSuffix);
         }
 
-        if (job.status === "completed") {
-          const pendingLeads = (job.pendingLeads as PendingLead[] | null) ?? [];
-          // Update keyword row locally with the new job data
-          setKeywords((prev) =>
-            prev.map((k) =>
-              k.id === kwId
-                ? {
-                    ...k,
-                    lastRunAt: new Date().toISOString(),
-                    jobs: [
-                      {
-                        id: jobId,
-                        status: "completed",
-                        leadsDiscovered: job.leadsDiscovered,
-                        leadsProcessed: job.leadsProcessed,
-                        pendingLeads: pendingLeads.length > 0 ? pendingLeads : null,
-                        errorMessage: (job.errorMessage as string | null) ?? null,
-                        createdAt: new Date().toISOString(),
-                      },
-                      ...k.jobs.slice(0, 4),
-                    ],
-                  }
-                : k
-            )
-          );
-          if (pendingLeads.length > 0) {
-            setRunToast({ id: kwId, msg: `Done! ${pendingLeads.length} leads ready — click the badge to save them.`, ok: true });
-          } else {
-            setRunToast({ id: kwId, msg: "Scraping done — no new leads found.", ok: true });
+        if (job.status === "completed" || job.status === "failed") {
+          applyJobResult(kwId, jobId, job);
+          completionHandled = true;
+          if (job.status === "failed") {
+            setTimeout(() => setRunningId(null), 15000);
+            setTimeout(() => setRunToast(null), 15000);
+            return;
           }
           break;
-        }
-
-        if (job.status === "failed") {
-          const errMsg = job.errorMessage ?? "Unknown error";
-          setRunningLabel(`Failed: ${errMsg}`);
-          setRunToast({ id: kwId, msg: `Failed: ${errMsg}`, ok: false });
-          // Leave runningId set so user sees the error on the row, clear after delay
-          setTimeout(() => setRunningId(null), 15000);
-          setTimeout(() => setRunToast(null), 15000);
-          return;
         }
       } catch {
         break;
@@ -435,7 +397,59 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
     }
 
     setRunningId(null);
-    setTimeout(() => setRunToast(null), 10000);
+
+    // If the loop ended without seeing a terminal status (e.g. Vercel function
+    // timed out before writing "completed"), do one final check so we don't
+    // leave the user stranded with "No runs yet" when leads were saved.
+    if (!completionHandled) {
+      try {
+        const finalPoll = await fetch(`/api/scraping/jobs/${jobId}`);
+        if (finalPoll.ok) {
+          const job = await finalPoll.json();
+          applyJobResult(kwId, jobId, job);
+          completionHandled = true;
+        }
+      } catch { /* ignore */ }
+
+      if (!completionHandled) {
+        setRunToast({ id: kwId, msg: "Scraping is taking longer than expected — refresh the page to see results.", ok: false });
+      }
+    }
+
+    setTimeout(() => setRunToast(null), 12000);
+  }
+
+  function applyJobResult(kwId: string, jobId: string, job: { status: string; leadsDiscovered: number; leadsProcessed: number; pendingLeads: unknown; errorMessage: string | null }) {
+    const pendingLeads = (job.pendingLeads as PendingLead[] | null) ?? [];
+    setKeywords((prev) =>
+      prev.map((k) =>
+        k.id === kwId
+          ? {
+              ...k,
+              lastRunAt: new Date().toISOString(),
+              jobs: [
+                {
+                  id: jobId,
+                  status: job.status,
+                  leadsDiscovered: job.leadsDiscovered,
+                  leadsProcessed: job.leadsProcessed,
+                  pendingLeads: pendingLeads.length > 0 ? pendingLeads : null,
+                  errorMessage: job.errorMessage ?? null,
+                  createdAt: new Date().toISOString(),
+                },
+                ...k.jobs.slice(0, 4),
+              ],
+            }
+          : k
+      )
+    );
+    if (job.status === "failed") {
+      setRunToast({ id: kwId, msg: `Failed: ${job.errorMessage ?? "Unknown error"}`, ok: false });
+    } else if (pendingLeads.length > 0) {
+      setRunToast({ id: kwId, msg: `Done! ${pendingLeads.length} leads ready — click the badge to save them.`, ok: true });
+    } else {
+      setRunToast({ id: kwId, msg: "Scraping done — no new leads found.", ok: true });
+    }
   }
 
   return (
