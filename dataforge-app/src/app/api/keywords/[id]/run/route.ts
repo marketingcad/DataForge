@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { getKeywordById } from "@/lib/keywords/service";
 import { createJob } from "@/lib/scraping/jobs/service";
+import { prisma } from "@/lib/prisma";
 
 const ALLOWED_ROLES = ["boss", "admin", "lead_data_analyst"];
 
@@ -22,6 +23,15 @@ export async function POST(
     return NextResponse.json({ error: "Keyword not found" }, { status: 404 });
   }
 
+  // Don't start a second job if one is already running or pending for this keyword
+  const active = await prisma.scrapingJob.findFirst({
+    where: { keywordId: id, status: { in: ["pending", "running"] } },
+    select: { id: true },
+  });
+  if (active) {
+    return NextResponse.json({ jobId: active.id, alreadyRunning: true }, { status: 200 });
+  }
+
   const job = await createJob({
     industry: kw.keyword,
     location: kw.location,
@@ -30,6 +40,5 @@ export async function POST(
     keywordId: id,
   });
 
-  // Return the jobId — the client calls /process directly to avoid Vercel killing fire-and-forget
   return NextResponse.json({ jobId: job.id }, { status: 201 });
 }
