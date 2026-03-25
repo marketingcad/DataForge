@@ -590,7 +590,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
                     {!kw.enabled && !isDisabledByFailure && <Badge variant="outline" className="text-xs text-muted-foreground">Paused</Badge>}
                     {kw.enabled && !hasFailed && <Badge variant="secondary" className="text-xs gap-1 text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800"><CheckCircle2 className="h-3 w-3" />Active</Badge>}
                     {hasFailed && kw.enabled && <Badge variant="outline" className="text-xs gap-1 text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-950/20"><AlertTriangle className="h-3 w-3" />{kw.failedAttempts}/5 failures</Badge>}
-                    {job?.status === "completed" && job?.pendingLeads && job.pendingLeads.length > 0 && (
+                    {job?.pendingLeads && job.pendingLeads.length > 0 && (
                       <button onClick={() => openSaveDialog(kw)} className="inline-flex items-center gap-1 rounded-full border border-blue-300 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 hover:bg-blue-100 dark:border-blue-700 dark:bg-blue-950/30 dark:text-blue-400 dark:hover:bg-blue-950/50 transition-colors">
                         <Inbox className="h-3 w-3" />{job.pendingLeads.length} leads ready — click to save
                       </button>
@@ -677,7 +677,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
                 </div>
 
                 {/* Pending leads */}
-                {job?.status === "completed" && job?.pendingLeads && job.pendingLeads.length > 0 && (
+                {job?.pendingLeads && job.pendingLeads.length > 0 && (
                   <button onClick={() => openSaveDialog(kw)} className="w-full inline-flex items-center justify-center gap-1.5 rounded-md border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100 dark:border-blue-700 dark:bg-blue-950/30 dark:text-blue-400 dark:hover:bg-blue-950/50 transition-colors">
                     <Inbox className="h-3.5 w-3.5" />{job.pendingLeads.length} leads ready
                   </button>
