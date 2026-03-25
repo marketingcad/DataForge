@@ -63,6 +63,7 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
     return false;
   };
 
+  const collectedLeads: Awaited<ReturnType<typeof scrapeGoogleMapsHeadless>> = [];
   let savedCount = 0;
   let dupCount   = 0;
   let lastLogMsg = "";
@@ -81,8 +82,10 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
           data: { errorMessage: msg },
         }).catch(() => {});
       },
-      // Save each lead to the DB immediately as it is scraped
+      // Save each lead to the DB immediately as it is scraped,
+      // and also keep it in pendingLeads so the badge + modal still work.
       async (lead: import("@/lib/scraping/google/maps-scraper").SerpLead, count: number) => {
+        collectedLeads.push(lead);
         try {
           const result = await insertLead({
             businessName: lead.businessName,
@@ -105,6 +108,7 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
             leadsDiscovered: count,
             leadsProcessed:  savedCount,
             duplicatesFound: dupCount,
+            pendingLeads:    collectedLeads as never,
           },
         }).catch(() => {});
       },
@@ -143,15 +147,17 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
     return NextResponse.json({ status: currentStatus?.status ?? "failed" });
   }
 
+  const finalLeads = leads.length > 0 ? leads : collectedLeads;
   await prisma.scrapingJob.update({
     where: { id },
     data: {
       status:          "completed",
       completedTime:   new Date(),
-      leadsDiscovered: leads.length,
+      leadsDiscovered: finalLeads.length,
       leadsProcessed:  savedCount,
       duplicatesFound: dupCount,
-      errorMessage:    leads.length > 0 ? null : (lastLogMsg || "No leads found"),
+      pendingLeads:    finalLeads.length > 0 ? (finalLeads as never) : (null as never),
+      errorMessage:    finalLeads.length > 0 ? null : (lastLogMsg || "No leads found"),
     },
   });
 
