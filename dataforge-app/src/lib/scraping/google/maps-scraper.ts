@@ -440,7 +440,7 @@ export async function scrapeGoogleMapsHeadless(
   location: string,
   maxLeads: number,
   onLog?: (msg: string) => void,
-  onLead?: (lead: SerpLead, count: number) => void
+  onLead?: (lead: SerpLead, count: number) => Promise<void> | void
 ): Promise<SerpLead[]> {
   const leads: SerpLead[] = [];
   const searchQuery = `${keyword} ${location}`;
@@ -587,7 +587,9 @@ export async function scrapeGoogleMapsHeadless(
         };
 
         leads.push(lead);
-        onLead?.(lead, leads.length);
+        // Await the callback so each DB write completes before the next lead
+        // is processed — prevents race conditions that corrupt pendingLeads
+        await onLead?.(lead, leads.length);
         gotNewLead = true;
 
         // Close the detail panel and wait for the feed to be visible again

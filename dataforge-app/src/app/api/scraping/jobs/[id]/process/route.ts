@@ -65,10 +65,12 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
           data: { errorMessage: msg },
         }).catch(() => {});
       },
-      (lead, count) => {
-        // Save lead progressively — if function times out, partial results survive
+      async (lead, count) => {
+        // Await the DB write so each save completes before the next lead is
+        // processed. This prevents a race where an older write (smaller array)
+        // arrives after a newer one and silently overwrites the DB with fewer leads.
         collectedLeads.push(lead);
-        prisma.scrapingJob.update({
+        await prisma.scrapingJob.update({
           where: { id },
           data: {
             leadsDiscovered: count,
