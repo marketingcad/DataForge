@@ -561,20 +561,28 @@ export async function scrapeGoogleMapsHeadless(
         await Promise.race([
           (async () => {
             // Click the article
-            const urlBefore = page.url();
             await article.click({ timeout: 5000, force: true }).catch(() => null);
             onLog?.(`Opening details panel…`);
 
-            // ── Wait for Google Maps to navigate to the place URL ──────────────
-            // Much more reliable than watching for h1 changes
-            await page.waitForURL((u) => u.toString() !== urlBefore, { timeout: 8000 })
-              .catch(() =>
-                // Fallback: wait for any detail panel selector to appear
-                page.waitForSelector(
-                  '[data-item-id="address"], [data-tooltip="Copy phone number"], [data-tooltip="Open website"]',
-                  { timeout: 4000 }
-                ).catch(() => null)
-              );
+            // ── Wait for the popup panel to open ──────────────────────────────
+            // Google Maps opens an in-page popup (not a navigation).
+            // The popup element has aria-label="<business name>".
+            // Fallback: wait for any of the known data-field selectors.
+            await page.waitForFunction(
+              (name: string) => {
+                // Check for popup with matching aria-label
+                const els = document.querySelectorAll("[aria-label]");
+                for (let i = 0; i < els.length; i++) {
+                  if (els[i].getAttribute("aria-label") === name) return true;
+                }
+                // Fallback: any detail-panel field is visible
+                return !!document.querySelector('[data-item-id="address"]') ||
+                       !!document.querySelector('[data-tooltip="Copy phone number"]') ||
+                       !!document.querySelector('[data-tooltip="Open website"]');
+              },
+              businessName,
+              { timeout: 8000 }
+            ).catch(() => null);
 
             if (leadTimedOut) return; // timed out while waiting for panel
 
