@@ -8,7 +8,7 @@ import { insertLead } from "@/lib/leads/service";
 import { onKeywordJobSuccess, onKeywordJobFailure, getKeywordById } from "@/lib/keywords/service";
 import { createNotification, createNotificationsForRole } from "@/lib/notifications/service";
 
-export const maxDuration = 300;
+export const maxDuration = 1800; // 30 minutes
 
 const CHUNK_SIZE = 5;
 const MAX_KEYWORD_FAILURES = 5;
@@ -53,22 +53,20 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
 
   let leads: Awaited<ReturnType<typeof scrapeGoogleMapsHeadless>>;
   try {
+    // Leave 3 min buffer before the 30 min hard limit for final DB writes
+    const MAX_SCRAPE_MS = 27 * 60 * 1000;
     leads = await scrapeGoogleMapsHeadless(
       job.industry,
       job.location,
       job.maxLeads,
       (msg) => {
         lastLogMsg = msg;
-        // Write live status into errorMessage so UI polling can display it
         prisma.scrapingJob.update({
           where: { id },
           data: { errorMessage: msg },
         }).catch(() => {});
       },
-      async (lead, count) => {
-        // Await the DB write so each save completes before the next lead is
-        // processed. This prevents a race where an older write (smaller array)
-        // arrives after a newer one and silently overwrites the DB with fewer leads.
+      async (lead: import("@/lib/scraping/google/maps-scraper").SerpLead, count: number) => {
         collectedLeads.push(lead);
         await prisma.scrapingJob.update({
           where: { id },
@@ -77,7 +75,8 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
             pendingLeads: collectedLeads as never,
           },
         }).catch(() => {});
-      }
+      },
+      MAX_SCRAPE_MS
     );
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : "Browser scrape failed";

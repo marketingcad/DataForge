@@ -440,10 +440,12 @@ export async function scrapeGoogleMapsHeadless(
   location: string,
   maxLeads: number,
   onLog?: (msg: string) => void,
-  onLead?: (lead: SerpLead, count: number) => Promise<void> | void
+  onLead?: (lead: SerpLead, count: number) => Promise<void> | void,
+  maxRuntimeMs?: number
 ): Promise<SerpLead[]> {
   const leads: SerpLead[] = [];
   const searchQuery = `${keyword} ${location}`;
+  const startedAt = Date.now();
 
   let browser: import("playwright").Browser | null = null;
   let context: import("playwright").BrowserContext | null = null;
@@ -503,6 +505,12 @@ export async function scrapeGoogleMapsHeadless(
 
     // ── Step 4: scrape loop ────────────────────────────────────────────────────
     while (leads.length < maxLeads && staleRounds < 4) {
+      // Stop early if we're approaching the caller's time limit so the
+      // process route still has time to write the final "completed" status
+      if (maxRuntimeMs && Date.now() - startedAt >= maxRuntimeMs) {
+        onLog?.(`Time limit reached — saving ${leads.length} lead${leads.length !== 1 ? "s" : ""} collected so far`);
+        break;
+      }
       const childDivs = await page.locator('div[role="feed"] > div').all();
       let gotNewLead = false;
 

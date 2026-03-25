@@ -363,11 +363,11 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
 
     // Poll job until completed or failed
     setRunningLabel("Starting browser…");
-    const MAX_POLLS = 72; // 6 min max (5s interval)
+    const MAX_POLLS = 180; // 30 min max (10s interval)
     let completionHandled = false;
 
     for (let i = 0; i < MAX_POLLS; i++) {
-      await new Promise((r) => setTimeout(r, 5000));
+      await new Promise((r) => setTimeout(r, 10000));
       try {
         const poll = await fetch(`/api/scraping/jobs/${jobId}`);
         if (!poll.ok) break;
