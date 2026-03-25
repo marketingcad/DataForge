@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { Prisma } from "@/generated/prisma/client";
 import { getJobById, updateJobStatus, incrementJobMetric } from "@/lib/scraping/jobs/service";
 import { discoverBusinesses } from "@/lib/scraping/google/discovery";
 import { scrapeWebsite } from "@/lib/scraping/crawler/web-scraper";
@@ -64,8 +63,7 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
     return false;
   };
 
-  let savedCount = 0;
-  let dupCount   = 0;
+  const collectedLeads: Awaited<ReturnType<typeof scrapeGoogleMapsHeadless>> = [];
   let lastLogMsg = "";
 
   let leads: Awaited<ReturnType<typeof scrapeGoogleMapsHeadless>>;
@@ -82,32 +80,11 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
           data: { errorMessage: msg },
         }).catch(() => {});
       },
-      // ── Commit each lead immediately as it is scraped ──────────────────────
       async (lead: import("@/lib/scraping/google/maps-scraper").SerpLead, count: number) => {
-        try {
-          const result = await insertLead({
-            businessName: lead.businessName,
-            phone:        lead.phone ?? "N/A",
-            email:        lead.email,
-            website:      lead.website,
-            address:      lead.address,
-            city:         lead.city,
-            state:        lead.state,
-            category:     job.industry,
-            source:       `GoogleMaps:keyword_${job.keywordId}`,
-          });
-          if (result.status === "duplicate") dupCount++;
-          else savedCount++;
-        } catch { /* ignore per-lead errors — move on */ }
-
-        // Update progress counters on every lead
+        collectedLeads.push(lead);
         prisma.scrapingJob.update({
           where: { id },
-          data: {
-            leadsDiscovered: count,
-            leadsProcessed:  savedCount,
-            duplicatesFound: dupCount,
-          },
+          data: { leadsDiscovered: count, pendingLeads: collectedLeads as never },
         }).catch(() => {});
       },
       MAX_SCRAPE_MS,
@@ -115,27 +92,26 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
     );
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : "Browser scrape failed";
-    await prisma.scrapingJob.update({
-      where: { id },
-      data: {
-        status:          savedCount > 0 ? "completed" : "failed",
-        completedTime:   new Date(),
-        leadsProcessed:  savedCount,
-        duplicatesFound: dupCount,
-        errorMessage:    savedCount > 0 ? null : errorMsg,
-      },
-    });
-    if (savedCount === 0) await handleKeywordFailure(job.keywordId!, errorMsg);
-    else {
+    if (collectedLeads.length > 0) {
+      await prisma.scrapingJob.update({
+        where: { id },
+        data: {
+          status:          "completed",
+          completedTime:   new Date(),
+          leadsDiscovered: collectedLeads.length,
+          pendingLeads:    collectedLeads as never,
+          errorMessage:    null,
+        },
+      });
       try {
         const kw = await getKeywordById(job.keywordId!);
         await onKeywordJobSuccess(kw.id, kw.intervalHours);
       } catch { /* keyword may have been deleted */ }
+      return NextResponse.json({ status: "completed", pending: collectedLeads.length });
     }
-    return NextResponse.json(savedCount > 0
-      ? { status: "completed", saved: savedCount, duplicates: dupCount }
-      : { status: "failed", error: errorMsg }
-    );
+    await updateJobStatus(id, "failed", { completedTime: new Date(), errorMessage: errorMsg });
+    await handleKeywordFailure(job.keywordId!, errorMsg);
+    return NextResponse.json({ status: "failed", error: errorMsg });
   }
 
   // Skip final write if job was cancelled externally
@@ -144,16 +120,15 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
     return NextResponse.json({ status: currentStatus?.status ?? "failed" });
   }
 
+  const finalLeads = leads.length > 0 ? leads : collectedLeads;
   await prisma.scrapingJob.update({
     where: { id },
     data: {
       status:          "completed",
       completedTime:   new Date(),
-      leadsDiscovered: leads.length,
-      leadsProcessed:  savedCount,
-      duplicatesFound: dupCount,
-      pendingLeads:    Prisma.DbNull,
-      errorMessage:    leads.length > 0 ? null : (lastLogMsg || "No leads found"),
+      leadsDiscovered: finalLeads.length,
+      pendingLeads:    finalLeads.length > 0 ? (finalLeads as never) : (null as never),
+      errorMessage:    finalLeads.length > 0 ? null : (lastLogMsg || "No leads found"),
     },
   });
 
@@ -162,7 +137,7 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
     await onKeywordJobSuccess(kw.id, kw.intervalHours);
   } catch { /* keyword may have been deleted */ }
 
-  return NextResponse.json({ status: "completed", saved: savedCount, duplicates: dupCount });
+  return NextResponse.json({ status: "completed", pending: finalLeads.length });
 }
 
 // ─── Standard SerpAPI job (unchanged) ─────────────────────────────────────────
