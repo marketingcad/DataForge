@@ -427,6 +427,18 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
         } else if (job.status === "running") {
           const countSuffix = job.leadsDiscovered > 0 ? ` (${job.leadsDiscovered} found)` : "";
           setRunningLabel((job.errorMessage || "Searching Google Maps…") + countSuffix);
+
+          // If leads are already in pendingLeads, surface the badge immediately
+          // so the user can save even before the job status transitions to completed
+          if (job.pendingLeads?.length > 0) {
+            setKeywords((prev) =>
+              prev.map((k) =>
+                k.id === kwId
+                  ? { ...k, jobs: k.jobs.map((j) => j.id === jobId ? { ...j, pendingLeads: job.pendingLeads, leadsDiscovered: job.leadsDiscovered } : j) }
+                  : k
+              )
+            );
+          }
         }
 
         if (job.status === "completed" || job.status === "failed") {
