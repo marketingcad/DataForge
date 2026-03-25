@@ -46,6 +46,10 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
 
   await updateJobStatus(id, "running", { startTime: new Date() });
 
+  // Accumulate leads locally so we can write them progressively to the DB.
+  // This means if Vercel times out mid-scrape, whatever was found is still saved.
+  const collectedLeads: Awaited<ReturnType<typeof scrapeGoogleMapsHeadless>> = [];
+
   let leads: Awaited<ReturnType<typeof scrapeGoogleMapsHeadless>>;
   try {
     leads = await scrapeGoogleMapsHeadless(
@@ -59,29 +63,52 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
           data: { errorMessage: msg },
         }).catch(() => {});
       },
-      (_lead, count) => {
-        // Increment leadsDiscovered live so UI polling shows real-time count
+      (lead, count) => {
+        // Save lead progressively — if function times out, partial results survive
+        collectedLeads.push(lead);
         prisma.scrapingJob.update({
           where: { id },
-          data: { leadsDiscovered: count },
+          data: {
+            leadsDiscovered: count,
+            pendingLeads: collectedLeads as never,
+          },
         }).catch(() => {});
       }
     );
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : "Browser scrape failed";
+    // If we collected some leads before the error, save them instead of failing
+    if (collectedLeads.length > 0) {
+      await prisma.scrapingJob.update({
+        where: { id },
+        data: {
+          status:          "completed",
+          completedTime:   new Date(),
+          leadsDiscovered: collectedLeads.length,
+          pendingLeads:    collectedLeads as never,
+          errorMessage:    null,
+        },
+      });
+      try {
+        const kw = await getKeywordById(job.keywordId!);
+        await onKeywordJobSuccess(kw.id, kw.intervalHours);
+      } catch { /* keyword may have been deleted */ }
+      return NextResponse.json({ status: "completed", pending: collectedLeads.length });
+    }
     await updateJobStatus(id, "failed", { completedTime: new Date(), errorMessage: errorMsg });
     await handleKeywordFailure(job.keywordId!, errorMsg);
     return NextResponse.json({ status: "failed", error: errorMsg });
   }
 
-  // Store leads as pending buffer — user decides where to save them
+  // Final authoritative write — use the returned array (may be same as collectedLeads)
+  const finalLeads = leads.length > 0 ? leads : collectedLeads;
   await prisma.scrapingJob.update({
     where: { id },
     data: {
       status:          "completed",
       completedTime:   new Date(),
-      leadsDiscovered: leads.length,
-      pendingLeads:    leads as never,
+      leadsDiscovered: finalLeads.length,
+      pendingLeads:    finalLeads as never,
       errorMessage:    null, // clear live status log
     },
   });
@@ -92,7 +119,7 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
     await onKeywordJobSuccess(kw.id, kw.intervalHours);
   } catch { /* keyword may have been deleted */ }
 
-  return NextResponse.json({ status: "completed", pending: leads.length });
+  return NextResponse.json({ status: "completed", pending: finalLeads.length });
 }
 
 // ─── Standard SerpAPI job (unchanged) ─────────────────────────────────────────

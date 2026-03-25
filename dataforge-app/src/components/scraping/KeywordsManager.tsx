@@ -148,6 +148,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
   const [folders, setFolders] = useState<{ id: string; name: string; color: string; _count: { leads: number }; industry: { id: string; name: string; color: string } | null }[]>([]);
   const [saving, setSaving] = useState(false);
   const [saveResult, setSaveResult] = useState<{ saved: number; duplicates: number; failed: number } | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // Run now loading state per keyword
   const [runningId, setRunningId] = useState<string | null>(null);
@@ -254,6 +255,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
     setSaveFolderId("none");
     setSaveCategory(kw.keyword);
     setSaveResult(null);
+    setSaveError(null);
     try {
       const f = await getFoldersAction();
       setFolders(f as unknown as typeof folders);
@@ -265,6 +267,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
   async function handleCommit() {
     if (!saveTarget) return;
     setSaving(true);
+    setSaveError(null);
     try {
       const resolvedFolderId = saveFolderId !== "none" ? saveFolderId : undefined;
 
@@ -290,7 +293,12 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
             ),
           }))
         );
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setSaveError(err?.error ?? `Save failed (${res.status})`);
       }
+    } catch {
+      setSaveError("Network error — please try again.");
     } finally {
       setSaving(false);
     }
@@ -831,6 +839,11 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
                   onChange={(e) => setSaveCategory(e.target.value)}
                   className="w-[180px] h-9 text-sm"
                 />
+                {saveError && (
+                  <p className="text-xs text-rose-500 flex items-center gap-1 mr-auto">
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0" />{saveError}
+                  </p>
+                )}
                 <div className="ml-auto flex items-center gap-2">
                   <Button variant="outline" onClick={() => setSaveTarget(null)} disabled={saving}>Cancel</Button>
                   <Button onClick={handleCommit} disabled={saving || selectedIds.size === 0}>
