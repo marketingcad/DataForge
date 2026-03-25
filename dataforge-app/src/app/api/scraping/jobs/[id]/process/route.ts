@@ -67,10 +67,6 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
         }).catch(() => {});
       },
       async (lead: import("@/lib/scraping/google/maps-scraper").SerpLead, count: number) => {
-        // Check if user stopped the job before saving the next lead
-        const current = await prisma.scrapingJob.findUnique({ where: { id }, select: { status: true } });
-        if (current?.status !== "running") throw new Error("__CANCELLED__");
-
         collectedLeads.push(lead);
         await prisma.scrapingJob.update({
           where: { id },
@@ -84,16 +80,6 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
     );
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : "Browser scrape failed";
-    // User stopped the job — status already set to "failed" by cancel route
-    if (errorMsg === "__CANCELLED__") {
-      if (collectedLeads.length > 0) {
-        await prisma.scrapingJob.update({
-          where: { id },
-          data: { pendingLeads: collectedLeads as never, leadsDiscovered: collectedLeads.length },
-        }).catch(() => {});
-      }
-      return NextResponse.json({ status: "failed", error: "Stopped by user" });
-    }
     // If we collected some leads before the error, save them instead of failing
     if (collectedLeads.length > 0) {
       await prisma.scrapingJob.update({
@@ -117,7 +103,12 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
     return NextResponse.json({ status: "failed", error: errorMsg });
   }
 
-  // Final authoritative write — use the returned array (may be same as collectedLeads)
+  // Final authoritative write — skip if job was cancelled while scraper ran
+  const currentStatus = await prisma.scrapingJob.findUnique({ where: { id }, select: { status: true } });
+  if (currentStatus?.status !== "running") {
+    return NextResponse.json({ status: currentStatus?.status ?? "failed" });
+  }
+
   const finalLeads = leads.length > 0 ? leads : collectedLeads;
   await prisma.scrapingJob.update({
     where: { id },
