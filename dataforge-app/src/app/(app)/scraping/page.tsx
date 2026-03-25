@@ -1,13 +1,7 @@
 import { getJobs } from "@/lib/scraping/jobs/service";
 import { getKeywords } from "@/lib/keywords/service";
-import { JobForm } from "@/components/scraping/JobForm";
-import { JobsTable } from "@/components/scraping/JobsTable";
-import { DomainScrapeForm } from "@/components/scraping/DomainScrapeForm";
-import { GoogleScrapeForm } from "@/components/scraping/GoogleScrapeForm";
-import { KeywordsManager } from "@/components/scraping/KeywordsManager";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ScrapingPageTabs } from "@/components/scraping/ScrapingPageTabs";
 import { Separator } from "@/components/ui/separator";
-import { Globe, Layers, ScanSearch, Wand2 } from "lucide-react";
 import { withDbRetry } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 
@@ -35,48 +29,11 @@ export default async function ScrapingPage() {
 
       <Separator />
 
-      <Tabs defaultValue="domain" className="space-y-4">
-        <TabsList className="h-9">
-          <TabsTrigger value="domain" className="flex items-center gap-1.5 text-sm">
-            <Globe className="h-3.5 w-3.5" />
-            Scrape a Website
-          </TabsTrigger>
-          {/* <TabsTrigger value="bulk" className="flex items-center gap-1.5 text-sm">
-            <Layers className="h-3.5 w-3.5" />
-            Bulk by Industry
-          </TabsTrigger> */}
-          <TabsTrigger value="google" className="flex items-center gap-1.5 text-sm">
-            <ScanSearch className="h-3.5 w-3.5" />
-            Search by Google
-          </TabsTrigger>
-          {canUseKeywords && (
-            <TabsTrigger value="keywords" className="flex items-center gap-1.5 text-sm">
-              <Wand2 className="h-3.5 w-3.5" />
-              Auto Keywords
-            </TabsTrigger>
-          )}
-        </TabsList>
-
-        <TabsContent value="domain">
-          <DomainScrapeForm />
-        </TabsContent>
-
-        <TabsContent value="bulk" className="space-y-4">
-          <JobForm />
-          <JobsTable jobs={jobs} />
-        </TabsContent>
-
-        <TabsContent value="google" className="mt-0" style={{ height: "calc(100vh - 14rem)" }}>
-          <GoogleScrapeForm />
-        </TabsContent>
-
-        {canUseKeywords && (
-          <TabsContent value="keywords" forceMount className="space-y-4 data-[state=inactive]:hidden">
-            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-            <KeywordsManager initial={keywords as any} />
-          </TabsContent>
-        )}
-      </Tabs>
+      <ScrapingPageTabs
+        canUseKeywords={canUseKeywords}
+        keywords={keywords as never[]}
+        jobs={jobs}
+      />
     </div>
   );
 }

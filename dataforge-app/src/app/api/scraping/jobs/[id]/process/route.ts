@@ -46,10 +46,11 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
 
   await updateJobStatus(id, "running", { startTime: new Date() });
 
-  // Accumulate leads locally so we can write them progressively to the DB.
-  // This means if Vercel times out mid-scrape, whatever was found is still saved.
-  const collectedLeads: Awaited<ReturnType<typeof scrapeGoogleMapsHeadless>> = [];
-  let lastLogMsg = ""; // track last status so we can show it when 0 leads found
+  // Auto-commit leads directly to the DB as they are found so runs are
+  // incremental — each run adds NEW leads and skips duplicates automatically.
+  let savedCount = 0;
+  let duplicateCount = 0;
+  let lastLogMsg = "";
 
   let leads: Awaited<ReturnType<typeof scrapeGoogleMapsHeadless>>;
   try {
@@ -67,12 +68,28 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
         }).catch(() => {});
       },
       async (lead: import("@/lib/scraping/google/maps-scraper").SerpLead, count: number) => {
-        collectedLeads.push(lead);
+        // Insert lead immediately — dedup logic in insertLead skips existing ones
+        const result = await insertLead({
+          businessName: lead.businessName,
+          phone:        lead.phone ?? "N/A",
+          email:        lead.email,
+          website:      lead.website,
+          address:      lead.address,
+          city:         lead.city,
+          state:        lead.state,
+          category:     job.industry,
+          source:       `GoogleMaps:keyword_${job.keywordId}`,
+        }).catch(() => null);
+
+        if (result?.status === "created") savedCount++;
+        else if (result?.status === "duplicate") duplicateCount++;
+
         await prisma.scrapingJob.update({
           where: { id },
           data: {
             leadsDiscovered: count,
-            pendingLeads: collectedLeads as never,
+            leadsProcessed:  savedCount,
+            duplicatesFound: duplicateCount,
           },
         }).catch(() => {});
       },
@@ -80,50 +97,46 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
     );
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : "Browser scrape failed";
-    // If we collected some leads before the error, save them instead of failing
-    if (collectedLeads.length > 0) {
+    // If some leads were auto-committed before the error, mark as completed
+    if (savedCount > 0 || duplicateCount > 0) {
       await prisma.scrapingJob.update({
         where: { id },
         data: {
-          status:          "completed",
-          completedTime:   new Date(),
-          leadsDiscovered: collectedLeads.length,
-          pendingLeads:    collectedLeads as never,
-          errorMessage:    null,
+          status:        "completed",
+          completedTime: new Date(),
+          errorMessage:  null,
         },
       });
       try {
         const kw = await getKeywordById(job.keywordId!);
         await onKeywordJobSuccess(kw.id, kw.intervalHours);
       } catch { /* keyword may have been deleted */ }
-      return NextResponse.json({ status: "completed", pending: collectedLeads.length });
+      return NextResponse.json({ status: "completed", saved: savedCount });
     }
     await updateJobStatus(id, "failed", { completedTime: new Date(), errorMessage: errorMsg });
     await handleKeywordFailure(job.keywordId!, errorMsg);
     return NextResponse.json({ status: "failed", error: errorMsg });
   }
 
-  // Final authoritative write — use the returned array (may be same as collectedLeads)
-  const finalLeads = leads.length > 0 ? leads : collectedLeads;
+  const totalFound = leads.length;
   await prisma.scrapingJob.update({
     where: { id },
     data: {
       status:          "completed",
       completedTime:   new Date(),
-      leadsDiscovered: finalLeads.length,
-      pendingLeads:    finalLeads as never,
-      // Keep last log message when 0 leads found so the UI can show why
-      errorMessage: finalLeads.length > 0 ? null : (lastLogMsg || "No leads found"),
+      leadsDiscovered: totalFound,
+      leadsProcessed:  savedCount,
+      duplicatesFound: duplicateCount,
+      errorMessage:    totalFound > 0 ? null : (lastLogMsg || "No leads found"),
     },
   });
 
-  // Update keyword schedule on success
   try {
     const kw = await getKeywordById(job.keywordId!);
     await onKeywordJobSuccess(kw.id, kw.intervalHours);
   } catch { /* keyword may have been deleted */ }
 
-  return NextResponse.json({ status: "completed", pending: finalLeads.length });
+  return NextResponse.json({ status: "completed", saved: savedCount, duplicates: duplicateCount });
 }
 
 // ─── Standard SerpAPI job (unchanged) ─────────────────────────────────────────
