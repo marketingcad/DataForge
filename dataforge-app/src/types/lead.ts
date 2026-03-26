@@ -44,6 +44,7 @@ export const LeadInputSchema = z.object({
     .pipe(z.string().optional())
     .optional(),
   source: z.string().min(1, "Source is required"),
+  keywordId: z.string().optional(),
 });
 
 export type LeadInput = z.infer<typeof LeadInputSchema>;

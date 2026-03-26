@@ -11,7 +11,7 @@ import { LeadInput, InsertResult } from "@/types/lead";
  *   is updated with any new industry and a recalculated score.
  * - If no duplicate, a new lead is created.
  */
-export async function insertLead(raw: LeadInput & { folderId?: string; savedById?: string }): Promise<InsertResult> {
+export async function insertLead(raw: LeadInput & { folderId?: string; savedById?: string; keywordId?: string }): Promise<InsertResult> {
   const phone = normalizePhone(raw.phone);
   const email = raw.email ? normalizeEmail(raw.email) : "";
   const website = raw.website ? normalizeWebsite(raw.website) : "";
@@ -74,6 +74,7 @@ export async function insertLead(raw: LeadInput & { folderId?: string; savedById
       dataQualityScore: score,
       folderId: raw.folderId || null,
       savedById: raw.savedById || null,
+      keywordId: raw.keywordId || null,
     },
   });
 

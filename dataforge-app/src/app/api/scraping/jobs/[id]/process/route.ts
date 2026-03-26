@@ -109,6 +109,7 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
           state:        lead.state,
           category:     job.industry,
           source:       `GoogleMaps:keyword_${job.keywordId}`,
+          keywordId:    job.keywordId ?? undefined,
         }).then(result => {
           if (result.status === "duplicate") {
             dupCount++;

@@ -103,12 +103,16 @@ model Lead {
   savedById String?
   savedBy   User?   @relation("LeadSavedBy", fields: [savedById], references: [id], onDelete: SetNull)
 
+  keywordId String?
+  keyword   ScrapingKeyword? @relation(fields: [keywordId], references: [id], onDelete: Cascade)
+
   @@index([phone])
   @@index([email])
   @@index([website])
   @@index([city, state])
   @@index([folderId])
   @@index([savedById])
+  @@index([keywordId])
 }
 
 // ── Auth.js (NextAuth v5) required models ──────────────────────────────────
@@ -464,6 +468,7 @@ model ScrapingKeyword {
   createdById    String?
   createdBy      User?         @relation(fields: [createdById], references: [id], onDelete: SetNull)
   jobs           ScrapingJob[]
+  leads          Lead[]
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
