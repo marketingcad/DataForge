@@ -41,16 +41,6 @@ import { KeywordLeadsModal } from "@/components/scraping/KeywordLeadsModal";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 
-interface PendingLead {
-  businessName: string;
-  phone?: string;
-  email?: string;
-  website?: string;
-  address?: string;
-  city?: string;
-  state?: string;
-}
-
 interface KeywordRow {
   id: string;
   keyword: string;
@@ -68,7 +58,6 @@ interface KeywordRow {
     status: string;
     leadsProcessed: number;
     leadsDiscovered: number;
-    pendingLeads: PendingLead[] | null;
     errorMessage: string | null;
     createdAt: string;
   }[];
@@ -199,17 +188,6 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
   async function handleStop(kwId: string, jobId: string) {
     setRunningLabel("Stopping…");
     await fetch(`/api/scraping/jobs/${jobId}/cancel`, { method: "POST" }).catch(() => null);
-    // Immediately clear the running state so the UI responds right away
-    setRunningId(null);
-    setRunToast({ id: kwId, msg: "Scraping stopped.", ok: false });
-    setTimeout(() => setRunToast(null), 6000);
-    setKeywords((prev) =>
-      prev.map((k) =>
-        k.id === kwId
-          ? { ...k, jobs: k.jobs.map((j) => j.id === jobId ? { ...j, status: "failed", errorMessage: "Stopped by user" } : j) }
-          : k
-      )
-    );
   }
 
   function openEdit(kw: KeywordRow) {
@@ -340,7 +318,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
             setKeywords((prev) =>
               prev.map((k) =>
                 k.id === kwId
-                  ? { ...k, jobs: k.jobs.map((j) => j.id === jobId ? { ...j, leadsDiscovered: job.leadsDiscovered, pendingLeads: job.pendingLeads ?? j.pendingLeads } : j) }
+                  ? { ...k, jobs: k.jobs.map((j) => j.id === jobId ? { ...j, leadsDiscovered: job.leadsDiscovered } : j) }
                   : k
               )
             );
@@ -387,7 +365,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
     setTimeout(() => setRunToast(null), 12000);
   }
 
-  function applyJobResult(kwId: string, jobId: string, job: { status: string; leadsDiscovered: number; leadsProcessed: number; pendingLeads?: PendingLead[] | null; errorMessage: string | null }) {
+  function applyJobResult(kwId: string, jobId: string, job: { status: string; leadsDiscovered: number; leadsProcessed: number; duplicatesFound: number; errorMessage: string | null }) {
     setKeywords((prev) =>
       prev.map((k) =>
         k.id === kwId
@@ -400,7 +378,6 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
                   status: job.status,
                   leadsDiscovered: job.leadsDiscovered,
                   leadsProcessed: job.leadsProcessed,
-                  pendingLeads: (job.pendingLeads as PendingLead[] | null) ?? null,
                   errorMessage: job.errorMessage ?? null,
                   createdAt: new Date().toISOString(),
                 },
@@ -412,8 +389,8 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
     );
     if (job.status === "failed") {
       setRunToast({ id: kwId, msg: `Failed: ${job.errorMessage ?? "Unknown error"}`, ok: false });
-    } else if (job.leadsDiscovered > 0) {
-      setRunToast({ id: kwId, msg: `Done! ${job.leadsDiscovered} lead${job.leadsDiscovered !== 1 ? "s" : ""} ready — click "View scraped leads" to save them.`, ok: true });
+    } else if (job.leadsProcessed > 0) {
+      setRunToast({ id: kwId, msg: `Done! ${job.leadsProcessed} leads saved${job.duplicatesFound > 0 ? `, ${job.duplicatesFound} already existed` : ""}.`, ok: true });
     } else {
       setRunToast({ id: kwId, msg: "Scraping done — no new leads found.", ok: true });
     }
@@ -508,9 +485,9 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
                     {!kw.enabled && !isDisabledByFailure && <Badge variant="outline" className="text-xs text-muted-foreground">Paused</Badge>}
                     {kw.enabled && !hasFailed && <Badge variant="secondary" className="text-xs gap-1 text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800"><CheckCircle2 className="h-3 w-3" />Active</Badge>}
                     {hasFailed && kw.enabled && <Badge variant="outline" className="text-xs gap-1 text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-950/20"><AlertTriangle className="h-3 w-3" />{kw.failedAttempts}/5 failures</Badge>}
-                    {job?.pendingLeads && job.pendingLeads.length > 0 && (
+                    {job && job.leadsDiscovered > 0 && (
                       <button onClick={() => setViewLeadsKw(kw)} className="inline-flex items-center gap-1 rounded-full border border-blue-300 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 hover:bg-blue-100 dark:border-blue-700 dark:bg-blue-950/30 dark:text-blue-400 dark:hover:bg-blue-950/50 transition-colors">
-                        <Inbox className="h-3 w-3" />{job.pendingLeads.length} leads ready — save
+                        <Inbox className="h-3 w-3" />View scraped leads
                       </button>
                     )}
                   </div>
@@ -590,9 +567,9 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
                   {hasFailed && kw.enabled && <Badge variant="outline" className="text-xs gap-1 text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-950/20"><AlertTriangle className="h-3 w-3" />{kw.failedAttempts}/5 failures</Badge>}
                 </div>
 
-                {job?.pendingLeads && job.pendingLeads.length > 0 && (
+                {job && job.leadsDiscovered > 0 && (
                   <button onClick={() => setViewLeadsKw(kw)} className="w-full inline-flex items-center justify-center gap-1.5 rounded-md border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100 dark:border-blue-700 dark:bg-blue-950/30 dark:text-blue-400 dark:hover:bg-blue-950/50 transition-colors">
-                    <Inbox className="h-3.5 w-3.5" />{job.pendingLeads.length} leads ready — save
+                    <Inbox className="h-3.5 w-3.5" />View scraped leads
                   </button>
                 )}
 
@@ -698,26 +675,16 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
         </DialogContent>
       </Dialog>
 
-      {/* ── Scraped leads modal — review & save pending leads ── */}
-      {viewLeadsKw && viewLeadsKw.jobs[0] && (
+      {/* ── Scraped leads modal (mirrors FolderLeadsModal) ── */}
+      {viewLeadsKw && (
         <KeywordLeadsModal
-          jobId={viewLeadsKw.jobs[0].id}
-          pendingLeads={viewLeadsKw.jobs[0].pendingLeads ?? []}
+          kwId={viewLeadsKw.id}
           keyword={viewLeadsKw.keyword}
           location={viewLeadsKw.location}
           open={!!viewLeadsKw}
           onOpenChange={(o) => { if (!o) setViewLeadsKw(null); }}
-          onSaved={(savedCount) => {
-            const kwId  = viewLeadsKw.id;
-            const jobId = viewLeadsKw.jobs[0].id;
-            setKeywords((prev) =>
-              prev.map((k) =>
-                k.id === kwId
-                  ? { ...k, jobs: k.jobs.map((j) => j.id === jobId ? { ...j, pendingLeads: null, leadsProcessed: savedCount } : j) }
-                  : k
-              )
-            );
-            setViewLeadsKw(null);
+          onLeadsDeleted={() => {
+            // Refresh leadsDiscovered count from server on next poll — for now just close
           }}
         />
       )}

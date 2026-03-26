@@ -4,7 +4,8 @@ import { getJobById, updateJobStatus, incrementJobMetric } from "@/lib/scraping/
 import { discoverBusinesses } from "@/lib/scraping/google/discovery";
 import { scrapeWebsite } from "@/lib/scraping/crawler/web-scraper";
 import { scrapeGoogleMapsHeadless } from "@/lib/scraping/google/maps-scraper";
-import { insertLead } from "@/lib/leads/service"; // used by processStandardJob
+import { insertLead } from "@/lib/leads/service";
+import { normalizePhone, normalizeWebsite } from "@/lib/utils/normalize";
 import { onKeywordJobSuccess, onKeywordJobFailure, getKeywordById } from "@/lib/keywords/service";
 import { createNotification, createNotificationsForRole } from "@/lib/notifications/service";
 
@@ -46,7 +47,25 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
 
   await updateJobStatus(id, "running", { startTime: new Date() });
 
+  // ── Pre-fetch existing leads for duplicate skipping ────────────────────────
+  const existingLeads = await prisma.lead.findMany({ select: { phone: true, website: true } });
+  const knownPhones   = new Set(existingLeads.map(l => l.phone).filter(Boolean));
+  const knownWebsites = new Set(existingLeads.map(l => l.website).filter(Boolean));
+  const isDuplicate = (lead: import("@/lib/scraping/google/maps-scraper").SerpLead): boolean => {
+    if (lead.phone) {
+      const p = normalizePhone(lead.phone);
+      if (p && knownPhones.has(p)) return true;
+    }
+    if (lead.website) {
+      const w = normalizeWebsite(lead.website);
+      if (w && knownWebsites.has(w)) return true;
+    }
+    return false;
+  };
+
   const collectedLeads: Awaited<ReturnType<typeof scrapeGoogleMapsHeadless>> = [];
+  let savedCount = 0;
+  let dupCount   = 0;
   let lastLogMsg = "";
 
   let leads: Awaited<ReturnType<typeof scrapeGoogleMapsHeadless>>;
@@ -63,36 +82,62 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
           data: { errorMessage: msg },
         }).catch(() => {});
       },
-      // Store leads temporarily in pendingLeads — NOT auto-saved to the DB.
-      // The user reviews and selects which leads to save via the modal.
-      // Only write pendingLeads every 5 leads to avoid hammering the DB.
-      (lead: import("@/lib/scraping/google/maps-scraper").SerpLead, count: number) => {
+      // Save each lead to the DB immediately as it is scraped,
+      // and also keep it in pendingLeads so the badge + modal still work.
+      async (lead: import("@/lib/scraping/google/maps-scraper").SerpLead, count: number) => {
         collectedLeads.push(lead);
-        const data: Record<string, unknown> = { leadsDiscovered: count };
-        if (count % 5 === 0) data.pendingLeads = collectedLeads as never;
-        prisma.scrapingJob.update({ where: { id }, data }).catch(() => {});
+        let wasDuplicate = false;
+        try {
+          const result = await insertLead({
+            businessName: lead.businessName,
+            phone:        lead.phone ?? "N/A",
+            email:        lead.email,
+            website:      lead.website,
+            address:      lead.address,
+            city:         lead.city,
+            state:        lead.state,
+            category:     job.industry,
+            source:       `GoogleMaps:keyword_${job.keywordId}`,
+          });
+          if (result.status === "duplicate") {
+            dupCount++;
+            wasDuplicate = true;
+            collectedLeads.pop(); // don't keep DB-level duplicates in the list
+          } else {
+            savedCount++;
+          }
+        } catch { /* ignore per-lead insert errors */ }
+
+        prisma.scrapingJob.update({
+          where: { id },
+          data: {
+            leadsDiscovered: count,
+            leadsProcessed:  savedCount,
+            duplicatesFound: dupCount,
+            pendingLeads:    collectedLeads as never,
+          },
+        }).catch(() => {});
+
+        // Return false so the scraper doesn't count this toward maxLeads,
+        // allowing it to keep scraping until maxLeads are truly saved.
+        if (wasDuplicate) return false;
       },
       MAX_SCRAPE_MS,
+      isDuplicate
     );
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : "Browser scrape failed";
-    const hasLeads = collectedLeads.length > 0;
-    // Don't overwrite status if job was already cancelled by the user
-    const current = await prisma.scrapingJob.findUnique({ where: { id }, select: { status: true } });
-    if (current?.status !== "running") {
-      return NextResponse.json({ status: current?.status ?? "failed" });
-    }
     await prisma.scrapingJob.update({
       where: { id },
       data: {
-        status:          hasLeads ? "completed" : "failed",
+        status:          savedCount > 0 ? "completed" : "failed",
         completedTime:   new Date(),
-        leadsDiscovered: collectedLeads.length,
-        pendingLeads:    hasLeads ? (collectedLeads as never) : (null as never),
-        errorMessage:    hasLeads ? null : errorMsg,
+        leadsProcessed:  savedCount,
+        duplicatesFound: dupCount,
+        errorMessage:    savedCount > 0 ? null : errorMsg,
       },
     });
-    if (hasLeads) {
+    if (savedCount > 0) {
       try {
         const kw = await getKeywordById(job.keywordId!);
         await onKeywordJobSuccess(kw.id, kw.intervalHours);
@@ -100,8 +145,8 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
     } else {
       await handleKeywordFailure(job.keywordId!, errorMsg);
     }
-    return NextResponse.json(hasLeads
-      ? { status: "completed", pending: collectedLeads.length }
+    return NextResponse.json(savedCount > 0
+      ? { status: "completed", saved: savedCount }
       : { status: "failed", error: errorMsg }
     );
   }
@@ -119,6 +164,8 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
       status:          "completed",
       completedTime:   new Date(),
       leadsDiscovered: finalLeads.length,
+      leadsProcessed:  savedCount,
+      duplicatesFound: dupCount,
       pendingLeads:    finalLeads.length > 0 ? (finalLeads as never) : (null as never),
       errorMessage:    finalLeads.length > 0 ? null : (lastLogMsg || "No leads found"),
     },
@@ -129,7 +176,7 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
     await onKeywordJobSuccess(kw.id, kw.intervalHours);
   } catch { /* keyword may have been deleted */ }
 
-  return NextResponse.json({ status: "completed", pending: finalLeads.length });
+  return NextResponse.json({ status: "completed", saved: savedCount });
 }
 
 // ─── Standard SerpAPI job (unchanged) ─────────────────────────────────────────
