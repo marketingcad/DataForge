@@ -11,13 +11,12 @@ export async function POST(
 
   const { id } = await params;
 
-  await prisma.scrapingJob.update({
-    where: { id },
-    data: {
-      status:        "failed",
-      errorMessage:  "Stopped by user",
-      completedTime: new Date(),
-    },
+  // Use "paused" as a cancellation signal so the polling loop in the UI
+  // keeps running and picks up the real final status once the scraper
+  // detects the change, flushes pending DB inserts, and writes "completed"/"failed".
+  await prisma.scrapingJob.updateMany({
+    where: { id, status: "running" },
+    data: { status: "paused" },
   });
 
   return NextResponse.json({ ok: true });
