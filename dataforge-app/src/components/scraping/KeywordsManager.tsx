@@ -196,9 +196,20 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
     setTimeout(() => setRunToast(null), 12000);
   }
 
-  async function handleStop(_kwId: string, jobId: string) {
+  async function handleStop(kwId: string, jobId: string) {
     setRunningLabel("Stopping…");
     await fetch(`/api/scraping/jobs/${jobId}/cancel`, { method: "POST" }).catch(() => null);
+    // Immediately clear the running state so the UI responds right away
+    setRunningId(null);
+    setRunToast({ id: kwId, msg: "Scraping stopped.", ok: false });
+    setTimeout(() => setRunToast(null), 6000);
+    setKeywords((prev) =>
+      prev.map((k) =>
+        k.id === kwId
+          ? { ...k, jobs: k.jobs.map((j) => j.id === jobId ? { ...j, status: "failed", errorMessage: "Stopped by user" } : j) }
+          : k
+      )
+    );
   }
 
   function openEdit(kw: KeywordRow) {

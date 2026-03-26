@@ -99,6 +99,11 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : "Browser scrape failed";
     const hasLeads = collectedLeads.length > 0;
+    // Don't overwrite status if job was already cancelled by the user
+    const current = await prisma.scrapingJob.findUnique({ where: { id }, select: { status: true } });
+    if (current?.status !== "running") {
+      return NextResponse.json({ status: current?.status ?? "failed" });
+    }
     await prisma.scrapingJob.update({
       where: { id },
       data: {

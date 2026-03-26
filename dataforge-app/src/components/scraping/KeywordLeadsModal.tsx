@@ -356,7 +356,7 @@ export function KeywordLeadsModal({ jobId, pendingLeads, keyword, location, open
               <div className="flex items-center gap-1.5 flex-1">
                 <FolderOpen className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                 <span className="text-xs text-muted-foreground shrink-0">Save to:</span>
-                <Select value={folderId} onValueChange={setFolderId}>
+                <Select value={folderId} onValueChange={(v) => setFolderId(v ?? "")}>
                   <SelectTrigger className="h-8 text-xs flex-1 max-w-[220px]">
                     <SelectValue placeholder="All Leads (no folder)" />
                   </SelectTrigger>
