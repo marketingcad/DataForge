@@ -442,7 +442,8 @@ export async function scrapeGoogleMapsHeadless(
   onLog?: (msg: string) => void,
   onLead?: (lead: SerpLead, count: number) => Promise<boolean | void> | boolean | void,
   maxRuntimeMs?: number,
-  isDuplicate?: (lead: SerpLead) => boolean
+  isDuplicate?: (lead: SerpLead) => boolean,
+  skipNames?: Set<string>
 ): Promise<SerpLead[]> {
   const leads: SerpLead[] = [];
   const searchQuery = `${keyword} ${location}`;
@@ -540,6 +541,13 @@ export async function scrapeGoogleMapsHeadless(
         const businessName = (await nameEl.innerText({ timeout: 2000 }).catch(() => "")).trim();
         if (!businessName || seen.has(businessName)) continue;
         seen.add(businessName);
+
+        // Skip businesses already saved in the DB — checked against the
+        // in-memory name cache built before scraping started. No panel click needed.
+        if (skipNames?.has(businessName.toLowerCase().trim())) {
+          onLog?.(`"${businessName}" already saved — skipping`);
+          continue;
+        }
 
         onLog?.(`Scanning result ${leads.length + 1} of ${maxLeads}…`);
 

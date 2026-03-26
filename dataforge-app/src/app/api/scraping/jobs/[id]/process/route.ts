@@ -47,8 +47,11 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
 
   await updateJobStatus(id, "running", { startTime: new Date() });
 
-  // ── Pre-fetch existing leads for duplicate skipping ────────────────────────
-  const existingLeads = await prisma.lead.findMany({ select: { phone: true, website: true } });
+  // ── Pre-fetch existing leads for duplicate skipping (runs once before scraping) ─
+  const existingLeads = await prisma.lead.findMany({ select: { businessName: true, phone: true, website: true } });
+  // Name cache — checked before clicking any panel (saves 2–6 s per skipped business)
+  const skipNames     = new Set(existingLeads.map(l => l.businessName.toLowerCase().trim()));
+  // Phone/website sets — fallback for businesses whose name differs slightly
   const knownPhones   = new Set(existingLeads.map(l => l.phone).filter(Boolean));
   const knownWebsites = new Set(existingLeads.map(l => l.website).filter(Boolean));
   const isDuplicate = (lead: import("@/lib/scraping/google/maps-scraper").SerpLead): boolean => {
@@ -130,7 +133,8 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
         if (wasDuplicate) return false;
       },
       MAX_SCRAPE_MS,
-      isDuplicate
+      isDuplicate,
+      skipNames
     );
   } catch (err) {
     const errorMsg    = err instanceof Error ? err.message : "Browser scrape failed";
