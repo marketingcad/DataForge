@@ -70,6 +70,10 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
   let savedCount = 0;
   let dupCount   = 0;
   let lastLogMsg = "";
+  // Sequential insert chain: inserts run one at a time in the background so
+  // the scraper never waits for a DB round-trip, but only one connection is
+  // open at a time so Neon's pool is never exhausted.
+  let insertChain: Promise<void> = Promise.resolve();
 
   let leads: Awaited<ReturnType<typeof scrapeGoogleMapsHeadless>>;
   try {
@@ -94,40 +98,39 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
         }
 
         collectedLeads.push(lead);
-        let wasDuplicate = false;
-        try {
-          const result = await insertLead({
-            businessName: lead.businessName,
-            phone:        lead.phone ?? "N/A",
-            email:        lead.email,
-            website:      lead.website,
-            address:      lead.address,
-            city:         lead.city,
-            state:        lead.state,
-            category:     job.industry,
-            source:       `GoogleMaps:keyword_${job.keywordId}`,
-            keywordId:    job.keywordId ?? undefined,
-          });
-          if (result.status === "duplicate") {
-            dupCount++;
-            wasDuplicate = true;
-            collectedLeads.pop();
-          } else {
-            savedCount++;
-          }
-        } catch { /* ignore per-lead insert errors */ }
+        insertChain = insertChain.then(async () => {
+          try {
+            const result = await insertLead({
+              businessName: lead.businessName,
+              phone:        lead.phone ?? "N/A",
+              email:        lead.email,
+              website:      lead.website,
+              address:      lead.address,
+              city:         lead.city,
+              state:        lead.state,
+              category:     job.industry,
+              source:       `GoogleMaps:keyword_${job.keywordId}`,
+              keywordId:    job.keywordId ?? undefined,
+            });
+            if (result.status === "duplicate") {
+              dupCount++;
+              const idx = collectedLeads.indexOf(lead);
+              if (idx !== -1) collectedLeads.splice(idx, 1);
+            } else {
+              savedCount++;
+            }
+          } catch { /* ignore per-lead insert errors */ }
 
-        prisma.scrapingJob.update({
-          where: { id },
-          data: {
-            leadsDiscovered: count,
-            leadsProcessed:  savedCount,
-            duplicatesFound: dupCount,
-            pendingLeads:    collectedLeads as never,
-          },
+          prisma.scrapingJob.update({
+            where: { id },
+            data: {
+              leadsDiscovered: count,
+              leadsProcessed:  savedCount,
+              duplicatesFound: dupCount,
+              pendingLeads:    collectedLeads as never,
+            },
+          }).catch(() => {});
         }).catch(() => {});
-
-        if (wasDuplicate) return false;
       },
       MAX_SCRAPE_MS,
       isDuplicate,
@@ -136,6 +139,7 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
   } catch (err) {
     const errorMsg    = err instanceof Error ? err.message : "Browser scrape failed";
     const wasCancelled = errorMsg === "__CANCELLED__";
+    await insertChain;
     await prisma.scrapingJob.update({
       where: { id },
       data: {
@@ -167,6 +171,7 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
     return NextResponse.json({ status: currentStatus?.status ?? "failed" });
   }
 
+  await insertChain;
   const finalLeads = leads.length > 0 ? leads : collectedLeads;
   await prisma.scrapingJob.update({
     where: { id },

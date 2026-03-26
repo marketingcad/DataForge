@@ -424,16 +424,20 @@ export async function extractFromSerp(
 }
 
 // ─── Google Maps keyword scraper ──────────────────────────────────────────────
-// 1. Opens google.com/maps/search/
-// 2. Types keyword + location into the search input
-// 3. Waits for div[role="feed"] (the results sidebar)
-// 4. For each div[role="feed"] > div > div[role="article"]:
-//    - reads business name from .fontHeadlineSmall
-//    - clicks the article to open the detail popup
-//    - reads address from [data-item-id="address"]
-//    - reads phone from [data-tooltip="Copy phone number"]
-//    - reads website from [data-tooltip="Open website"]
-// 5. Presses Escape to close popup, scrolls feed, repeats
+// Two-phase approach for maximum speed + accuracy:
+//
+// Phase 1 — Fast name discovery:
+//   Scroll the feed as fast as possible reading only .fontHeadlineSmall text.
+//   No panel clicks. Collect all business names visible in the feed.
+//   Compare against skipNames cache → build toScrape set (only new businesses).
+//
+// Phase 2 — Targeted extraction:
+//   Scroll back to top, iterate the feed again.
+//   Skip articles whose name is already in DB (not in toScrape).
+//   Click + extract contact details only for toScrape businesses.
+//
+// Result: Phase 1 takes only a few seconds (no network waits), Phase 2 only
+// opens panels for businesses that are actually new — no wasted clicks.
 
 export async function scrapeGoogleMapsHeadless(
   keyword: string,
@@ -457,18 +461,14 @@ export async function scrapeGoogleMapsHeadless(
     browser = bc.browser;
     context = bc.context;
     const page = await context.newPage();
-    page.setDefaultTimeout(15000); // cap all Playwright ops so nothing hangs forever
+    page.setDefaultTimeout(15000);
 
-    // ── Step 1: navigate directly to the Maps search URL ─────────────────────
-    // e.g. https://www.google.com/maps/search/shawarma+chicago/
+    // Navigate directly to the Maps search URL
     const searchUrl =
       "https://www.google.com/maps/search/" +
       encodeURIComponent(searchQuery).replace(/%20/g, "+") + "/";
     onLog?.(`Opening Google Maps search…`);
-    await page.goto(searchUrl, {
-      waitUntil: "domcontentloaded",
-      timeout: 30000,
-    });
+    await page.goto(searchUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
     await sleep(800);
 
     // Accept consent wall if present
@@ -483,7 +483,7 @@ export async function scrapeGoogleMapsHeadless(
       }
     } catch { /* no consent wall */ }
 
-    // ── CAPTCHA detector ──────────────────────────────────────────────────────
+    // CAPTCHA detector
     const hasCaptcha = async (): Promise<boolean> => {
       const url = page.url();
       if (url.includes("/sorry/") || url.includes("google.com/sorry")) return true;
@@ -495,13 +495,13 @@ export async function scrapeGoogleMapsHeadless(
       }).catch(() => false);
     };
 
-    // ── Step 3: wait for the results feed ─────────────────────────────────────
+    // Wait for the results feed
     onLog?.("Waiting for results…");
     try {
       await page.waitForSelector('div[role="feed"]', { timeout: 15000 });
     } catch {
       if (await hasCaptcha()) {
-        onLog?.("CAPTCHA detected — stopping and saving collected leads");
+        onLog?.("CAPTCHA detected — stopping");
         return leads;
       }
       onLog?.("No results feed appeared — possible CAPTCHA or layout change");
@@ -509,26 +509,88 @@ export async function scrapeGoogleMapsHeadless(
     }
     await sleep(600);
 
-    // Track which articles we have already processed (by name)
-    const seen = new Set<string>();
+    // ── Phase 1: Fast name discovery ───────────────────────────────────────────
+    // Scroll the feed quickly, only reading .fontHeadlineSmall — no panel clicks.
+    onLog?.("Phase 1: scanning all results…");
+
+    const allDiscoveredNames: string[] = [];
+    const discoveredSet = new Set<string>();
+    // Gather up to 4× maxLeads names so we have a buffer after dedup filtering.
+    const DISCOVERY_TARGET = Math.max(maxLeads * 4, 80);
+    let phase1Stale = 0;
+
+    while (allDiscoveredNames.length < DISCOVERY_TARGET && phase1Stale < 5) {
+      const childDivs = await page.locator('div[role="feed"] > div').all();
+      let foundNew = false;
+
+      for (const child of childDivs) {
+        const article = child.locator('div[role="article"]').first();
+        if (!(await article.isVisible().catch(() => false))) continue;
+
+        const nameEl = article.locator(".fontHeadlineSmall").first();
+        const name = (await nameEl.innerText({ timeout: 1000 }).catch(() => "")).trim();
+        if (!name || discoveredSet.has(name)) continue;
+
+        discoveredSet.add(name);
+        allDiscoveredNames.push(name);
+        foundNew = true;
+      }
+
+      if (!foundNew) {
+        phase1Stale++;
+      } else {
+        phase1Stale = 0;
+      }
+
+      // Scroll fast — no waiting for network, just DOM reads
+      await page.evaluate(() => {
+        const feed = document.querySelector('div[role="feed"]');
+        if (feed) feed.scrollTop += 1400;
+      });
+      await sleep(200);
+    }
+
+    // Build the target set: names not already in the DB
+    const toScrape = new Set<string>(
+      allDiscoveredNames.filter(name => !skipNames?.has(name.toLowerCase().trim()))
+    );
+    const skippedCount = allDiscoveredNames.length - toScrape.size;
+    onLog?.(
+      `Phase 1 done: ${allDiscoveredNames.length} found, ` +
+      `${skippedCount} already in DB → ${toScrape.size} to scrape`
+    );
+
+    if (toScrape.size === 0) {
+      onLog?.("All discovered businesses already saved — done");
+      return leads;
+    }
+
+    // ── Phase 2: Targeted extraction ──────────────────────────────────────────
+    // Scroll back to top, then click only businesses in toScrape.
+    await page.evaluate(() => {
+      const feed = document.querySelector('div[role="feed"]');
+      if (feed) feed.scrollTop = 0;
+    });
+    await sleep(600);
+
+    onLog?.(`Phase 2: extracting details for up to ${Math.min(maxLeads, toScrape.size)} businesses…`);
+
+    const seen = new Set<string>(); // processed in Phase 2
     let staleRounds = 0;
 
-    // ── Step 4: scrape loop ────────────────────────────────────────────────────
     while (leads.length < maxLeads && staleRounds < 4) {
-      // Stop early if we're approaching the caller's time limit
       if (maxRuntimeMs && Date.now() - startedAt >= maxRuntimeMs) {
         onLog?.(`Time limit reached — saving ${leads.length} lead${leads.length !== 1 ? "s" : ""} collected so far`);
         break;
       }
 
-      // CAPTCHA check at the top of every loop iteration
       if (await hasCaptcha()) {
         onLog?.(`CAPTCHA detected — stopping and saving ${leads.length} lead${leads.length !== 1 ? "s" : ""} collected so far`);
         break;
       }
 
       const childDivs = await page.locator('div[role="feed"] > div').all();
-      let gotNewLead = false;
+      let gotNewArticle = false;
 
       for (const child of childDivs) {
         if (leads.length >= maxLeads) break;
@@ -536,45 +598,40 @@ export async function scrapeGoogleMapsHeadless(
         const article = child.locator('div[role="article"]').first();
         if (!(await article.isVisible().catch(() => false))) continue;
 
-        // Business name from .fontHeadlineSmall inside the article
         const nameEl = article.locator(".fontHeadlineSmall").first();
         const businessName = (await nameEl.innerText({ timeout: 2000 }).catch(() => "")).trim();
         if (!businessName || seen.has(businessName)) continue;
         seen.add(businessName);
+        gotNewArticle = true;
 
-        // Skip businesses already saved in the DB — checked against the
-        // in-memory name cache built before scraping started. No panel click needed.
-        if (skipNames?.has(businessName.toLowerCase().trim())) {
-          onLog?.(`"${businessName}" already saved — skipping`);
+        // Skip if already in DB: either filtered by Phase 1 or a late-discovered name
+        const isKnown = !toScrape.has(businessName) &&
+          (skipNames?.has(businessName.toLowerCase().trim()) ?? false);
+        if (isKnown) {
+          onLog?.(`"${businessName}" already in DB — skipping`);
           continue;
         }
 
-        onLog?.(`Scanning result ${leads.length + 1} of ${maxLeads}…`);
+        // Also skip names not in toScrape that Phase 1 didn't see — treat as new
+        // (falls through to extraction below)
 
-        // ── Per-lead 1-minute timeout guard ───────────────────────────────────
-        // If the detail panel never loads (slow network, Google throttling),
-        // abandon this lead after 60 s and move to the next one.
+        onLog?.(`Scraping ${leads.length + 1}/${Math.min(maxLeads, toScrape.size)}: "${businessName}"…`);
+
         const LEAD_TIMEOUT_MS = 60_000;
         let leadTimedOut = false;
 
         await Promise.race([
           (async () => {
-            // Click the article
             await article.click({ timeout: 5000, force: true }).catch(() => null);
-            onLog?.(`Opening details panel…`);
 
-            // ── Wait for the popup panel to open ──────────────────────────────
-            // The detail panel (NOT the article in the feed) has
-            // aria-label="<business name>". We detect it by finding that
-            // element OUTSIDE the feed container.
-            // ── Step 1: wait for detail panel to open (outside the feed) ─────────
+            // Wait for the detail panel to open (it has aria-label=businessName outside the feed)
             await page.waitForFunction(
               (name: string) => {
                 const feed = document.querySelector('div[role="feed"]');
                 const els = document.querySelectorAll("[aria-label]");
                 for (let i = 0; i < els.length; i++) {
                   if (els[i].getAttribute("aria-label") !== name) continue;
-                  if (feed && feed.contains(els[i])) continue; // skip feed cards
+                  if (feed && feed.contains(els[i])) continue;
                   return true;
                 }
                 return false;
@@ -585,9 +642,7 @@ export async function scrapeGoogleMapsHeadless(
 
             if (leadTimedOut) return;
 
-            // ── Step 2: wait until the contact fields actually have text ──────────
-            // The panel loads its structure first, then async-fetches contact data.
-            // We poll until at least one field has real text or an href, up to 10 s.
+            // Wait until at least one contact field has content
             await page.waitForFunction(() => {
               function hasText(sel: string): boolean {
                 const el = document.querySelector(sel);
@@ -605,7 +660,6 @@ export async function scrapeGoogleMapsHeadless(
 
             if (leadTimedOut) return;
 
-            // Check for CAPTCHA after panel navigation
             if (await hasCaptcha()) {
               onLog?.(`CAPTCHA detected — stopping and saving ${leads.length} lead${leads.length !== 1 ? "s" : ""} collected so far`);
               leads.push({ businessName: "\x00CAPTCHA\x00" });
@@ -614,7 +668,6 @@ export async function scrapeGoogleMapsHeadless(
 
             if (leadTimedOut) return;
 
-            // ── Step 3: extract contact data ───────────────────────────────────
             const details = await page.evaluate(() => {
               function getText(sel: string): string {
                 const el = document.querySelector(sel);
@@ -623,16 +676,15 @@ export async function scrapeGoogleMapsHeadless(
               function getInnermost(sel: string): string {
                 const el = document.querySelector(sel);
                 if (!el) return "";
-                // Walk to the deepest single child to get the actual text
                 let node: Element = el;
                 while (node.children.length === 1) node = node.children[0];
                 return (node as HTMLElement).innerText?.trim() ?? "";
               }
 
               const address = getText('[data-item-id="address"]') || undefined;
-              const phone   = getInnermost('[data-tooltip="Copy phone number"]') || getText('[data-tooltip="Copy phone number"]') || undefined;
+              const phone   = getInnermost('[data-tooltip="Copy phone number"]') ||
+                              getText('[data-tooltip="Copy phone number"]') || undefined;
 
-              // Website: prefer the href attribute of the anchor element
               const websiteEl = document.querySelector('[data-tooltip="Open website"]') as HTMLAnchorElement | null;
               let website: string | undefined;
               if (websiteEl) {
@@ -640,7 +692,6 @@ export async function scrapeGoogleMapsHeadless(
                 if (href && !href.startsWith("javascript") && !href.includes("google.com/maps")) {
                   website = href;
                 } else {
-                  // Fall back to innerText (usually shows the domain)
                   website = websiteEl.innerText?.trim() || undefined;
                 }
               }
@@ -658,9 +709,7 @@ export async function scrapeGoogleMapsHeadless(
 
             if (leadTimedOut || !details) return;
 
-            onLog?.(`Lead ${leads.length + 1} extracted — found ${[details.phone && "phone", details.address && "address", details.website && "website"].filter(Boolean).join(", ") || "name only"}`);
-
-            const lead = {
+            const lead: SerpLead = {
               businessName,
               address: details.address,
               phone:   details.phone,
@@ -670,22 +719,14 @@ export async function scrapeGoogleMapsHeadless(
             };
 
             if (isDuplicate?.(lead)) {
-              onLog?.(`Already in database — skipping`);
-              gotNewLead = true;
+              onLog?.(`Already in database (phone/website match) — skipping`);
             } else {
               leads.push(lead);
-              const saved = await onLead?.(lead, leads.length);
-              // onLead returns false when insertLead found a DB-level duplicate
-              // (e.g. normalisation difference from the in-memory set).
-              // Pop it so it doesn't count toward maxLeads and we keep scraping.
-              if (saved === false) {
-                leads.pop();
-                onLog?.(`DB duplicate — not counting toward limit`);
-              }
-              gotNewLead = true;
+              await onLead?.(lead, leads.length);
+              onLog?.(`Lead ${leads.length} saved — ${[details.phone && "phone", details.address && "address", details.website && "website"].filter(Boolean).join(", ") || "name only"}`);
             }
 
-            // Close the detail panel and wait for the feed to be visible again
+            // Close the detail panel
             await page.keyboard.press("Escape").catch(() => null);
             const feedVisible = await page.locator('div[role="feed"]')
               .waitFor({ state: "visible", timeout: 1500 })
@@ -694,8 +735,7 @@ export async function scrapeGoogleMapsHeadless(
               await page.goBack({ waitUntil: "domcontentloaded", timeout: 10000 }).catch(() => null);
               await sleep(200);
               if (await hasCaptcha()) {
-                onLog?.(`CAPTCHA detected — stopping and saving ${leads.length} lead${leads.length !== 1 ? "s" : ""} collected so far`);
-                leads.push({ businessName: "\x00CAPTCHA\x00" }); // sentinel
+                leads.push({ businessName: "\x00CAPTCHA\x00" });
               }
             }
           })(),
@@ -704,18 +744,16 @@ export async function scrapeGoogleMapsHeadless(
 
         if (leadTimedOut) {
           onLog?.(`Lead took over 1 minute — skipping`);
-          gotNewLead = true; // treat as progress so staleRounds doesn't fire
           continue;
         }
 
-        // Handle CAPTCHA sentinel
         if (leads[leads.length - 1]?.businessName === "\x00CAPTCHA\x00") {
           leads.pop();
           return leads;
         }
       }
 
-      if (!gotNewLead) {
+      if (!gotNewArticle) {
         staleRounds++;
         onLog?.(`Scrolling for more results… (${leads.length} found so far)`);
         await page.evaluate(() => {
