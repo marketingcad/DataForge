@@ -2,7 +2,6 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
-/*
 function Card({
   className,
   size = "default",
@@ -20,7 +19,6 @@ function Card({
     />
   )
 }
-*/
 
 function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
@@ -95,7 +93,7 @@ function CardFooter({ className, ...props }: React.ComponentProps<"div">) {
 } 
 
 export {
-  // Card,
+  Card,
   CardHeader,
   CardFooter,
   CardTitle,
