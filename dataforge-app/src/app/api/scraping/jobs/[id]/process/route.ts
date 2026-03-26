@@ -70,6 +70,7 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
   let savedCount = 0;
   let dupCount   = 0;
   let lastLogMsg = "";
+  const pendingInserts: Promise<void>[] = [];
 
   let leads: Awaited<ReturnType<typeof scrapeGoogleMapsHeadless>>;
   try {
@@ -96,27 +97,28 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
         }
 
         collectedLeads.push(lead);
-        let wasDuplicate = false;
-        try {
-          const result = await insertLead({
-            businessName: lead.businessName,
-            phone:        lead.phone ?? "N/A",
-            email:        lead.email,
-            website:      lead.website,
-            address:      lead.address,
-            city:         lead.city,
-            state:        lead.state,
-            category:     job.industry,
-            source:       `GoogleMaps:keyword_${job.keywordId}`,
-          });
+
+        // Fire-and-forget DB insert — don't block the scraper waiting for DB round-trips
+        const insertP = insertLead({
+          businessName: lead.businessName,
+          phone:        lead.phone ?? "N/A",
+          email:        lead.email,
+          website:      lead.website,
+          address:      lead.address,
+          city:         lead.city,
+          state:        lead.state,
+          category:     job.industry,
+          source:       `GoogleMaps:keyword_${job.keywordId}`,
+        }).then(result => {
           if (result.status === "duplicate") {
             dupCount++;
-            wasDuplicate = true;
-            collectedLeads.pop(); // don't keep DB-level duplicates in the list
+            const idx = collectedLeads.indexOf(lead);
+            if (idx !== -1) collectedLeads.splice(idx, 1);
           } else {
             savedCount++;
           }
-        } catch { /* ignore per-lead insert errors */ }
+        }).catch(() => {});
+        pendingInserts.push(insertP);
 
         prisma.scrapingJob.update({
           where: { id },
@@ -127,10 +129,6 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
             pendingLeads:    collectedLeads as never,
           },
         }).catch(() => {});
-
-        // Return false so the scraper doesn't count this toward maxLeads,
-        // allowing it to keep scraping until maxLeads are truly saved.
-        if (wasDuplicate) return false;
       },
       MAX_SCRAPE_MS,
       isDuplicate,
@@ -139,6 +137,7 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
   } catch (err) {
     const errorMsg    = err instanceof Error ? err.message : "Browser scrape failed";
     const wasCancelled = errorMsg === "__CANCELLED__";
+    await Promise.all(pendingInserts);
     await prisma.scrapingJob.update({
       where: { id },
       data: {
@@ -170,6 +169,7 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
     return NextResponse.json({ status: currentStatus?.status ?? "failed" });
   }
 
+  await Promise.all(pendingInserts);
   const finalLeads = leads.length > 0 ? leads : collectedLeads;
   await prisma.scrapingJob.update({
     where: { id },

@@ -687,11 +687,12 @@ export async function scrapeGoogleMapsHeadless(
 
             // Close the detail panel and wait for the feed to be visible again
             await page.keyboard.press("Escape").catch(() => null);
-            await sleep(1200);
-            const feedVisible = await page.locator('div[role="feed"]').isVisible().catch(() => false);
+            const feedVisible = await page.locator('div[role="feed"]')
+              .waitFor({ state: "visible", timeout: 1500 })
+              .then(() => true).catch(() => false);
             if (!feedVisible) {
               await page.goBack({ waitUntil: "domcontentloaded", timeout: 10000 }).catch(() => null);
-              await sleep(600);
+              await sleep(200);
               if (await hasCaptcha()) {
                 onLog?.(`CAPTCHA detected — stopping and saving ${leads.length} lead${leads.length !== 1 ? "s" : ""} collected so far`);
                 leads.push({ businessName: "\x00CAPTCHA\x00" }); // sentinel
