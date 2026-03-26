@@ -510,27 +510,34 @@ export async function scrapeGoogleMapsHeadless(
     await sleep(600);
 
     // ── Phase 1: Fast name discovery ───────────────────────────────────────────
-    // Scroll the feed quickly, only reading .fontHeadlineSmall — no panel clicks.
+    // Read all visible names in one page.evaluate() per scroll — single browser
+    // round-trip instead of one Playwright locator call per article.
     onLog?.("Phase 1: scanning all results…");
 
     const allDiscoveredNames: string[] = [];
     const discoveredSet = new Set<string>();
-    // Gather up to 4× maxLeads names so we have a buffer after dedup filtering.
-    const DISCOVERY_TARGET = Math.max(maxLeads * 4, 80);
+    // Collect at most 2× maxLeads names — enough buffer for ~50% duplicates.
+    const DISCOVERY_TARGET = Math.max(maxLeads * 2, maxLeads + 20);
     let phase1Stale = 0;
 
     while (allDiscoveredNames.length < DISCOVERY_TARGET && phase1Stale < 5) {
-      const childDivs = await page.locator('div[role="feed"] > div').all();
+      // Read every visible business name in the feed in one JS evaluation.
+      const visibleNames: string[] = await page.evaluate(() => {
+        const articles = document.querySelectorAll(
+          'div[role="feed"] div[role="article"]'
+        );
+        const names: string[] = [];
+        for (let i = 0; i < articles.length; i++) {
+          const el = articles[i].querySelector(".fontHeadlineSmall") as HTMLElement | null;
+          const text = el?.innerText?.trim();
+          if (text) names.push(text);
+        }
+        return names;
+      });
+
       let foundNew = false;
-
-      for (const child of childDivs) {
-        const article = child.locator('div[role="article"]').first();
-        if (!(await article.isVisible().catch(() => false))) continue;
-
-        const nameEl = article.locator(".fontHeadlineSmall").first();
-        const name = (await nameEl.innerText({ timeout: 1000 }).catch(() => "")).trim();
-        if (!name || discoveredSet.has(name)) continue;
-
+      for (const name of visibleNames) {
+        if (discoveredSet.has(name)) continue;
         discoveredSet.add(name);
         allDiscoveredNames.push(name);
         foundNew = true;
@@ -547,7 +554,7 @@ export async function scrapeGoogleMapsHeadless(
         const feed = document.querySelector('div[role="feed"]');
         if (feed) feed.scrollTop += 1400;
       });
-      await sleep(200);
+      await sleep(300);
     }
 
     // Build the target set: names not already in the DB
