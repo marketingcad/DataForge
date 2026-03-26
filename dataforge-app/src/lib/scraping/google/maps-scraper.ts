@@ -572,7 +572,7 @@ export async function scrapeGoogleMapsHeadless(
                 return false;
               },
               businessName,
-              { timeout: 10000 }
+              { timeout: 1000 }
             ).catch(() => null);
 
             if (leadTimedOut) return;
@@ -593,7 +593,7 @@ export async function scrapeGoogleMapsHeadless(
                      hasText('[data-tooltip="Copy phone number"]') ||
                      hasHref('[data-tooltip="Open website"]') ||
                      hasText('[data-tooltip="Open website"]');
-            }, { timeout: 10000 }).catch(() => null);
+            }, { timeout: 4000 }).catch(() => null);
 
             if (leadTimedOut) return;
 

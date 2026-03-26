@@ -6,6 +6,7 @@ import { scrapeWebsite } from "@/lib/scraping/crawler/web-scraper";
 import { scrapeGoogleMapsHeadless } from "@/lib/scraping/google/maps-scraper";
 import { insertLead } from "@/lib/leads/service";
 import { normalizePhone, normalizeWebsite } from "@/lib/utils/normalize";
+// insertLead is used only by processStandardJob below
 import { onKeywordJobSuccess, onKeywordJobFailure, getKeywordById } from "@/lib/keywords/service";
 import { createNotification, createNotificationsForRole } from "@/lib/notifications/service";
 
@@ -64,8 +65,6 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
   };
 
   const collectedLeads: Awaited<ReturnType<typeof scrapeGoogleMapsHeadless>> = [];
-  let savedCount = 0;
-  let dupCount   = 0;
   let lastLogMsg = "";
 
   let leads: Awaited<ReturnType<typeof scrapeGoogleMapsHeadless>>;
@@ -82,62 +81,35 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
           data: { errorMessage: msg },
         }).catch(() => {});
       },
-      // Save each lead to the DB immediately as it is scraped,
-      // and also keep it in pendingLeads so the badge + modal still work.
-      async (lead: import("@/lib/scraping/google/maps-scraper").SerpLead, count: number) => {
+      // Store leads temporarily in pendingLeads — NOT auto-saved to the DB.
+      // The user reviews and selects which leads to save via the modal.
+      (lead: import("@/lib/scraping/google/maps-scraper").SerpLead, count: number) => {
         collectedLeads.push(lead);
-        let wasDuplicate = false;
-        try {
-          const result = await insertLead({
-            businessName: lead.businessName,
-            phone:        lead.phone ?? "N/A",
-            email:        lead.email,
-            website:      lead.website,
-            address:      lead.address,
-            city:         lead.city,
-            state:        lead.state,
-            category:     job.industry,
-            source:       `GoogleMaps:keyword_${job.keywordId}`,
-          });
-          if (result.status === "duplicate") {
-            dupCount++;
-            wasDuplicate = true;
-            collectedLeads.pop(); // don't keep DB-level duplicates in the list
-          } else {
-            savedCount++;
-          }
-        } catch { /* ignore per-lead insert errors */ }
-
         prisma.scrapingJob.update({
           where: { id },
           data: {
             leadsDiscovered: count,
-            leadsProcessed:  savedCount,
-            duplicatesFound: dupCount,
             pendingLeads:    collectedLeads as never,
           },
         }).catch(() => {});
-
-        // Return false so the scraper doesn't count this toward maxLeads,
-        // allowing it to keep scraping until maxLeads are truly saved.
-        if (wasDuplicate) return false;
       },
       MAX_SCRAPE_MS,
       isDuplicate
     );
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : "Browser scrape failed";
+    const hasLeads = collectedLeads.length > 0;
     await prisma.scrapingJob.update({
       where: { id },
       data: {
-        status:          savedCount > 0 ? "completed" : "failed",
+        status:          hasLeads ? "completed" : "failed",
         completedTime:   new Date(),
-        leadsProcessed:  savedCount,
-        duplicatesFound: dupCount,
-        errorMessage:    savedCount > 0 ? null : errorMsg,
+        leadsDiscovered: collectedLeads.length,
+        pendingLeads:    hasLeads ? (collectedLeads as never) : (null as never),
+        errorMessage:    hasLeads ? null : errorMsg,
       },
     });
-    if (savedCount > 0) {
+    if (hasLeads) {
       try {
         const kw = await getKeywordById(job.keywordId!);
         await onKeywordJobSuccess(kw.id, kw.intervalHours);
@@ -145,8 +117,8 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
     } else {
       await handleKeywordFailure(job.keywordId!, errorMsg);
     }
-    return NextResponse.json(savedCount > 0
-      ? { status: "completed", saved: savedCount }
+    return NextResponse.json(hasLeads
+      ? { status: "completed", pending: collectedLeads.length }
       : { status: "failed", error: errorMsg }
     );
   }
@@ -164,8 +136,6 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
       status:          "completed",
       completedTime:   new Date(),
       leadsDiscovered: finalLeads.length,
-      leadsProcessed:  savedCount,
-      duplicatesFound: dupCount,
       pendingLeads:    finalLeads.length > 0 ? (finalLeads as never) : (null as never),
       errorMessage:    finalLeads.length > 0 ? null : (lastLogMsg || "No leads found"),
     },
@@ -176,7 +146,7 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
     await onKeywordJobSuccess(kw.id, kw.intervalHours);
   } catch { /* keyword may have been deleted */ }
 
-  return NextResponse.json({ status: "completed", saved: savedCount });
+  return NextResponse.json({ status: "completed", pending: finalLeads.length });
 }
 
 // ─── Standard SerpAPI job (unchanged) ─────────────────────────────────────────
