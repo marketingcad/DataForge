@@ -4,9 +4,7 @@ import { getJobById, updateJobStatus, incrementJobMetric } from "@/lib/scraping/
 import { discoverBusinesses } from "@/lib/scraping/google/discovery";
 import { scrapeWebsite } from "@/lib/scraping/crawler/web-scraper";
 import { scrapeGoogleMapsHeadless } from "@/lib/scraping/google/maps-scraper";
-import { insertLead } from "@/lib/leads/service";
-import { normalizePhone, normalizeWebsite } from "@/lib/utils/normalize";
-// insertLead is used only by processStandardJob below
+import { insertLead } from "@/lib/leads/service"; // used by processStandardJob
 import { onKeywordJobSuccess, onKeywordJobFailure, getKeywordById } from "@/lib/keywords/service";
 import { createNotification, createNotificationsForRole } from "@/lib/notifications/service";
 
@@ -48,22 +46,6 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
 
   await updateJobStatus(id, "running", { startTime: new Date() });
 
-  // ── Pre-fetch existing leads for duplicate skipping ────────────────────────
-  const existingLeads = await prisma.lead.findMany({ select: { phone: true, website: true } });
-  const knownPhones   = new Set(existingLeads.map(l => l.phone).filter(Boolean));
-  const knownWebsites = new Set(existingLeads.map(l => l.website).filter(Boolean));
-  const isDuplicate = (lead: import("@/lib/scraping/google/maps-scraper").SerpLead): boolean => {
-    if (lead.phone) {
-      const p = normalizePhone(lead.phone);
-      if (p && knownPhones.has(p)) return true;
-    }
-    if (lead.website) {
-      const w = normalizeWebsite(lead.website);
-      if (w && knownWebsites.has(w)) return true;
-    }
-    return false;
-  };
-
   const collectedLeads: Awaited<ReturnType<typeof scrapeGoogleMapsHeadless>> = [];
   let lastLogMsg = "";
 
@@ -83,18 +65,14 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
       },
       // Store leads temporarily in pendingLeads — NOT auto-saved to the DB.
       // The user reviews and selects which leads to save via the modal.
+      // Only write pendingLeads every 5 leads to avoid hammering the DB.
       (lead: import("@/lib/scraping/google/maps-scraper").SerpLead, count: number) => {
         collectedLeads.push(lead);
-        prisma.scrapingJob.update({
-          where: { id },
-          data: {
-            leadsDiscovered: count,
-            pendingLeads:    collectedLeads as never,
-          },
-        }).catch(() => {});
+        const data: Record<string, unknown> = { leadsDiscovered: count };
+        if (count % 5 === 0) data.pendingLeads = collectedLeads as never;
+        prisma.scrapingJob.update({ where: { id }, data }).catch(() => {});
       },
       MAX_SCRAPE_MS,
-      isDuplicate
     );
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : "Browser scrape failed";
