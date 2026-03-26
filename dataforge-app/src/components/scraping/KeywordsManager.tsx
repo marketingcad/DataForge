@@ -32,14 +32,13 @@ import {
   CheckCircle2,
   Pencil,
   Loader2,
-  ExternalLink,
   Inbox,
   LayoutGrid,
   List,
 } from "lucide-react";
 import { KeywordLeadsModal } from "@/components/scraping/KeywordLeadsModal";
 import { cn } from "@/lib/utils";
-import Link from "next/link";
+import { toast } from "sonner";
 
 interface KeywordRow {
   id: string;
@@ -142,7 +141,6 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
   const [runningId, setRunningId] = useState<string | null>(null);
   const [runningJobId, setRunningJobId] = useState<string | null>(null);
   const [runningLabel, setRunningLabel] = useState<string>("Starting…");
-  const [runToast, setRunToast] = useState<{ id: string; msg: string; ok: boolean } | null>(null);
 
   // On mount, resume live polling if any keyword already has a running job
   useEffect(() => {
@@ -184,7 +182,6 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
         if (p.ok) applyJobResult(kwId, jobId, await p.json());
       } catch { /* ignore */ }
     }
-    setTimeout(() => setRunToast(null), 12000);
   }
 
   async function handleStop(_kwId: string, jobId: string) {
@@ -279,24 +276,21 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
   async function handleRunNow(kwId: string) {
     setRunningId(kwId);
     setRunningLabel("Starting…");
-    setRunToast(null);
 
     let jobId: string;
     try {
       const res = await fetch(`/api/keywords/${kwId}/run`, { method: "POST" });
       if (!res.ok) {
-        setRunToast({ id: kwId, msg: "Failed to start scraping. Try again.", ok: false });
+        toast.error("Failed to start scraping. Try again.");
         setRunningId(null); setRunningJobId(null);
-        setTimeout(() => setRunToast(null), 6000);
         return;
       }
       const data = await res.json();
       jobId = data.jobId;
       setRunningJobId(jobId);
     } catch {
-      setRunToast({ id: kwId, msg: "Failed to start scraping. Try again.", ok: false });
+      toast.error("Failed to start scraping. Try again.");
       setRunningId(null); setRunningJobId(null);
-      setTimeout(() => setRunToast(null), 6000);
       return;
     }
 
@@ -343,7 +337,6 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
           completionHandled = true;
           if (job.status === "failed") {
             setTimeout(() => { setRunningId(null); setRunningJobId(null); }, 15000);
-            setTimeout(() => setRunToast(null), 15000);
             return;
           }
           break;
@@ -363,11 +356,9 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
       } catch { /* ignore */ }
 
       if (!completionHandled) {
-        setRunToast({ id: kwId, msg: "Scraping is taking longer than expected — refresh the page to see results.", ok: false });
+        toast.warning("Scraping is taking longer than expected — refresh the page to see results.");
       }
     }
-
-    setTimeout(() => setRunToast(null), 12000);
   }
 
   function applyJobResult(kwId: string, jobId: string, job: { status: string; leadsDiscovered: number; leadsProcessed: number; duplicatesFound: number; errorMessage: string | null }) {
@@ -393,11 +384,14 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
       )
     );
     if (job.status === "failed") {
-      setRunToast({ id: kwId, msg: `Failed: ${job.errorMessage ?? "Unknown error"}`, ok: false });
+      toast.error(`Scrape failed: ${job.errorMessage ?? "Unknown error"}`);
     } else if (job.leadsProcessed > 0) {
-      setRunToast({ id: kwId, msg: `Done! ${job.leadsProcessed} leads saved${job.duplicatesFound > 0 ? `, ${job.duplicatesFound} already existed` : ""}.`, ok: true });
+      toast.success(`Done! ${job.leadsProcessed} lead${job.leadsProcessed !== 1 ? "s" : ""} saved${job.duplicatesFound > 0 ? `, ${job.duplicatesFound} already existed` : ""}.`, {
+        action: { label: "Go to Leads", onClick: () => { window.location.href = "/leads"; } },
+        duration: 12000,
+      });
     } else {
-      setRunToast({ id: kwId, msg: "Scraping done — no new leads found.", ok: true });
+      toast.info("Scraping done — no new leads found.");
     }
   }
 
@@ -432,23 +426,6 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
           </Button>
         </div>
       </div>
-
-      {/* Run toast */}
-      {runToast && (
-        <div className={`flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm ${
-          runToast.ok
-            ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400"
-            : "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-800 dark:bg-rose-950/30 dark:text-rose-400"
-        }`}>
-          {runToast.ok ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <AlertTriangle className="h-4 w-4 shrink-0" />}
-          <span>{runToast.msg}</span>
-          {runToast.ok && (
-            <Link href="/leads" className="ml-auto flex items-center gap-1 underline underline-offset-2 font-medium">
-              Go to Leads <ExternalLink className="h-3 w-3" />
-            </Link>
-          )}
-        </div>
-      )}
 
       {/* Empty state */}
       {keywords.length === 0 && (
