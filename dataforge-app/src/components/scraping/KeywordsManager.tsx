@@ -164,8 +164,9 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
         if (!poll.ok) break;
         const job = await poll.json();
         if (job.status === "running") {
-          const countSuffix = job.leadsDiscovered > 0 ? ` (${job.leadsDiscovered} found)` : "";
-          setRunningLabel((job.errorMessage || "Searching Google Maps…") + countSuffix);
+          const msg = job.errorMessage || "Searching Google Maps…";
+          const prefix = job.leadsDiscovered > 0 ? `[ ${job.leadsDiscovered} found ] — ` : "";
+          setRunningLabel(prefix + msg);
         }
         if (job.status === "completed" || job.status === "failed") {
           applyJobResult(kwId, jobId, job);
@@ -310,8 +311,9 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
         if (job.status === "pending") {
           setRunningLabel(`Starting browser… (${Math.round((i + 1) * 5)}s)`);
         } else if (job.status === "running") {
-          const countSuffix = job.leadsDiscovered > 0 ? ` (${job.leadsDiscovered} found)` : "";
-          setRunningLabel((job.errorMessage || "Searching Google Maps…") + countSuffix);
+          const msg = job.errorMessage || "Searching Google Maps…";
+          const prefix = job.leadsDiscovered > 0 ? `[ ${job.leadsDiscovered} found ] — ` : "";
+          setRunningLabel(prefix + msg);
           if (job.leadsDiscovered > 0) {
             setKeywords((prev) =>
               prev.map((k) =>
@@ -320,6 +322,14 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
                   : k
               )
             );
+          }
+
+          // If the scraper already finished (logged "Done") but Vercel timed out
+          // before writing status="completed", treat it as completed client-side.
+          if (job.errorMessage?.startsWith("Done")) {
+            applyJobResult(kwId, jobId, { ...job, status: "completed" });
+            completionHandled = true;
+            break;
           }
         }
 
