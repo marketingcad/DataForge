@@ -41,10 +41,12 @@ import {
   List,
 } from "lucide-react";
 import { getFoldersAction } from "@/actions/folders.actions";
+import { bulkDeleteLeadsAction } from "@/actions/leads.actions";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 
 interface PendingLead {
+  id?: string;
   businessName: string;
   phone?: string;
   email?: string;
@@ -150,6 +152,9 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
   const [saving, setSaving] = useState(false);
   const [saveResult, setSaveResult] = useState<{ saved: number; duplicates: number; failed: number } | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [confirmDeleteLeads, setConfirmDeleteLeads] = useState<"selected" | "all" | null>(null);
+  const [deletingLeads, setDeletingLeads] = useState(false);
+  const [activeKwId, setActiveKwId] = useState<string | null>(null);
 
   // Grid vs list view — persisted in localStorage
   const [view, setView] = useState<"list" | "grid">("list");
@@ -317,6 +322,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
   async function openSaveDialog(kw: KeywordRow) {
     const job = kw.jobs[0];
     if (!job) return;
+    setActiveKwId(kw.id);
     setSaveTarget({ jobId: job.id, leads: [], keyword: `${kw.keyword} — ${kw.location}` });
     setTableLeads([]);
     setSelectedIds(new Set());
@@ -326,6 +332,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
     setSaveCategory(kw.keyword);
     setSaveResult(null);
     setSaveError(null);
+    setConfirmDeleteLeads(null);
 
     // Load ALL leads for this keyword from the DB (cumulative across all runs)
     try {
@@ -396,10 +403,47 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
     });
   }
 
-  function deleteSelected() {
-    const remaining = tableLeads.filter((_, i) => !selectedIds.has(i));
-    setTableLeads(remaining);
-    setSelectedIds(new Set(remaining.map((_, i) => i)));
+  async function handleDeleteLeads(scope: "selected" | "all") {
+    setDeletingLeads(true);
+    try {
+      if (scope === "selected") {
+        const ids = tableLeads.filter((_, i) => selectedIds.has(i)).map((l) => l.id).filter((id): id is string => !!id);
+        if (ids.length) await bulkDeleteLeadsAction(ids);
+        const remaining = tableLeads.filter((_, i) => !selectedIds.has(i));
+        setTableLeads(remaining);
+        setSelectedIds(new Set());
+        // Update the keyword's leadsDiscovered count in local state
+        if (activeKwId) {
+          setKeywords((prev) =>
+            prev.map((k) =>
+              k.id === activeKwId
+                ? { ...k, jobs: k.jobs.map((j, ji) => ji === 0 ? { ...j, leadsDiscovered: Math.max(0, (j.leadsDiscovered ?? 0) - ids.length) } : j) }
+                : k
+            )
+          );
+        }
+      } else {
+        // Delete all leads for this keyword from the DB
+        const ids = tableLeads.map((l) => l.id).filter((id): id is string => !!id);
+        if (ids.length) await bulkDeleteLeadsAction(ids);
+        setTableLeads([]);
+        setSelectedIds(new Set());
+        if (activeKwId) {
+          setKeywords((prev) =>
+            prev.map((k) =>
+              k.id === activeKwId
+                ? { ...k, jobs: k.jobs.map((j, ji) => ji === 0 ? { ...j, leadsDiscovered: 0, pendingLeads: null } : j) }
+                : k
+            )
+          );
+        }
+      }
+    } catch {
+      // ignore
+    } finally {
+      setDeletingLeads(false);
+      setConfirmDeleteLeads(null);
+    }
   }
 
   async function handleRunNow(kwId: string) {
@@ -860,12 +904,20 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
                     filterHas.website ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted")}>
                   Has Website
                 </button>
-                {selectedIds.size > 0 && (
-                  <Button size="sm" variant="destructive" className="gap-1.5 h-8 ml-auto" onClick={deleteSelected}>
-                    <Trash2 className="h-3.5 w-3.5" />
-                    Delete {selectedIds.size} selected
-                  </Button>
-                )}
+                <div className="flex items-center gap-2 ml-auto">
+                  {selectedIds.size > 0 && (
+                    <Button size="sm" variant="destructive" className="gap-1.5 h-8" onClick={() => setConfirmDeleteLeads("selected")} disabled={deletingLeads}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Delete {selectedIds.size} selected
+                    </Button>
+                  )}
+                  {tableLeads.length > 0 && (
+                    <Button size="sm" variant="outline" className="gap-1.5 h-8 text-rose-600 border-rose-300 hover:bg-rose-50" onClick={() => setConfirmDeleteLeads("all")} disabled={deletingLeads}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Delete all
+                    </Button>
+                  )}
+                </div>
               </div>
 
               {/* Table */}
@@ -1030,6 +1082,31 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Delete leads confirm dialog ──────────────────────────── */}
+      <Dialog open={!!confirmDeleteLeads} onOpenChange={(o) => { if (!o && !deletingLeads) setConfirmDeleteLeads(null); }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete leads?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            {confirmDeleteLeads === "selected"
+              ? `This will permanently delete ${selectedIds.size} selected lead${selectedIds.size !== 1 ? "s" : ""} from the database.`
+              : `This will permanently delete all ${tableLeads.length} leads for this keyword from the database.`}
+            {" "}This cannot be undone.
+          </p>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setConfirmDeleteLeads(null)} disabled={deletingLeads}>Cancel</Button>
+            <Button
+              variant="destructive"
+              disabled={deletingLeads}
+              onClick={() => confirmDeleteLeads && handleDeleteLeads(confirmDeleteLeads)}
+            >
+              {deletingLeads ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Deleting…</> : "Delete"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
