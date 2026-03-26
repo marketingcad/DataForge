@@ -85,6 +85,13 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
       // Save each lead to the DB immediately as it is scraped,
       // and also keep it in pendingLeads so the badge + modal still work.
       async (lead: import("@/lib/scraping/google/maps-scraper").SerpLead, count: number) => {
+        // Every 3 leads, check if the user cancelled — if so, throw to stop the scraper
+        // and let the catch block save whatever was already collected.
+        if (count % 3 === 0) {
+          const cur = await prisma.scrapingJob.findUnique({ where: { id }, select: { status: true } });
+          if (cur?.status !== "running") throw new Error("__CANCELLED__");
+        }
+
         collectedLeads.push(lead);
         let wasDuplicate = false;
         try {
@@ -126,7 +133,8 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
       isDuplicate
     );
   } catch (err) {
-    const errorMsg = err instanceof Error ? err.message : "Browser scrape failed";
+    const errorMsg    = err instanceof Error ? err.message : "Browser scrape failed";
+    const wasCancelled = errorMsg === "__CANCELLED__";
     await prisma.scrapingJob.update({
       where: { id },
       data: {
@@ -134,7 +142,7 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
         completedTime:   new Date(),
         leadsProcessed:  savedCount,
         duplicatesFound: dupCount,
-        errorMessage:    savedCount > 0 ? null : errorMsg,
+        errorMessage:    savedCount > 0 ? null : (wasCancelled ? "Stopped by user" : errorMsg),
       },
     });
     if (savedCount > 0) {
@@ -142,12 +150,13 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
         const kw = await getKeywordById(job.keywordId!);
         await onKeywordJobSuccess(kw.id, kw.intervalHours);
       } catch { /* keyword may have been deleted */ }
-    } else {
+    } else if (!wasCancelled) {
+      // Only record a failure if this was an actual error, not a user stop
       await handleKeywordFailure(job.keywordId!, errorMsg);
     }
     return NextResponse.json(savedCount > 0
       ? { status: "completed", saved: savedCount }
-      : { status: "failed", error: errorMsg }
+      : { status: "failed", error: wasCancelled ? "Stopped by user" : errorMsg }
     );
   }
 

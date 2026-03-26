@@ -185,9 +185,11 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
     setTimeout(() => setRunToast(null), 12000);
   }
 
-  async function handleStop(kwId: string, jobId: string) {
-    setRunningLabel("Stopping…");
+  async function handleStop(_kwId: string, jobId: string) {
+    setRunningLabel("Stopping — saving collected leads…");
     await fetch(`/api/scraping/jobs/${jobId}/cancel`, { method: "POST" }).catch(() => null);
+    // Polling loop continues and will pick up the final state once the
+    // scraper detects cancellation and writes its result (completed/failed).
   }
 
   function openEdit(kw: KeywordRow) {
