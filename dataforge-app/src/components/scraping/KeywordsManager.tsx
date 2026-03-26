@@ -188,10 +188,10 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
   }
 
   async function handleStop(_kwId: string, jobId: string) {
-    setRunningLabel("Stopping — saving collected leads…");
+    // Clear running state immediately so the UI stops showing the spinner.
+    // The scraper will finish in the background and write its final result.
+    setRunningId(null); setRunningJobId(null);
     await fetch(`/api/scraping/jobs/${jobId}/cancel`, { method: "POST" }).catch(() => null);
-    // Polling loop continues and will pick up the final state once the
-    // scraper detects cancellation and writes its result (completed/failed).
   }
 
   function openEdit(kw: KeywordRow) {
