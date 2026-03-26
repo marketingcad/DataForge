@@ -70,7 +70,6 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
   let savedCount = 0;
   let dupCount   = 0;
   let lastLogMsg = "";
-  const pendingInserts: Promise<void>[] = [];
 
   let leads: Awaited<ReturnType<typeof scrapeGoogleMapsHeadless>>;
   try {
@@ -86,8 +85,6 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
           data: { errorMessage: msg },
         }).catch(() => {});
       },
-      // Save each lead to the DB immediately as it is scraped,
-      // and also keep it in pendingLeads so the badge + modal still work.
       async (lead: import("@/lib/scraping/google/maps-scraper").SerpLead, count: number) => {
         // Every 3 leads, check if the user cancelled — if so, throw to stop the scraper
         // and let the catch block save whatever was already collected.
@@ -97,29 +94,28 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
         }
 
         collectedLeads.push(lead);
-
-        // Fire-and-forget DB insert — don't block the scraper waiting for DB round-trips
-        const insertP = insertLead({
-          businessName: lead.businessName,
-          phone:        lead.phone ?? "N/A",
-          email:        lead.email,
-          website:      lead.website,
-          address:      lead.address,
-          city:         lead.city,
-          state:        lead.state,
-          category:     job.industry,
-          source:       `GoogleMaps:keyword_${job.keywordId}`,
-          keywordId:    job.keywordId ?? undefined,
-        }).then(result => {
+        let wasDuplicate = false;
+        try {
+          const result = await insertLead({
+            businessName: lead.businessName,
+            phone:        lead.phone ?? "N/A",
+            email:        lead.email,
+            website:      lead.website,
+            address:      lead.address,
+            city:         lead.city,
+            state:        lead.state,
+            category:     job.industry,
+            source:       `GoogleMaps:keyword_${job.keywordId}`,
+            keywordId:    job.keywordId ?? undefined,
+          });
           if (result.status === "duplicate") {
             dupCount++;
-            const idx = collectedLeads.indexOf(lead);
-            if (idx !== -1) collectedLeads.splice(idx, 1);
+            wasDuplicate = true;
+            collectedLeads.pop();
           } else {
             savedCount++;
           }
-        }).catch(() => {});
-        pendingInserts.push(insertP);
+        } catch { /* ignore per-lead insert errors */ }
 
         prisma.scrapingJob.update({
           where: { id },
@@ -130,6 +126,8 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
             pendingLeads:    collectedLeads as never,
           },
         }).catch(() => {});
+
+        if (wasDuplicate) return false;
       },
       MAX_SCRAPE_MS,
       isDuplicate,
@@ -138,7 +136,6 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
   } catch (err) {
     const errorMsg    = err instanceof Error ? err.message : "Browser scrape failed";
     const wasCancelled = errorMsg === "__CANCELLED__";
-    await Promise.all(pendingInserts);
     await prisma.scrapingJob.update({
       where: { id },
       data: {
@@ -170,7 +167,6 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
     return NextResponse.json({ status: currentStatus?.status ?? "failed" });
   }
 
-  await Promise.all(pendingInserts);
   const finalLeads = leads.length > 0 ? leads : collectedLeads;
   await prisma.scrapingJob.update({
     where: { id },
