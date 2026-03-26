@@ -579,14 +579,19 @@ export async function scrapeGoogleMapsHeadless(
 
             // ── Step 2: wait until the contact fields actually have text ──────────
             // The panel loads its structure first, then async-fetches contact data.
-            // We poll until at least one field has real text, up to 10 s.
+            // We poll until at least one field has real text or an href, up to 10 s.
             await page.waitForFunction(() => {
               function hasText(sel: string): boolean {
                 const el = document.querySelector(sel);
                 return !!el && (el as HTMLElement).innerText?.trim().length > 0;
               }
+              function hasHref(sel: string): boolean {
+                const el = document.querySelector(sel);
+                return !!el && !!(el as HTMLAnchorElement).href;
+              }
               return hasText('[data-item-id="address"]') ||
                      hasText('[data-tooltip="Copy phone number"]') ||
+                     hasHref('[data-tooltip="Open website"]') ||
                      hasText('[data-tooltip="Open website"]');
             }, { timeout: 10000 }).catch(() => null);
 
@@ -607,10 +612,30 @@ export async function scrapeGoogleMapsHeadless(
                 const el = document.querySelector(sel);
                 return (el as HTMLElement | null)?.innerText?.trim() ?? "";
               }
+              function getInnermost(sel: string): string {
+                const el = document.querySelector(sel);
+                if (!el) return "";
+                // Walk to the deepest single child to get the actual text
+                let node: Element = el;
+                while (node.children.length === 1) node = node.children[0];
+                return (node as HTMLElement).innerText?.trim() ?? "";
+              }
 
               const address = getText('[data-item-id="address"]') || undefined;
-              const phone   = getText('[data-tooltip="Copy phone number"]') || undefined;
-              const website = getText('[data-tooltip="Open website"]') || undefined;
+              const phone   = getInnermost('[data-tooltip="Copy phone number"]') || getText('[data-tooltip="Copy phone number"]') || undefined;
+
+              // Website: prefer the href attribute of the anchor element
+              const websiteEl = document.querySelector('[data-tooltip="Open website"]') as HTMLAnchorElement | null;
+              let website: string | undefined;
+              if (websiteEl) {
+                const href = websiteEl.href || websiteEl.getAttribute("href") || "";
+                if (href && !href.startsWith("javascript") && !href.includes("google.com/maps")) {
+                  website = href;
+                } else {
+                  // Fall back to innerText (usually shows the domain)
+                  website = websiteEl.innerText?.trim() || undefined;
+                }
+              }
 
               let city: string | undefined, state: string | undefined;
               if (address) {
