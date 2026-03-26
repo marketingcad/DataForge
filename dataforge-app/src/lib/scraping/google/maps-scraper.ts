@@ -440,7 +440,7 @@ export async function scrapeGoogleMapsHeadless(
   location: string,
   maxLeads: number,
   onLog?: (msg: string) => void,
-  onLead?: (lead: SerpLead, count: number) => Promise<void> | void,
+  onLead?: (lead: SerpLead, count: number) => Promise<boolean | void> | boolean | void,
   maxRuntimeMs?: number,
   isDuplicate?: (lead: SerpLead) => boolean
 ): Promise<SerpLead[]> {
@@ -666,7 +666,14 @@ export async function scrapeGoogleMapsHeadless(
               gotNewLead = true;
             } else {
               leads.push(lead);
-              await onLead?.(lead, leads.length);
+              const saved = await onLead?.(lead, leads.length);
+              // onLead returns false when insertLead found a DB-level duplicate
+              // (e.g. normalisation difference from the in-memory set).
+              // Pop it so it doesn't count toward maxLeads and we keep scraping.
+              if (saved === false) {
+                leads.pop();
+                onLog?.(`DB duplicate — not counting toward limit`);
+              }
               gotNewLead = true;
             }
 

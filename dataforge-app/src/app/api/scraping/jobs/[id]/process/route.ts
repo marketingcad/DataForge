@@ -86,6 +86,7 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
       // and also keep it in pendingLeads so the badge + modal still work.
       async (lead: import("@/lib/scraping/google/maps-scraper").SerpLead, count: number) => {
         collectedLeads.push(lead);
+        let wasDuplicate = false;
         try {
           const result = await insertLead({
             businessName: lead.businessName,
@@ -98,8 +99,13 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
             category:     job.industry,
             source:       `GoogleMaps:keyword_${job.keywordId}`,
           });
-          if (result.status === "duplicate") dupCount++;
-          else savedCount++;
+          if (result.status === "duplicate") {
+            dupCount++;
+            wasDuplicate = true;
+            collectedLeads.pop(); // don't keep DB-level duplicates in the list
+          } else {
+            savedCount++;
+          }
         } catch { /* ignore per-lead insert errors */ }
 
         prisma.scrapingJob.update({
@@ -111,6 +117,10 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
             pendingLeads:    collectedLeads as never,
           },
         }).catch(() => {});
+
+        // Return false so the scraper doesn't count this toward maxLeads,
+        // allowing it to keep scraping until maxLeads are truly saved.
+        if (wasDuplicate) return false;
       },
       MAX_SCRAPE_MS,
       isDuplicate
