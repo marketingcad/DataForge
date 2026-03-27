@@ -51,7 +51,7 @@ interface KeywordRow {
   nextRunAt: string | null;
   failedAttempts: number;
   lastError: string | null;
-  _count: { jobs: number };
+  _count: { jobs: number; leads: number };
   jobs: {
     id: string;
     status: string;
@@ -224,7 +224,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
         const data = await res.json();
         const kw = data.keyword;
         setKeywords((prev) => [
-          { ...kw, _count: { jobs: 0 }, jobs: [], failedAttempts: kw.failedAttempts ?? 0, lastError: kw.lastError ?? null },
+          { ...kw, _count: { jobs: 0, leads: 0 }, jobs: [], failedAttempts: kw.failedAttempts ?? 0, lastError: kw.lastError ?? null },
           ...prev,
         ]);
         setAddOpen(false);
@@ -476,7 +476,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
                     {hasFailed && kw.enabled && <Badge variant="outline" className="text-xs gap-1 text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-950/20"><AlertTriangle className="h-3 w-3" />{kw.failedAttempts}/5 failures</Badge>}
                     {(
                       <button onClick={() => setViewLeadsKw(kw)} className="inline-flex items-center gap-1 rounded-full border border-blue-300 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 hover:bg-blue-100 dark:border-blue-700 dark:bg-blue-950/30 dark:text-blue-400 dark:hover:bg-blue-950/50 transition-colors">
-                        <Inbox className="h-3 w-3" />View scraped leads
+                        <Inbox className="h-3 w-3" />View {kw._count.leads > 0 ? `${kw._count.leads} ` : ""}scraped leads
                       </button>
                     )}
                   </div>
@@ -558,7 +558,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
 
                 {(
                   <button onClick={() => setViewLeadsKw(kw)} className="w-full inline-flex items-center justify-center gap-1.5 rounded-md border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100 dark:border-blue-700 dark:bg-blue-950/30 dark:text-blue-400 dark:hover:bg-blue-950/50 transition-colors">
-                    <Inbox className="h-3.5 w-3.5" />View scraped leads
+                    <Inbox className="h-3.5 w-3.5" />View {kw._count.leads > 0 ? `${kw._count.leads} ` : ""}scraped leads
                   </button>
                 )}
 
