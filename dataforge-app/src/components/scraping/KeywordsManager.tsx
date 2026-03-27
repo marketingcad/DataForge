@@ -369,13 +369,22 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
   }
 
   function applyJobResult(kwId: string, jobId: string, job: { status: string; leadsDiscovered: number; leadsProcessed: number; duplicatesFound: number; errorMessage: string | null }) {
+    // Refresh the real lead count from the server instead of estimating from leadsProcessed
+    fetch(`/api/keywords/${kwId}/leads?page=1`)
+      .then((r) => r.json())
+      .then((data) => {
+        setKeywords((prev) =>
+          prev.map((k) => k.id === kwId ? { ...k, _count: { ...k._count, leads: data.total ?? k._count.leads } } : k)
+        );
+      })
+      .catch(() => {});
+
     setKeywords((prev) =>
       prev.map((k) =>
         k.id === kwId
           ? {
               ...k,
               lastRunAt: new Date().toISOString(),
-              _count: { ...k._count, leads: k._count.leads + (job.leadsProcessed ?? 0) },
               jobs: [
                 {
                   id: jobId,
