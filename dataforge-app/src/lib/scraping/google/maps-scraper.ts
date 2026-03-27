@@ -714,16 +714,26 @@ export async function scrapeGoogleMapsHeadless(
                 if (displayed && displayed.includes(".") && !displayed.toLowerCase().includes("google")) {
                   website = displayed.replace(/^www\./, "");
                 } else {
-                  // Decode href — Google wraps real URLs in /url?q=... or /aclk?...
-                  const href = websiteEl.getAttribute("href") || "";
-                  if (href && !href.startsWith("javascript") && !href.includes("google.com/maps")) {
+                  // Decode href — Google wraps real URLs in various redirect formats
+                  const href = websiteEl.getAttribute("href") || websiteEl.getAttribute("data-href") || (websiteEl as HTMLElement).dataset?.url || "";
+                  if (href && !href.startsWith("javascript")) {
                     try {
                       const u = new URL(href, window.location.origin);
-                      const q = u.searchParams.get("q") || u.searchParams.get("url");
+                      // Try all known redirect query params
+                      const q = u.searchParams.get("q") ||
+                                u.searchParams.get("url") ||
+                                u.searchParams.get("dest") ||
+                                u.searchParams.get("u");
                       if (q && q.startsWith("http")) {
                         website = new URL(q).hostname.replace(/^www\./, "");
                       } else if (!u.hostname.includes("google")) {
+                        // Direct external URL — use hostname as-is
                         website = u.hostname.replace(/^www\./, "");
+                      }
+                      // /maps/redir?authuser=...&dest=https://... format
+                      if (!website && u.pathname.includes("/redir")) {
+                        const dest = u.searchParams.get("dest") || u.searchParams.get("url");
+                        if (dest) website = new URL(dest).hostname.replace(/^www\./, "");
                       }
                     } catch { website = undefined; }
                   }
