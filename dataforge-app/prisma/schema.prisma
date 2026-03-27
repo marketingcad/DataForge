@@ -44,7 +44,6 @@ enum JobStatus {
 enum JobSource {
   serpapi
   manual
-  maps
 }
 
 model Industry {

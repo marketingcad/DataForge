@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
       industry: kw.keyword,
       location: kw.location,
       maxLeads: kw.maxLeads,
-      source: "maps",
+      source: "serpapi",
       keywordId: kw.id,
     });
 
