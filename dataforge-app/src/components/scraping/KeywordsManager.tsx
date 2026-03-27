@@ -35,8 +35,10 @@ import {
   Inbox,
   LayoutGrid,
   List,
+  History,
 } from "lucide-react";
 import { KeywordLeadsModal } from "@/components/scraping/KeywordLeadsModal";
+import { KeywordHistoryModal } from "@/components/scraping/KeywordHistoryModal";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -45,7 +47,7 @@ interface KeywordRow {
   keyword: string;
   location: string;
   maxLeads: number;
-  intervalHours: number;
+  intervalMinutes: number;
   enabled: boolean;
   lastRunAt: string | null;
   nextRunAt: string | null;
@@ -66,12 +68,20 @@ interface KeywordsManagerProps {
   initial: KeywordRow[];
 }
 
+// All values are in minutes
 const INTERVAL_OPTIONS = [
-  { label: "Every 6 hours",  value: 6   },
-  { label: "Every 12 hours", value: 12  },
-  { label: "Every 24 hours", value: 24  },
-  { label: "Every 48 hours", value: 48  },
-  { label: "Every week",     value: 168 },
+  { label: "Every 5 minutes",  value: 5    },
+  { label: "Every 10 minutes", value: 10   },
+  { label: "Every 20 minutes", value: 20   },
+  { label: "Every 30 minutes", value: 30   },
+  { label: "Every 1 hour",     value: 60   },
+  { label: "Every 2 hours",    value: 120  },
+  { label: "Every 4 hours",    value: 240  },
+  { label: "Every 6 hours",    value: 360  },
+  { label: "Every 12 hours",   value: 720  },
+  { label: "Every 1 day",      value: 1440 },
+  { label: "Every 3 days",     value: 4320 },
+  { label: "Every 1 week",     value: 10080},
 ];
 
 function relativeTime(iso: string | null) {
@@ -96,9 +106,11 @@ function nextRunLabel(iso: string | null) {
   return `in ${Math.floor(hrs / 24)}d`;
 }
 
-function intervalLabel(hours: number) {
-  return INTERVAL_OPTIONS.find((o) => o.value === hours)?.label ??
-    (hours < 24 ? `Every ${hours}h` : `Every ${hours / 24}d`);
+function intervalLabel(minutes: number) {
+  return INTERVAL_OPTIONS.find((o) => o.value === minutes)?.label ??
+    (minutes < 60 ? `Every ${minutes}m` :
+     minutes < 1440 ? `Every ${minutes / 60}h` :
+     `Every ${minutes / 1440}d`);
 }
 
 export function KeywordsManager({ initial }: KeywordsManagerProps) {
@@ -109,7 +121,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
   const [newKeyword, setNewKeyword] = useState("");
   const [newLocation, setNewLocation] = useState("");
   const [newMaxLeads, setNewMaxLeads] = useState("50");
-  const [newInterval, setNewInterval] = useState("24");
+  const [newInterval, setNewInterval] = useState("1440");
   const [addSaving, setAddSaving] = useState(false);
 
   // Edit dialog
@@ -117,7 +129,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
   const [editKeyword, setEditKeyword] = useState("");
   const [editLocation, setEditLocation] = useState("");
   const [editMaxLeads, setEditMaxLeads] = useState("50");
-  const [editInterval, setEditInterval] = useState("24");
+  const [editInterval, setEditInterval] = useState("1440");
   const [editSaving, setEditSaving] = useState(false);
 
   // Delete confirm
@@ -125,6 +137,9 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
 
   // View leads modal
   const [viewLeadsKw, setViewLeadsKw] = useState<KeywordRow | null>(null);
+
+  // History modal
+  const [historyKw, setHistoryKw] = useState<KeywordRow | null>(null);
 
   // Grid vs list view — persisted in localStorage
   const [view, setView] = useState<"list" | "grid">("list");
@@ -203,7 +218,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
     setEditKeyword(kw.keyword);
     setEditLocation(kw.location);
     setEditMaxLeads(String(kw.maxLeads));
-    setEditInterval(String(kw.intervalHours));
+    setEditInterval(String(kw.intervalMinutes));
   }
 
   async function handleAdd() {
@@ -217,7 +232,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
           keyword: newKeyword.trim(),
           location: newLocation.trim(),
           maxLeads: parseInt(newMaxLeads),
-          intervalHours: parseInt(newInterval),
+          intervalMinutes: parseInt(newInterval),
         }),
       });
       if (res.ok) {
@@ -228,7 +243,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
           ...prev,
         ]);
         setAddOpen(false);
-        setNewKeyword(""); setNewLocation(""); setNewMaxLeads("50"); setNewInterval("24");
+        setNewKeyword(""); setNewLocation(""); setNewMaxLeads("50"); setNewInterval("1440");
       }
     } finally {
       setAddSaving(false);
@@ -246,7 +261,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
           keyword: editKeyword.trim(),
           location: editLocation.trim(),
           maxLeads: parseInt(editMaxLeads),
-          intervalHours: parseInt(editInterval),
+          intervalMinutes: parseInt(editInterval),
         }),
       });
       if (res.ok) {
@@ -254,7 +269,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
         setKeywords((prev) =>
           prev.map((k) =>
             k.id === editTarget.id
-              ? { ...k, keyword: updated.keyword.keyword, location: updated.keyword.location, maxLeads: updated.keyword.maxLeads, intervalHours: updated.keyword.intervalHours }
+              ? { ...k, keyword: updated.keyword.keyword, location: updated.keyword.location, maxLeads: updated.keyword.maxLeads, intervalMinutes: updated.keyword.intervalMinutes }
               : k
           )
         );
@@ -511,7 +526,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
                     <span className="text-xs text-muted-foreground">No runs yet</span>
                   )}
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                    <span>{intervalLabel(kw.intervalHours)}</span>
+                    <span>{intervalLabel(kw.intervalMinutes)}</span>
                     <span suppressHydrationWarning>Last run: {relativeTime(kw.lastRunAt)}</span>
                     <span>Next: {kw.enabled ? nextRunLabel(kw.nextRunAt) : "Paused"}</span>
                     <span>{kw._count.jobs} run{kw._count.jobs !== 1 ? "s" : ""} total</span>
@@ -528,6 +543,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
                       <Play className="h-3.5 w-3.5" />Run now
                     </Button>
                   )}
+                  <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground" title="Run history" onClick={() => setHistoryKw(kw)}><History className="h-3.5 w-3.5" /></Button>
                   <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground" onClick={() => openEdit(kw)}><Pencil className="h-3.5 w-3.5" /></Button>
                   <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-muted-foreground hover:text-rose-500" onClick={() => setDeleteConfirm(kw.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
                 </div>
@@ -594,7 +610,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
                 )}
 
                 <div className="text-xs text-muted-foreground space-y-0.5 border-t pt-2">
-                  <div className="flex justify-between"><span>Schedule</span><span className="font-medium text-foreground">{intervalLabel(kw.intervalHours)}</span></div>
+                  <div className="flex justify-between"><span>Schedule</span><span className="font-medium text-foreground">{intervalLabel(kw.intervalMinutes)}</span></div>
                   <div className="flex justify-between"><span>Last run</span><span suppressHydrationWarning>{relativeTime(kw.lastRunAt)}</span></div>
                   <div className="flex justify-between"><span>Next</span><span>{kw.enabled ? nextRunLabel(kw.nextRunAt) : "Paused"}</span></div>
                 </div>
@@ -611,6 +627,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
                       <Play className="h-3.5 w-3.5" />Run now
                     </Button>
                   )}
+                  <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground" title="Run history" onClick={() => setHistoryKw(kw)}><History className="h-3.5 w-3.5" /></Button>
                   <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground" onClick={() => openEdit(kw)}><Pencil className="h-3.5 w-3.5" /></Button>
                   <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-muted-foreground hover:text-rose-500" onClick={() => setDeleteConfirm(kw.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
                 </div>
@@ -673,6 +690,17 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── Run history modal ── */}
+      {historyKw && (
+        <KeywordHistoryModal
+          kwId={historyKw.id}
+          keyword={historyKw.keyword}
+          location={historyKw.location}
+          open={!!historyKw}
+          onOpenChange={(o) => { if (!o) setHistoryKw(null); }}
+        />
+      )}
 
       {/* ── Scraped leads modal (mirrors FolderLeadsModal) ── */}
       {viewLeadsKw && (

@@ -460,7 +460,7 @@ model ScrapingKeyword {
   location       String
   maxLeads       Int           @default(50)
   enabled        Boolean       @default(true)
-  intervalHours  Int           @default(24)
+  intervalMinutes Int          @default(1440)
   lastRunAt      DateTime?
   nextRunAt      DateTime?
   failedAttempts Int           @default(0)

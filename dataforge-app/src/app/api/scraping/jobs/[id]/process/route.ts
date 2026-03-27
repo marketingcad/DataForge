@@ -164,7 +164,7 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
     if (isSuccess) {
       try {
         const kw = await getKeywordById(job.keywordId!);
-        await onKeywordJobSuccess(kw.id, kw.intervalHours);
+        await onKeywordJobSuccess(kw.id, kw.intervalMinutes);
       } catch { /* keyword may have been deleted */ }
     } else if (!wasCancelled) {
       await handleKeywordFailure(job.keywordId!, errorMsg);
@@ -202,7 +202,7 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
 
   try {
     const kw = await getKeywordById(job.keywordId!);
-    await onKeywordJobSuccess(kw.id, kw.intervalHours);
+    await onKeywordJobSuccess(kw.id, kw.intervalMinutes);
   } catch { /* keyword may have been deleted */ }
 
   return NextResponse.json({ status: "completed", saved: savedCount });
@@ -285,7 +285,7 @@ async function processStandardJob(id: string, job: Awaited<ReturnType<typeof get
 async function handleKeywordFailure(keywordId: string, error: string) {
   try {
     const kw = await getKeywordById(keywordId);
-    const { attempts, disabled } = await onKeywordJobFailure(kw.id, error, kw.intervalHours);
+    const { attempts, disabled } = await onKeywordJobFailure(kw.id, error, kw.intervalMinutes);
 
     if (disabled) {
       if (kw.createdById) {

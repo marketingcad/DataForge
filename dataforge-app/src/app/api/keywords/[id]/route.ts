@@ -33,9 +33,9 @@ export async function PATCH(
 
   const { id } = await params;
   const body = await req.json();
-  const { keyword, location, maxLeads, intervalHours, enabled } = body;
+  const { keyword, location, maxLeads, intervalMinutes, enabled } = body;
 
-  const updated = await updateKeyword(id, { keyword, location, maxLeads, intervalHours, enabled });
+  const updated = await updateKeyword(id, { keyword, location, maxLeads, intervalMinutes, enabled });
   return NextResponse.json({ keyword: updated });
 }
 

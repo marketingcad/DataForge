@@ -40,7 +40,7 @@ export async function createKeyword(data: {
   keyword: string;
   location: string;
   maxLeads?: number;
-  intervalHours?: number;
+  intervalMinutes?: number;
   createdById?: string;
 }) {
   const nextRunAt = new Date();
@@ -49,7 +49,7 @@ export async function createKeyword(data: {
       keyword: data.keyword.trim(),
       location: data.location.trim(),
       maxLeads: data.maxLeads ?? 50,
-      intervalHours: data.intervalHours ?? 24,
+      intervalMinutes: data.intervalMinutes ?? 1440,
       nextRunAt,
       createdById: data.createdById ?? null,
     },
@@ -62,7 +62,7 @@ export async function updateKeyword(
     keyword: string;
     location: string;
     maxLeads: number;
-    intervalHours: number;
+    intervalMinutes: number;
     enabled: boolean;
   }>
 ) {
@@ -85,8 +85,8 @@ export async function getDueKeywords() {
 }
 
 /** Called after a keyword-linked job completes successfully. */
-export async function onKeywordJobSuccess(id: string, intervalHours: number) {
-  const next = new Date(Date.now() + intervalHours * 60 * 60 * 1000);
+export async function onKeywordJobSuccess(id: string, intervalMinutes: number) {
+  const next = new Date(Date.now() + intervalMinutes * 60 * 1000);
   return prisma.scrapingKeyword.update({
     where: { id },
     data: {
@@ -99,15 +99,15 @@ export async function onKeywordJobSuccess(id: string, intervalHours: number) {
 }
 
 /** Called after a keyword-linked job fails. Returns updated failedAttempts. */
-export async function onKeywordJobFailure(id: string, error: string, intervalHours: number) {
+export async function onKeywordJobFailure(id: string, error: string, intervalMinutes: number) {
   const kw = await prisma.scrapingKeyword.findUniqueOrThrow({ where: { id } });
   const attempts = kw.failedAttempts + 1;
   const MAX_FAILURES = 5;
 
-  // Back-off: retry in intervalHours, but disable after max failures
+  // Back-off: retry in intervalMinutes, but disable after max failures
   const next = attempts >= MAX_FAILURES
     ? null
-    : new Date(Date.now() + intervalHours * 60 * 60 * 1000);
+    : new Date(Date.now() + intervalMinutes * 60 * 1000);
 
   await prisma.scrapingKeyword.update({
     where: { id },
