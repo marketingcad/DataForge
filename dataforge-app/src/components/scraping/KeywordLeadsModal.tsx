@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { bulkDeleteLeadsAction } from "@/actions/leads.actions";
+import { bulkDeleteLeadsAction, deleteAllKeywordLeadsAction } from "@/actions/leads.actions";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -205,14 +205,11 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
     setDeleting(true);
     try {
       if (confirmDelete === "all") {
-        // Delete ALL leads for this keyword (fetch all IDs first)
-        const res = await fetch(`/api/keywords/${kwId}/leads?page=1&pageSize=999999`);
-        const data = await res.json();
-        const ids = (data.leads as Lead[]).map((l) => l.id);
-        if (ids.length) await bulkDeleteLeadsAction(ids);
+        const count = total;
+        await deleteAllKeywordLeadsAction(kwId);
         addNotif({ type: "warning", title: "All leads deleted", message: `Cleared all leads for "${keyword} — ${location}".` });
         setTotal(0); setLeads([]);
-        onLeadsDeleted?.(ids.length);
+        onLeadsDeleted?.(count);
       } else if (confirmDelete === "selected") {
         const ids = Array.from(selected);
         await bulkDeleteLeadsAction(ids);
@@ -342,6 +339,11 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
               onClick={() => handleExport("all")} disabled={exporting || total === 0}>
               {exporting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
               Export
+            </Button>
+            <Button variant="outline" size="sm" className="h-8 gap-1 text-xs shrink-0 text-destructive hover:text-destructive"
+              onClick={() => setConfirmDelete("selected")} disabled={!someSelected}>
+              <Trash2 className="h-3 w-3" />
+              Delete selected
             </Button>
             <Button variant="outline" size="sm" className="h-8 gap-1 text-xs shrink-0 text-destructive hover:text-destructive"
               onClick={() => setConfirmDelete("all")} disabled={total === 0}>

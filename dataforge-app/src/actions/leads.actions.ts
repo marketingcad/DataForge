@@ -53,6 +53,12 @@ export async function bulkDeleteLeadsAction(ids: string[]) {
   revalidatePath("/leads");
 }
 
+export async function deleteAllKeywordLeadsAction(kwId: string) {
+  await requireDepartment("leads");
+  await prisma.lead.deleteMany({ where: { source: { startsWith: `GoogleMaps:keyword_${kwId}` } } });
+  revalidatePath("/leads");
+}
+
 export async function createLeadAction(formData: FormData) {
   const user = await requireDepartment("leads");
   const raw = Object.fromEntries(formData.entries());
