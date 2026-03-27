@@ -491,7 +491,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
                         {job.status === "completed" && job.leadsProcessed === 0 && <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 px-2.5 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400"><AlertTriangle className="h-3 w-3" />No new leads</span>}
                         {job.status === "running" && <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 px-2.5 py-0.5 text-xs font-medium text-blue-700 dark:text-blue-400"><Loader2 className="h-3 w-3 animate-spin" />Scraping…</span>}
                         {job.status === "failed" && <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800 px-2.5 py-0.5 text-xs font-medium text-rose-600 dark:text-rose-400"><AlertTriangle className="h-3 w-3" />Last run failed</span>}
-                        <span className="text-xs text-muted-foreground">{relativeTime(job.createdAt)}</span>
+                        <span className="text-xs text-muted-foreground" suppressHydrationWarning>{relativeTime(job.createdAt)}</span>
                       </div>
                       {job.status === "completed" && job.leadsProcessed === 0 && job.errorMessage && !job.errorMessage.startsWith("Done") && (
                         <span className="text-xs text-muted-foreground truncate max-w-xs">{job.errorMessage}</span>
@@ -502,7 +502,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
                   )}
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
                     <span>{intervalLabel(kw.intervalHours)}</span>
-                    <span>Last run: {relativeTime(kw.lastRunAt)}</span>
+                    <span suppressHydrationWarning>Last run: {relativeTime(kw.lastRunAt)}</span>
                     <span>Next: {kw.enabled ? nextRunLabel(kw.nextRunAt) : "Paused"}</span>
                     <span>{kw._count.jobs} run{kw._count.jobs !== 1 ? "s" : ""} total</span>
                   </div>
@@ -573,7 +573,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
                       {job.status === "completed" && job.leadsProcessed === 0 && <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400"><AlertTriangle className="h-3 w-3" />No new leads</span>}
                       {job.status === "running" && <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 px-2 py-0.5 text-xs font-medium text-blue-700 dark:text-blue-400"><Loader2 className="h-3 w-3 animate-spin" />Scraping…</span>}
                       {job.status === "failed" && <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800 px-2 py-0.5 text-xs font-medium text-rose-600 dark:text-rose-400"><AlertTriangle className="h-3 w-3" />Failed</span>}
-                      <span className="text-xs text-muted-foreground">{relativeTime(job.createdAt)}</span>
+                      <span className="text-xs text-muted-foreground" suppressHydrationWarning>{relativeTime(job.createdAt)}</span>
                     </div>
                     {job.status === "completed" && job.leadsProcessed === 0 && job.errorMessage && !job.errorMessage.startsWith("Done") && (
                       <span className="text-xs text-muted-foreground truncate">{job.errorMessage}</span>
@@ -585,7 +585,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
 
                 <div className="text-xs text-muted-foreground space-y-0.5 border-t pt-2">
                   <div className="flex justify-between"><span>Schedule</span><span className="font-medium text-foreground">{intervalLabel(kw.intervalHours)}</span></div>
-                  <div className="flex justify-between"><span>Last run</span><span>{relativeTime(kw.lastRunAt)}</span></div>
+                  <div className="flex justify-between"><span>Last run</span><span suppressHydrationWarning>{relativeTime(kw.lastRunAt)}</span></div>
                   <div className="flex justify-between"><span>Next</span><span>{kw.enabled ? nextRunLabel(kw.nextRunAt) : "Paused"}</span></div>
                 </div>
 
