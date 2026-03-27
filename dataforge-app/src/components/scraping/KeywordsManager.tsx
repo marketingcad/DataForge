@@ -375,6 +375,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
           ? {
               ...k,
               lastRunAt: new Date().toISOString(),
+              _count: { ...k._count, leads: k._count.leads + (job.leadsProcessed ?? 0) },
               jobs: [
                 {
                   id: jobId,
@@ -672,8 +673,14 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
           location={viewLeadsKw.location}
           open={!!viewLeadsKw}
           onOpenChange={(o) => { if (!o) setViewLeadsKw(null); }}
-          onLeadsDeleted={() => {
-            // Refresh leadsDiscovered count from server on next poll — for now just close
+          onLeadsDeleted={(count) => {
+            setKeywords((prev) =>
+              prev.map((k) =>
+                k.id === viewLeadsKw!.id
+                  ? { ...k, _count: { ...k._count, leads: Math.max(0, k._count.leads - count) } }
+                  : k
+              )
+            );
           }}
         />
       )}
