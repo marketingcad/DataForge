@@ -36,7 +36,7 @@ export async function POST(
     industry: kw.keyword,
     location: kw.location,
     maxLeads: kw.maxLeads,
-    source: "serpapi",
+    source: "maps",
     keywordId: id,
   });
 

@@ -4,7 +4,7 @@ export const ScrapingJobInputSchema = z.object({
   industry: z.string().min(1, "Industry is required"),
   location: z.string().min(1, "Location is required"),
   maxLeads: z.coerce.number().min(1).max(200).default(50),
-  source: z.enum(["serpapi", "manual"]).default("serpapi"),
+  source: z.enum(["serpapi", "manual", "maps"]).default("serpapi"),
 });
 
 export type ScrapingJobInput = z.infer<typeof ScrapingJobInputSchema>;
