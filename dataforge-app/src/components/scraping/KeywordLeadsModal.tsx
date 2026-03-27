@@ -341,11 +341,6 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
               Export
             </Button>
             <Button variant="outline" size="sm" className="h-8 gap-1 text-xs shrink-0 text-destructive hover:text-destructive"
-              onClick={() => setConfirmDelete("selected")} disabled={!someSelected}>
-              <Trash2 className="h-3 w-3" />
-              Delete selected
-            </Button>
-            <Button variant="outline" size="sm" className="h-8 gap-1 text-xs shrink-0 text-destructive hover:text-destructive"
               onClick={() => setConfirmDelete("all")} disabled={total === 0}>
               <Trash2 className="h-3 w-3" />
               Delete all
