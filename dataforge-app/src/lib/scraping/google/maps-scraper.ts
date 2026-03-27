@@ -626,6 +626,19 @@ export async function scrapeGoogleMapsHeadless(
 
         onLog?.(`Scraping ${leads.length + 1}/${Math.min(maxLeads, toScrape.size)}: "${businessName}"…`);
 
+        // Read website from the list card BEFORE clicking — the card exposes the
+        // real URL directly (no Google redirect), far more reliable than the panel.
+        let cardWebsite: string | undefined;
+        try {
+          const wsLink = article.locator('a[aria-label*="website"]').first();
+          if (await wsLink.isVisible({ timeout: 500 })) {
+            const href = await wsLink.getAttribute('href') ?? '';
+            if (href.startsWith('http')) {
+              cardWebsite = new URL(href).hostname.replace(/^www\./, '');
+            }
+          }
+        } catch { /* no website link in card */ }
+
         const LEAD_TIMEOUT_MS = 60_000;
         let leadTimedOut = false;
 
@@ -757,7 +770,7 @@ export async function scrapeGoogleMapsHeadless(
               businessName,
               address: details.address,
               phone:   details.phone,
-              website: details.website,
+              website: cardWebsite || details.website,
               city:    details.city,
               state:   details.state,
             };
