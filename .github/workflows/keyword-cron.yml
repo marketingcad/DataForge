@@ -2,11 +2,7 @@ name: Auto Keyword Scraper Cron
 
 on:
   schedule:
-    # Runs every 5 minutes — GitHub Actions minimum is 5 minutes.
-    # Adjust the interval here; the app will only start jobs whose
-    # nextRunAt is actually due, so running this frequently is safe.
     - cron: "*/5 * * * *"
-  # Allow manual trigger from the GitHub Actions UI
   workflow_dispatch:
 
 jobs:
@@ -17,17 +13,32 @@ jobs:
 
     steps:
       - name: Call scraping cron endpoint
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-            -X GET "${{ secrets.APP_URL }}/api/scraping/cron" \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            --max-time 30)
+          if [ -z "$APP_URL" ]; then
+            echo "ERROR: APP_URL secret is not set" >&2
+            exit 1
+          fi
+          if [ -z "$CRON_SECRET" ]; then
+            echo "ERROR: CRON_SECRET secret is not set" >&2
+            exit 1
+          fi
 
-          echo "Response status: $STATUS"
+          echo "Calling: ${APP_URL}/api/scraping/cron"
 
-          if [ "$STATUS" -eq 200 ] || [ "$STATUS" -eq 204 ]; then
+          HTTP_STATUS=$(curl -s -o /tmp/cron_response.txt -w "%{http_code}" \
+            -X GET "${APP_URL}/api/scraping/cron" \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            --max-time 30 || echo "000")
+
+          echo "HTTP status: $HTTP_STATUS"
+          echo "Response: $(cat /tmp/cron_response.txt)"
+
+          if [ "$HTTP_STATUS" = "200" ] || [ "$HTTP_STATUS" = "204" ]; then
             echo "Cron triggered successfully"
           else
-            echo "Cron returned HTTP $STATUS" >&2
+            echo "Cron returned HTTP $HTTP_STATUS" >&2
             exit 1
           fi
