@@ -70,9 +70,6 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
   let savedCount = 0;
   let dupCount   = 0;
   let lastLogMsg = "";
-  // Shared ref so the scraper's Phase 2 loop can stop as soon as maxLeads
-  // have been DB-confirmed saved (not just found from Google Maps).
-  const savedCountRef = { value: 0 };
   // Sequential insert chain: inserts run one at a time in the background so
   // the scraper never waits for a DB round-trip, but only one connection is
   // open at a time so Neon's pool is never exhausted.
@@ -93,8 +90,15 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
         }).catch(() => {});
       },
       async (lead: import("@/lib/scraping/google/maps-scraper").SerpLead, count: number) => {
-        // Every 3 leads, check if the user cancelled — if so, throw to stop the scraper
-        // and let the catch block save whatever was already collected.
+        // Sync with pending inserts so savedCount is accurate before deciding to continue.
+        // Each insert takes ~200ms; lead panels take 4-8s — so this is effectively free.
+        await insertChain;
+
+        // Stop exactly when the saved limit is reached — not when leads are found.
+        // Throws before queueing this lead's insert so it is never saved.
+        if (savedCount >= job.maxLeads) throw new Error("__LIMIT_REACHED__");
+
+        // Every 3 leads, check if the user cancelled.
         if (count % 3 === 0) {
           const cur = await prisma.scrapingJob.findUnique({ where: { id }, select: { status: true } });
           if (cur?.status !== "running") throw new Error("__CANCELLED__");
@@ -121,7 +125,6 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
               if (idx !== -1) collectedLeads.splice(idx, 1);
             } else {
               savedCount++;
-              savedCountRef.value = savedCount;
             }
           } catch { /* ignore per-lead insert errors */ }
 
@@ -138,33 +141,35 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
       },
       MAX_SCRAPE_MS,
       isDuplicate,
-      skipNames,
-      savedCountRef
+      skipNames
     );
   } catch (err) {
-    const errorMsg    = err instanceof Error ? err.message : "Browser scrape failed";
-    const wasCancelled = errorMsg === "__CANCELLED__";
+    const errorMsg      = err instanceof Error ? err.message : "Browser scrape failed";
+    const wasCancelled  = errorMsg === "__CANCELLED__";
+    const wasLimitReached = errorMsg === "__LIMIT_REACHED__";
     await insertChain;
+    const isSuccess = wasLimitReached || savedCount > 0;
     await prisma.scrapingJob.update({
       where: { id },
       data: {
-        status:          savedCount > 0 ? "completed" : "failed",
+        status:          isSuccess ? "completed" : "failed",
         completedTime:   new Date(),
         leadsProcessed:  savedCount,
         duplicatesFound: dupCount,
-        errorMessage:    savedCount > 0 ? null : (wasCancelled ? "Stopped by user" : errorMsg),
+        errorMessage:    isSuccess
+          ? `Done — ${savedCount} lead${savedCount !== 1 ? "s" : ""} saved`
+          : (wasCancelled ? "Stopped by user" : errorMsg),
       },
     });
-    if (savedCount > 0) {
+    if (isSuccess) {
       try {
         const kw = await getKeywordById(job.keywordId!);
         await onKeywordJobSuccess(kw.id, kw.intervalHours);
       } catch { /* keyword may have been deleted */ }
     } else if (!wasCancelled) {
-      // Only record a failure if this was an actual error, not a user stop
       await handleKeywordFailure(job.keywordId!, errorMsg);
     }
-    return NextResponse.json(savedCount > 0
+    return NextResponse.json(isSuccess
       ? { status: "completed", saved: savedCount }
       : { status: "failed", error: wasCancelled ? "Stopped by user" : errorMsg }
     );

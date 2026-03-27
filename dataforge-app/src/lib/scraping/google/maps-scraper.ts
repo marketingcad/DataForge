@@ -447,8 +447,7 @@ export async function scrapeGoogleMapsHeadless(
   onLead?: (lead: SerpLead, count: number) => Promise<boolean | void> | boolean | void,
   maxRuntimeMs?: number,
   isDuplicate?: (lead: SerpLead) => boolean,
-  skipNames?: Set<string>,
-  savedCountRef?: { value: number }  // live count of DB-confirmed saved leads
+  skipNames?: Set<string>
 ): Promise<SerpLead[]> {
   const leads: SerpLead[] = [];
   const searchQuery = `${keyword} ${location}`;
@@ -586,13 +585,9 @@ export async function scrapeGoogleMapsHeadless(
     const seen = new Set<string>(); // processed in Phase 2
     let staleRounds = 0;
 
-    // Phase 2 stops when enough leads have been SAVED (not just found).
-    // savedCountRef.value is updated by the insertChain in the caller as each
-    // DB insert completes. Fall back to leads.length if no ref is provided.
-    const reachedTarget = () =>
-      savedCountRef ? savedCountRef.value >= maxLeads : leads.length >= maxLeads;
-
-    while (!reachedTarget() && leads.length < maxLeads * 2 && staleRounds < 4) {
+    // Phase 2: onLead throws __LIMIT_REACHED__ when maxLeads are confirmed saved.
+    // The while loop here is just a safety cap — actual stopping is via onLead.
+    while (leads.length < maxLeads * 2 && staleRounds < 4) {
       if (maxRuntimeMs && Date.now() - startedAt >= maxRuntimeMs) {
         onLog?.(`Time limit reached — saving ${leads.length} lead${leads.length !== 1 ? "s" : ""} collected so far`);
         break;
@@ -607,7 +602,7 @@ export async function scrapeGoogleMapsHeadless(
       let gotNewArticle = false;
 
       for (const child of childDivs) {
-        if (reachedTarget() || leads.length >= maxLeads * 2) break;
+        if (leads.length >= maxLeads * 2) break;
 
         const article = child.locator('div[role="article"]').first();
         if (!(await article.isVisible().catch(() => false))) continue;
