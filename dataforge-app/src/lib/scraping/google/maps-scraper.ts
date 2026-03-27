@@ -678,30 +678,55 @@ export async function scrapeGoogleMapsHeadless(
             if (leadTimedOut) return;
 
             const details = await page.evaluate(() => {
+              // Scope every query to elements OUTSIDE the feed (the detail panel
+              // is always rendered outside div[role="feed"] — the left-side list).
+              // This prevents reading data from the wrong business when panels overlap.
+              const feed = document.querySelector('div[role="feed"]');
+              function getOutside(sel: string): Element | null {
+                const all = document.querySelectorAll(sel);
+                for (let i = 0; i < all.length; i++) {
+                  if (!feed || !feed.contains(all[i])) return all[i];
+                }
+                return null;
+              }
               function getText(sel: string): string {
-                const el = document.querySelector(sel);
-                return (el as HTMLElement | null)?.innerText?.trim() ?? "";
+                const el = getOutside(sel);
+                // Replace any leading/trailing whitespace including newlines from icon elements
+                return (el as HTMLElement | null)?.innerText?.replace(/^\s+|\s+$/g, "").replace(/\n/g, " ").trim() ?? "";
               }
               function getInnermost(sel: string): string {
-                const el = document.querySelector(sel);
+                const el = getOutside(sel);
                 if (!el) return "";
                 let node: Element = el;
                 while (node.children.length === 1) node = node.children[0];
-                return (node as HTMLElement).innerText?.trim() ?? "";
+                return (node as HTMLElement).innerText?.replace(/^\s+|\s+$/g, "").trim() ?? "";
               }
 
               const address = getText('[data-item-id="address"]') || undefined;
               const phone   = getInnermost('[data-tooltip="Copy phone number"]') ||
                               getText('[data-tooltip="Copy phone number"]') || undefined;
 
-              const websiteEl = document.querySelector('[data-tooltip="Open website"]') as HTMLAnchorElement | null;
+              const websiteEl = getOutside('[data-tooltip="Open website"]') as HTMLAnchorElement | null;
               let website: string | undefined;
               if (websiteEl) {
-                const href = websiteEl.href || websiteEl.getAttribute("href") || "";
-                if (href && !href.startsWith("javascript") && !href.includes("google.com/maps")) {
-                  website = href;
+                // Try displayed text first — only if it looks like a real domain (has a dot)
+                const displayed = websiteEl.innerText?.trim();
+                if (displayed && displayed.includes(".") && !displayed.toLowerCase().includes("google")) {
+                  website = displayed.replace(/^www\./, "");
                 } else {
-                  website = websiteEl.innerText?.trim() || undefined;
+                  // Decode href — Google wraps real URLs in /url?q=... or /aclk?...
+                  const href = websiteEl.getAttribute("href") || "";
+                  if (href && !href.startsWith("javascript") && !href.includes("google.com/maps")) {
+                    try {
+                      const u = new URL(href, window.location.origin);
+                      const q = u.searchParams.get("q") || u.searchParams.get("url");
+                      if (q && q.startsWith("http")) {
+                        website = new URL(q).hostname.replace(/^www\./, "");
+                      } else if (!u.hostname.includes("google")) {
+                        website = u.hostname.replace(/^www\./, "");
+                      }
+                    } catch { website = undefined; }
+                  }
                 }
               }
 
