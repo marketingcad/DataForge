@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, useTransition } from "react";
 import { Bell, Trash2, ExternalLink, X } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { formatDistanceToNow, format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -46,9 +47,39 @@ export function NotificationBell() {
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
+  // Track IDs already seen so we can toast only truly new ones.
+  // null = not yet initialised (first load — never toast on first load).
+  const seenIds = useRef<Set<string> | null>(null);
+
   const fetchNotifications = useCallback(async () => {
     const res = await getMyNotificationsAction();
-    setNotifications(res.notifications as DbNotif[]);
+    const incoming = res.notifications as DbNotif[];
+
+    if (seenIds.current === null) {
+      // First load — just record what exists, no toasts.
+      seenIds.current = new Set(incoming.map((n) => n.id));
+    } else {
+      // Subsequent polls — toast anything we haven't seen before.
+      for (const n of incoming) {
+        if (!seenIds.current.has(n.id)) {
+          seenIds.current.add(n.id);
+          const fn =
+            n.type === "error"   ? toast.error   :
+            n.type === "warning" ? toast.warning  :
+            n.type === "success" ? toast.success  :
+            toast.info;
+          fn(n.title, {
+            description: n.message ?? undefined,
+            duration: 8000,
+            action: n.link
+              ? { label: "View", onClick: () => { window.location.href = n.link!; } }
+              : undefined,
+          });
+        }
+      }
+    }
+
+    setNotifications(incoming);
   }, []);
 
   // Initial load

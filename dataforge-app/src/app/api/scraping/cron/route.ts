@@ -5,10 +5,15 @@ import { getDueKeywords } from "@/lib/keywords/service";
 
 export const maxDuration = 60;
 
-export async function GET(req: NextRequest) {
-  // Validate cron secret
+async function handleCron(req: NextRequest) {
+  // Accept either our CRON_SECRET (GitHub Actions / external services)
+  // or Vercel's built-in cron header (when running on Pro plan with vercel.json crons).
   const auth = req.headers.get("authorization");
-  if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  const vercelCron = req.headers.get("x-vercel-cron");
+  const validSecret = process.env.CRON_SECRET && auth === `Bearer ${process.env.CRON_SECRET}`;
+  const validVercel = vercelCron === "1";
+
+  if (!validSecret && !validVercel) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -58,3 +63,6 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({ triggered });
 }
+
+export const GET  = handleCron;
+export const POST = handleCron;

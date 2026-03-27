@@ -1,0 +1,33 @@
+name: Auto Keyword Scraper Cron
+
+on:
+  schedule:
+    # Runs every 5 minutes — GitHub Actions minimum is 5 minutes.
+    # Adjust the interval here; the app will only start jobs whose
+    # nextRunAt is actually due, so running this frequently is safe.
+    - cron: "*/5 * * * *"
+  # Allow manual trigger from the GitHub Actions UI
+  workflow_dispatch:
+
+jobs:
+  trigger-cron:
+    name: Trigger keyword scrape cron
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+
+    steps:
+      - name: Call scraping cron endpoint
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X GET "${{ secrets.APP_URL }}/api/scraping/cron" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            --max-time 30)
+
+          echo "Response status: $STATUS"
+
+          if [ "$STATUS" -eq 200 ] || [ "$STATUS" -eq 204 ]; then
+            echo "Cron triggered successfully"
+          else
+            echo "Cron returned HTTP $STATUS" >&2
+            exit 1
+          fi
