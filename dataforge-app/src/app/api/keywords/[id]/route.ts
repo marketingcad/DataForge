@@ -35,7 +35,23 @@ export async function PATCH(
   const body = await req.json();
   const { keyword, location, maxLeads, intervalMinutes, enabled } = body;
 
-  const updated = await updateKeyword(id, { keyword, location, maxLeads, intervalMinutes, enabled });
+  const existing = await getKeywordById(id).catch(() => null);
+
+  // Reset nextRunAt to now when:
+  // - intervalMinutes changed (so it runs at the new frequency immediately)
+  // - keyword is being re-enabled (so it doesn't wait until the old nextRunAt)
+  const intervalChanged = intervalMinutes !== undefined && existing && existing.intervalMinutes !== intervalMinutes;
+  const beingEnabled = enabled === true && existing && !existing.enabled;
+  const resetNextRun = intervalChanged || beingEnabled;
+
+  const updated = await updateKeyword(id, {
+    keyword,
+    location,
+    maxLeads,
+    intervalMinutes,
+    enabled,
+    ...(resetNextRun ? { nextRunAt: new Date() } : {}),
+  });
   return NextResponse.json({ keyword: updated });
 }
 

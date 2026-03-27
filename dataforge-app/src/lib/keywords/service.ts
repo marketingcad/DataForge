@@ -64,6 +64,7 @@ export async function updateKeyword(
     maxLeads: number;
     intervalMinutes: number;
     enabled: boolean;
+    nextRunAt: Date;
   }>
 ) {
   return prisma.scrapingKeyword.update({ where: { id }, data });
