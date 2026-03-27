@@ -626,19 +626,6 @@ export async function scrapeGoogleMapsHeadless(
 
         onLog?.(`Scraping ${leads.length + 1}/${Math.min(maxLeads, toScrape.size)}: "${businessName}"…`);
 
-        // Read website from the list card BEFORE clicking — the card exposes the
-        // real URL directly (no Google redirect), far more reliable than the panel.
-        let cardWebsite: string | undefined;
-        try {
-          const wsLink = article.locator('a[aria-label*="website"]').first();
-          if (await wsLink.isVisible({ timeout: 500 })) {
-            const href = await wsLink.getAttribute('href') ?? '';
-            if (href.startsWith('http')) {
-              cardWebsite = new URL(href).hostname.replace(/^www\./, '');
-            }
-          }
-        } catch { /* no website link in card */ }
-
         const LEAD_TIMEOUT_MS = 60_000;
         let leadTimedOut = false;
 
@@ -690,63 +677,62 @@ export async function scrapeGoogleMapsHeadless(
 
             if (leadTimedOut) return;
 
-            const details = await page.evaluate(() => {
-              // Scope every query to elements OUTSIDE the feed (the detail panel
-              // is always rendered outside div[role="feed"] — the left-side list).
-              // This prevents reading data from the wrong business when panels overlap.
+            const details = await page.evaluate((name) => {
+              // Find the detail panel: aria-label="{businessName}" outside the feed.
+              // Scope ALL data queries within this panel — never query globally.
               const feed = document.querySelector('div[role="feed"]');
-              function getOutside(sel: string): Element | null {
-                const all = document.querySelectorAll(sel);
-                for (let i = 0; i < all.length; i++) {
-                  if (!feed || !feed.contains(all[i])) return all[i];
+              let panel: Element | null = null;
+              const labeled = document.querySelectorAll("[aria-label]");
+              for (let i = 0; i < labeled.length; i++) {
+                if (
+                  labeled[i].getAttribute("aria-label") === name &&
+                  (!feed || !feed.contains(labeled[i]))
+                ) {
+                  panel = labeled[i];
+                  break;
                 }
-                return null;
               }
+              if (!panel) return null;
+
               function getText(sel: string): string {
-                const el = getOutside(sel);
-                // Replace any leading/trailing whitespace including newlines from icon elements
-                return (el as HTMLElement | null)?.innerText?.replace(/^\s+|\s+$/g, "").replace(/\n/g, " ").trim() ?? "";
+                const el = panel!.querySelector(sel);
+                return (el as HTMLElement | null)?.innerText
+                  ?.replace(/^\s+|\s+$/g, "").replace(/\n/g, " ").trim() ?? "";
               }
               function getInnermost(sel: string): string {
-                const el = getOutside(sel);
+                const el = panel!.querySelector(sel);
                 if (!el) return "";
                 let node: Element = el;
                 while (node.children.length === 1) node = node.children[0];
-                return (node as HTMLElement).innerText?.replace(/^\s+|\s+$/g, "").trim() ?? "";
+                return (node as HTMLElement).innerText
+                  ?.replace(/^\s+|\s+$/g, "").trim() ?? "";
               }
 
               const address = getText('[data-item-id="address"]') || undefined;
               const phone   = getInnermost('[data-tooltip="Copy phone number"]') ||
                               getText('[data-tooltip="Copy phone number"]') || undefined;
 
-              const websiteEl = getOutside('[data-tooltip="Open website"]') as HTMLAnchorElement | null;
+              // Website: read innermost text of the "Open website" element first.
+              // The displayed text is the clean domain (e.g. "example.com").
+              const websiteEl = panel.querySelector('[data-tooltip="Open website"]') as HTMLAnchorElement | null;
               let website: string | undefined;
               if (websiteEl) {
-                // Try displayed text first — only if it looks like a real domain (has a dot)
-                const displayed = websiteEl.innerText?.trim();
+                let node: Element = websiteEl;
+                while (node.children.length === 1) node = node.children[0];
+                const displayed = (node as HTMLElement).innerText?.trim();
                 if (displayed && displayed.includes(".") && !displayed.toLowerCase().includes("google")) {
                   website = displayed.replace(/^www\./, "");
                 } else {
-                  // Decode href — Google wraps real URLs in various redirect formats
-                  const href = websiteEl.getAttribute("href") || websiteEl.getAttribute("data-href") || (websiteEl as HTMLElement).dataset?.url || "";
+                  const href = websiteEl.getAttribute("href") || "";
                   if (href && !href.startsWith("javascript")) {
                     try {
                       const u = new URL(href, window.location.origin);
-                      // Try all known redirect query params
-                      const q = u.searchParams.get("q") ||
-                                u.searchParams.get("url") ||
-                                u.searchParams.get("dest") ||
-                                u.searchParams.get("u");
+                      const q = u.searchParams.get("q") || u.searchParams.get("url") ||
+                                u.searchParams.get("dest") || u.searchParams.get("u");
                       if (q && q.startsWith("http")) {
                         website = new URL(q).hostname.replace(/^www\./, "");
                       } else if (!u.hostname.includes("google")) {
-                        // Direct external URL — use hostname as-is
                         website = u.hostname.replace(/^www\./, "");
-                      }
-                      // /maps/redir?authuser=...&dest=https://... format
-                      if (!website && u.pathname.includes("/redir")) {
-                        const dest = u.searchParams.get("dest") || u.searchParams.get("url");
-                        if (dest) website = new URL(dest).hostname.replace(/^www\./, "");
                       }
                     } catch { website = undefined; }
                   }
@@ -762,7 +748,7 @@ export async function scrapeGoogleMapsHeadless(
                 }
               }
               return { address, phone, website, city, state };
-            }).catch(() => null);
+            }, businessName).catch(() => null);
 
             if (leadTimedOut || !details) return;
 
@@ -770,7 +756,7 @@ export async function scrapeGoogleMapsHeadless(
               businessName,
               address: details.address,
               phone:   details.phone,
-              website: cardWebsite || details.website,
+              website: details.website,
               city:    details.city,
               state:   details.state,
             };
