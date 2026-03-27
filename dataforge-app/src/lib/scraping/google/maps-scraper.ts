@@ -762,7 +762,7 @@ export async function scrapeGoogleMapsHeadless(
 
       if (!gotNewArticle) {
         staleRounds++;
-        onLog?.(`Scrolling for more results… (${leads.length} found so far)`);
+        onLog?.(`Scrolling for more results…`);
         await page.evaluate(() => {
           const feed = document.querySelector('div[role="feed"]');
           if (feed) feed.scrollTop += 1400;

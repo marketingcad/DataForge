@@ -167,8 +167,15 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
           const msg = job.errorMessage || "Searching Google Maps…";
           const prefix = job.leadsDiscovered > 0 ? `[ ${job.leadsDiscovered} found ] — ` : "";
           setRunningLabel(prefix + msg);
+
+          // Scraper logged a terminal message but Vercel timed out before writing status="completed"
+          if (job.errorMessage?.startsWith("Done") || job.errorMessage?.startsWith("All discovered")) {
+            applyJobResult(kwId, jobId, { ...job, status: "completed" });
+            completionHandled = true;
+            break;
+          }
         }
-        if (job.status === "completed" || job.status === "failed") {
+        if (job.status === "completed" || job.status === "failed" || job.status === "paused") {
           applyJobResult(kwId, jobId, job);
           completionHandled = true;
           break;
