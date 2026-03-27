@@ -624,6 +624,18 @@ export async function scrapeGoogleMapsHeadless(
         // Also skip names not in toScrape that Phase 1 didn't see — treat as new
         // (falls through to extraction below)
 
+        // Extract website from the card's a[data-value="Website"] href (already in the feed listing)
+        let cardWebsite: string | undefined;
+        try {
+          const websiteHref = await article.locator('a[data-value="Website"]').first().getAttribute('href', { timeout: 1000 });
+          if (websiteHref) {
+            const u = new URL(websiteHref);
+            if (!u.hostname.includes("google")) {
+              cardWebsite = u.hostname.replace(/^www\./, "");
+            }
+          }
+        } catch { /* no website on this card */ }
+
         onLog?.(`Scraping ${leads.length + 1}/${Math.min(maxLeads, toScrape.size)}: "${businessName}"…`);
 
         const LEAD_TIMEOUT_MS = 60_000;
@@ -657,14 +669,8 @@ export async function scrapeGoogleMapsHeadless(
                 const el = document.querySelector(sel);
                 return !!el && (el as HTMLElement).innerText?.trim().length > 0;
               }
-              function hasHref(sel: string): boolean {
-                const el = document.querySelector(sel);
-                return !!el && !!(el as HTMLAnchorElement).href;
-              }
               return hasText('[data-item-id="address"]') ||
-                     hasText('[data-tooltip="Copy phone number"]') ||
-                     hasHref('[data-tooltip="Open website"]') ||
-                     hasText('[data-tooltip="Open website"]');
+                     hasText('[data-tooltip="Copy phone number"]');
             }, { timeout: 4000 }).catch(() => null);
 
             if (leadTimedOut) return;
@@ -677,67 +683,28 @@ export async function scrapeGoogleMapsHeadless(
 
             if (leadTimedOut) return;
 
-            const details = await page.evaluate((name) => {
-              // Find the detail panel: aria-label="{businessName}" outside the feed.
-              // Scope ALL data queries within this panel — never query globally.
+            const details = await page.evaluate(() => {
+              // All three target elements (address, phone, website) live OUTSIDE
+              // div[role="feed"] — in the detail panel that opens after clicking.
+              // getOutside() finds the first matching element that is not inside the feed.
               const feed = document.querySelector('div[role="feed"]');
-              let panel: Element | null = null;
-              const labeled = document.querySelectorAll("[aria-label]");
-              for (let i = 0; i < labeled.length; i++) {
-                if (
-                  labeled[i].getAttribute("aria-label") === name &&
-                  (!feed || !feed.contains(labeled[i]))
-                ) {
-                  panel = labeled[i];
-                  break;
+              function getOutside(sel: string): Element | null {
+                const all = document.querySelectorAll(sel);
+                for (let i = 0; i < all.length; i++) {
+                  if (!feed || !feed.contains(all[i])) return all[i];
                 }
-              }
-              if (!panel) return null;
-
-              function getText(sel: string): string {
-                const el = panel!.querySelector(sel);
-                return (el as HTMLElement | null)?.innerText
-                  ?.replace(/^\s+|\s+$/g, "").replace(/\n/g, " ").trim() ?? "";
-              }
-              function getInnermost(sel: string): string {
-                const el = panel!.querySelector(sel);
-                if (!el) return "";
-                let node: Element = el;
-                while (node.children.length === 1) node = node.children[0];
-                return (node as HTMLElement).innerText
-                  ?.replace(/^\s+|\s+$/g, "").trim() ?? "";
+                return null;
               }
 
-              const address = getText('[data-item-id="address"]') || undefined;
-              const phone   = getInnermost('[data-tooltip="Copy phone number"]') ||
-                              getText('[data-tooltip="Copy phone number"]') || undefined;
+              // Address: data-item-id="address" — innerText has the full address
+              const addrEl = getOutside('[data-item-id="address"]');
+              const address = (addrEl as HTMLElement | null)?.innerText
+                ?.replace(/^\s+|\s+$/g, "").replace(/\n/g, " ").trim() || undefined;
 
-              // Website: read innermost text of the "Open website" element first.
-              // The displayed text is the clean domain (e.g. "example.com").
-              const websiteEl = panel.querySelector('[data-tooltip="Open website"]') as HTMLAnchorElement | null;
-              let website: string | undefined;
-              if (websiteEl) {
-                let node: Element = websiteEl;
-                while (node.children.length === 1) node = node.children[0];
-                const displayed = (node as HTMLElement).innerText?.trim();
-                if (displayed && displayed.includes(".") && !displayed.toLowerCase().includes("google")) {
-                  website = displayed.replace(/^www\./, "");
-                } else {
-                  const href = websiteEl.getAttribute("href") || "";
-                  if (href && !href.startsWith("javascript")) {
-                    try {
-                      const u = new URL(href, window.location.origin);
-                      const q = u.searchParams.get("q") || u.searchParams.get("url") ||
-                                u.searchParams.get("dest") || u.searchParams.get("u");
-                      if (q && q.startsWith("http")) {
-                        website = new URL(q).hostname.replace(/^www\./, "");
-                      } else if (!u.hostname.includes("google")) {
-                        website = u.hostname.replace(/^www\./, "");
-                      }
-                    } catch { website = undefined; }
-                  }
-                }
-              }
+              // Phone: data-tooltip="Copy phone number" — innerText has the number
+              const phoneEl = getOutside('[data-tooltip="Copy phone number"]');
+              const phone = (phoneEl as HTMLElement | null)?.innerText
+                ?.replace(/^\s+|\s+$/g, "").replace(/\n/g, " ").trim() || undefined;
 
               let city: string | undefined, state: string | undefined;
               if (address) {
@@ -747,8 +714,8 @@ export async function scrapeGoogleMapsHeadless(
                   if (m) { state = m[1]; city = parts[i - 1]; break; }
                 }
               }
-              return { address, phone, website, city, state };
-            }, businessName).catch(() => null);
+              return { address, phone, city, state };
+            }).catch(() => null);
 
             if (leadTimedOut || !details) return;
 
@@ -756,7 +723,7 @@ export async function scrapeGoogleMapsHeadless(
               businessName,
               address: details.address,
               phone:   details.phone,
-              website: details.website,
+              website: cardWebsite,
               city:    details.city,
               state:   details.state,
             };
@@ -766,7 +733,7 @@ export async function scrapeGoogleMapsHeadless(
             } else {
               leads.push(lead);
               await onLead?.(lead, leads.length);
-              onLog?.(`Lead ${leads.length} saved — ${[details.phone && "phone", details.address && "address", details.website && "website"].filter(Boolean).join(", ") || "name only"}`);
+              onLog?.(`Lead ${leads.length} saved — ${[details.phone && "phone", details.address && "address", cardWebsite && "website"].filter(Boolean).join(", ") || "name only"}`);
             }
 
             // Close the detail panel
