@@ -166,6 +166,7 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
         const kw = await getKeywordById(job.keywordId!);
         await onKeywordJobSuccess(kw.id, kw.intervalMinutes);
       } catch { /* keyword may have been deleted */ }
+      await notifyKeywordSuccess(job.keywordId!, savedCount, dupCount, collectedLeads.length);
     } else if (!wasCancelled) {
       await handleKeywordFailure(job.keywordId!, errorMsg);
     }
@@ -204,6 +205,7 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
     const kw = await getKeywordById(job.keywordId!);
     await onKeywordJobSuccess(kw.id, kw.intervalMinutes);
   } catch { /* keyword may have been deleted */ }
+  await notifyKeywordSuccess(job.keywordId!, savedCount, dupCount, finalLeads.length);
 
   return NextResponse.json({ status: "completed", saved: savedCount });
 }
@@ -278,6 +280,45 @@ async function processStandardJob(id: string, job: Awaited<ReturnType<typeof get
     processed: updatedJob.leadsProcessed,
     remaining: updatedJob.leadsDiscovered - totalHandled,
   });
+}
+
+// ─── Keyword success notifier ─────────────────────────────────────────────────
+
+async function notifyKeywordSuccess(
+  keywordId: string,
+  savedCount: number,
+  dupCount: number,
+  discovered: number
+) {
+  try {
+    const kw = await getKeywordById(keywordId);
+    const label = `"${kw.keyword}" in ${kw.location}`;
+
+    let message: string;
+    if (savedCount > 0) {
+      message = `${savedCount} new lead${savedCount !== 1 ? "s" : ""} saved`;
+      if (dupCount > 0) message += `, ${dupCount} already existed`;
+      if (discovered > 0 && discovered < savedCount + dupCount + 5) {
+        message += `. Google Maps returned ${discovered} result${discovered !== 1 ? "s" : ""}.`;
+      }
+    } else if (dupCount > 0) {
+      message = `No new leads — all ${dupCount} result${dupCount !== 1 ? "s" : ""} already in your database.`;
+    } else {
+      message = discovered > 0
+        ? `No leads saved — Google Maps returned ${discovered} result${discovered !== 1 ? "s" : ""} but none had contact info.`
+        : "No results found on Google Maps for this keyword. Try a more specific city.";
+    }
+
+    const type = savedCount > 0 ? "success" : "info";
+    const title = savedCount > 0
+      ? `Auto scrape done — ${label}`
+      : `Auto scrape — no new leads (${label})`;
+
+    if (kw.createdById) {
+      await createNotification({ userId: kw.createdById, type, title, message, link: "/scraping" });
+    }
+    await createNotificationsForRole(["boss", "admin"], { type, title, message, link: "/scraping" });
+  } catch { /* keyword may have been deleted */ }
 }
 
 // ─── Keyword failure handler ───────────────────────────────────────────────────
