@@ -70,6 +70,9 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
   let savedCount = 0;
   let dupCount   = 0;
   let lastLogMsg = "";
+  // Shared ref so the scraper's Phase 2 loop can stop as soon as maxLeads
+  // have been DB-confirmed saved (not just found from Google Maps).
+  const savedCountRef = { value: 0 };
   // Sequential insert chain: inserts run one at a time in the background so
   // the scraper never waits for a DB round-trip, but only one connection is
   // open at a time so Neon's pool is never exhausted.
@@ -118,6 +121,7 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
               if (idx !== -1) collectedLeads.splice(idx, 1);
             } else {
               savedCount++;
+              savedCountRef.value = savedCount;
             }
           } catch { /* ignore per-lead insert errors */ }
 
@@ -134,7 +138,8 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
       },
       MAX_SCRAPE_MS,
       isDuplicate,
-      skipNames
+      skipNames,
+      savedCountRef
     );
   } catch (err) {
     const errorMsg    = err instanceof Error ? err.message : "Browser scrape failed";
@@ -172,6 +177,8 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
   }
 
   await insertChain;
+  // savedCount is now final — write the "Done" message here so the UI only
+  // sees it when leadsProcessed is accurate (not mid-way through inserts).
   const finalLeads = leads.length > 0 ? leads : collectedLeads;
   await prisma.scrapingJob.update({
     where: { id },
@@ -182,7 +189,9 @@ async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
       leadsProcessed:  savedCount,
       duplicatesFound: dupCount,
       pendingLeads:    finalLeads.length > 0 ? (finalLeads as never) : (null as never),
-      errorMessage:    finalLeads.length > 0 ? null : (lastLogMsg || "No leads found"),
+      errorMessage:    savedCount > 0
+        ? `Done — ${savedCount} lead${savedCount !== 1 ? "s" : ""} saved`
+        : (lastLogMsg || "No leads found"),
     },
   });
 
