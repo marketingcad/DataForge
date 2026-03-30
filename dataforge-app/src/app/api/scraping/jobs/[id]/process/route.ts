@@ -32,6 +32,10 @@ export async function POST(
     return NextResponse.json({ status: job.status, message: "Job already finished" });
   }
 
+  if (job.status === "running") {
+    return NextResponse.json({ status: "running", message: "Job already running" });
+  }
+
   // ── Keyword job: use Playwright browser scraper (same as "Search by Google") ──
   if (job.keywordId) {
     // Return 202 immediately so the caller (cron) doesn't have to wait.

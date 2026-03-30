@@ -166,6 +166,21 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // On mount, auto-trigger any keyword jobs stuck in "pending" for > 90 seconds.
+  // The cron creates the job but the server-to-server process call sometimes doesn't
+  // start — firing it from the browser (same as "Run now") is a reliable fallback.
+  useEffect(() => {
+    const STUCK_MS = 90 * 1000;
+    const stuckJobs = keywords.filter((k) => {
+      const j = k.jobs[0];
+      return j?.status === "pending" && Date.now() - new Date(j.createdAt).getTime() > STUCK_MS;
+    });
+    for (const kw of stuckJobs) {
+      fetch(`/api/scraping/jobs/${kw.jobs[0].id}/process`, { method: "POST" }).catch(() => null);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   async function resumePolling(kwId: string, jobId: string) {
     setRunningId(kwId);
     setRunningJobId(jobId);
