@@ -19,9 +19,24 @@ export interface SerpLead {
 }
 
 // ─── Shared browser-side utility code ─────────────────────────────────────────
+// Directory/aggregator domains that appear as "Website" links on Google Maps
+// but are not the business's own website. Using them for dedup would cause
+// massive false positives (all businesses linking to yelp.com share one "website").
+const AGGREGATOR_HOSTS = new Set([
+  "yelp.com","yellowpages.com","yp.com","bbb.org","angi.com","angieslist.com",
+  "homeadvisor.com","houzz.com","thumbtack.com","tripadvisor.com","manta.com",
+  "mapquest.com","whitepages.com","superpages.com","porch.com","bark.com",
+  "homestars.com","checkatrade.com","trustpilot.com","birdeye.com","nextdoor.com",
+  "citysearch.com","merchantcircle.com","bing.com","yahoo.com","apple.com",
+]);
+
 const UTILS = `
 var SKIP_HOSTS = ["google.","goo.gl","youtube.","facebook.","twitter.","x.com",
-                  "instagram.","linkedin.","pinterest.","tiktok.","snapchat."];
+                  "instagram.","linkedin.","pinterest.","tiktok.","snapchat.",
+                  "yelp.","yellowpages.","yp.","bbb.org","angi.","angieslist.",
+                  "homeadvisor.","houzz.","thumbtack.","tripadvisor.","manta.",
+                  "mapquest.","whitepages.","superpages.","porch.","bark.",
+                  "merchantcircle.","citysearch."];
 var FIELD_LABELS = ["Address","Phone","Hours","Areas served",
                     "Products and Services","Appointments","Email"];
 var realUrl = function(href) {
@@ -629,8 +644,11 @@ export async function scrapeGoogleMapsHeadless(
           const websiteHref = await article.locator('a[data-value="Website"]').first().getAttribute('href', { timeout: 1000 });
           if (websiteHref) {
             const u = new URL(websiteHref);
-            if (!u.hostname.includes("google")) {
-              cardWebsite = u.hostname.replace(/^www\./, "");
+            const host = u.hostname.replace(/^www\./, "");
+            const isAggregator = AGGREGATOR_HOSTS.has(host) ||
+              [...AGGREGATOR_HOSTS].some(d => host.endsWith("." + d));
+            if (!u.hostname.includes("google") && !isAggregator) {
+              cardWebsite = host;
             }
           }
         } catch { /* no website on this card */ }

@@ -25,7 +25,20 @@ export async function processKeywordJob(job: Awaited<ReturnType<typeof getJobByI
   const existingLeads = await prisma.lead.findMany({ select: { businessName: true, phone: true, website: true } });
   const skipNames     = new Set(existingLeads.map(l => l.businessName.toLowerCase().trim()));
   const knownPhones   = new Set(existingLeads.map(l => l.phone).filter(Boolean));
-  const knownWebsites = new Set(existingLeads.map(l => l.website).filter(Boolean));
+  // Exclude aggregator/directory domains from the website dedup set — they are
+  // shared across many businesses and would cause massive false positives.
+  const AGGREGATOR_DOMAINS = new Set([
+    "yelp.com","yellowpages.com","yp.com","bbb.org","angi.com","angieslist.com",
+    "homeadvisor.com","houzz.com","thumbtack.com","tripadvisor.com","manta.com",
+    "mapquest.com","whitepages.com","superpages.com","porch.com","bark.com",
+    "homestars.com","checkatrade.com","trustpilot.com","birdeye.com","nextdoor.com",
+    "citysearch.com","merchantcircle.com","bing.com","yahoo.com","apple.com",
+  ]);
+  const isAggregator = (w: string) =>
+    AGGREGATOR_DOMAINS.has(w) || [...AGGREGATOR_DOMAINS].some(d => w.endsWith("." + d));
+  const knownWebsites = new Set(
+    existingLeads.map(l => l.website).filter((w): w is string => !!w && !isAggregator(w))
+  );
   const isDuplicate = (lead: import("@/lib/scraping/google/maps-scraper").SerpLead): boolean => {
     if (lead.phone) {
       const p = normalizePhone(lead.phone);
@@ -33,7 +46,7 @@ export async function processKeywordJob(job: Awaited<ReturnType<typeof getJobByI
     }
     if (lead.website) {
       const w = normalizeWebsite(lead.website);
-      if (w && knownWebsites.has(w)) return true;
+      if (w && !isAggregator(w) && knownWebsites.has(w)) return true;
     }
     return false;
   };
