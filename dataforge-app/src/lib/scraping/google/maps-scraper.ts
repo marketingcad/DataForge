@@ -750,7 +750,7 @@ export async function scrapeGoogleMapsHeadless(
             } else {
               leads.push(lead);
               await onLead?.(lead, leads.length);
-              onLog?.(`Lead ${leads.length} saved — ${[details.phone && "phone", details.address && "address", cardWebsite && "website"].filter(Boolean).join(", ") || "name only"}`);
+              onLog?.(`Collected ${leads.length} — ${[details.phone && "phone", details.address && "address", cardWebsite && "website"].filter(Boolean).join(", ") || "name only"}`);
             }
 
             // Close the detail panel

@@ -51,8 +51,10 @@ export async function processKeywordJob(job: Awaited<ReturnType<typeof getJobByI
       job.maxLeads,
       (msg) => {
         lastLogMsg = msg;
-        prisma.scrapingJob.update({
-          where: { id },
+        // Guard: only write while job is still running — prevents a delayed
+        // fire-and-forget write from overwriting the final completion message.
+        prisma.scrapingJob.updateMany({
+          where: { id, status: "running" },
           data: { errorMessage: msg },
         }).catch(() => {});
       },
@@ -119,7 +121,7 @@ export async function processKeywordJob(job: Awaited<ReturnType<typeof getJobByI
         leadsProcessed:  savedCount,
         duplicatesFound: dupCount,
         errorMessage:    isSuccess
-          ? `Done — ${savedCount} lead${savedCount !== 1 ? "s" : ""} saved`
+          ? `Done — ${savedCount} new${dupCount > 0 ? `, ${dupCount} already existed` : ""}`
           : (wasCancelled ? "Stopped by user" : errorMsg),
       },
     });
@@ -153,8 +155,8 @@ export async function processKeywordJob(job: Awaited<ReturnType<typeof getJobByI
       duplicatesFound: dupCount,
       pendingLeads:    finalLeads.length > 0 ? (finalLeads as never) : (null as never),
       errorMessage:    savedCount > 0
-        ? `Done — ${savedCount} lead${savedCount !== 1 ? "s" : ""} saved`
-        : (lastLogMsg || "No leads found"),
+        ? `Done — ${savedCount} new${dupCount > 0 ? `, ${dupCount} already existed` : ""}`
+        : (dupCount > 0 ? `No new leads — ${dupCount} already existed` : "No leads found"),
     },
   });
 
