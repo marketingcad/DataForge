@@ -585,9 +585,8 @@ export async function scrapeGoogleMapsHeadless(
     const seen = new Set<string>(); // processed in Phase 2
     let staleRounds = 0;
 
-    // Phase 2: onLead throws __LIMIT_REACHED__ when maxLeads are confirmed saved.
-    // The while loop here is just a safety cap — actual stopping is via onLead.
-    while (leads.length < maxLeads * 2 && staleRounds < 4) {
+    // Phase 2: stop when we've collected maxLeads non-duplicate leads.
+    while (leads.length < maxLeads && staleRounds < 4) {
       if (maxRuntimeMs && Date.now() - startedAt >= maxRuntimeMs) {
         onLog?.(`Time limit reached — saving ${leads.length} lead${leads.length !== 1 ? "s" : ""} collected so far`);
         break;
@@ -602,7 +601,7 @@ export async function scrapeGoogleMapsHeadless(
       let gotNewArticle = false;
 
       for (const child of childDivs) {
-        if (leads.length >= maxLeads * 2) break;
+        if (leads.length >= maxLeads) break;
 
         const article = child.locator('div[role="article"]').first();
         if (!(await article.isVisible().catch(() => false))) continue;

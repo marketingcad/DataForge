@@ -61,7 +61,7 @@ export async function processKeywordJob(job: Awaited<ReturnType<typeof getJobByI
       async (lead: import("@/lib/scraping/google/maps-scraper").SerpLead, count: number) => {
         await insertChain;
 
-        if (savedCount >= job.maxLeads) throw new Error("__LIMIT_REACHED__");
+        if (count > job.maxLeads) throw new Error("__LIMIT_REACHED__");
 
         if (count % 3 === 0) {
           const cur = await prisma.scrapingJob.findUnique({ where: { id }, select: { status: true } });
