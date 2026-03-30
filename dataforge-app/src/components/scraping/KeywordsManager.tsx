@@ -159,8 +159,9 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
 
   // Auto-refresh the keyword list so status, last run, next run, and badges
   // update without a page reload.
-  // - Every 10 s when any job is pending/running (fast updates during scraping)
-  // - Every 30 s otherwise (catches cron-triggered jobs starting in background)
+  // - Every 3 s when any job is pending/running (smooth progress during scraping)
+  // - Every 5 s otherwise (catches cron-triggered jobs starting within 5 s)
+  // - Also fires immediately when the tab regains visibility
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollIntervalRef = useRef<number>(0);
 
@@ -178,7 +179,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
         setKeywords(fresh);
 
         // Switch interval speed based on whether any job is active
-        const targetMs = isActive(fresh) ? 10000 : 30000;
+        const targetMs = isActive(fresh) ? 3000 : 5000;
         if (pollIntervalRef.current !== targetMs) {
           pollIntervalRef.current = targetMs;
           clearInterval(pollRef.current!);
@@ -187,13 +188,22 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
       } catch { /* ignore network errors */ }
     }
 
-    // Start with 30 s base rate; will speed up automatically if a job is active
-    pollIntervalRef.current = isActive(keywords) ? 10000 : 30000;
+    // Fire immediately so the UI is always fresh on mount / visibility change
+    refresh();
+
+    pollIntervalRef.current = isActive(keywords) ? 3000 : 5000;
     pollRef.current = setInterval(refresh, pollIntervalRef.current);
+
+    // Re-fire instantly when user returns to the tab
+    function onVisible() {
+      if (document.visibilityState === "visible") refresh();
+    }
+    document.addEventListener("visibilitychange", onVisible);
 
     return () => {
       clearInterval(pollRef.current!);
       pollRef.current = null;
+      document.removeEventListener("visibilitychange", onVisible);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
