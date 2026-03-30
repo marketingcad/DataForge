@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -156,6 +156,47 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
   const [runningId, setRunningId] = useState<string | null>(null);
   const [runningJobId, setRunningJobId] = useState<string | null>(null);
   const [runningLabel, setRunningLabel] = useState<string>("Starting…");
+
+  // Auto-refresh the keyword list so status, last run, next run, and badges
+  // update without a page reload.
+  // - Every 10 s when any job is pending/running (fast updates during scraping)
+  // - Every 30 s otherwise (catches cron-triggered jobs starting in background)
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollIntervalRef = useRef<number>(0);
+
+  useEffect(() => {
+    function isActive(kws: KeywordRow[]) {
+      return kws.some((k) => k.jobs[0]?.status === "pending" || k.jobs[0]?.status === "running");
+    }
+
+    async function refresh() {
+      try {
+        const res = await fetch("/api/keywords");
+        if (!res.ok) return;
+        const data = await res.json();
+        const fresh: KeywordRow[] = data.keywords ?? [];
+        setKeywords(fresh);
+
+        // Switch interval speed based on whether any job is active
+        const targetMs = isActive(fresh) ? 10000 : 30000;
+        if (pollIntervalRef.current !== targetMs) {
+          pollIntervalRef.current = targetMs;
+          clearInterval(pollRef.current!);
+          pollRef.current = setInterval(refresh, targetMs);
+        }
+      } catch { /* ignore network errors */ }
+    }
+
+    // Start with 30 s base rate; will speed up automatically if a job is active
+    pollIntervalRef.current = isActive(keywords) ? 10000 : 30000;
+    pollRef.current = setInterval(refresh, pollIntervalRef.current);
+
+    return () => {
+      clearInterval(pollRef.current!);
+      pollRef.current = null;
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // On mount, resume live polling if any keyword already has a running job
   useEffect(() => {
