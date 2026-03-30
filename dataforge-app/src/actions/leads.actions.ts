@@ -59,6 +59,13 @@ export async function deleteAllKeywordLeadsAction(kwId: string) {
   revalidatePath("/leads");
 }
 
+export async function moveLeadsToFolderAction(ids: string[], folderId: string | null) {
+  await requireDepartment("leads");
+  if (!ids.length) return;
+  await prisma.lead.updateMany({ where: { id: { in: ids } }, data: { folderId } });
+  revalidatePath("/leads");
+}
+
 export async function createLeadAction(formData: FormData) {
   const user = await requireDepartment("leads");
   const raw = Object.fromEntries(formData.entries());
