@@ -53,6 +53,7 @@ interface KeywordRow {
   nextRunAt: string | null;
   failedAttempts: number;
   lastError: string | null;
+  extraKeywords: string[];
   _count: { jobs: number; leads: number };
   jobs: {
     id: string;
@@ -122,6 +123,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
   const [newLocation, setNewLocation] = useState("");
   const [newMaxLeads, setNewMaxLeads] = useState("50");
   const [newInterval, setNewInterval] = useState("1440");
+  const [newExtraKeywords, setNewExtraKeywords] = useState<string[]>([]);
   const [addSaving, setAddSaving] = useState(false);
 
   // Edit dialog
@@ -130,6 +132,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
   const [editLocation, setEditLocation] = useState("");
   const [editMaxLeads, setEditMaxLeads] = useState("50");
   const [editInterval, setEditInterval] = useState("1440");
+  const [editExtraKeywords, setEditExtraKeywords] = useState<string[]>([]);
   const [editSaving, setEditSaving] = useState(false);
 
   // Delete confirm
@@ -165,6 +168,9 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollIntervalRef = useRef<number>(0);
 
+  // Track which job IDs we've already started live-polling to avoid duplicates
+  const livePolledJobsRef = useRef<Set<string>>(new Set());
+
   useEffect(() => {
     function isActive(kws: KeywordRow[]) {
       return kws.some((k) => k.jobs[0]?.status === "pending" || k.jobs[0]?.status === "running");
@@ -177,6 +183,17 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
         const data = await res.json();
         const fresh: KeywordRow[] = data.keywords ?? [];
         setKeywords(fresh);
+
+        // If the cron fired a job we're not already tracking, start live polling for it
+        // so the spinner, progress label, toast, and lead count all update in real time.
+        for (const kw of fresh) {
+          const j = kw.jobs[0];
+          if (!j) continue;
+          if (j.status !== "running" && j.status !== "pending") continue;
+          if (livePolledJobsRef.current.has(j.id)) continue;
+          livePolledJobsRef.current.add(j.id);
+          resumePolling(kw.id, j.id);
+        }
 
         // Switch interval speed based on whether any job is active
         const targetMs = isActive(fresh) ? 3000 : 5000;
@@ -210,8 +227,9 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
 
   // On mount, resume live polling if any keyword already has a running job
   useEffect(() => {
-    const runningKw = keywords.find((k) => k.jobs[0]?.status === "running");
+    const runningKw = keywords.find((k) => k.jobs[0]?.status === "running" || k.jobs[0]?.status === "pending");
     if (runningKw && runningKw.jobs[0]) {
+      livePolledJobsRef.current.add(runningKw.jobs[0].id);
       resumePolling(runningKw.id, runningKw.jobs[0].id);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -285,6 +303,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
     setEditLocation(kw.location);
     setEditMaxLeads(String(kw.maxLeads));
     setEditInterval(String(kw.intervalMinutes));
+    setEditExtraKeywords(kw.extraKeywords ?? []);
   }
 
   async function handleAdd() {
@@ -299,6 +318,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
           location: newLocation.trim(),
           maxLeads: parseInt(newMaxLeads),
           intervalMinutes: parseInt(newInterval),
+          extraKeywords: newExtraKeywords,
         }),
       });
       if (res.ok) {
@@ -309,7 +329,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
           ...prev,
         ]);
         setAddOpen(false);
-        setNewKeyword(""); setNewLocation(""); setNewMaxLeads("50"); setNewInterval("1440");
+        setNewKeyword(""); setNewLocation(""); setNewMaxLeads("50"); setNewInterval("1440"); setNewExtraKeywords([]);
       }
     } finally {
       setAddSaving(false);
@@ -328,6 +348,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
           location: editLocation.trim(),
           maxLeads: parseInt(editMaxLeads),
           intervalMinutes: parseInt(editInterval),
+          extraKeywords: editExtraKeywords,
         }),
       });
       if (res.ok) {
@@ -335,7 +356,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
         setKeywords((prev) =>
           prev.map((k) =>
             k.id === editTarget.id
-              ? { ...k, keyword: updated.keyword.keyword, location: updated.keyword.location, maxLeads: updated.keyword.maxLeads, intervalMinutes: updated.keyword.intervalMinutes }
+              ? { ...k, keyword: updated.keyword.keyword, location: updated.keyword.location, maxLeads: updated.keyword.maxLeads, intervalMinutes: updated.keyword.intervalMinutes, extraKeywords: updated.keyword.extraKeywords ?? [] }
               : k
           )
         );
@@ -376,6 +397,8 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
       const data = await res.json();
       jobId = data.jobId;
       setRunningJobId(jobId);
+      // Prevent the background poll from starting a second resumePolling for this job
+      livePolledJobsRef.current.add(jobId);
     } catch {
       toast.error("Failed to start scraping. Try again.");
       setRunningId(null); setRunningJobId(null);
@@ -712,6 +735,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
             location={newLocation}  onLocation={setNewLocation}
             maxLeads={newMaxLeads}  onMaxLeads={setNewMaxLeads}
             interval={newInterval}  onInterval={setNewInterval}
+            extraKeywords={newExtraKeywords} onExtraKeywords={setNewExtraKeywords}
           />
           <Separator />
           <DialogFooter>
@@ -732,6 +756,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
             location={editLocation}  onLocation={setEditLocation}
             maxLeads={editMaxLeads}  onMaxLeads={setEditMaxLeads}
             interval={editInterval}  onInterval={setEditInterval}
+            extraKeywords={editExtraKeywords} onExtraKeywords={setEditExtraKeywords}
           />
           <Separator />
           <DialogFooter>
@@ -797,12 +822,27 @@ function KeywordForm({
   location, onLocation,
   maxLeads, onMaxLeads,
   interval, onInterval,
+  extraKeywords, onExtraKeywords,
 }: {
-  keyword: string;   onKeyword:  (v: string) => void;
-  location: string;  onLocation: (v: string) => void;
-  maxLeads: string;  onMaxLeads: (v: string) => void;
-  interval: string;  onInterval: (v: string) => void;
+  keyword: string;        onKeyword:        (v: string) => void;
+  location: string;       onLocation:       (v: string) => void;
+  maxLeads: string;       onMaxLeads:       (v: string) => void;
+  interval: string;       onInterval:       (v: string) => void;
+  extraKeywords: string[]; onExtraKeywords: (v: string[]) => void;
 }) {
+  const [inputVal, setInputVal] = useState("");
+
+  function addExtra() {
+    const trimmed = inputVal.trim();
+    if (!trimmed || extraKeywords.includes(trimmed)) { setInputVal(""); return; }
+    onExtraKeywords([...extraKeywords, trimmed]);
+    setInputVal("");
+  }
+
+  function removeExtra(val: string) {
+    onExtraKeywords(extraKeywords.filter((k) => k !== val));
+  }
+
   return (
     <div className="space-y-4 py-2">
       <div className="space-y-1.5">
@@ -813,6 +853,29 @@ function KeywordForm({
           onChange={(e) => onKeyword(e.target.value)}
         />
         <p className="text-xs text-muted-foreground">Searches Google Maps for this keyword + location.</p>
+      </div>
+      <div className="space-y-1.5">
+        <Label>Extra keywords <span className="text-muted-foreground font-normal">(optional)</span></Label>
+        <div className="flex gap-2">
+          <Input
+            placeholder="e.g. orthodontist"
+            value={inputVal}
+            onChange={(e) => setInputVal(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addExtra(); } }}
+          />
+          <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={addExtra}>Add</Button>
+        </div>
+        {extraKeywords.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 pt-1">
+            {extraKeywords.map((k) => (
+              <span key={k} className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium">
+                {k}
+                <button type="button" onClick={() => removeExtra(k)} className="text-muted-foreground hover:text-foreground leading-none">×</button>
+              </span>
+            ))}
+          </div>
+        )}
+        <p className="text-xs text-muted-foreground">Each run randomly picks from the main keyword + these variations for result diversity.</p>
       </div>
       <div className="space-y-1.5">
         <Label>Location</Label>

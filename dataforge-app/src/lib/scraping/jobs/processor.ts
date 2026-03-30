@@ -91,6 +91,13 @@ export async function processKeywordJob(job: Awaited<ReturnType<typeof getJobByI
               if (idx !== -1) collectedLeads.splice(idx, 1);
             } else {
               savedCount++;
+              // Update the in-memory dedup sets so the same business appearing
+              // again later in the same scrape run is caught before reaching insertLead.
+              if (lead.businessName) skipNames.add(lead.businessName.toLowerCase().trim());
+              if (lead.phone) {
+                const p = normalizePhone(lead.phone);
+                if (p) knownPhones.add(p);
+              }
             }
           } catch (insertErr) {
             insertFailures++;

@@ -41,6 +41,7 @@ export async function createKeyword(data: {
   location: string;
   maxLeads?: number;
   intervalMinutes?: number;
+  extraKeywords?: string[];
   createdById?: string;
 }) {
   const nextRunAt = new Date();
@@ -50,6 +51,7 @@ export async function createKeyword(data: {
       location: data.location.trim(),
       maxLeads: data.maxLeads ?? 50,
       intervalMinutes: data.intervalMinutes ?? 1440,
+      extraKeywords: data.extraKeywords ?? [],
       nextRunAt,
       createdById: data.createdById ?? null,
     },
@@ -65,9 +67,16 @@ export async function updateKeyword(
     intervalMinutes: number;
     enabled: boolean;
     nextRunAt: Date;
+    extraKeywords: string[];
   }>
 ) {
   return prisma.scrapingKeyword.update({ where: { id }, data });
+}
+
+/** Pick a search term: random from [mainKeyword, ...extraKeywords]. */
+export function pickSearchTerm(kw: { keyword: string; extraKeywords: string[] }): string {
+  const pool = [kw.keyword, ...kw.extraKeywords].filter(Boolean);
+  return pool[Math.floor(Math.random() * pool.length)];
 }
 
 export async function deleteKeyword(id: string) {

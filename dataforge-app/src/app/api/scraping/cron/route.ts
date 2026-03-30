@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { waitUntil } from "@vercel/functions";
 import { prisma } from "@/lib/prisma";
 import { createJob, getJobById } from "@/lib/scraping/jobs/service";
-import { getDueKeywords } from "@/lib/keywords/service";
+import { getDueKeywords, pickSearchTerm } from "@/lib/keywords/service";
 import { processKeywordJob } from "@/lib/scraping/jobs/processor";
 
 export const maxDuration = 300;
@@ -56,7 +56,7 @@ async function handleCron(req: NextRequest) {
 
     try {
       const newJob = await createJob({
-        industry: kw.keyword,
+        industry: pickSearchTerm(kw),
         location: kw.location,
         maxLeads: kw.maxLeads,
         source: "serpapi",

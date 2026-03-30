@@ -33,7 +33,7 @@ export async function PATCH(
 
   const { id } = await params;
   const body = await req.json();
-  const { keyword, location, maxLeads, intervalMinutes, enabled } = body;
+  const { keyword, location, maxLeads, intervalMinutes, enabled, extraKeywords } = body;
 
   const existing = await getKeywordById(id).catch(() => null);
 
@@ -50,6 +50,7 @@ export async function PATCH(
     maxLeads,
     intervalMinutes,
     enabled,
+    extraKeywords,
     ...(resetNextRun ? { nextRunAt: new Date() } : {}),
   });
   return NextResponse.json({ keyword: updated });

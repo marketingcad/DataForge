@@ -463,9 +463,10 @@ model ScrapingKeyword {
   intervalMinutes Int          @default(1440)
   lastRunAt      DateTime?
   nextRunAt      DateTime?
-  failedAttempts Int           @default(0)
-  lastError      String?
-  createdById    String?
+  failedAttempts  Int           @default(0)
+  lastError       String?
+  extraKeywords   String[]
+  createdById     String?
   createdBy      User?         @relation(fields: [createdById], references: [id], onDelete: SetNull)
   jobs           ScrapingJob[]
   leads          Lead[]

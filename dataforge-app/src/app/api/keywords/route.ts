@@ -21,13 +21,13 @@ export async function POST(req: NextRequest) {
   if (!ALLOWED_ROLES.includes(role)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const body = await req.json();
-  const { keyword, location, maxLeads, intervalMinutes } = body;
+  const { keyword, location, maxLeads, intervalMinutes, extraKeywords } = body;
 
   if (!keyword?.trim() || !location?.trim()) {
     return NextResponse.json({ error: "keyword and location are required" }, { status: 400 });
   }
 
   const userId = (session.user as unknown as Record<string, unknown>)?.id as string;
-  const kw = await createKeyword({ keyword, location, maxLeads, intervalMinutes, createdById: userId });
+  const kw = await createKeyword({ keyword, location, maxLeads, intervalMinutes, extraKeywords, createdById: userId });
   return NextResponse.json({ keyword: kw }, { status: 201 });
 }

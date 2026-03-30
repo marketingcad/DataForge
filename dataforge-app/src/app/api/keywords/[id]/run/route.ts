@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { getKeywordById } from "@/lib/keywords/service";
+import { getKeywordById, pickSearchTerm } from "@/lib/keywords/service";
 import { createJob } from "@/lib/scraping/jobs/service";
 import { prisma } from "@/lib/prisma";
 
@@ -33,7 +33,7 @@ export async function POST(
   }
 
   const job = await createJob({
-    industry: kw.keyword,
+    industry: pickSearchTerm(kw),
     location: kw.location,
     maxLeads: kw.maxLeads,
     source: "serpapi",
