@@ -244,7 +244,7 @@ export function FolderPickerModal({
               <RadioGroup
                 value={selectedFolder}
                 onValueChange={setSelectedFolder}
-                className="grid grid-cols-4 gap-2.5 overflow-y-auto content-start"
+                className="grid grid-cols-4 gap-2.5 overflow-y-auto content-start flex-1 min-h-0"
               >
                 {/* Unfiled */}
                 <label
