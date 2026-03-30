@@ -6,14 +6,13 @@ import {
   deleteAllKeywordLeadsAction,
   moveLeadsToFolderAction,
 } from "@/actions/leads.actions";
-import { getFoldersAction, createFolderAction } from "@/actions/folders.actions";
+import { FolderPickerModal } from "@/components/shared/FolderPickerModal";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -29,7 +28,6 @@ import {
   ChevronLeft, ChevronRight, Trash2, Download,
   AlertTriangle, Check, ChevronDown, CheckCircle2,
   Copy, MapPin, MoreHorizontal, ExternalLink, FolderOpen,
-  FolderPlus, Folder,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNotifications } from "@/lib/notifications";
@@ -49,14 +47,6 @@ type Lead = {
   dataQualityScore: number;
 };
 
-type FolderItem = {
-  id: string;
-  name: string;
-  color: string;
-  _count: { leads: number };
-  industry: { id: string; name: string; color: string } | null;
-};
-
 type SortOption = "name_asc" | "name_desc" | "newest" | "oldest";
 type SearchField = "business" | "contact" | "location" | "phone" | "email" | "website";
 
@@ -74,16 +64,6 @@ const SEARCH_FIELDS: { value: SearchField; label: string; placeholder: string }[
   { value: "phone",     label: "Phone",     placeholder: "Search by phone number…" },
   { value: "email",     label: "Email",     placeholder: "Search by email address…" },
   { value: "website",   label: "Website",   placeholder: "Search by website…" },
-];
-
-const PRESET_COLORS = [
-  { value: "#6366f1", label: "Indigo" },
-  { value: "#3b82f6", label: "Blue" },
-  { value: "#10b981", label: "Emerald" },
-  { value: "#f59e0b", label: "Amber" },
-  { value: "#f43f5e", label: "Rose" },
-  { value: "#8b5cf6", label: "Violet" },
-  { value: "#64748b", label: "Slate" },
 ];
 
 interface Props {
@@ -168,17 +148,11 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
   const [deleting, setDeleting]     = useState(false);
   const [exporting, setExporting]   = useState(false);
 
-  // Save to folder state
+  // Folder picker state
   const [folderModalOpen, setFolderModalOpen] = useState(false);
   const [folderScope, setFolderScope] = useState<"selected" | "all">("selected");
-  const [folders, setFolders]       = useState<FolderItem[]>([]);
-  const [loadingFolders, setLoadingFolders] = useState(false);
-  const [selectedFolder, setSelectedFolder] = useState<string>("none");
-  const [creatingNew, setCreatingNew] = useState(false);
-  const [newFolderName, setNewFolderName] = useState("");
-  const [newFolderColor, setNewFolderColor] = useState(PRESET_COLORS[0].value);
-  const [folderSearch, setFolderSearch] = useState("");
-  const [savingFolder, setSavingFolder] = useState(false);
+  // IDs to move — captured when folder modal opens so we have a stable snapshot
+  const [pendingMoveIds, setPendingMoveIds] = useState<string[]>([]);
 
   const { add: addNotif } = useNotifications();
 
@@ -225,21 +199,6 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
     }
   }, [open]);
 
-  // Load folders when folder modal opens
-  useEffect(() => {
-    if (!folderModalOpen) return;
-    setLoadingFolders(true);
-    getFoldersAction()
-      .then((f) => setFolders(f as unknown as FolderItem[]))
-      .catch(() => toast.error("Could not load folders"))
-      .finally(() => setLoadingFolders(false));
-    setSelectedFolder("none");
-    setCreatingNew(false);
-    setNewFolderName("");
-    setNewFolderColor(PRESET_COLORS[0].value);
-    setFolderSearch("");
-  }, [folderModalOpen]);
-
   const activeField = SEARCH_FIELDS.find((f) => f.value === searchField) ?? SEARCH_FIELDS[0];
   const allOnPageSelected = leads.length > 0 && leads.every((l) => selected.has(l.id));
   const someSelected = selected.size > 0;
@@ -254,6 +213,37 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
 
   function toggleOne(id: string) {
     setSelected((prev) => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
+  }
+
+  async function openFolderPicker(scope: "selected" | "all", singleId?: string) {
+    setFolderScope(scope);
+    if (scope === "all") {
+      // Fetch all IDs upfront so FolderPickerModal doesn't need to know about pagination
+      try {
+        const res = await fetch(`/api/keywords/${kwId}/leads?page=1&pageSize=999999`);
+        const data = await res.json();
+        setPendingMoveIds((data.leads as Lead[]).map((l) => l.id));
+      } catch {
+        toast.error("Could not load leads. Try again.");
+        return;
+      }
+    } else if (singleId) {
+      setPendingMoveIds([singleId]);
+    } else {
+      setPendingMoveIds(Array.from(selected));
+    }
+    setFolderModalOpen(true);
+  }
+
+  async function handleMoveToFolder(folderId: string | null) {
+    await moveLeadsToFolderAction(pendingMoveIds, folderId);
+    const folderLabel = folderId ? "folder" : "Unfiled";
+    addNotif({
+      type: "success",
+      title: `${pendingMoveIds.length} lead${pendingMoveIds.length !== 1 ? "s" : ""} saved to ${folderLabel}`,
+      message: `From "${keyword} — ${location}".`,
+    });
+    setSelected(new Set());
   }
 
   async function handleDelete() {
@@ -307,61 +297,9 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
     }
   }
 
-  function openSaveToFolder(scope: "selected" | "all") {
-    setFolderScope(scope);
-    setFolderModalOpen(true);
-  }
-
-  async function handleSaveToFolder() {
-    if (selectedFolder === "none" && !creatingNew) {
-      toast.error("Please select a folder.");
-      return;
-    }
-    setSavingFolder(true);
-    try {
-      let folderId: string | null = null;
-
-      if (creatingNew || selectedFolder === "new") {
-        if (!newFolderName.trim()) { toast.error("Please enter a folder name."); setSavingFolder(false); return; }
-        const created = await createFolderAction(newFolderName.trim(), newFolderColor, null) as { id: string; name: string; color: string };
-        folderId = created.id;
-        setFolders((prev) => [...prev, { ...created, _count: { leads: 0 }, industry: null }]);
-      } else {
-        folderId = selectedFolder === "none" ? null : selectedFolder;
-      }
-
-      // Collect IDs to move
-      let ids: string[];
-      if (folderScope === "all") {
-        const res = await fetch(`/api/keywords/${kwId}/leads?page=1&pageSize=999999`);
-        const data = await res.json();
-        ids = (data.leads as Lead[]).map((l) => l.id);
-      } else {
-        ids = Array.from(selected);
-      }
-
-      await moveLeadsToFolderAction(ids, folderId);
-
-      const folderName = folderId
-        ? (folders.find((f) => f.id === folderId)?.name ?? newFolderName.trim())
-        : "Unfiled";
-      addNotif({
-        type: "success",
-        title: `${ids.length} lead${ids.length !== 1 ? "s" : ""} saved to "${folderName}"`,
-        message: `From "${keyword} — ${location}".`,
-      });
-      setFolderModalOpen(false);
-      setSelected(new Set());
-    } catch {
-      toast.error("Failed to save leads to folder.");
-    } finally {
-      setSavingFolder(false);
-    }
-  }
-
-  const filteredFolders = folders.filter((f) =>
-    f.name.toLowerCase().includes(folderSearch.toLowerCase())
-  );
+  const folderPickerLabel = folderScope === "all"
+    ? `Save all ${total} leads`
+    : `Save ${pendingMoveIds.length} lead${pendingMoveIds.length !== 1 ? "s" : ""}`;
 
   return (
     <>
@@ -394,7 +332,6 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
 
           {/* ── Toolbar ── */}
           <div className="px-4 pt-2.5 pb-2 border-b shrink-0 space-y-2">
-            {/* Row 1 — search + sort + actions */}
             <div className="flex items-center gap-2">
               {/* Search */}
               <div className="flex flex-1 rounded-md border border-input overflow-hidden focus-within:ring-2 focus-within:ring-ring/50 focus-within:border-ring transition-colors">
@@ -454,7 +391,7 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
               <Separator orientation="vertical" className="h-4" />
 
               <Button variant="outline" size="sm" className="h-8 gap-1 text-xs shrink-0"
-                onClick={() => openSaveToFolder("all")} disabled={total === 0}>
+                onClick={() => openFolderPicker("all")} disabled={total === 0}>
                 <FolderOpen className="h-3 w-3" />
                 Save to folder
               </Button>
@@ -470,7 +407,7 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
               </Button>
             </div>
 
-            {/* Row 2 — filters */}
+            {/* Filters row */}
             <div className="flex flex-wrap items-end gap-2.5">
               <div className="space-y-1">
                 <span className="text-[10px] text-muted-foreground block">State</span>
@@ -481,7 +418,6 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
                   className="h-7 w-24 text-xs"
                 />
               </div>
-
               <div className="space-y-1">
                 <span className="text-[10px] text-muted-foreground block">Has data</span>
                 <div className="flex items-center gap-1.5">
@@ -506,7 +442,6 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
                   ))}
                 </div>
               </div>
-
               {(stateFilter || hasEmail || hasWebsite) && (
                 <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground hover:text-foreground self-end"
                   onClick={() => { setStateFilter(""); setHasEmail(false); setHasWebsite(false); }}>
@@ -522,7 +457,7 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
               <span className="text-xs font-medium text-primary">{selected.size} selected</span>
               <div className="flex gap-1.5 ml-auto">
                 <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs"
-                  onClick={() => openSaveToFolder("selected")}>
+                  onClick={() => openFolderPicker("selected")}>
                   <FolderOpen className="h-3.5 w-3.5" />
                   Save to folder
                 </Button>
@@ -661,7 +596,7 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               className="text-xs gap-2 cursor-pointer"
-                              onClick={() => { setFolderScope("selected"); setSelected(new Set([lead.id])); setFolderModalOpen(true); }}
+                              onClick={() => openFolderPicker("selected", lead.id)}
                             >
                               <FolderOpen className="h-3.5 w-3.5" />
                               Save to folder
@@ -706,102 +641,14 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
         </DialogContent>
       </Dialog>
 
-      {/* ── Save to folder modal ── */}
-      <Dialog open={folderModalOpen} onOpenChange={(v) => { if (!v) setFolderModalOpen(false); }}>
-        <DialogContent showCloseButton className="max-w-sm p-0 overflow-hidden">
-          <DialogHeader className="px-4 pt-4 pb-3 border-b">
-            <DialogTitle className="text-sm font-semibold">
-              Save {folderScope === "all" ? `all ${total} leads` : `${selected.size} lead${selected.size !== 1 ? "s" : ""}`} to folder
-            </DialogTitle>
-          </DialogHeader>
-
-          <div className="p-4 space-y-3 max-h-[60vh] overflow-y-auto">
-            {loadingFolders ? (
-              <div className="flex justify-center py-6">
-                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-              </div>
-            ) : (
-              <>
-                {/* Folder search */}
-                {folders.length > 4 && (
-                  <div className="relative">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
-                    <Input
-                      placeholder="Search folders…"
-                      value={folderSearch}
-                      onChange={(e) => setFolderSearch(e.target.value)}
-                      className="pl-8 h-8 text-xs"
-                    />
-                  </div>
-                )}
-
-                <RadioGroup value={selectedFolder} onValueChange={(v) => { setSelectedFolder(v); setCreatingNew(v === "new"); }}>
-                  {/* Unfiled */}
-                  <label className="flex items-center gap-3 px-2 py-2 rounded-md hover:bg-muted/50 cursor-pointer transition-colors">
-                    <RadioGroupItem value="none" id="folder-none" />
-                    <span className="text-sm">Unfiled</span>
-                  </label>
-
-                  {filteredFolders.map((f) => (
-                    <label key={f.id} className="flex items-center gap-3 px-2 py-2 rounded-md hover:bg-muted/50 cursor-pointer transition-colors">
-                      <RadioGroupItem value={f.id} id={`folder-${f.id}`} />
-                      <Folder className="h-4 w-4 shrink-0" style={{ color: f.color }} />
-                      <span className="text-sm flex-1 truncate">{f.name}</span>
-                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">{f._count.leads}</Badge>
-                    </label>
-                  ))}
-
-                  {/* Create new */}
-                  <label className="flex items-center gap-3 px-2 py-2 rounded-md hover:bg-muted/50 cursor-pointer transition-colors">
-                    <RadioGroupItem value="new" id="folder-new" />
-                    <FolderPlus className="h-4 w-4 text-muted-foreground shrink-0" />
-                    <span className="text-sm text-muted-foreground">Create new folder…</span>
-                  </label>
-                </RadioGroup>
-
-                {/* New folder form */}
-                {(creatingNew || selectedFolder === "new") && (
-                  <div className="pl-8 space-y-2.5 pt-1">
-                    <Input
-                      placeholder="Folder name"
-                      value={newFolderName}
-                      onChange={(e) => setNewFolderName(e.target.value)}
-                      className="h-8 text-xs"
-                      autoFocus
-                    />
-                    <div className="flex gap-1.5">
-                      {PRESET_COLORS.map((c) => (
-                        <button
-                          key={c.value}
-                          type="button"
-                          title={c.label}
-                          onClick={() => setNewFolderColor(c.value)}
-                          className={cn(
-                            "h-5 w-5 rounded-full border-2 transition-all",
-                            newFolderColor === c.value ? "border-foreground scale-110" : "border-transparent hover:scale-105"
-                          )}
-                          style={{ backgroundColor: c.value }}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-
-          <div className="flex justify-end gap-2 px-4 py-3 border-t">
-            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setFolderModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button size="sm" className="h-8 text-xs gap-1.5" onClick={handleSaveToFolder} disabled={savingFolder || loadingFolders}>
-              {savingFolder ? <Loader2 className="h-3 w-3 animate-spin" /> : <FolderOpen className="h-3 w-3" />}
-              Save
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* ── Folder picker (shared component) ── */}
+      <FolderPickerModal
+        open={folderModalOpen}
+        onOpenChange={setFolderModalOpen}
+        title={folderPickerLabel}
+        confirmLabel={`${folderPickerLabel} →`}
+        onConfirm={handleMoveToFolder}
+      />
     </>
   );
 }
-
