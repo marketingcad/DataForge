@@ -38,7 +38,9 @@ export async function processKeywordJob(job: Awaited<ReturnType<typeof getJobByI
 
   const collectedLeads: Awaited<ReturnType<typeof scrapeGoogleMapsHeadless>> = [];
   let savedCount = 0;
-  let dupCount   = 0;
+  let dupCount        = 0;
+  let insertFailures  = 0;
+  let firstInsertError: string | null = null;
   let lastLogMsg = "";
   let insertChain: Promise<void> = Promise.resolve();
 
@@ -90,15 +92,21 @@ export async function processKeywordJob(job: Awaited<ReturnType<typeof getJobByI
             } else {
               savedCount++;
             }
-          } catch { /* ignore per-lead insert errors */ }
+          } catch (insertErr) {
+            insertFailures++;
+            if (!firstInsertError) {
+              firstInsertError = insertErr instanceof Error
+                ? insertErr.message
+                : String(insertErr);
+            }
+          }
 
-          prisma.scrapingJob.update({
-            where: { id },
+          prisma.scrapingJob.updateMany({
+            where: { id, status: "running" },
             data: {
               leadsDiscovered: count,
               leadsProcessed:  savedCount,
               duplicatesFound: dupCount,
-              pendingLeads:    collectedLeads as never,
             },
           }).catch(() => {});
         }).catch(() => {});
@@ -121,7 +129,7 @@ export async function processKeywordJob(job: Awaited<ReturnType<typeof getJobByI
         leadsProcessed:  savedCount,
         duplicatesFound: dupCount,
         errorMessage:    isSuccess
-          ? `Done — ${savedCount} new${dupCount > 0 ? `, ${dupCount} already existed` : ""}`
+          ? `Done — ${savedCount} new${dupCount > 0 ? `, ${dupCount} duplicates` : ""}${insertFailures > 0 ? ` ⚠ ${insertFailures} failed: ${firstInsertError}` : ""}`
           : (wasCancelled ? "Stopped by user" : errorMsg),
       },
     });
@@ -155,8 +163,12 @@ export async function processKeywordJob(job: Awaited<ReturnType<typeof getJobByI
       duplicatesFound: dupCount,
       pendingLeads:    finalLeads.length > 0 ? (finalLeads as never) : (null as never),
       errorMessage:    savedCount > 0
-        ? `Done — ${savedCount} new${dupCount > 0 ? `, ${dupCount} already existed` : ""}`
-        : (dupCount > 0 ? `No new leads — ${dupCount} already existed` : "No leads found"),
+        ? `Done — ${savedCount} new${dupCount > 0 ? `, ${dupCount} duplicates` : ""}${insertFailures > 0 ? ` ⚠ ${insertFailures} failed: ${firstInsertError}` : ""}`
+        : (dupCount > 0
+            ? `No new leads — ${dupCount} duplicates${insertFailures > 0 ? ` ⚠ ${insertFailures} failed: ${firstInsertError}` : ""}`
+            : insertFailures > 0
+              ? `⚠ All ${insertFailures} inserts failed: ${firstInsertError}`
+              : "No leads found"),
     },
   });
 
