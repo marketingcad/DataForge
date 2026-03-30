@@ -24,6 +24,7 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "@sparticuz/chromium-min": "^143.0.4",
     "@tanstack/react-table": "^8.21.3",
+    "@vercel/functions": "^3.4.3",
     "axios": "^1.13.6",
     "bcryptjs": "^3.0.3",
     "cheerio": "^1.2.0",

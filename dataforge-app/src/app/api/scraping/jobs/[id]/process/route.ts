@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { waitUntil } from "@vercel/functions";
 import { prisma } from "@/lib/prisma";
 import { getJobById, updateJobStatus, incrementJobMetric } from "@/lib/scraping/jobs/service";
 import { discoverBusinesses } from "@/lib/scraping/google/discovery";
@@ -33,7 +34,12 @@ export async function POST(
 
   // ── Keyword job: use Playwright browser scraper (same as "Search by Google") ──
   if (job.keywordId) {
-    return await processKeywordJob(job);
+    // Return 202 immediately so the caller (cron) doesn't have to wait.
+    // waitUntil keeps this function alive until scraping completes even
+    // after the response is sent — this is the correct Vercel pattern for
+    // long-running background work triggered by a short-lived cron call.
+    waitUntil(processKeywordJob(job));
+    return NextResponse.json({ status: "started" }, { status: 202 });
   }
 
   // ── Standard SerpAPI job ───────────────────────────────────────────────────

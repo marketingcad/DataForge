@@ -53,14 +53,8 @@ async function handleCron(req: NextRequest) {
     });
 
     const processUrl = `${req.nextUrl.origin}/api/scraping/jobs/${newJob.id}/process`;
-    // Await the fetch with a 10s abort — this guarantees the HTTP request
-    // is fully sent and the process function has started on Vercel before
-    // the cron function returns. The scraper continues running independently
-    // as a separate function invocation even after the connection closes.
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 10000);
-    await fetch(processUrl, { method: "POST", signal: ctrl.signal }).catch(() => null);
-    clearTimeout(timer);
+    // Process endpoint returns 202 immediately (scraping runs via waitUntil).
+    await fetch(processUrl, { method: "POST" }).catch(() => null);
     triggered.push(`keyword:${kw.id}→job:${newJob.id}`);
   }
 
