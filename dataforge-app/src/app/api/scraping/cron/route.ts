@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { waitUntil } from "@vercel/functions";
 import { prisma } from "@/lib/prisma";
-import { createJob } from "@/lib/scraping/jobs/service";
+import { createJob, getJobById } from "@/lib/scraping/jobs/service";
 import { getDueKeywords } from "@/lib/keywords/service";
+import { processKeywordJob } from "@/lib/scraping/jobs/processor";
 
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 async function handleCron(req: NextRequest) {
   // Accept either our CRON_SECRET (GitHub Actions / external services)
@@ -19,19 +21,27 @@ async function handleCron(req: NextRequest) {
 
   const triggered: string[] = [];
 
-  // 1. Process the oldest pending manual job
-  const job = await prisma.scrapingJob.findFirst({
-    where: { status: "pending" },
+  // 1. Resume any keyword job that got stuck in "pending" (e.g. previous cron was killed
+  //    before waitUntil could start). Process at most one stuck job per cron run.
+  const stuckJob = await prisma.scrapingJob.findFirst({
+    where: {
+      status: "pending",
+      keywordId: { not: null },
+      // Only pick up jobs that have been pending for at least 2 minutes
+      createdAt: { lte: new Date(Date.now() - 2 * 60 * 1000) },
+    },
     orderBy: { createdAt: "asc" },
   });
 
-  if (job) {
-    const processUrl = `${req.nextUrl.origin}/api/scraping/jobs/${job.id}/process`;
-    await fetch(processUrl, { method: "POST" });
-    triggered.push(`job:${job.id}`);
+  if (stuckJob) {
+    try {
+      const job = await getJobById(stuckJob.id);
+      waitUntil(processKeywordJob(job));
+      triggered.push(`resume:${stuckJob.id}`);
+    } catch { /* job may have been deleted */ }
   }
 
-  // 2. Enqueue due keyword jobs
+  // 2. Enqueue and immediately process due keyword jobs
   const dueKeywords = await getDueKeywords();
 
   for (const kw of dueKeywords) {
@@ -44,18 +54,22 @@ async function handleCron(req: NextRequest) {
     });
     if (active) continue;
 
-    const newJob = await createJob({
-      industry: kw.keyword,
-      location: kw.location,
-      maxLeads: kw.maxLeads,
-      source: "serpapi",
-      keywordId: kw.id,
-    });
+    try {
+      const newJob = await createJob({
+        industry: kw.keyword,
+        location: kw.location,
+        maxLeads: kw.maxLeads,
+        source: "serpapi",
+        keywordId: kw.id,
+      });
 
-    const processUrl = `${req.nextUrl.origin}/api/scraping/jobs/${newJob.id}/process`;
-    // Process endpoint returns 202 immediately (scraping runs via waitUntil).
-    await fetch(processUrl, { method: "POST" }).catch(() => null);
-    triggered.push(`keyword:${kw.id}→job:${newJob.id}`);
+      // Call processKeywordJob directly via waitUntil — no HTTP hop.
+      // The cron returns its response immediately; Vercel keeps this function
+      // alive (up to maxDuration) until the scraping promise resolves.
+      const job = await getJobById(newJob.id);
+      waitUntil(processKeywordJob(job));
+      triggered.push(`keyword:${kw.id}→job:${newJob.id}`);
+    } catch { /* ignore per-keyword errors so one failure doesn't block the rest */ }
   }
 
   if (triggered.length === 0) {
