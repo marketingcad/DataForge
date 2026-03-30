@@ -53,7 +53,15 @@ async function handleCron(req: NextRequest) {
     });
 
     const processUrl = `${req.nextUrl.origin}/api/scraping/jobs/${newJob.id}/process`;
-    fetch(processUrl, { method: "POST" }).catch(() => null);
+    // Await with a short timeout just to ensure the HTTP request is sent and
+    // the process function has started. The scraper runs independently after that.
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 5000);
+    fetch(processUrl, { method: "POST", signal: ctrl.signal })
+      .catch(() => null)
+      .finally(() => clearTimeout(timer));
+    // Give it 1s to establish the connection before the cron function returns
+    await new Promise((r) => setTimeout(r, 1000));
     triggered.push(`keyword:${kw.id}→job:${newJob.id}`);
   }
 
