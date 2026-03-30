@@ -723,6 +723,23 @@ export async function scrapeGoogleMapsHeadless(
               const phone = (phoneEl as HTMLElement | null)?.innerText
                 ?.replace(/^\s+|\s+$/g, "").replace(/\n/g, " ").trim() || undefined;
 
+              // Website: the panel link has data-item-id starting with "authority"
+              // or aria-label/data-tooltip of "Open website".
+              let website: string | undefined;
+              const siteEl = (
+                getOutside('[data-item-id^="authority"] a[href]') ||
+                getOutside('[data-tooltip="Open website"][href]') ||
+                getOutside('[aria-label="Open website"][href]')
+              ) as HTMLAnchorElement | null;
+              if (siteEl?.href) {
+                try {
+                  const u = new URL(siteEl.href);
+                  const host = u.hostname.replace(/^www\./, "");
+                  const skipHosts = ["google.", "goo.gl", "youtube.", "facebook.", "instagram.", "twitter.", "x.com"];
+                  if (!skipHosts.some(h => host.includes(h))) website = host;
+                } catch { /* ignore */ }
+              }
+
               let city: string | undefined, state: string | undefined;
               if (address) {
                 const parts = address.split(",").map((s: string) => s.trim());
@@ -731,7 +748,7 @@ export async function scrapeGoogleMapsHeadless(
                   if (m) { state = m[1]; city = parts[i - 1]; break; }
                 }
               }
-              return { address, phone, city, state };
+              return { address, phone, city, state, website };
             }).catch(() => null);
 
             if (leadTimedOut || !details) return;
@@ -740,7 +757,7 @@ export async function scrapeGoogleMapsHeadless(
               businessName,
               address: details.address,
               phone:   details.phone,
-              website: cardWebsite,
+              website: details.website ?? cardWebsite,
               city:    details.city,
               state:   details.state,
             };
@@ -750,7 +767,7 @@ export async function scrapeGoogleMapsHeadless(
             } else {
               leads.push(lead);
               await onLead?.(lead, leads.length);
-              onLog?.(`Collected ${leads.length} — ${[details.phone && "phone", details.address && "address", cardWebsite && "website"].filter(Boolean).join(", ") || "name only"}`);
+              onLog?.(`Collected ${leads.length} — ${[details.phone && "phone", details.address && "address", (details.website ?? cardWebsite) && "website"].filter(Boolean).join(", ") || "name only"}`);
             }
 
             // Close the detail panel
