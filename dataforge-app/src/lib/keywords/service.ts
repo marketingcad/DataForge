@@ -73,10 +73,21 @@ export async function updateKeyword(
   return prisma.scrapingKeyword.update({ where: { id }, data });
 }
 
-/** Pick a search term: random from [mainKeyword, ...extraKeywords]. */
+/**
+ * Build a search term for this run.
+ * Always starts with the main keyword, then appends a random number
+ * of extra keywords (0 → all) in random order — so every run is unique.
+ * e.g. "dentist", "dentist orthodontist", "dentist dental clinic orthodontist"
+ */
 export function pickSearchTerm(kw: { keyword: string; extraKeywords: string[] }): string {
-  const pool = [kw.keyword, ...kw.extraKeywords].filter(Boolean);
-  return pool[Math.floor(Math.random() * pool.length)];
+  const extras = kw.extraKeywords.filter(Boolean);
+  if (extras.length === 0) return kw.keyword;
+  // How many extras to include this run: 0 to all
+  const count = Math.floor(Math.random() * (extras.length + 1));
+  if (count === 0) return kw.keyword;
+  // Shuffle and take `count`
+  const shuffled = [...extras].sort(() => Math.random() - 0.5);
+  return [kw.keyword, ...shuffled.slice(0, count)].join(" ");
 }
 
 export async function deleteKeyword(id: string) {
