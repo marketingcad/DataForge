@@ -30,6 +30,7 @@ import {
   MapPin,
   AlertTriangle,
   CheckCircle2,
+  Check,
   Pencil,
   Loader2,
   Inbox,
@@ -984,16 +985,21 @@ function KeywordForm({
                       }
                     }}
                     className={cn(
-                      "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium transition-all select-none",
+                      "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-all select-none",
                       selected
                         ? "bg-foreground text-background border-foreground/20"
                         : "bg-background text-muted-foreground border-border hover:border-foreground/30 hover:text-foreground"
                     )}
                   >
-                    {selected && (
-                      <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-primary text-primary-foreground text-[9px] font-bold shrink-0">
-                        {pos + 1}
+                    {selected ? (
+                      <span className="relative flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                        <Check className="h-2.5 w-2.5 stroke-[3]" />
+                        <span className="absolute -top-1.5 -right-1.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-background border border-border text-[8px] font-bold text-foreground leading-none">
+                          {pos + 1}
+                        </span>
                       </span>
+                    ) : (
+                      <span className="h-4 w-4 shrink-0 rounded-full border-2 border-muted-foreground/30" />
                     )}
                     {k}
                   </button>
