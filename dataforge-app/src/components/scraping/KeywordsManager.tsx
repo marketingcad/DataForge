@@ -54,6 +54,9 @@ interface KeywordRow {
   failedAttempts: number;
   lastError: string | null;
   extraKeywords: string[];
+  extraKeywordsMode: string;
+  extraKeywordsMin: number;
+  extraKeywordsMax: number;
   _count: { jobs: number; leads: number };
   jobs: {
     id: string;
@@ -124,6 +127,9 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
   const [newMaxLeads, setNewMaxLeads] = useState("50");
   const [newInterval, setNewInterval] = useState("1440");
   const [newExtraKeywords, setNewExtraKeywords] = useState<string[]>([]);
+  const [newExtraMode, setNewExtraMode] = useState<"random" | "ordered">("random");
+  const [newExtraMin, setNewExtraMin] = useState("1");
+  const [newExtraMax, setNewExtraMax] = useState("3");
   const [addSaving, setAddSaving] = useState(false);
 
   // Edit dialog
@@ -133,6 +139,9 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
   const [editMaxLeads, setEditMaxLeads] = useState("50");
   const [editInterval, setEditInterval] = useState("1440");
   const [editExtraKeywords, setEditExtraKeywords] = useState<string[]>([]);
+  const [editExtraMode, setEditExtraMode] = useState<"random" | "ordered">("random");
+  const [editExtraMin, setEditExtraMin] = useState("1");
+  const [editExtraMax, setEditExtraMax] = useState("3");
   const [editSaving, setEditSaving] = useState(false);
 
   // Delete confirm
@@ -304,6 +313,9 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
     setEditMaxLeads(String(kw.maxLeads));
     setEditInterval(String(kw.intervalMinutes));
     setEditExtraKeywords(kw.extraKeywords ?? []);
+    setEditExtraMode((kw.extraKeywordsMode ?? "random") as "random" | "ordered");
+    setEditExtraMin(String(kw.extraKeywordsMin ?? 1));
+    setEditExtraMax(String(kw.extraKeywordsMax ?? 3));
   }
 
   async function handleAdd() {
@@ -319,6 +331,9 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
           maxLeads: parseInt(newMaxLeads),
           intervalMinutes: parseInt(newInterval),
           extraKeywords: newExtraKeywords,
+          extraKeywordsMode: newExtraMode,
+          extraKeywordsMin: parseInt(newExtraMin),
+          extraKeywordsMax: parseInt(newExtraMax),
         }),
       });
       if (res.ok) {
@@ -329,7 +344,8 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
           ...prev,
         ]);
         setAddOpen(false);
-        setNewKeyword(""); setNewLocation(""); setNewMaxLeads("50"); setNewInterval("1440"); setNewExtraKeywords([]);
+        setNewKeyword(""); setNewLocation(""); setNewMaxLeads("50"); setNewInterval("1440");
+        setNewExtraKeywords([]); setNewExtraMode("random"); setNewExtraMin("1"); setNewExtraMax("3");
       }
     } finally {
       setAddSaving(false);
@@ -349,6 +365,9 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
           maxLeads: parseInt(editMaxLeads),
           intervalMinutes: parseInt(editInterval),
           extraKeywords: editExtraKeywords,
+          extraKeywordsMode: editExtraMode,
+          extraKeywordsMin: parseInt(editExtraMin),
+          extraKeywordsMax: parseInt(editExtraMax),
         }),
       });
       if (res.ok) {
@@ -356,7 +375,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
         setKeywords((prev) =>
           prev.map((k) =>
             k.id === editTarget.id
-              ? { ...k, keyword: updated.keyword.keyword, location: updated.keyword.location, maxLeads: updated.keyword.maxLeads, intervalMinutes: updated.keyword.intervalMinutes, extraKeywords: updated.keyword.extraKeywords ?? [] }
+              ? { ...k, keyword: updated.keyword.keyword, location: updated.keyword.location, maxLeads: updated.keyword.maxLeads, intervalMinutes: updated.keyword.intervalMinutes, extraKeywords: updated.keyword.extraKeywords ?? [], extraKeywordsMode: updated.keyword.extraKeywordsMode ?? "random", extraKeywordsMin: updated.keyword.extraKeywordsMin ?? 1, extraKeywordsMax: updated.keyword.extraKeywordsMax ?? 3 }
               : k
           )
         );
@@ -736,6 +755,9 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
             maxLeads={newMaxLeads}  onMaxLeads={setNewMaxLeads}
             interval={newInterval}  onInterval={setNewInterval}
             extraKeywords={newExtraKeywords} onExtraKeywords={setNewExtraKeywords}
+            extraMode={newExtraMode} onExtraMode={setNewExtraMode}
+            extraMin={newExtraMin}   onExtraMin={setNewExtraMin}
+            extraMax={newExtraMax}   onExtraMax={setNewExtraMax}
           />
           <Separator />
           <DialogFooter>
@@ -757,6 +779,9 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
             maxLeads={editMaxLeads}  onMaxLeads={setEditMaxLeads}
             interval={editInterval}  onInterval={setEditInterval}
             extraKeywords={editExtraKeywords} onExtraKeywords={setEditExtraKeywords}
+            extraMode={editExtraMode} onExtraMode={setEditExtraMode}
+            extraMin={editExtraMin}   onExtraMin={setEditExtraMin}
+            extraMax={editExtraMax}   onExtraMax={setEditExtraMax}
           />
           <Separator />
           <DialogFooter>
@@ -823,12 +848,18 @@ function KeywordForm({
   maxLeads, onMaxLeads,
   interval, onInterval,
   extraKeywords, onExtraKeywords,
+  extraMode, onExtraMode,
+  extraMin, onExtraMin,
+  extraMax, onExtraMax,
 }: {
-  keyword: string;        onKeyword:        (v: string) => void;
-  location: string;       onLocation:       (v: string) => void;
-  maxLeads: string;       onMaxLeads:       (v: string) => void;
-  interval: string;       onInterval:       (v: string) => void;
-  extraKeywords: string[]; onExtraKeywords: (v: string[]) => void;
+  keyword: string;         onKeyword:         (v: string) => void;
+  location: string;        onLocation:        (v: string) => void;
+  maxLeads: string;        onMaxLeads:        (v: string) => void;
+  interval: string;        onInterval:        (v: string) => void;
+  extraKeywords: string[]; onExtraKeywords:   (v: string[]) => void;
+  extraMode: "random" | "ordered"; onExtraMode: (v: "random" | "ordered") => void;
+  extraMin: string;        onExtraMin:        (v: string) => void;
+  extraMax: string;        onExtraMax:        (v: string) => void;
 }) {
   const [inputVal, setInputVal] = useState("");
 
@@ -843,6 +874,9 @@ function KeywordForm({
     onExtraKeywords(extraKeywords.filter((k) => k !== val));
   }
 
+  const maxExtras = extraKeywords.length;
+  const minVal = Math.max(1, Math.min(parseInt(extraMin) || 1, maxExtras || 1));
+
   return (
     <div className="space-y-4 py-2">
       <div className="space-y-1.5">
@@ -854,8 +888,29 @@ function KeywordForm({
         />
         <p className="text-xs text-muted-foreground">Searches Google Maps for this keyword + location.</p>
       </div>
-      <div className="space-y-1.5">
-        <Label>Extra keywords <span className="text-muted-foreground font-normal">(optional)</span></Label>
+
+      <div className="space-y-2 rounded-lg border p-3">
+        <div className="flex items-center justify-between">
+          <Label className="text-sm">Extra keywords <span className="text-muted-foreground font-normal">(optional)</span></Label>
+          {extraKeywords.length > 0 && (
+            <div className="flex items-center rounded-md border overflow-hidden text-xs">
+              {(["random", "ordered"] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => onExtraMode(mode)}
+                  className={cn(
+                    "px-2.5 py-1 capitalize transition-colors",
+                    extraMode === mode ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"
+                  )}
+                >
+                  {mode}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
         <div className="flex gap-2">
           <Input
             placeholder="e.g. orthodontist"
@@ -865,18 +920,51 @@ function KeywordForm({
           />
           <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={addExtra}>Add</Button>
         </div>
+
         {extraKeywords.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 pt-1">
-            {extraKeywords.map((k) => (
+          <div className="flex flex-wrap gap-1.5 pt-0.5">
+            {extraKeywords.map((k, i) => (
               <span key={k} className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium">
+                {extraMode === "ordered" && <span className="text-muted-foreground mr-0.5">{i + 1}.</span>}
                 {k}
                 <button type="button" onClick={() => removeExtra(k)} className="text-muted-foreground hover:text-foreground leading-none">×</button>
               </span>
             ))}
           </div>
         )}
-        <p className="text-xs text-muted-foreground">Each run randomly picks from the main keyword + these variations for result diversity.</p>
+
+        {extraKeywords.length > 0 && extraMode === "random" && (
+          <div className="flex items-center gap-3 pt-1">
+            <span className="text-xs text-muted-foreground shrink-0">Pick per run:</span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">min</span>
+              <Input
+                type="number" min={1} max={maxExtras}
+                value={extraMin}
+                onChange={(e) => onExtraMin(e.target.value)}
+                className="h-7 w-14 text-xs text-center"
+              />
+              <span className="text-xs text-muted-foreground">max</span>
+              <Input
+                type="number" min={minVal} max={maxExtras}
+                value={extraMax}
+                onChange={(e) => onExtraMax(e.target.value)}
+                className="h-7 w-14 text-xs text-center"
+              />
+              <span className="text-xs text-muted-foreground">of {maxExtras}</span>
+            </div>
+          </div>
+        )}
+
+        {extraKeywords.length > 0 && extraMode === "ordered" && (
+          <p className="text-xs text-muted-foreground pt-0.5">Each run uses the next keyword in order, cycling back to the start.</p>
+        )}
+
+        {extraKeywords.length === 0 && (
+          <p className="text-xs text-muted-foreground">Each run combines the main keyword with a selection of these for variety.</p>
+        )}
       </div>
+
       <div className="space-y-1.5">
         <Label>Location</Label>
         <Input placeholder="e.g. Chicago, IL" value={location} onChange={(e) => onLocation(e.target.value)} />

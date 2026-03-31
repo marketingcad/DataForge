@@ -42,6 +42,9 @@ export async function createKeyword(data: {
   maxLeads?: number;
   intervalMinutes?: number;
   extraKeywords?: string[];
+  extraKeywordsMode?: string;
+  extraKeywordsMin?: number;
+  extraKeywordsMax?: number;
   createdById?: string;
 }) {
   const nextRunAt = new Date();
@@ -52,6 +55,9 @@ export async function createKeyword(data: {
       maxLeads: data.maxLeads ?? 50,
       intervalMinutes: data.intervalMinutes ?? 1440,
       extraKeywords: data.extraKeywords ?? [],
+      extraKeywordsMode: data.extraKeywordsMode ?? "random",
+      extraKeywordsMin: data.extraKeywordsMin ?? 1,
+      extraKeywordsMax: data.extraKeywordsMax ?? 3,
       nextRunAt,
       createdById: data.createdById ?? null,
     },
@@ -68,24 +74,45 @@ export async function updateKeyword(
     enabled: boolean;
     nextRunAt: Date;
     extraKeywords: string[];
+    extraKeywordsMode: string;
+    extraKeywordsMin: number;
+    extraKeywordsMax: number;
   }>
 ) {
   return prisma.scrapingKeyword.update({ where: { id }, data });
 }
 
 /**
- * Build a search term for this run.
- * Always starts with the main keyword, then appends a random number
- * of extra keywords (0 → all) in random order — so every run is unique.
- * e.g. "dentist", "dentist orthodontist", "dentist dental clinic orthodontist"
+ * Build the Google Maps search term for this run.
+ *
+ * ordered: cycles through extras one at a time using extraKeywordsIndex.
+ *          e.g. run 0 → "dentist orthodontist", run 1 → "dentist dental clinic"
+ *
+ * random:  picks between extraKeywordsMin and extraKeywordsMax extras,
+ *          shuffled, so every run is a unique combination.
+ *          e.g. "dentist", "dentist orthodontist", "dentist dental clinic orthodontist"
  */
-export function pickSearchTerm(kw: { keyword: string; extraKeywords: string[] }): string {
+export function pickSearchTerm(kw: {
+  keyword: string;
+  extraKeywords: string[];
+  extraKeywordsMode: string;
+  extraKeywordsMin: number;
+  extraKeywordsMax: number;
+  extraKeywordsIndex: number;
+}): string {
   const extras = kw.extraKeywords.filter(Boolean);
   if (extras.length === 0) return kw.keyword;
-  // How many extras to include this run: 0 to all
-  const count = Math.floor(Math.random() * (extras.length + 1));
+
+  if (kw.extraKeywordsMode === "ordered") {
+    const idx = kw.extraKeywordsIndex % extras.length;
+    return `${kw.keyword} ${extras[idx]}`;
+  }
+
+  // Random mode
+  const min = Math.max(0, Math.min(kw.extraKeywordsMin, extras.length));
+  const max = Math.max(min, Math.min(kw.extraKeywordsMax, extras.length));
+  const count = min + Math.floor(Math.random() * (max - min + 1));
   if (count === 0) return kw.keyword;
-  // Shuffle and take `count`
   const shuffled = [...extras].sort(() => Math.random() - 0.5);
   return [kw.keyword, ...shuffled.slice(0, count)].join(" ");
 }
@@ -115,6 +142,7 @@ export async function onKeywordJobSuccess(id: string, intervalMinutes: number) {
       nextRunAt: next,
       failedAttempts: 0,
       lastError: null,
+      extraKeywordsIndex: { increment: 1 },
     },
   });
 }
