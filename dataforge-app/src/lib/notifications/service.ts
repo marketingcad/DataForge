@@ -13,10 +13,14 @@ export async function createNotification(data: {
 
 export async function createNotificationsForRole(
   roles: string[],
-  data: { type?: NotifType; title: string; message?: string; link?: string }
+  data: { type?: NotifType; title: string; message?: string; link?: string },
+  excludeUserId?: string
 ) {
   const users = await prisma.user.findMany({
-    where: { role: { in: roles as ("boss" | "admin" | "sales_rep" | "lead_specialist")[] } },
+    where: {
+      role: { in: roles as ("boss" | "admin" | "sales_rep" | "lead_specialist")[] },
+      ...(excludeUserId ? { id: { not: excludeUserId } } : {}),
+    },
     select: { id: true },
   });
   if (users.length === 0) return;

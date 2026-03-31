@@ -223,7 +223,7 @@ export async function notifyKeywordSuccess(
     if (kw.createdById) {
       await createNotification({ userId: kw.createdById, type, title, message, link: "/scraping" });
     }
-    await createNotificationsForRole(["boss", "admin"], { type, title, message, link: "/scraping" });
+    await createNotificationsForRole(["boss", "admin"], { type, title, message, link: "/scraping" }, kw.createdById ?? undefined);
   } catch { /* keyword may have been deleted */ }
 }
 
@@ -249,7 +249,7 @@ export async function handleKeywordFailure(keywordId: string, error: string) {
         title:   "Keyword scraper disabled",
         message: `Keyword "${kw.keyword} in ${kw.location}" was disabled after ${MAX_KEYWORD_FAILURES} failures. Last error: ${error}`,
         link:    "/scraping",
-      });
+      }, kw.createdById ?? undefined);
     } else {
       if (kw.createdById) {
         await createNotification({

@@ -173,6 +173,9 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
   const [runningJobId, setRunningJobId] = useState<string | null>(null);
   const [runningLabel, setRunningLabel] = useState<string>("Starting…");
 
+  // Track job IDs that have already had their completion toast shown
+  const completedToastRef = useRef<Set<string>>(new Set());
+
   // Auto-refresh the keyword list so status, last run, next run, and badges
   // update without a page reload.
   // - Every 3 s when any job is pending/running (smooth progress during scraping)
@@ -499,6 +502,8 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
   }
 
   function applyJobResult(kwId: string, jobId: string, job: { status: string; leadsDiscovered: number; leadsProcessed: number; duplicatesFound: number; errorMessage: string | null }) {
+    const alreadyToasted = completedToastRef.current.has(jobId);
+    completedToastRef.current.add(jobId);
     // Refresh the real lead count from the server instead of estimating from leadsProcessed
     fetch(`/api/keywords/${kwId}/leads?page=1`)
       .then((r) => r.json())
@@ -530,15 +535,17 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
           : k
       )
     );
-    if (job.status === "failed") {
-      toast.error(`Scrape failed: ${job.errorMessage ?? "Unknown error"}`);
-    } else if (job.leadsProcessed > 0) {
-      toast.success(`Done! ${job.leadsProcessed} lead${job.leadsProcessed !== 1 ? "s" : ""} saved${job.duplicatesFound > 0 ? `, ${job.duplicatesFound} already existed` : ""}.`, {
-        action: { label: "Go to Leads", onClick: () => { window.location.href = "/leads"; } },
-        duration: 12000,
-      });
-    } else {
-      toast.info("Scraping done — no new leads found.");
+    if (!alreadyToasted) {
+      if (job.status === "failed") {
+        toast.error(`Scrape failed: ${job.errorMessage ?? "Unknown error"}`);
+      } else if (job.leadsProcessed > 0) {
+        toast.success(`Done! ${job.leadsProcessed} lead${job.leadsProcessed !== 1 ? "s" : ""} saved${job.duplicatesFound > 0 ? `, ${job.duplicatesFound} already existed` : ""}.`, {
+          action: { label: "Go to Leads", onClick: () => { window.location.href = "/leads"; } },
+          duration: 12000,
+        });
+      } else {
+        toast.info("Scraping done — no new leads found.");
+      }
     }
   }
 
