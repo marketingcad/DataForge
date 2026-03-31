@@ -470,6 +470,7 @@ model ScrapingKeyword {
   extraKeywordsMin     Int       @default(1)
   extraKeywordsMax     Int       @default(3)
   extraKeywordsIndex   Int       @default(0)
+  extraKeywordsOrder   String[]
   createdById          String?
   createdBy      User?         @relation(fields: [createdById], references: [id], onDelete: SetNull)
   jobs           ScrapingJob[]

@@ -45,6 +45,7 @@ export async function createKeyword(data: {
   extraKeywordsMode?: string;
   extraKeywordsMin?: number;
   extraKeywordsMax?: number;
+  extraKeywordsOrder?: string[];
   createdById?: string;
 }) {
   const nextRunAt = new Date();
@@ -58,6 +59,7 @@ export async function createKeyword(data: {
       extraKeywordsMode: data.extraKeywordsMode ?? "random",
       extraKeywordsMin: data.extraKeywordsMin ?? 1,
       extraKeywordsMax: data.extraKeywordsMax ?? 3,
+      extraKeywordsOrder: data.extraKeywordsOrder ?? [],
       nextRunAt,
       createdById: data.createdById ?? null,
     },
@@ -77,6 +79,7 @@ export async function updateKeyword(
     extraKeywordsMode: string;
     extraKeywordsMin: number;
     extraKeywordsMax: number;
+    extraKeywordsOrder: string[];
   }>
 ) {
   return prisma.scrapingKeyword.update({ where: { id }, data });
@@ -99,13 +102,17 @@ export function pickSearchTerm(kw: {
   extraKeywordsMin: number;
   extraKeywordsMax: number;
   extraKeywordsIndex: number;
+  extraKeywordsOrder: string[];
 }): string {
   const extras = kw.extraKeywords.filter(Boolean);
   if (extras.length === 0) return kw.keyword;
 
   if (kw.extraKeywordsMode === "ordered") {
-    const idx = kw.extraKeywordsIndex % extras.length;
-    return `${kw.keyword} ${extras[idx]}`;
+    // Use the user-selected ordered subset; fall back to full extras list
+    const pool = kw.extraKeywordsOrder.filter(Boolean);
+    const ordered = pool.length > 0 ? pool : extras;
+    const idx = kw.extraKeywordsIndex % ordered.length;
+    return `${kw.keyword} ${ordered[idx]}`;
   }
 
   // Random mode
