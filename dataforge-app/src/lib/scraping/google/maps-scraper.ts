@@ -662,33 +662,23 @@ export async function scrapeGoogleMapsHeadless(
           (async () => {
             await article.click({ timeout: 5000, force: true }).catch(() => null);
 
-            // Wait for the detail panel to open (it has aria-label=businessName outside the feed)
-            await page.waitForFunction(
-              (name: string) => {
-                const feed = document.querySelector('div[role="feed"]');
-                const els = document.querySelectorAll("[aria-label]");
-                for (let i = 0; i < els.length; i++) {
-                  if (els[i].getAttribute("aria-label") !== name) continue;
-                  if (feed && feed.contains(els[i])) continue;
-                  return true;
-                }
-                return false;
-              },
-              businessName,
-              { timeout: 1000 }
-            ).catch(() => null);
-
-            if (leadTimedOut) return;
-
-            // Wait until at least one contact field has content
-            await page.waitForFunction(() => {
-              function hasText(sel: string): boolean {
-                const el = document.querySelector(sel);
-                return !!el && (el as HTMLElement).innerText?.trim().length > 0;
+            // Wait for the detail panel identified by aria-label=businessName (outside
+            // the feed) AND for at least one data field to have loaded inside it.
+            // Single scoped check — prevents reading stale data from a prior panel.
+            await page.waitForFunction((bName: string) => {
+              const feed = document.querySelector('div[role="feed"]');
+              const els = document.querySelectorAll("[aria-label]");
+              for (let i = 0; i < els.length; i++) {
+                const el = els[i];
+                if (el.getAttribute("aria-label") !== bName) continue;
+                if (feed && feed.contains(el)) continue;
+                return !!(
+                  el.querySelector('[data-item-id="address"]') ||
+                  el.querySelector('[data-tooltip="Copy phone number"]')
+                );
               }
-              return hasText('[data-item-id="address"]') ||
-                     hasText('[data-tooltip="Copy phone number"]');
-            }, { timeout: 4000 }).catch(() => null);
+              return false;
+            }, businessName, { timeout: 6000 }).catch(() => null);
 
             if (leadTimedOut) return;
 
@@ -700,37 +690,35 @@ export async function scrapeGoogleMapsHeadless(
 
             if (leadTimedOut) return;
 
-            const details = await page.evaluate(() => {
-              // All three target elements (address, phone, website) live OUTSIDE
-              // div[role="feed"] — in the detail panel that opens after clicking.
-              // getOutside() finds the first matching element that is not inside the feed.
+            const details = await page.evaluate((bName: string) => {
               const feed = document.querySelector('div[role="feed"]');
-              function getOutside(sel: string): Element | null {
-                const all = document.querySelectorAll(sel);
-                for (let i = 0; i < all.length; i++) {
-                  if (!feed || !feed.contains(all[i])) return all[i];
-                }
-                return null;
+
+              // Scope ALL extraction to the panel with aria-label=businessName outside
+              // the feed. This guarantees we never mix data between businesses.
+              let panel: HTMLElement | null = null;
+              const els = document.querySelectorAll("[aria-label]");
+              for (let i = 0; i < els.length; i++) {
+                const el = els[i] as HTMLElement;
+                if (el.getAttribute("aria-label") !== bName) continue;
+                if (feed && feed.contains(el)) continue;
+                panel = el;
+                break;
               }
+              if (!panel) return null;
 
-              // Address: data-item-id="address" — innerText has the full address
-              const addrEl = getOutside('[data-item-id="address"]');
+              // Address
+              const addrEl = panel.querySelector('[data-item-id="address"]');
               const address = (addrEl as HTMLElement | null)?.innerText
-                ?.replace(/^\s+|\s+$/g, "").replace(/\n/g, " ").trim() || undefined;
+                ?.replace(/\n/g, " ").trim() || undefined;
 
-              // Phone: data-tooltip="Copy phone number" — innerText has the number
-              const phoneEl = getOutside('[data-tooltip="Copy phone number"]');
+              // Phone
+              const phoneEl = panel.querySelector('[data-tooltip="Copy phone number"]');
               const phone = (phoneEl as HTMLElement | null)?.innerText
-                ?.replace(/^\s+|\s+$/g, "").replace(/\n/g, " ").trim() || undefined;
+                ?.replace(/\n/g, " ").trim() || undefined;
 
-              // Website: the panel link has data-item-id starting with "authority"
-              // or aria-label/data-tooltip of "Open website".
+              // Website
               let website: string | undefined;
-              const siteEl = (
-                getOutside('[data-item-id^="authority"] a[href]') ||
-                getOutside('[data-tooltip="Open website"][href]') ||
-                getOutside('[aria-label="Open website"][href]')
-              ) as HTMLAnchorElement | null;
+              const siteEl = panel.querySelector('[data-tooltip="Open website"]') as HTMLAnchorElement | null;
               if (siteEl?.href) {
                 try {
                   const u = new URL(siteEl.href);
@@ -748,8 +736,9 @@ export async function scrapeGoogleMapsHeadless(
                   if (m) { state = m[1]; city = parts[i - 1]; break; }
                 }
               }
+
               return { address, phone, city, state, website };
-            }).catch(() => null);
+            }, businessName).catch(() => null);
 
             if (leadTimedOut || !details) return;
 
