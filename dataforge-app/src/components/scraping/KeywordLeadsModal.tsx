@@ -246,6 +246,7 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
     });
     setSelected(new Set());
     setPage(1);
+    onLeadsDeleted?.(count);
     await fetchLeads();
   }
 
