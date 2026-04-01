@@ -38,7 +38,7 @@ export default function LeadsGlobeInner({ points }: Props) {
           projection: am5map.geoOrthographic(),
           panX: "rotateX",
           panY: "rotateY",
-          wheelY: "zoom",
+          wheelY: "none",
           minZoomLevel: 1,
           maxZoomLevel: 5,
           centerX: am5.percent(50),
@@ -200,9 +200,15 @@ export default function LeadsGlobeInner({ points }: Props) {
         resetInactivityTimer();
       });
 
-      chart.chartContainer.events.on("wheel", () => {
+      // Zoom toward center (not cursor) by handling wheel manually
+      chartRef.current!.addEventListener("wheel", (e) => {
+        e.preventDefault();
+        const current = chart.get("zoomLevel") ?? 1;
+        const factor  = e.deltaY < 0 ? 1.2 : 1 / 1.2;
+        const next    = Math.max(1, Math.min(5, current * factor));
+        chart.animate({ key: "zoomLevel", to: next, duration: 150 });
         resetInactivityTimer();
-      });
+      }, { passive: false });
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       chart.chartContainer.events.on("click", function (ev: any) {
