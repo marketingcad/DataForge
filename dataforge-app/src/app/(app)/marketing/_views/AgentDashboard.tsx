@@ -19,6 +19,13 @@ interface Props {
   period?: string;
 }
 
+const statusColor: Record<string, string> = {
+  completed: "text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30",
+  missed:    "text-red-500 bg-red-50 dark:bg-red-950/30",
+  voicemail: "text-amber-500 bg-amber-50 dark:bg-amber-950/30",
+  no_answer: "text-slate-500 bg-slate-100 dark:bg-slate-800/40",
+};
+
 export async function AgentDashboard({ userId, period = "week" }: Props) {
   const [stats, recentCalls, leaderboard] = await withDbRetry(() =>
     Promise.all([
@@ -28,14 +35,12 @@ export async function AgentDashboard({ userId, period = "week" }: Props) {
     ])
   );
 
-  const myRank = leaderboard.findIndex((a) => a.id === userId) + 1;
-
-  const statusColor: Record<string, string> = {
-    completed: "text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30",
-    missed:    "text-red-500 bg-red-50 dark:bg-red-950/30",
-    voicemail: "text-amber-500 bg-amber-50 dark:bg-amber-950/30",
-    no_answer: "text-slate-500 bg-slate-100 dark:bg-slate-800/40",
-  };
+  const myRankIdx   = leaderboard.findIndex((a) => a.id === userId);
+  const myRank      = myRankIdx + 1;
+  const maxCalls    = leaderboard[0]?.callCount || 1;
+  const myEntry     = leaderboard[myRankIdx];
+  const leader      = leaderboard[0];
+  const behindLeader = leader && myEntry ? leader.callCount - myEntry.callCount : 0;
 
   const greeting = (() => {
     const h = new Date().getHours();
@@ -44,10 +49,15 @@ export async function AgentDashboard({ userId, period = "week" }: Props) {
     return "Good evening";
   })();
 
+  const rankEmoji =
+    myRank === 1 ? "🥇" :
+    myRank === 2 ? "🥈" :
+    myRank === 3 ? "🥉" : `#${myRank}`;
+
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-lg font-semibold tracking-tight">{greeting}! 👋</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Your performance &amp; active challenges.</p>
@@ -67,12 +77,90 @@ export async function AgentDashboard({ userId, period = "week" }: Props) {
         <StatsCard title="Calls Today"  value={stats.today}     icon={<Zap       className="h-4 w-4 text-blue-600"   />} description="So far" />
         <StatsCard title="This Week"    value={stats.thisWeek}  icon={<TrendingUp className="h-4 w-4 text-emerald-600"/>} description="Last 7 days" />
         <StatsCard title="This Month"   value={stats.thisMonth} icon={<Star       className="h-4 w-4 text-violet-600" />} description="Calendar month" />
-        <StatsCard title="My Rank"      value={myRank > 0 ? `#${myRank}` : "—"} icon={<Trophy className="h-4 w-4 text-amber-500"/>} description="This week" />
+        <StatsCard
+          title="My Rank"
+          value={myRank > 0 ? rankEmoji : "—"}
+          icon={<Trophy className="h-4 w-4 text-amber-500" />}
+          description="This week"
+        />
       </div>
+
+      {/* Team Race — where you stand */}
+      {leaderboard.length > 1 && (
+        <div className="rounded-2xl border bg-card overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-3.5 border-b bg-gradient-to-r from-violet-500/10 via-card to-card">
+            <div className="flex items-center gap-2">
+              <Flame className="h-4 w-4 text-orange-500" />
+              <p className="font-bold text-sm tracking-tight">Team Race — This Week</p>
+            </div>
+            {myRank > 0 && behindLeader > 0 && (
+              <span className="text-xs text-muted-foreground font-medium">
+                {behindLeader} call{behindLeader !== 1 ? "s" : ""} behind leader
+              </span>
+            )}
+            {myRank === 1 && (
+              <span className="text-xs font-bold text-amber-600 dark:text-amber-400">🔥 You&apos;re leading!</span>
+            )}
+          </div>
+
+          <div className="px-5 py-3 space-y-3">
+            {leaderboard.slice(0, 6).map((entry, i) => {
+              const isMe = entry.id === userId;
+              const pct  = maxCalls > 0 ? Math.round((entry.callCount / maxCalls) * 100) : 0;
+              const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i + 1}`;
+
+              return (
+                <div key={entry.id} className={`flex items-center gap-3 rounded-xl px-3 py-2 transition-colors ${
+                  isMe ? "bg-violet-50 dark:bg-violet-950/30 ring-1 ring-violet-300/50 dark:ring-violet-700/40" : "hover:bg-muted/30"
+                }`}>
+                  <span className="text-sm w-6 text-center shrink-0 font-bold">{medal}</span>
+
+                  {/* Avatar */}
+                  <div className={`h-7 w-7 rounded-full flex items-center justify-center text-xs font-black shrink-0 ${
+                    isMe
+                      ? "bg-gradient-to-br from-violet-400 to-violet-600 text-white shadow-[0_0_10px_rgba(139,92,246,0.4)]"
+                      : i === 0
+                        ? "bg-gradient-to-br from-amber-300 to-orange-400 text-white"
+                        : "bg-muted text-foreground"
+                  }`}>
+                    {(entry.name ?? "?").charAt(0).toUpperCase()}
+                  </div>
+
+                  <div className="flex-1 min-w-0 space-y-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className={`text-xs font-semibold truncate ${isMe ? "text-violet-700 dark:text-violet-300" : ""}`}>
+                        {isMe ? `${entry.name} (you)` : entry.name ?? "—"}
+                      </p>
+                      <span className="text-xs font-bold tabular-nums shrink-0">{entry.callCount}</span>
+                    </div>
+                    <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${
+                          isMe
+                            ? "bg-gradient-to-r from-violet-500 to-violet-400"
+                            : i === 0
+                              ? "bg-gradient-to-r from-amber-400 to-orange-400"
+                              : "bg-muted-foreground/30"
+                        }`}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+
+            {leaderboard.length > 6 && (
+              <p className="text-xs text-center text-muted-foreground pb-1">
+                +{leaderboard.length - 6} more agent{leaderboard.length - 6 !== 1 ? "s" : ""}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Active challenges + Recent calls */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-
         {/* Active challenges */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
