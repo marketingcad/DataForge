@@ -6,8 +6,22 @@ export type GlobePoint = {
   name: string;
   count: number;
   color: string;
-  folderName: string | null;
+  category: string | null;
 };
+
+const CATEGORY_PALETTE = [
+  "#f43f5e", "#f97316", "#eab308", "#22c55e",
+  "#06b6d4", "#3b82f6", "#8b5cf6", "#ec4899",
+  "#14b8a6", "#a855f7", "#ef4444", "#84cc16",
+];
+
+function categoryColor(category: string): string {
+  let hash = 0;
+  for (let i = 0; i < category.length; i++) {
+    hash = (hash * 31 + category.charCodeAt(i)) >>> 0;
+  }
+  return CATEGORY_PALETTE[hash % CATEGORY_PALETTE.length];
+}
 
 // US state centers (abbreviation → [lat, lon])
 const US_STATES: Record<string, [number, number]> = {
@@ -140,13 +154,7 @@ function resolveCoords(city?: string | null, state?: string | null, country?: st
 
 export async function getLeadLocations(): Promise<GlobePoint[]> {
   const rows = await prisma.lead.findMany({
-    select: {
-      city: true,
-      state: true,
-      country: true,
-      folderId: true,
-      folder: { select: { color: true, name: true } },
-    },
+    select: { city: true, state: true, country: true, category: true },
     where: {
       OR: [
         { city: { not: null } },
@@ -156,23 +164,22 @@ export async function getLeadLocations(): Promise<GlobePoint[]> {
     },
   });
 
-  // Group by resolved coordinates + folder so each folder gets its own colored dot
+  // Group by resolved coordinates + category so each category gets its own colored dot
   const map = new Map<string, GlobePoint>();
 
   for (const row of rows) {
     const coords = resolveCoords(row.city, row.state, row.country);
     if (!coords) continue;
 
-    const folderId = row.folderId ?? "unfiled";
-    const key = `${coords[0].toFixed(2)},${coords[1].toFixed(2)}:${folderId}`;
+    const cat = row.category ?? null;
+    const key = `${coords[0].toFixed(2)},${coords[1].toFixed(2)}:${cat ?? "none"}`;
     const label = [row.city, row.state, row.country].filter(Boolean).join(", ");
-    const color = row.folder?.color ?? "#ffffff";
-    const folderName = row.folder?.name ?? null;
+    const color = cat ? categoryColor(cat) : "#ffffff";
 
     if (map.has(key)) {
       map.get(key)!.count += 1;
     } else {
-      map.set(key, { lat: coords[0], long: coords[1], name: label, count: 1, color, folderName });
+      map.set(key, { lat: coords[0], long: coords[1], name: label, count: 1, color, category: cat });
     }
   }
 

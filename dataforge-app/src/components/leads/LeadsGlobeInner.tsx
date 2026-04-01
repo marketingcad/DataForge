@@ -99,7 +99,7 @@ export default function LeadsGlobeInner({ points }: Props) {
           stroke: am5.color(0xffffff),
           strokeWidth: 0.8,
           strokeOpacity: 0.3,
-          tooltipText: "{name}\n{folderLabel}{count} lead{count}",
+          tooltipText: "{name}\n{categoryLabel}{count} lead{count}",
           cursorOverStyle: "pointer",
         });
 
@@ -130,10 +130,9 @@ export default function LeadsGlobeInner({ points }: Props) {
         return am5.Bullet.new(root!, { sprite: circle });
       });
 
-      // Enrich data with folderLabel for tooltip
       const enriched = points.map((p) => ({
         ...p,
-        folderLabel: p.folderName ? `${p.folderName}\n` : "",
+        categoryLabel: p.category ? `${p.category}\n` : "",
       }));
       pointSeries.data.setAll(enriched);
 
@@ -187,15 +186,15 @@ export default function LeadsGlobeInner({ points }: Props) {
     };
   }, [points]);
 
-  // Derive unique folders for the legend
-  const folderLegend = Array.from(
+  // Derive unique categories for the legend
+  const categoryLegend = Array.from(
     new Map(
       points
-        .filter((p) => p.folderName)
-        .map((p) => [p.folderName, p.color])
+        .filter((p) => p.category)
+        .map((p) => [p.category, p.color])
     ).entries()
   );
-  const hasUnfiled = points.some((p) => !p.folderName);
+  const hasNoCategory = points.some((p) => !p.category);
 
   return (
     <div className="rounded-2xl bg-card overflow-hidden">
@@ -211,19 +210,19 @@ export default function LeadsGlobeInner({ points }: Props) {
         </span>
       </div>
 
-      {/* Folder legend */}
-      {(folderLegend.length > 0 || hasUnfiled) && (
+      {/* Category legend */}
+      {(categoryLegend.length > 0 || hasNoCategory) && (
         <div className="flex flex-wrap gap-x-4 gap-y-1.5 px-5 pb-3">
-          {folderLegend.map(([name, color]) => (
+          {categoryLegend.map(([name, color]) => (
             <span key={name} className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
               {name}
             </span>
           ))}
-          {hasUnfiled && (
+          {hasNoCategory && (
             <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <span className="h-2.5 w-2.5 rounded-full shrink-0 bg-white border border-border" />
-              Unfiled
+              Uncategorized
             </span>
           )}
         </div>
