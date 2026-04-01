@@ -709,7 +709,9 @@ export async function scrapeGoogleMapsHeadless(
               // Address
               const addrEl = panel.querySelector('[data-item-id="address"]');
               const address = (addrEl as HTMLElement | null)?.innerText
-                ?.replace(/\n/g, " ").trim() || undefined;
+                ?.replace(/\n/g, " ")
+                .replace(/^[^0-9a-zA-Z]+/, "") // strip leading icon/symbol characters
+                .trim() || undefined;
 
               // Phone
               const phoneEl = panel.querySelector('[data-tooltip="Copy phone number"]');
