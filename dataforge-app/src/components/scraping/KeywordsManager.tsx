@@ -43,6 +43,7 @@ import {
 } from "lucide-react";
 import { KeywordLeadsModal } from "@/components/scraping/KeywordLeadsModal";
 import { KeywordHistoryModal } from "@/components/scraping/KeywordHistoryModal";
+import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -1039,14 +1040,29 @@ function ExtraKeywordsModal({
           </div>
 
           {extraMode === "random" && extraKeywords.length > 0 && (
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-muted-foreground shrink-0">Pick per run:</span>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">min</span>
-                <Input type="number" min={1} max={maxExtras} value={extraMin} onChange={(e) => onExtraMin(e.target.value)} className="h-7 w-14 text-xs text-center" />
-                <span className="text-xs text-muted-foreground">max</span>
-                <Input type="number" min={minVal} max={maxExtras} value={extraMax} onChange={(e) => onExtraMax(e.target.value)} className="h-7 w-14 text-xs text-center" />
-                <span className="text-xs text-muted-foreground">of {maxExtras}</span>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">Pick per run</span>
+                <span className="text-xs font-medium">
+                  {parseInt(extraMin) || 1} – {parseInt(extraMax) || maxExtras} keyword{parseInt(extraMax) !== 1 ? "s" : ""}
+                </span>
+              </div>
+              <Slider
+                min={1}
+                max={maxExtras}
+                value={[
+                  Math.min(parseInt(extraMin) || 1, maxExtras),
+                  Math.min(parseInt(extraMax) || maxExtras, maxExtras),
+                ]}
+                onValueChange={(val) => {
+                  const arr = Array.isArray(val) ? val : [val as number];
+                  onExtraMin(String(arr[0] ?? 1));
+                  onExtraMax(String(arr[1] ?? maxExtras));
+                }}
+              />
+              <div className="flex justify-between text-[10px] text-muted-foreground">
+                <span>1</span>
+                <span>{maxExtras}</span>
               </div>
             </div>
           )}
