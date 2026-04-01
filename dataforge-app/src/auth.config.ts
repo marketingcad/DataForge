@@ -11,6 +11,14 @@ export const authConfig: NextAuthConfig = {
       const isLoggedIn = !!auth?.user;
       const pathname = nextUrl.pathname;
 
+      const authPaths = ["/sign-in", "/sign-up"];
+      const isAuthPage = authPaths.some((p) => pathname === p || pathname.startsWith(p + "/"));
+
+      // Redirect logged-in users away from the landing page and auth pages
+      if (isLoggedIn && (pathname === "/" || isAuthPage)) {
+        return Response.redirect(new URL("/dashboard", nextUrl));
+      }
+
       const publicPaths = ["/", "/sign-in", "/sign-up", "/api/auth", "/api/scraping/cron"];
       const isPublic = publicPaths.some(
         (p) => pathname === p || pathname.startsWith(p + "/")
