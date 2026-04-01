@@ -17,6 +17,7 @@ export default function LeadsGlobeInner({ points }: Props) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let root: any = null;
     let cancelled = false;
+    let inactivityTimer: ReturnType<typeof setTimeout> | null = null;
 
     (async () => {
       const am5 = await import("@amcharts/amcharts5");
@@ -36,9 +37,9 @@ export default function LeadsGlobeInner({ points }: Props) {
           projection: am5map.geoOrthographic(),
           panX: "rotateX",
           panY: "rotateY",
-          wheelY: "none",
+          wheelY: "zoom",
           minZoomLevel: 1,
-          maxZoomLevel: 2.2,
+          maxZoomLevel: 5,
           centerX: am5.percent(50),
           centerY: am5.percent(50),
           x: am5.percent(50),
@@ -137,29 +138,41 @@ export default function LeadsGlobeInner({ points }: Props) {
       pointSeries.data.setAll(enriched);
 
       // Auto-rotation
-      let rotationAnimation = chart.animate({
+      const startRotation = () => chart.animate({
         key: "rotationX",
-        from: 0,
-        to: 360,
+        from: chart.get("rotationX") ?? 0,
+        to: (chart.get("rotationX") ?? 0) + 360,
         duration: 60000,
         loops: Infinity,
       });
 
+      let rotationAnimation = startRotation();
       let dotClicked = false;
+
+      const resetInactivityTimer = () => {
+        if (inactivityTimer) clearTimeout(inactivityTimer);
+        inactivityTimer = setTimeout(() => {
+          // Reset zoom and resume rotation after 30s of inactivity
+          chart.animate({ key: "zoomLevel",   to: 1,   duration: 1200, easing: am5.ease.out(am5.ease.cubic) });
+          chart.animate({ key: "rotationY",   to: 0,   duration: 1200, easing: am5.ease.out(am5.ease.cubic) });
+          rotationAnimation?.stop();
+          rotationAnimation = startRotation();
+        }, 30000);
+      };
 
       chart.chartContainer.events.on("pointerdown", () => {
         rotationAnimation?.stop();
+        resetInactivityTimer();
       });
 
       chart.chartContainer.events.on("pointerup", () => {
         if (dotClicked) return;
-        rotationAnimation = chart.animate({
-          key: "rotationX",
-          from: chart.get("rotationX") ?? 0,
-          to: (chart.get("rotationX") ?? 0) + 360,
-          duration: 60000,
-          loops: Infinity,
-        });
+        rotationAnimation = startRotation();
+        resetInactivityTimer();
+      });
+
+      chart.chartContainer.events.on("wheel", () => {
+        resetInactivityTimer();
       });
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -167,21 +180,19 @@ export default function LeadsGlobeInner({ points }: Props) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         if (!(ev.target as any).dataItem) {
           chart.animate({ key: "zoomLevel", to: 1, duration: 800 });
-          rotationAnimation = chart.animate({
-            key: "rotationX",
-            from: chart.get("rotationX") ?? 0,
-            to: (chart.get("rotationX") ?? 0) + 360,
-            duration: 60000,
-            loops: Infinity,
-          });
+          rotationAnimation?.stop();
+          rotationAnimation = startRotation();
         }
+        resetInactivityTimer();
       });
 
+      resetInactivityTimer();
       chart.appear(1000, 100);
     })();
 
     return () => {
       cancelled = true;
+      if (inactivityTimer) clearTimeout(inactivityTimer);
       root?.dispose();
     };
   }, [points]);
