@@ -4,7 +4,7 @@ export async function getKeywords(createdById?: string) {
   return prisma.scrapingKeyword.findMany({
     where: createdById ? { createdById } : undefined,
     include: {
-      _count: { select: { jobs: true, leads: true } },
+      _count: { select: { jobs: true, leads: { where: { folderId: null } } } },
       jobs: {
         orderBy: { createdAt: "desc" },
         take: 1,
