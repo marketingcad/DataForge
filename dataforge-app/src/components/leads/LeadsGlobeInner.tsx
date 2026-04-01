@@ -198,36 +198,6 @@ export default function LeadsGlobeInner({ points }: Props) {
 
   return (
     <div className="rounded-2xl bg-card overflow-hidden">
-      <div className="flex items-center justify-between px-5 py-3.5">
-        <div>
-          <p className="text-sm font-semibold">Lead Locations</p>
-          <p className="text-[11px] text-muted-foreground mt-0.5">
-            click a dot to zoom · drag to rotate
-          </p>
-        </div>
-        <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-rose-500/10 text-rose-600 dark:text-rose-400">
-          {points.reduce((s, p) => s + p.count, 0).toLocaleString()} leads mapped
-        </span>
-      </div>
-
-      {/* Category legend */}
-      {(categoryLegend.length > 0 || hasNoCategory) && (
-        <div className="flex flex-wrap gap-x-4 gap-y-1.5 px-5 pb-3">
-          {categoryLegend.map(([name, color]) => (
-            <span key={name} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
-              {name}
-            </span>
-          ))}
-          {hasNoCategory && (
-            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <span className="h-2.5 w-2.5 rounded-full shrink-0 bg-white border border-border" />
-              Uncategorized
-            </span>
-          )}
-        </div>
-      )}
-
       <div ref={chartRef} style={{ width: "100%", height: 420 }} />
     </div>
   );
