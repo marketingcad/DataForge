@@ -17,6 +17,7 @@ interface Settings {
   scrapingGlobalPause: boolean;
   leadQualityGoodThreshold: number;
   leadQualityMediumThreshold: number;
+  ghlWebhookUrl: string | null;
 }
 
 export function SettingsClient({ settings }: { settings: Settings }) {
@@ -148,6 +149,29 @@ export function SettingsClient({ settings }: { settings: Settings }) {
               />
               <p className="text-xs text-muted-foreground">Scores ≥ this value are "Medium"</p>
             </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Integrations */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Integrations</CardTitle>
+          <CardDescription>Connect DataForge with external platforms.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="ghlWebhookUrl">GoHighLevel Webhook URL</Label>
+            <Input
+              id="ghlWebhookUrl"
+              name="ghlWebhookUrl"
+              type="url"
+              defaultValue={settings.ghlWebhookUrl ?? ""}
+              placeholder="https://services.leadconnectorhq.com/hooks/..."
+            />
+            <p className="text-xs text-muted-foreground">
+              Leads will be pushed to this webhook when uploaded to GHL.
+            </p>
           </div>
         </CardContent>
       </Card>

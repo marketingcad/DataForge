@@ -14,6 +14,7 @@ export async function updateSettingsAction(formData: FormData) {
     const scrapingGlobalPause = formData.get("scrapingGlobalPause") === "true";
     const leadQualityGoodThreshold = parseInt(formData.get("leadQualityGoodThreshold") as string, 10);
     const leadQualityMediumThreshold = parseInt(formData.get("leadQualityMediumThreshold") as string, 10);
+    const ghlWebhookUrl = (formData.get("ghlWebhookUrl") as string)?.trim() || null;
 
     await updateSettings({
       ...(companyName ? { companyName } : {}),
@@ -22,6 +23,7 @@ export async function updateSettingsAction(formData: FormData) {
       scrapingGlobalPause,
       ...(!isNaN(leadQualityGoodThreshold) ? { leadQualityGoodThreshold } : {}),
       ...(!isNaN(leadQualityMediumThreshold) ? { leadQualityMediumThreshold } : {}),
+      ghlWebhookUrl,
     });
 
     revalidatePath("/settings");

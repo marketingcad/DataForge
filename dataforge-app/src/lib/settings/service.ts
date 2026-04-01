@@ -16,6 +16,7 @@ export async function updateSettings(data: {
   scrapingGlobalPause?: boolean;
   leadQualityGoodThreshold?: number;
   leadQualityMediumThreshold?: number;
+  ghlWebhookUrl?: string | null;
 }) {
   return prisma.appSettings.upsert({
     where: { id: "singleton" },
