@@ -972,72 +972,49 @@ function ExtraKeywordsModal({
   extraOrder: string[]; onExtraOrder: (v: string[]) => void;
 }) {
   const [inputVal, setInputVal] = useState("");
-  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const maxExtras = extraKeywords.length;
   const minVal = Math.max(1, Math.min(parseInt(extraMin) || 1, maxExtras || 1));
 
-  function addExtra() {
-    const trimmed = inputVal.trim();
-    if (!trimmed || extraKeywords.includes(trimmed)) { setInputVal(""); return; }
-    onExtraKeywords([...extraKeywords, trimmed]);
+  function addExtras() {
+    const parts = inputVal.split(",").map((s) => s.trim()).filter(Boolean);
+    if (parts.length === 0) return;
+    const merged = [...new Set([...extraKeywords, ...parts])];
+    onExtraKeywords(merged);
     setInputVal("");
   }
 
   function removeExtra(val: string) {
     onExtraKeywords(extraKeywords.filter((k) => k !== val));
     onExtraOrder(extraOrder.filter((o) => o !== val));
-    setSelected((prev) => { const s = new Set(prev); s.delete(val); return s; });
   }
 
-  function deleteSelected() {
-    const remaining = extraKeywords.filter((k) => !selected.has(k));
-    onExtraKeywords(remaining);
-    onExtraOrder(extraOrder.filter((o) => !selected.has(o)));
-    setSelected(new Set());
-  }
-
-  function handleJsonUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      try {
-        const parsed = JSON.parse(ev.target?.result as string);
-        const incoming: string[] = Array.isArray(parsed)
-          ? parsed.map(String).map((s) => s.trim()).filter(Boolean)
-          : typeof parsed === "object" && parsed !== null
-            ? Object.values(parsed).map(String).map((s) => s.trim()).filter(Boolean)
-            : [];
-        const merged = [...new Set([...extraKeywords, ...incoming])];
-        onExtraKeywords(merged);
-        toast.success(`${incoming.length} keywords imported (${merged.length - extraKeywords.length} new added)`);
-      } catch {
-        toast.error("Invalid JSON file. Expected an array of strings.");
-      }
-    };
-    reader.readAsText(file);
-    e.target.value = "";
-  }
-
-  const allSelected = extraKeywords.length > 0 && extraKeywords.every((k) => selected.has(k));
-
-  function toggleAll() {
-    if (allSelected) {
-      setSelected(new Set());
-    } else {
-      setSelected(new Set(extraKeywords));
-    }
+  function clearAll() {
+    onExtraKeywords([]);
+    onExtraOrder([]);
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg flex flex-col gap-0 p-0" style={{ maxHeight: "80vh" }}>
         <DialogHeader className="px-5 pt-4 pb-3 border-b shrink-0">
-          <DialogTitle className="flex items-center gap-2 text-sm">
-            <Tags className="h-4 w-4" />
-            Extra Keywords
-          </DialogTitle>
+          <div className="flex items-center justify-between">
+            <DialogTitle className="flex items-center gap-2 text-sm">
+              <Tags className="h-4 w-4" />
+              Extra Keywords
+              {extraKeywords.length > 0 && (
+                <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                  {extraKeywords.length}
+                </span>
+              )}
+            </DialogTitle>
+            {extraKeywords.length > 0 && (
+              <Button type="button" variant="ghost" size="sm" className="h-7 text-xs text-destructive hover:text-destructive gap-1.5" onClick={clearAll}>
+                <Trash2 className="h-3 w-3" />
+                Clear all keywords
+              </Button>
+            )}
+          </div>
         </DialogHeader>
 
         {/* Mode + min/max */}
@@ -1075,110 +1052,73 @@ function ExtraKeywordsModal({
           )}
 
           {extraMode === "ordered" && extraKeywords.length > 0 && (
-            <p className="text-xs text-muted-foreground">Click keywords below to select them and set their order. Each run uses the next selected keyword in sequence.</p>
+            <p className="text-xs text-muted-foreground">Click a keyword pill to select it and set its order. Each run uses the next selected keyword in sequence.</p>
           )}
         </div>
 
-        {/* Add + upload toolbar */}
+        {/* Add input */}
         <div className="px-5 py-2.5 border-b shrink-0 flex items-center gap-2">
           <Input
-            placeholder="Type a keyword and press Enter…"
+            placeholder="Type keyword(s) — separate multiple with commas…"
             value={inputVal}
             onChange={(e) => setInputVal(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addExtra(); } }}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addExtras(); } }}
             className="h-8 text-sm flex-1"
           />
-          <Button type="button" variant="outline" size="sm" className="h-8 shrink-0" onClick={addExtra}>Add</Button>
-          <label className="shrink-0">
-            <input type="file" accept=".json" className="sr-only" onChange={handleJsonUpload} />
-            <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5 pointer-events-none">
-              <Upload className="h-3.5 w-3.5" />
-              JSON
-            </Button>
-          </label>
+          <Button type="button" variant="outline" size="sm" className="h-8 shrink-0" onClick={addExtras}>Add</Button>
         </div>
 
-        {/* Bulk action bar */}
-        {selected.size > 0 && (
-          <div className="px-5 py-2 border-b shrink-0 flex items-center gap-3 bg-destructive/5">
-            <span className="text-xs font-medium text-destructive">{selected.size} selected</span>
-            <Button type="button" size="sm" variant="destructive" className="h-7 gap-1.5 text-xs ml-auto" onClick={deleteSelected}>
-              <Trash2 className="h-3.5 w-3.5" />
-              Delete selected
-            </Button>
-            <Button type="button" size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setSelected(new Set())}>
-              Clear
-            </Button>
-          </div>
-        )}
-
-        {/* Keywords list */}
-        <div className="flex-1 overflow-y-auto px-5 py-3">
+        {/* Pills */}
+        <div className="flex-1 overflow-y-auto px-5 py-4">
           {extraKeywords.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 text-muted-foreground gap-2">
               <Tags className="h-8 w-8 text-muted-foreground/20" />
               <p className="text-sm">No extra keywords yet</p>
-              <p className="text-xs text-center">Add them one by one or upload a JSON file.</p>
+              <p className="text-xs text-center max-w-xs">Type one or more keywords separated by commas and press Add.</p>
             </div>
           ) : (
-            <div className="space-y-1">
-              {/* Select all */}
-              <div className="flex items-center gap-2 pb-1">
-                <Checkbox checked={allSelected} onCheckedChange={toggleAll} />
-                <span className="text-xs text-muted-foreground">{extraKeywords.length} keyword{extraKeywords.length !== 1 ? "s" : ""}</span>
-              </div>
+            <div className="flex flex-wrap gap-2">
               {extraKeywords.map((k) => {
                 const pos = extraOrder.indexOf(k);
                 const orderedSelected = extraMode === "ordered" && pos !== -1;
-                return (
-                  <div key={k} className={cn(
-                    "flex items-center gap-3 rounded-lg px-3 py-2 group transition-colors",
-                    selected.has(k) ? "bg-destructive/5" : "hover:bg-muted/50"
-                  )}>
-                    <Checkbox
-                      checked={selected.has(k)}
-                      onCheckedChange={(v: boolean) => {
-                        setSelected((prev) => { const s = new Set(prev); v ? s.add(k) : s.delete(k); return s; });
-                      }}
-                    />
-                    {extraMode === "ordered" ? (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (orderedSelected) {
-                            onExtraOrder(extraOrder.filter((o) => o !== k));
-                          } else {
-                            onExtraOrder([...extraOrder, k]);
-                          }
-                        }}
-                        className={cn(
-                          "flex-1 flex items-center gap-2 text-sm text-left transition-colors",
-                          orderedSelected ? "font-medium text-foreground" : "text-muted-foreground hover:text-foreground"
-                        )}
-                      >
-                        {orderedSelected ? (
-                          <span className="relative flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
-                            <Check className="h-3 w-3 stroke-[3]" />
-                            <span className="absolute -top-1.5 -right-1.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-background border border-border text-[8px] font-bold text-foreground leading-none">
-                              {pos + 1}
-                            </span>
-                          </span>
-                        ) : (
-                          <span className="h-5 w-5 shrink-0 rounded-full border-2 border-muted-foreground/30" />
-                        )}
-                        {k}
-                      </button>
-                    ) : (
-                      <span className="flex-1 text-sm">{k}</span>
-                    )}
+                if (extraMode === "ordered") {
+                  return (
                     <button
+                      key={k}
                       type="button"
-                      onClick={() => removeExtra(k)}
-                      className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all"
+                      onClick={() => {
+                        if (orderedSelected) {
+                          onExtraOrder(extraOrder.filter((o) => o !== k));
+                        } else {
+                          onExtraOrder([...extraOrder, k]);
+                        }
+                      }}
+                      className={cn(
+                        "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-all select-none",
+                        orderedSelected
+                          ? "bg-foreground text-background border-foreground/20"
+                          : "bg-background text-muted-foreground border-border hover:border-foreground/30 hover:text-foreground"
+                      )}
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
+                      {orderedSelected ? (
+                        <span className="relative flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                          <Check className="h-2.5 w-2.5 stroke-[3]" />
+                          <span className="absolute -top-1.5 -right-1.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-background border border-border text-[8px] font-bold text-foreground leading-none">
+                            {pos + 1}
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="h-4 w-4 shrink-0 rounded-full border-2 border-muted-foreground/30" />
+                      )}
+                      {k}
                     </button>
-                  </div>
+                  );
+                }
+                return (
+                  <span key={k} className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-xs font-medium">
+                    {k}
+                    <button type="button" onClick={() => removeExtra(k)} className="text-muted-foreground hover:text-foreground leading-none ml-0.5">×</button>
+                  </span>
                 );
               })}
             </div>
