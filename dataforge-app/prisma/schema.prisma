@@ -454,6 +454,18 @@ model ScrapingJob {
   @@index([keywordId])
 }
 
+// ── App-wide settings (singleton — always one row with id="singleton") ────────
+model AppSettings {
+  id                        String   @id @default("singleton")
+  companyName               String   @default("DataForge")
+  scrapingDefaultMaxLeads   Int      @default(50)
+  scrapingDefaultInterval   Int      @default(1440)
+  scrapingGlobalPause       Boolean  @default(false)
+  leadQualityGoodThreshold  Int      @default(70)
+  leadQualityMediumThreshold Int     @default(40)
+  updatedAt                 DateTime @updatedAt
+}
+
 model ScrapingKeyword {
   id             String        @id @default(uuid())
   keyword        String

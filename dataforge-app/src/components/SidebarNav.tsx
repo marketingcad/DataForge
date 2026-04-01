@@ -12,6 +12,7 @@ import {
   LayoutGrid,
   CalendarDays,
   Flag,
+  Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { type Role } from "@/lib/rbac/roles";
@@ -62,6 +63,7 @@ function buildSections(role: Role): NavSection[] {
           title: "Administration",
           items: [
             { href: "/admin/users", label: "Manage Users", icon: UserCog },
+            { href: "/settings",    label: "Settings",     icon: Settings },
           ],
         },
       ];
