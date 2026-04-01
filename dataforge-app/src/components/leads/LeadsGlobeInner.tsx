@@ -23,6 +23,7 @@ export default function LeadsGlobeInner({ points }: Props) {
       const am5 = await import("@amcharts/amcharts5");
       const am5map = await import("@amcharts/amcharts5/map");
       const am5geodata_worldLow = (await import("@amcharts/amcharts5-geodata/worldLow")).default;
+      const am5geodata_usaLow   = (await import("@amcharts/amcharts5-geodata/usaLow")).default;
       const am5themes_Animated = (await import("@amcharts/amcharts5/themes/Animated")).default;
 
       if (cancelled || !chartRef.current) return;
@@ -69,6 +70,7 @@ export default function LeadsGlobeInner({ points }: Props) {
       const polygonSeries = chart.series.push(
         am5map.MapPolygonSeries.new(root, {
           geoJSON: am5geodata_worldLow,
+          exclude: ["US"],
         })
       );
       polygonSeries.mapPolygons.template.setAll({
@@ -79,6 +81,23 @@ export default function LeadsGlobeInner({ points }: Props) {
         tooltipText: "{name}",
       });
       polygonSeries.mapPolygons.template.states.create("hover", {
+        fill: am5.color(0x4b5563),
+      });
+
+      // US states (replaces the single US country polygon)
+      const usaSeries = chart.series.push(
+        am5map.MapPolygonSeries.new(root, {
+          geoJSON: am5geodata_usaLow,
+        })
+      );
+      usaSeries.mapPolygons.template.setAll({
+        fill: am5.color(0x374151),
+        stroke: am5.color(0x1f2937),
+        strokeWidth: 0.4,
+        fillOpacity: 0.9,
+        tooltipText: "{name}",
+      });
+      usaSeries.mapPolygons.template.states.create("hover", {
         fill: am5.color(0x4b5563),
       });
 
@@ -149,14 +168,24 @@ export default function LeadsGlobeInner({ points }: Props) {
       let rotationAnimation = startRotation();
       let dotClicked = false;
 
+      const RESET_MS = 1400;
       const resetInactivityTimer = () => {
         if (inactivityTimer) clearTimeout(inactivityTimer);
         inactivityTimer = setTimeout(() => {
-          // Reset zoom and resume rotation after 30s of inactivity
-          chart.animate({ key: "zoomLevel",   to: 1,   duration: 1200, easing: am5.ease.out(am5.ease.cubic) });
-          chart.animate({ key: "rotationY",   to: 0,   duration: 1200, easing: am5.ease.out(am5.ease.cubic) });
+          // Pan back to center, reset zoom, then start rotation once animation settles
           rotationAnimation?.stop();
-          rotationAnimation = startRotation();
+          chart.animate({ key: "zoomLevel",  to: 1, duration: RESET_MS, easing: am5.ease.out(am5.ease.cubic) });
+          chart.animate({ key: "rotationX",  to: 0, duration: RESET_MS, easing: am5.ease.out(am5.ease.cubic) });
+          chart.animate({ key: "rotationY",  to: 0, duration: RESET_MS, easing: am5.ease.out(am5.ease.cubic) });
+          setTimeout(() => {
+            rotationAnimation = chart.animate({
+              key: "rotationX",
+              from: 0,
+              to: 360,
+              duration: 60000,
+              loops: Infinity,
+            });
+          }, RESET_MS + 50);
         }, 30000);
       };
 
