@@ -140,12 +140,17 @@ function resolveCoords(city?: string | null, state?: string | null, country?: st
 }
 
 export async function getLeadLocations(): Promise<GlobePoint[]> {
-  // Build a name → color map from all industries
-  const industries = await prisma.industry.findMany({ select: { name: true, color: true } });
-  const industryColorMap = new Map(industries.map((i) => [i.name.toLowerCase().trim(), i.color]));
-
   const rows = await prisma.lead.findMany({
-    select: { city: true, state: true, country: true, category: true },
+    select: {
+      city: true,
+      state: true,
+      country: true,
+      folder: {
+        select: {
+          industry: { select: { name: true, color: true } },
+        },
+      },
+    },
     where: {
       OR: [
         { city: { not: null } },
@@ -155,17 +160,18 @@ export async function getLeadLocations(): Promise<GlobePoint[]> {
     },
   });
 
-  // Group by resolved coordinates + category so each category gets its own colored dot
+  // Group by resolved coordinates + industry so each industry gets its own colored dot
   const map = new Map<string, GlobePoint>();
 
   for (const row of rows) {
     const coords = resolveCoords(row.city, row.state, row.country);
     if (!coords) continue;
 
-    const cat = row.category ?? null;
+    const industry = row.folder?.industry ?? null;
+    const cat = industry?.name ?? null;
+    const color = industry?.color ?? "#ffffff";
     const key = `${coords[0].toFixed(2)},${coords[1].toFixed(2)}:${cat ?? "none"}`;
     const label = [row.city, row.state, row.country].filter(Boolean).join(", ");
-    const color = cat ? (industryColorMap.get(cat.toLowerCase().trim()) ?? "#ffffff") : "#ffffff";
 
     if (map.has(key)) {
       map.get(key)!.count += 1;
