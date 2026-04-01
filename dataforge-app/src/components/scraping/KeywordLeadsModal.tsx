@@ -236,14 +236,17 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
   }
 
   async function handleMoveToFolder(folderId: string | null) {
+    const count = pendingMoveIds.length;
     await moveLeadsToFolderAction(pendingMoveIds, folderId);
     const folderLabel = folderId ? "folder" : "Unfiled";
     addNotif({
       type: "success",
-      title: `${pendingMoveIds.length} lead${pendingMoveIds.length !== 1 ? "s" : ""} saved to ${folderLabel}`,
+      title: `${count} lead${count !== 1 ? "s" : ""} saved to ${folderLabel}`,
       message: `From "${keyword} — ${location}".`,
     });
     setSelected(new Set());
+    setPage(1);
+    await fetchLeads();
   }
 
   async function handleDelete() {

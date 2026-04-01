@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-const PAGE_SIZE = 20;
+const DEFAULT_PAGE_SIZE = 20;
 
 export async function GET(
   req: NextRequest,
@@ -10,6 +10,7 @@ export async function GET(
   const sp = req.nextUrl.searchParams;
 
   const page        = Math.max(1, Number(sp.get("page") ?? 1));
+  const pageSize    = Math.min(10000, Math.max(1, Number(sp.get("pageSize") ?? DEFAULT_PAGE_SIZE)));
   const search      = sp.get("search")?.trim() ?? "";
   const searchField = sp.get("searchField") ?? "business";
   const sort        = sp.get("sort") ?? "newest";
@@ -17,8 +18,9 @@ export async function GET(
   const hasWebsite  = sp.get("hasWebsite") === "1";
   const state       = sp.get("state")?.trim() ?? "";
 
+  // Only show leads that have NOT been moved to a folder yet — once moved, they live in Leads
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const base: any = { source: { startsWith: `GoogleMaps:keyword_${id}` } };
+  const base: any = { source: { startsWith: `GoogleMaps:keyword_${id}` }, folderId: null };
 
   if (search) {
     const like = { contains: search, mode: "insensitive" };
@@ -47,8 +49,8 @@ export async function GET(
     prisma.lead.findMany({
       where: base,
       orderBy,
-      skip: (page - 1) * PAGE_SIZE,
-      take: PAGE_SIZE,
+      skip: (page - 1) * pageSize,
+      take: pageSize,
       select: {
         id: true,
         businessName: true,
@@ -64,5 +66,5 @@ export async function GET(
     }),
   ]);
 
-  return NextResponse.json({ leads, total, totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)) });
+  return NextResponse.json({ leads, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) });
 }
