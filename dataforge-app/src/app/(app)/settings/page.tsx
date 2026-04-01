@@ -14,15 +14,17 @@ export default async function SettingsPage() {
   const settings = await getSettings();
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-bold tracking-tight">App Settings</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          Configure global defaults for the DataForge application.
-        </p>
-      </div>
+    <div className="flex flex-col items-center">
+      <div className="w-full max-w-2xl space-y-6">
+        <div>
+          <h1 className="text-xl font-bold tracking-tight">App Settings</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Configure global defaults for the DataForge application.
+          </p>
+        </div>
 
-      <SettingsClient settings={settings} />
+        <SettingsClient settings={settings} />
+      </div>
     </div>
   );
 }

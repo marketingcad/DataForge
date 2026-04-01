@@ -40,7 +40,7 @@ export function SettingsClient({ settings }: { settings: Settings }) {
   }
 
   return (
-    <form ref={formRef} onSubmit={handleSubmit} className="space-y-6 max-w-2xl">
+    <form ref={formRef} onSubmit={handleSubmit} className="space-y-6">
       {/* General */}
       <Card>
         <CardHeader className="pb-3">
