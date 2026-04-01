@@ -1044,25 +1044,25 @@ function ExtraKeywordsModal({
               <div className="flex items-center justify-between">
                 <span className="text-xs text-muted-foreground">Pick per run</span>
                 <span className="text-xs font-medium">
-                  {parseInt(extraMin) || 1} – {parseInt(extraMax) || maxExtras} keyword{parseInt(extraMax) !== 1 ? "s" : ""}
+                  {parseInt(extraMin) || 0} – {parseInt(extraMax) || 40} keyword{parseInt(extraMax) !== 1 ? "s" : ""}
                 </span>
               </div>
               <Slider
-                min={1}
-                max={maxExtras}
+                min={0}
+                max={40}
                 value={[
-                  Math.min(parseInt(extraMin) || 1, maxExtras),
-                  Math.min(parseInt(extraMax) || maxExtras, maxExtras),
+                  parseInt(extraMin) || 0,
+                  parseInt(extraMax) || 40,
                 ]}
                 onValueChange={(val) => {
                   const arr = Array.isArray(val) ? val : [val as number];
-                  onExtraMin(String(arr[0] ?? 1));
-                  onExtraMax(String(arr[1] ?? maxExtras));
+                  onExtraMin(String(arr[0] ?? 0));
+                  onExtraMax(String(arr[1] ?? 40));
                 }}
               />
               <div className="flex justify-between text-[10px] text-muted-foreground">
-                <span>1</span>
-                <span>{maxExtras}</span>
+                <span>0</span>
+                <span>40</span>
               </div>
             </div>
           )}
