@@ -9,19 +9,6 @@ export type GlobePoint = {
   category: string | null;
 };
 
-const CATEGORY_PALETTE = [
-  "#f43f5e", "#f97316", "#eab308", "#22c55e",
-  "#06b6d4", "#3b82f6", "#8b5cf6", "#ec4899",
-  "#14b8a6", "#a855f7", "#ef4444", "#84cc16",
-];
-
-function categoryColor(category: string): string {
-  let hash = 0;
-  for (let i = 0; i < category.length; i++) {
-    hash = (hash * 31 + category.charCodeAt(i)) >>> 0;
-  }
-  return CATEGORY_PALETTE[hash % CATEGORY_PALETTE.length];
-}
 
 // US state centers (abbreviation → [lat, lon])
 const US_STATES: Record<string, [number, number]> = {
@@ -153,6 +140,10 @@ function resolveCoords(city?: string | null, state?: string | null, country?: st
 }
 
 export async function getLeadLocations(): Promise<GlobePoint[]> {
+  // Build a name → color map from all industries
+  const industries = await prisma.industry.findMany({ select: { name: true, color: true } });
+  const industryColorMap = new Map(industries.map((i) => [i.name.toLowerCase().trim(), i.color]));
+
   const rows = await prisma.lead.findMany({
     select: { city: true, state: true, country: true, category: true },
     where: {
@@ -174,7 +165,7 @@ export async function getLeadLocations(): Promise<GlobePoint[]> {
     const cat = row.category ?? null;
     const key = `${coords[0].toFixed(2)},${coords[1].toFixed(2)}:${cat ?? "none"}`;
     const label = [row.city, row.state, row.country].filter(Boolean).join(", ");
-    const color = cat ? categoryColor(cat) : "#ffffff";
+    const color = cat ? (industryColorMap.get(cat.toLowerCase().trim()) ?? "#ffffff") : "#ffffff";
 
     if (map.has(key)) {
       map.get(key)!.count += 1;
