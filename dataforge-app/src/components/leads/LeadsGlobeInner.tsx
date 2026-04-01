@@ -89,16 +89,17 @@ export default function LeadsGlobeInner({ points }: Props) {
         })
       );
 
-      pointSeries.bullets.push(function () {
-        const maxCount = Math.max(...points.map((p) => p.count), 1);
+      const maxCount = Math.max(...points.map((p) => p.count), 1);
 
+      pointSeries.bullets.push(function () {
         const circle = am5.Circle.new(root!, {
-          radius: 0, // will be set per data item
+          radius: 0,
           fill: am5.color(0xF54927),
           fillOpacity: 0.85,
-          stroke: am5.color(0xff7a5c),
-          strokeWidth: 1,
-          tooltipText: "{name}\n{count} lead{count}",
+          stroke: am5.color(0xffffff),
+          strokeWidth: 0.8,
+          strokeOpacity: 0.3,
+          tooltipText: "{name}\n{folderLabel}{count} lead{count}",
           cursorOverStyle: "pointer",
         });
 
@@ -106,6 +107,12 @@ export default function LeadsGlobeInner({ points }: Props) {
           const ctx = target.dataItem?.dataContext as { count?: number } | undefined;
           const count = ctx?.count ?? 1;
           return Math.max(4, Math.min(14, 4 + (count / maxCount) * 10));
+        });
+
+        circle.adapters.add("fill", function (_fill, target) {
+          const ctx = target.dataItem?.dataContext as { color?: string } | undefined;
+          if (ctx?.color) return am5.color(ctx.color);
+          return am5.color(0x6b7280);
         });
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -123,7 +130,12 @@ export default function LeadsGlobeInner({ points }: Props) {
         return am5.Bullet.new(root!, { sprite: circle });
       });
 
-      pointSeries.data.setAll(points);
+      // Enrich data with folderLabel for tooltip
+      const enriched = points.map((p) => ({
+        ...p,
+        folderLabel: p.folderName ? `${p.folderName}\n` : "",
+      }));
+      pointSeries.data.setAll(enriched);
 
       // Auto-rotation
       let rotationAnimation = chart.animate({
@@ -175,19 +187,48 @@ export default function LeadsGlobeInner({ points }: Props) {
     };
   }, [points]);
 
+  // Derive unique folders for the legend
+  const folderLegend = Array.from(
+    new Map(
+      points
+        .filter((p) => p.folderName)
+        .map((p) => [p.folderName, p.color])
+    ).entries()
+  );
+  const hasUnfiled = points.some((p) => !p.folderName);
+
   return (
     <div className="rounded-2xl bg-card overflow-hidden">
       <div className="flex items-center justify-between px-5 py-3.5">
         <div>
           <p className="text-sm font-semibold">Lead Locations</p>
           <p className="text-[11px] text-muted-foreground mt-0.5">
-            {points.length} unique location{points.length !== 1 ? "s" : ""} · click a dot to zoom · drag to rotate
+            click a dot to zoom · drag to rotate
           </p>
         </div>
         <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-rose-500/10 text-rose-600 dark:text-rose-400">
           {points.reduce((s, p) => s + p.count, 0).toLocaleString()} leads mapped
         </span>
       </div>
+
+      {/* Folder legend */}
+      {(folderLegend.length > 0 || hasUnfiled) && (
+        <div className="flex flex-wrap gap-x-4 gap-y-1.5 px-5 pb-3">
+          {folderLegend.map(([name, color]) => (
+            <span key={name} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+              {name}
+            </span>
+          ))}
+          {hasUnfiled && (
+            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <span className="h-2.5 w-2.5 rounded-full shrink-0 bg-[#6b7280]" />
+              Unfiled
+            </span>
+          )}
+        </div>
+      )}
+
       <div ref={chartRef} style={{ width: "100%", height: 420 }} />
     </div>
   );
