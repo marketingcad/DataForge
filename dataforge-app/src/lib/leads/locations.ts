@@ -166,7 +166,7 @@ export async function getLeadLocations(): Promise<GlobePoint[]> {
     const folderId = row.folderId ?? "unfiled";
     const key = `${coords[0].toFixed(2)},${coords[1].toFixed(2)}:${folderId}`;
     const label = [row.city, row.state, row.country].filter(Boolean).join(", ");
-    const color = row.folder?.color ?? "#6b7280";
+    const color = row.folder?.color ?? "#ffffff";
     const folderName = row.folder?.name ?? null;
 
     if (map.has(key)) {

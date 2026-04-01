@@ -112,7 +112,7 @@ export default function LeadsGlobeInner({ points }: Props) {
         circle.adapters.add("fill", function (_fill, target) {
           const ctx = target.dataItem?.dataContext as { color?: string } | undefined;
           if (ctx?.color) return am5.color(ctx.color);
-          return am5.color(0x6b7280);
+          return am5.color(0xffffff);
         });
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -222,7 +222,7 @@ export default function LeadsGlobeInner({ points }: Props) {
           ))}
           {hasUnfiled && (
             <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <span className="h-2.5 w-2.5 rounded-full shrink-0 bg-[#6b7280]" />
+              <span className="h-2.5 w-2.5 rounded-full shrink-0 bg-white border border-border" />
               Unfiled
             </span>
           )}
