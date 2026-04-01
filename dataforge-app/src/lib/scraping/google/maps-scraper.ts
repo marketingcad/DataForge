@@ -799,7 +799,7 @@ export async function scrapeGoogleMapsHeadless(
       }
     }
 
-    onLog?.(`Finalising — saving collected leads…`);
+    onLog?.(`Done — saving ${leads.length} lead${leads.length !== 1 ? "s" : ""}…`);
     await page.close();
   } finally {
     await context?.close().catch(() => {});
