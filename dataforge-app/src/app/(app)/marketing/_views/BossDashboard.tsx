@@ -1,7 +1,6 @@
 /**
  * BossDashboard.tsx
  * Marketing view for Boss and Admin roles.
- * Shows team KPIs, leaderboard, active challenges, and yesterday's top performer.
  */
 import { withDbRetry } from "@/lib/prisma";
 import {
@@ -10,10 +9,8 @@ import {
   getTeamCallsPerDay,
   getActiveTasks,
 } from "@/lib/marketing/team.service";
-import { Separator } from "@/components/ui/separator";
 import { TaskCard } from "../TaskCard";
 import { SeedMarketingButton } from "../SeedMarketingButton";
-import { Phone, Target, Calendar, Users, TrendingUp } from "lucide-react";
 import { CallVolumeChart } from "@/components/marketing/CallVolumeChart";
 import { LeaderboardSection } from "@/components/marketing/LeaderboardSection";
 import { PeriodToggle } from "@/components/marketing/PeriodToggle";
@@ -48,22 +45,28 @@ export async function BossDashboard({ period = "week" }: { period?: Period }) {
     period === "week"      ? summary.callsThisWeek :
     summary.callsThisMonth;
 
+  const avgCallsPerAgent = leaderboard.length > 0
+    ? Math.round(leaderboard.reduce((s, a) => s + a.callCount, 0) / leaderboard.length)
+    : 0;
+
   const chartTitle =
     period === "month" ? "Team Call Volume — Last 30 Days" :
     "Team Call Volume — Last 7 Days";
 
-  // Compute connect rate from leaderboard if available
-  const totalCalls    = leaderboard.reduce((s, a) => s + a.callCount, 0);
-  const avgCallsPerAgent = leaderboard.length > 0
-    ? Math.round(totalCalls / leaderboard.length)
-    : 0;
+  const kpis = [
+    { label: "Agents",            value: summary.agentCount,    sub: "Sales reps",      accent: "bg-violet-500",  num: "text-violet-600 dark:text-violet-400" },
+    { label: `Calls ${periodLabel}`, value: callsValue,         sub: "Team total",      accent: "bg-blue-500",    num: "text-blue-600 dark:text-blue-400" },
+    { label: "Calls Today",       value: summary.callsToday,    sub: "Current day",     accent: "bg-emerald-500", num: "text-emerald-600 dark:text-emerald-400" },
+    { label: "Avg / Agent",       value: avgCallsPerAgent,      sub: periodLabel,       accent: "bg-amber-500",   num: "text-amber-600 dark:text-amber-400" },
+  ];
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
+    <div className="space-y-8">
+
+      {/* ── Page header ── */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-lg font-semibold tracking-tight">Marketing Department</h1>
+          <h1 className="text-xl font-black tracking-tight">Marketing</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Team performance overview</p>
         </div>
         <div className="flex items-center gap-3">
@@ -72,56 +75,29 @@ export async function BossDashboard({ period = "week" }: { period?: Period }) {
         </div>
       </div>
 
-      <Separator />
-
-      {/* Quick KPI strip */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="rounded-xl border bg-card px-4 py-3 flex items-center gap-3">
-          <div className="h-9 w-9 rounded-xl bg-violet-500/10 flex items-center justify-center shrink-0">
-            <Users className="h-4 w-4 text-violet-600" />
+      {/* ── KPI tiles ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {kpis.map((k) => (
+          <div key={k.label} className="rounded-2xl bg-card shadow-sm p-5 space-y-3">
+            <div className="flex items-center gap-2">
+              <div className={`h-1.5 w-6 rounded-full ${k.accent}`} />
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider truncate">
+                {k.label}
+              </p>
+            </div>
+            <p className={`text-4xl font-black tabular-nums leading-none ${k.num}`}>
+              {k.value}
+            </p>
+            <p className="text-xs text-muted-foreground">{k.sub}</p>
           </div>
-          <div>
-            <p className="text-[11px] text-muted-foreground font-medium">Agents</p>
-            <p className="text-2xl font-black tabular-nums leading-tight">{summary.agentCount}</p>
-          </div>
-        </div>
-
-        <div className="rounded-xl border bg-gradient-to-br from-blue-50/60 to-transparent dark:from-blue-950/20 dark:to-transparent px-4 py-3 flex items-center gap-3">
-          <div className="h-9 w-9 rounded-xl bg-blue-500/10 flex items-center justify-center shrink-0">
-            <Phone className="h-4 w-4 text-blue-600" />
-          </div>
-          <div>
-            <p className="text-[11px] text-muted-foreground font-medium">Calls {periodLabel}</p>
-            <p className="text-2xl font-black tabular-nums leading-tight text-blue-700 dark:text-blue-400">{callsValue}</p>
-          </div>
-        </div>
-
-        <div className="rounded-xl border bg-gradient-to-br from-emerald-50/60 to-transparent dark:from-emerald-950/20 dark:to-transparent px-4 py-3 flex items-center gap-3">
-          <div className="h-9 w-9 rounded-xl bg-emerald-500/10 flex items-center justify-center shrink-0">
-            <Calendar className="h-4 w-4 text-emerald-600" />
-          </div>
-          <div>
-            <p className="text-[11px] text-muted-foreground font-medium">Calls Today</p>
-            <p className="text-2xl font-black tabular-nums leading-tight text-emerald-700 dark:text-emerald-400">{summary.callsToday}</p>
-          </div>
-        </div>
-
-        <div className="rounded-xl border bg-gradient-to-br from-amber-50/60 to-transparent dark:from-amber-950/20 dark:to-transparent px-4 py-3 flex items-center gap-3">
-          <div className="h-9 w-9 rounded-xl bg-amber-500/10 flex items-center justify-center shrink-0">
-            <TrendingUp className="h-4 w-4 text-amber-600" />
-          </div>
-          <div>
-            <p className="text-[11px] text-muted-foreground font-medium">Avg / Agent</p>
-            <p className="text-2xl font-black tabular-nums leading-tight text-amber-700 dark:text-amber-400">{avgCallsPerAgent}</p>
-          </div>
-        </div>
+        ))}
       </div>
 
-      {/* Leaderboard + Top Performer */}
+      {/* ── Champions leaderboard ── */}
       <LeaderboardSection leaderboard={leaderboard} period={period} />
 
-      {/* Chart + Active challenges */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      {/* ── Chart + Active challenges ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         <div className="lg:col-span-2">
           <CallVolumeChart
             data={volumeData.map((d) => ({ label: d.date, calls: d.count }))}
@@ -129,14 +105,20 @@ export async function BossDashboard({ period = "week" }: { period?: Period }) {
           />
         </div>
 
-        <div className="rounded-xl border bg-card overflow-hidden flex flex-col">
-          <div className="flex items-center gap-2 px-5 py-3.5 border-b bg-gradient-to-r from-emerald-500/10 via-card to-card">
-            <Target className="h-4 w-4 text-emerald-500" />
+        {/* Active challenges */}
+        <div className="rounded-2xl bg-card shadow-sm overflow-hidden flex flex-col">
+          <div className="px-5 py-4 border-b border-border/40">
             <p className="font-bold text-sm">Active Challenges</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Current team tasks</p>
           </div>
-          <div className="flex-1 divide-y">
+          <div className="flex-1 divide-y divide-border/40">
             {tasks.length === 0
-              ? <div className="py-10 text-center text-sm text-muted-foreground">No active tasks</div>
+              ? (
+                <div className="flex-1 py-12 text-center">
+                  <p className="text-2xl mb-2">🎯</p>
+                  <p className="text-sm text-muted-foreground">No active tasks</p>
+                </div>
+              )
               : tasks.map((task) => (
                   <TaskCard
                     key={task.id}
@@ -150,6 +132,7 @@ export async function BossDashboard({ period = "week" }: { period?: Period }) {
           </div>
         </div>
       </div>
+
     </div>
   );
 }
