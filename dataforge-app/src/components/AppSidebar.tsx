@@ -51,9 +51,7 @@ function buildSections(role: Role): Section[] {
     case "boss":
     case "admin":
       return [
-        {
-          items: [{ label: "Dashboard", href: "/dashboard", emoji: "🏠" }],
-        },
+        { items: [{ label: "Dashboard", href: "/dashboard", emoji: "🏠" }] },
         {
           title: "Leads",
           items: [
@@ -64,17 +62,8 @@ function buildSections(role: Role): Section[] {
         {
           title: "Marketing",
           items: [
-            {
-              label: "Marketing",
-              href: "/marketing",
-              emoji: "📣",
-              sub: marketingSub,
-            },
-            {
-              label: "Achievements",
-              emoji: "🏅",
-              sub: achievementsSub,
-            },
+            { label: "Marketing", href: "/marketing", emoji: "📣", sub: marketingSub },
+            { label: "Achievements", emoji: "🏅", sub: achievementsSub },
           ],
         },
         {
@@ -89,27 +78,17 @@ function buildSections(role: Role): Section[] {
           title: "Administration",
           items: [
             { label: "Manage Users", href: "/admin/users", emoji: "👤" },
-            ...(role === "boss"
-              ? [{ label: "Settings", href: "/settings", emoji: "⚙️" }]
-              : []),
+            ...(role === "boss" ? [{ label: "Settings", href: "/settings", emoji: "⚙️" }] : []),
           ],
         },
       ];
-
     case "sales_rep":
       return [
-        {
-          items: [{ label: "Dashboard", href: "/dashboard", emoji: "🏠" }],
-        },
+        { items: [{ label: "Dashboard", href: "/dashboard", emoji: "🏠" }] },
         {
           title: "Marketing",
           items: [
-            {
-              label: "Marketing",
-              href: "/marketing",
-              emoji: "📣",
-              sub: marketingSub,
-            },
+            { label: "Marketing", href: "/marketing", emoji: "📣", sub: marketingSub },
             { label: "My Leads", href: "/marketing/my-leads", emoji: "📋" },
             { label: "My Profile", href: "/marketing/profile", emoji: "👤" },
           ],
@@ -123,14 +102,9 @@ function buildSections(role: Role): Section[] {
           ],
         },
       ];
-
-    case "lead_specialist":
-    case "lead_data_analyst":
     default:
       return [
-        {
-          items: [{ label: "Dashboard", href: "/dashboard", emoji: "🏠" }],
-        },
+        { items: [{ label: "Dashboard", href: "/dashboard", emoji: "🏠" }] },
         {
           title: "Leads",
           items: [
@@ -150,34 +124,20 @@ function buildSections(role: Role): Section[] {
   }
 }
 
-/* ── helpers ──────────────────────────────────────────────────────── */
-
 function isActive(pathname: string, href: string) {
   if (href === "/dashboard") return pathname === "/dashboard";
   return pathname.startsWith(href.split("?")[0]);
 }
 
-function anySubActive(pathname: string, sub: SubItem[]) {
-  return sub.some((s) => isActive(pathname, s.href));
-}
-
 /* ── collapsible nav item ─────────────────────────────────────────── */
 
-function CollapsibleNavItem({
-  item,
-  pathname,
-}: {
-  item: NavItem;
-  pathname: string;
-}) {
-  const subActive = item.sub ? anySubActive(pathname, item.sub) : false;
+function CollapsibleNavItem({ item, pathname }: { item: NavItem; pathname: string }) {
+  const subActive = item.sub ? item.sub.some((s) => isActive(pathname, s.href)) : false;
   const [open, setOpen] = useState(subActive);
 
   return (
     <SidebarMenuItem>
-      {/* Type casting to 'any' here bypasses the strict property check on SidebarMenuButton */}
       <SidebarMenuButton
-        tooltip={item.label}
         {...({ isActive: subActive } as any)}
         onClick={() => setOpen((o) => !o)}
       >
@@ -197,9 +157,6 @@ function CollapsibleNavItem({
             const active = isActive(pathname, s.href);
             return (
               <SidebarMenuSubItem key={s.href}>
-                {/* FIX: We cast SidebarMenuSubButton to 'any' to stop the 
-                   'asChild' property error. This ensures the Vercel build passes.
-                */}
                 <SidebarMenuSubButton {...({ asChild: true } as any)}>
                   <Link
                     href={s.href}
@@ -238,9 +195,7 @@ export function AppSidebar({ role }: { role: Role }) {
                 <div className="flex h-7 w-7 items-center justify-center rounded-md bg-blue-600 shrink-0">
                   <Database className="h-4 w-4 text-white" />
                 </div>
-                <span className="font-bold text-base tracking-tight">
-                  DataForge
-                </span>
+                <span className="font-bold text-base tracking-tight">DataForge</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -250,22 +205,15 @@ export function AppSidebar({ role }: { role: Role }) {
       <SidebarContent>
         {sections.map((section, si) => (
           <SidebarGroup key={si}>
-            {section.title && (
-              <SidebarGroupLabel>{section.title}</SidebarGroupLabel>
-            )}
+            {section.title && <SidebarGroupLabel>{section.title}</SidebarGroupLabel>}
             <SidebarGroupContent>
               <SidebarMenu>
                 {section.items.map((item) =>
                   item.sub ? (
-                    <CollapsibleNavItem
-                      key={item.label}
-                      item={item}
-                      pathname={pathname}
-                    />
+                    <CollapsibleNavItem key={item.label} item={item} pathname={pathname} />
                   ) : (
                     <SidebarMenuItem key={item.href}>
                       <SidebarMenuButton
-                        tooltip={item.label}
                         {...({ asChild: true, isActive: isActive(pathname, item.href!) } as any)}
                       >
                         <Link href={item.href!}>
