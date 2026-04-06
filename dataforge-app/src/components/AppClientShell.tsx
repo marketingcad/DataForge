@@ -1,7 +1,5 @@
 "use client";
 
-import Link from "next/link";
-import { Database } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { UserNav } from "@/components/UserNav";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -10,35 +8,36 @@ import { FeedbackButton } from "@/components/FeedbackButton";
 import { MigrationProvider } from "@/contexts/MigrationContext";
 import { MigrationStatusBadge } from "@/components/MigrationStatusBadge";
 import { GhlMigrationModal } from "@/components/leads/GhlMigrationModal";
+import type { ReactNode } from "react";
 
 interface AppClientShellProps {
-  children: React.ReactNode;
+  children: ReactNode;
   userName?: string | null;
   userEmail?: string | null;
+  sidebarTrigger?: ReactNode;
 }
 
-/**
- * Client wrapper for the main content area.
- * Provides MigrationContext so both the header badge and any page modal
- * can read/write migration state across page navigations.
- */
-export function AppClientShell({ children, userName, userEmail }: AppClientShellProps) {
+export function AppClientShell({
+  children,
+  userName,
+  userEmail,
+  sidebarTrigger,
+}: AppClientShellProps) {
   return (
     <MigrationProvider>
-      <div className="flex flex-col flex-1 overflow-hidden">
+      <div className="flex flex-col flex-1 overflow-hidden h-svh">
 
         {/* Header */}
-        <header className="flex h-14 items-center justify-between border-b px-6 bg-background shrink-0">
-          {/* Mobile: brand */}
-          <Link href="/dashboard" className="flex items-center gap-2 font-semibold text-sm md:hidden">
-            <Database className="h-5 w-5 text-blue-600" />
-            DataForge
-          </Link>
-          <div className="hidden md:block" />
+        <header className="flex h-14 items-center gap-2 border-b px-4 bg-background shrink-0">
+          {/* Sidebar toggle */}
+          {sidebarTrigger}
+          <Separator orientation="vertical" className="h-4" />
+
+          {/* Spacer */}
+          <div className="flex-1" />
 
           {/* Right side */}
           <div className="flex items-center gap-2">
-            {/* Migration status indicator — visible when running in background */}
             <MigrationStatusBadge />
             <FeedbackButton />
             <ThemeToggle />
@@ -53,7 +52,7 @@ export function AppClientShell({ children, userName, userEmail }: AppClientShell
           {children}
         </main>
 
-        {/* Global migration modal — fixed overlay */}
+        {/* Global migration modal */}
         <GhlMigrationModal />
       </div>
     </MigrationProvider>
