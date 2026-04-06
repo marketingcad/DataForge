@@ -110,6 +110,9 @@ model Lead {
   assignedTo   User?    @relation("AssignedLeads", fields: [assignedToId], references: [id], onDelete: SetNull)
   assignedAt   DateTime?
 
+  migratedToGhl   Boolean   @default(false)
+  migratedToGhlAt DateTime?
+
   commission LeadCommission?
 
   @@index([phone])

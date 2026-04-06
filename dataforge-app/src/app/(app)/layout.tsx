@@ -1,13 +1,8 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { Database } from "lucide-react";
-import Link from "next/link";
 import { SidebarNav } from "@/components/SidebarNav";
-import { UserNav } from "@/components/UserNav";
-import { ThemeToggle } from "@/components/ThemeToggle";
-import { NotificationBell } from "@/components/NotificationBell";
-import { FeedbackButton } from "@/components/FeedbackButton";
-import { Separator } from "@/components/ui/separator";
+import { AppClientShell } from "@/components/AppClientShell";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
@@ -43,34 +38,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </div>
       </aside>
 
-      {/* ── Main area ── */}
-      <div className="flex flex-col flex-1 overflow-hidden">
-
-        {/* Header */}
-        <header className="flex h-14 items-center justify-between border-b px-6 bg-background shrink-0">
-          {/* Mobile: brand */}
-          <Link href="/dashboard" className="flex items-center gap-2 font-semibold text-sm md:hidden">
-            <Database className="h-5 w-5 text-blue-600" />
-            DataForge
-          </Link>
-          <div className="hidden md:block" />
-
-          {/* Right side */}
-          <div className="flex items-center gap-2">
-            <FeedbackButton />
-            <ThemeToggle />
-            <NotificationBell />
-            <Separator orientation="vertical" className="h-6" />
-            <UserNav name={user?.name} email={user?.email} />
-          </div>
-        </header>
-
-        {/* Page content */}
-        <main className="flex-1 overflow-y-auto px-6 py-6">
-          {children}
-        </main>
-
-      </div>
+      {/* ── Main area (client shell provides MigrationContext + header) ── */}
+      <AppClientShell userName={user?.name} userEmail={user?.email}>
+        {children}
+      </AppClientShell>
     </div>
   );
 }

@@ -33,6 +33,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useNotifications } from "@/lib/notifications";
 import { formatPhone } from "@/lib/utils/normalize";
+import { useMigration } from "@/contexts/MigrationContext";
 
 type Lead = {
   id: string;
@@ -46,6 +47,7 @@ type Lead = {
   state: string | null;
   country: string | null;
   dataQualityScore: number;
+  migratedToGhl: boolean;
 };
 
 type SortOption = "name_asc" | "name_desc" | "newest" | "oldest";
@@ -166,6 +168,7 @@ export function FolderLeadsModal({
 
   // Change category
   const { add: addNotif } = useNotifications();
+  const { start: startMigration, state: migrationState } = useMigration();
 
   const [showChangeCategory, setShowChangeCategory] = useState(false);
   const [categorySearch, setCategorySearch]         = useState("");
@@ -284,6 +287,22 @@ export function FolderLeadsModal({
     } finally {
       setExporting(false);
     }
+  }
+
+  async function handleMigrateToGhl(scope: "selected" | "all") {
+    if (migrationState.running) {
+      addNotif({ type: "warning", title: "Migration already running", message: "Wait for the current migration to finish or stop it first." });
+      return;
+    }
+    const toMigrate: { id: string; name: string }[] = scope === "selected"
+      ? leads.filter((l) => selected.has(l.id)).map((l) => ({ id: l.id, name: l.businessName }))
+      : (await getAllLeadsForExportAction(folder.id)).leads.map((l: Lead) => ({ id: l.id, name: l.businessName }));
+
+    if (toMigrate.length === 0) {
+      addNotif({ type: "info", title: "Nothing to migrate", message: "No leads selected." });
+      return;
+    }
+    startMigration(toMigrate, folder.name);
   }
 
   async function handleChangeCategory(industryId: string | null) {
@@ -447,11 +466,32 @@ export function FolderLeadsModal({
 
               <Separator orientation="vertical" className="h-4" />
 
-              <Button variant="outline" size="sm" className="h-8 gap-1 text-xs shrink-0"
-                onClick={() => handleExport("all")} disabled={exporting || total === 0}>
-                {exporting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
-                Export
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <Button variant="outline" size="sm" className="h-8 gap-1 text-xs shrink-0"
+                      disabled={exporting || total === 0} />
+                  }
+                >
+                  {exporting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+                  Export
+                  <ChevronDown className="h-3 w-3 text-muted-foreground ml-0.5" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-44">
+                  <DropdownMenuItem className="text-xs cursor-pointer gap-2" onClick={() => handleExport("all")}>
+                    <Download className="h-3 w-3" />
+                    Export as CSV
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="text-xs cursor-pointer gap-2"
+                    onClick={() => handleMigrateToGhl("all")}
+                    disabled={migrationState.running}
+                  >
+                    🔗 Migrate all to GHL
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <Button variant="outline" size="sm" className="h-8 gap-1 text-xs shrink-0 text-destructive hover:text-destructive"
                 onClick={() => setConfirmDelete("all")} disabled={total === 0}>
                 <Trash2 className="h-3 w-3" />
@@ -562,7 +602,15 @@ export function FolderLeadsModal({
                 <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs"
                   onClick={() => handleExport("selected")} disabled={exporting}>
                   {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-                  Export
+                  Export CSV
+                </Button>
+                <Button
+                  size="sm" variant="outline"
+                  className="h-7 gap-1.5 text-xs text-violet-600 hover:text-violet-700 border-violet-300"
+                  onClick={() => handleMigrateToGhl("selected")}
+                  disabled={migrationState.running}
+                >
+                  🔗 Migrate to GHL
                 </Button>
                 <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs text-destructive hover:text-destructive"
                   onClick={() => setConfirmDelete("selected")}>
@@ -644,8 +692,18 @@ export function FolderLeadsModal({
                       <TableCell className="text-xs text-muted-foreground font-mono text-center">
                         {(page - 1) * 20 + idx + 1}
                       </TableCell>
-                      <TableCell className="font-medium max-w-[180px]">
-                        <CopyCell value={lead.businessName} />
+                      <TableCell className="font-medium max-w-[200px]">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <CopyCell value={lead.businessName} />
+                          {lead.migratedToGhl && (
+                            <span
+                              className="shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-violet-500/10 text-violet-600 border border-violet-200/50 dark:border-violet-800/50 whitespace-nowrap"
+                              title="Migrated to GoHighLevel"
+                            >
+                              GHL ✓
+                            </span>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground max-w-[120px]">
                         <CopyCell value={lead.contactPerson} />
