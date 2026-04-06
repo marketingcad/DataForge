@@ -58,7 +58,7 @@ function buildSections(role: Role): NavSection[] {
           items: [
             { href: "/kanban",   label: "Kanban",   icon: LayoutGrid },
             { href: "/calendar", label: "Calendar", icon: CalendarDays },
-            { href: "/feedback", label: "Reports",  icon: Flag },
+            { href: "/reports",  label: "Reports",  icon: Flag },
           ],
         },
         {
@@ -98,7 +98,7 @@ function buildSections(role: Role): NavSection[] {
           items: [
             { href: "/kanban",   label: "Kanban",   icon: LayoutGrid },
             { href: "/calendar", label: "Calendar", icon: CalendarDays },
-            { href: "/feedback", label: "Reports",  icon: Flag },
+            { href: "/reports",  label: "Reports",  icon: Flag },
           ],
         },
         {
