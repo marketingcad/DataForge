@@ -14,29 +14,16 @@ interface AppClientShellProps {
   children: ReactNode;
   userName?: string | null;
   userEmail?: string | null;
-  sidebarTrigger?: ReactNode;
 }
 
-export function AppClientShell({
-  children,
-  userName,
-  userEmail,
-  sidebarTrigger,
-}: AppClientShellProps) {
+export function AppClientShell({ children, userName, userEmail }: AppClientShellProps) {
   return (
     <MigrationProvider>
-      <div className="flex flex-col flex-1 overflow-hidden h-svh">
+      <div className="flex flex-col flex-1 overflow-hidden">
 
         {/* Header */}
-        <header className="flex h-14 items-center gap-2 border-b px-4 bg-background shrink-0">
-          {/* Sidebar toggle */}
-          {sidebarTrigger}
-          <Separator orientation="vertical" className="h-4" />
-
-          {/* Spacer */}
+        <header className="flex h-14 items-center justify-between border-b px-6 bg-background shrink-0">
           <div className="flex-1" />
-
-          {/* Right side */}
           <div className="flex items-center gap-2">
             <MigrationStatusBadge />
             <FeedbackButton />
