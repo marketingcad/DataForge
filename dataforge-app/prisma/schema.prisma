@@ -110,6 +110,8 @@ model Lead {
   assignedTo   User?    @relation("AssignedLeads", fields: [assignedToId], references: [id], onDelete: SetNull)
   assignedAt   DateTime?
 
+  commission LeadCommission?
+
   @@index([phone])
   @@index([email])
   @@index([website])
@@ -150,8 +152,10 @@ model User {
   savedLeads         Lead[]             @relation("LeadSavedBy")
   assignedLeads      Lead[]             @relation("AssignedLeads")
   scrapingKeywords   ScrapingKeyword[]
-  commissionEarnings CommissionEarning[]
-  createdTasks       MarketingTask[]    @relation("TaskCreatedBy")
+  commissionEarnings   CommissionEarning[]
+  agentLeadCommissions LeadCommission[] @relation("AgentLeadCommissions")
+  paidLeadCommissions  LeadCommission[] @relation("PaidLeadCommissions")
+  createdTasks         MarketingTask[]  @relation("TaskCreatedBy")
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 }
@@ -525,6 +529,7 @@ model CommissionRule {
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
   earnings        CommissionEarning[]
+  leadCommissions LeadCommission[]
 }
 
 model CommissionEarning {
@@ -543,4 +548,28 @@ model CommissionEarning {
   @@index([userId])
   @@index([ruleId])
   @@index([period])
+}
+
+// ── Per-lead commission ledger ─────────────────────────────────────────────────
+model LeadCommission {
+  id          String         @id @default(uuid())
+  leadId      String         @unique
+  lead        Lead           @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  agentId     String
+  agent       User           @relation("AgentLeadCommissions", fields: [agentId], references: [id], onDelete: Cascade)
+  ruleId      String?
+  rule        CommissionRule? @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+  amount      Float
+  note        String?
+  status      String         @default("pending") // "pending" | "paid" | "confirmed"
+  paidAt      DateTime?
+  paidById    String?
+  paidBy      User?          @relation("PaidLeadCommissions", fields: [paidById], references: [id], onDelete: SetNull)
+  confirmedAt DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([agentId])
+  @@index([status])
+  @@index([paidById])
 }

@@ -119,8 +119,9 @@ function buildSections(role: Role): NavSection[] {
         {
           title: "Marketing Department",
           items: [
-            { href: "/marketing",         label: "Marketing",  icon: Megaphone },
-            { href: "/marketing/profile", label: "My Profile", icon: UserCircle },
+            { href: "/marketing",           label: "Marketing",   icon: Megaphone },
+            { href: "/marketing/my-leads",  label: "My Leads",    icon: Users },
+            { href: "/marketing/profile",   label: "My Profile",  icon: UserCircle },
           ],
         },
         {

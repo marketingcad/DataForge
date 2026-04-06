@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
 import { QualityBadge } from "@/components/leads/QualityBadge";
 import { StatusBadge } from "@/components/leads/StatusBadge";
 import { LeadForm } from "@/components/leads/LeadForm";
@@ -10,6 +11,9 @@ import { Separator } from "@/components/ui/separator";
 import { deleteLeadAction, updateLeadStatusAction } from "@/actions/leads.actions";
 import { ChevronLeft, AlertTriangle, Globe, Phone, Mail, User, MapPin, Tag, Database } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { AssignCommissionPanel } from "./AssignCommissionPanel";
+import { getLeadCommission } from "@/lib/marketing/lead-commissions.service";
+import { getAllCommissionRules } from "@/lib/marketing/commissions.service";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -20,8 +24,25 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
   const { id } = await params;
   const { notice } = await searchParams;
 
+  const session = await auth();
+  const role = (session?.user as unknown as Record<string, unknown>)?.role as string | undefined;
+  const isManager = role === "boss" || role === "admin";
+
   const lead = await prisma.lead.findUnique({ where: { id } });
   if (!lead) notFound();
+
+  // Fetch assignment data only for managers (avoid unnecessary queries for reps)
+  const [salesReps, rules, existingCommission] = isManager
+    ? await Promise.all([
+        prisma.user.findMany({
+          where: { role: "sales_rep" },
+          select: { id: true, name: true, email: true },
+          orderBy: { name: "asc" },
+        }),
+        getAllCommissionRules(),
+        getLeadCommission(id),
+      ])
+    : [[], [], null];
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -127,6 +148,16 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
           <p>Industries found in: {lead.industriesFoundIn.join(", ") || "—"}</p>
         </CardContent>
       </Card>
+
+      {/* Assignment & Commission — boss/admin only */}
+      {isManager && (
+        <AssignCommissionPanel
+          leadId={id}
+          salesReps={salesReps}
+          rules={rules.map((r) => ({ id: r.id, name: r.name, amount: r.amount }))}
+          existing={existingCommission as Parameters<typeof AssignCommissionPanel>[0]["existing"]}
+        />
+      )}
 
       <Separator />
 
