@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { AssignCommissionPanel } from "./AssignCommissionPanel";
 import { getLeadCommission } from "@/lib/marketing/lead-commissions.service";
 import { getAllCommissionRules } from "@/lib/marketing/commissions.service";
+import { GhlLeadButton } from "@/components/leads/GhlLeadButton";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -69,7 +70,7 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
       )}
 
       {/* Lead header */}
-      <div className="flex items-start justify-between">
+      <div className="flex items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
             {lead.duplicateFlag && (
@@ -85,6 +86,11 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
             ))}
           </div>
         </div>
+        <GhlLeadButton
+          leadId={lead.id}
+          alreadyMigrated={lead.migratedToGhl}
+          migratedAt={lead.migratedToGhlAt}
+        />
       </div>
 
       {/* Contact Info Card */}
