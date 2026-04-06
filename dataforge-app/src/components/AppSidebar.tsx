@@ -26,18 +26,13 @@ import type { Role } from "@/lib/rbac/roles";
 /* ── nav structure ───────────────────────────────────────────────── */
 
 type SubItem = { label: string; href: string };
-
 type NavItem = {
   label: string;
   href?: string;
   emoji: string;
   sub?: SubItem[];
 };
-
-type Section = {
-  title?: string;
-  items: NavItem[];
-};
+type Section = { title?: string; items: NavItem[] };
 
 function buildSections(role: Role): Section[] {
   const marketingSub: SubItem[] = [
@@ -69,17 +64,8 @@ function buildSections(role: Role): Section[] {
         {
           title: "Marketing",
           items: [
-            {
-              label: "Marketing",
-              href: "/marketing",
-              emoji: "📣",
-              sub: marketingSub,
-            },
-            {
-              label: "Achievements",
-              emoji: "🏅",
-              sub: achievementsSub,
-            },
+            { label: "Marketing", href: "/marketing", emoji: "📣", sub: marketingSub },
+            { label: "Achievements", emoji: "🏅", sub: achievementsSub },
           ],
         },
         {
@@ -94,9 +80,7 @@ function buildSections(role: Role): Section[] {
           title: "Administration",
           items: [
             { label: "Manage Users", href: "/admin/users", emoji: "👤" },
-            ...(role === "boss"
-              ? [{ label: "Settings", href: "/settings", emoji: "⚙️" }]
-              : []),
+            ...(role === "boss" ? [{ label: "Settings", href: "/settings", emoji: "⚙️" }] : []),
           ],
         },
       ];
@@ -109,12 +93,7 @@ function buildSections(role: Role): Section[] {
         {
           title: "Marketing",
           items: [
-            {
-              label: "Marketing",
-              href: "/marketing",
-              emoji: "📣",
-              sub: marketingSub,
-            },
+            { label: "Marketing", href: "/marketing", emoji: "📣", sub: marketingSub },
             { label: "My Leads", href: "/marketing/my-leads", emoji: "📋" },
             { label: "My Profile", href: "/marketing/profile", emoji: "👤" },
           ],
@@ -153,10 +132,9 @@ function buildSections(role: Role): Section[] {
   }
 }
 
-/* ── helpers ─────────────────────────────────────────────────────── */
+/* ── helpers ──────────────────────────────────────────────────────── */
 
 function isActive(pathname: string, href: string) {
-  if (!href) return false;
   if (href === "/dashboard") return pathname === "/dashboard";
   return pathname.startsWith(href.split("?")[0]);
 }
@@ -165,30 +143,20 @@ function anySubActive(pathname: string, sub: SubItem[]) {
   return sub.some((s) => isActive(pathname, s.href));
 }
 
-/* ── collapsible nav item ────────────────────────────────────────── */
+/* ── collapsible nav item ─────────────────────────────────────────── */
 
-function CollapsibleNavItem({
-  item,
-  pathname,
-}: {
-  item: NavItem;
-  pathname: string;
-}) {
+function CollapsibleNavItem({ item, pathname }: { item: NavItem; pathname: string }) {
   const subActive = item.sub ? anySubActive(pathname, item.sub) : false;
   const [open, setOpen] = useState(subActive);
 
   return (
     <SidebarMenuItem>
-      <SidebarMenuButton
-        tooltip={item.label}
-        isActive={subActive}
-        onClick={() => setOpen((o) => !o)}
-      >
+      <SidebarMenuButton tooltip={item.label} isActive={subActive} onClick={() => setOpen((o) => !o)}>
         <span>{item.emoji}</span>
         <span>{item.label}</span>
         <ChevronRight
           className={cn(
-            "ml-auto h-3.5 w-3.5 transition-transform duration-200",
+            "ml-auto h-3.5 w-3.5 text-muted-foreground transition-transform duration-200",
             open && "rotate-90"
           )}
         />
@@ -196,12 +164,9 @@ function CollapsibleNavItem({
 
       {open && (
         <SidebarMenuSub>
-          {item.sub?.map((s) => (
+          {item.sub!.map((s) => (
             <SidebarMenuSubItem key={s.href}>
-              <SidebarMenuSubButton
-                asChild
-                isActive={isActive(pathname, s.href)}
-              >
+              <SidebarMenuSubButton asChild isActive={isActive(pathname, s.href)}>
                 <Link href={s.href}>{s.label}</Link>
               </SidebarMenuSubButton>
             </SidebarMenuSubItem>
@@ -212,7 +177,7 @@ function CollapsibleNavItem({
   );
 }
 
-/* ── main sidebar ────────────────────────────────────────────────── */
+/* ── main sidebar ─────────────────────────────────────────────────── */
 
 export function AppSidebar({ role }: { role: Role }) {
   const pathname = usePathname();
@@ -220,46 +185,33 @@ export function AppSidebar({ role }: { role: Role }) {
 
   return (
     <Sidebar collapsible="icon">
-      {/* Header */}
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild size="lg">
+            <SidebarMenuButton size="lg" asChild>
               <Link href="/dashboard">
-                <div className="flex h-7 w-7 items-center justify-center rounded-md bg-blue-600">
+                <div className="flex h-7 w-7 items-center justify-center rounded-md bg-blue-600 shrink-0">
                   <Database className="h-4 w-4 text-white" />
                 </div>
-                <span className="font-bold text-base">DataForge</span>
+                <span className="font-bold text-base tracking-tight">DataForge</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
 
-      {/* Content */}
       <SidebarContent>
         {sections.map((section, si) => (
           <SidebarGroup key={si}>
-            {section.title && (
-              <SidebarGroupLabel>{section.title}</SidebarGroupLabel>
-            )}
-
+            {section.title && <SidebarGroupLabel>{section.title}</SidebarGroupLabel>}
             <SidebarGroupContent>
               <SidebarMenu>
                 {section.items.map((item) =>
                   item.sub ? (
-                    <CollapsibleNavItem
-                      key={item.label}
-                      item={item}
-                      pathname={pathname}
-                    />
+                    <CollapsibleNavItem key={item.label} item={item} pathname={pathname} />
                   ) : (
                     <SidebarMenuItem key={item.href}>
-                      <SidebarMenuButton
-                        asChild
-                        tooltip={item.label}
-                        isActive={isActive(pathname, item.href!)}
-                      >
+                      <SidebarMenuButton asChild tooltip={item.label} isActive={isActive(pathname, item.href!)}>
                         <Link href={item.href!}>
                           <span>{item.emoji}</span>
                           <span>{item.label}</span>
@@ -272,16 +224,13 @@ export function AppSidebar({ role }: { role: Role }) {
             </SidebarGroupContent>
           </SidebarGroup>
         ))}
-      </SidebarContent>
+      </SidebarContent> 
 
-      {/* Footer */}
       <SidebarFooter>
-        <p className="px-2 py-1 text-[10px] text-muted-foreground/40 text-center">
-          DataForge v1.0
-        </p>
+        <p className="px-2 py-1 text-[10px] text-muted-foreground/40 text-center">DataForge v1.0</p>
       </SidebarFooter>
 
       <SidebarRail />
     </Sidebar>
   );
-} 
+}
