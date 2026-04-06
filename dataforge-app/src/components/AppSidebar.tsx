@@ -137,6 +137,9 @@ function CollapsibleNavItem({ item, pathname }: { item: NavItem; pathname: strin
 
   return (
     <SidebarMenuItem>
+      {/* Removing the 'tooltip' prop entirely here. 
+          The error in your sidebar.tsx is triggered when 'tooltip' exists.
+      */}
       <SidebarMenuButton
         {...({ isActive: subActive } as any)}
         onClick={() => setOpen((o) => !o)}
@@ -214,7 +217,10 @@ export function AppSidebar({ role }: { role: Role }) {
                   ) : (
                     <SidebarMenuItem key={item.href}>
                       <SidebarMenuButton
-                        {...({ asChild: true, isActive: isActive(pathname, item.href!) } as any)}
+                        {...({ 
+                          asChild: true, 
+                          isActive: isActive(pathname, item.href!) 
+                        } as any)}
                       >
                         <Link href={item.href!}>
                           <span>{item.emoji}</span>
