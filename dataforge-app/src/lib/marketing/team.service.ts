@@ -107,7 +107,15 @@ export async function getActiveTasks() {
   });
 }
 
-/** Top performer per period (today / week / month / all-time) */
+export type TopPerformer = {
+  id: string;
+  name: string;
+  image: string | null;
+  count: number;
+  badges: { id: string; name: string; icon: string; color: string; imageUrl: string | null }[];
+} | null;
+
+/** Top performer per period (today / week / month / all-time) with image + badges */
 export async function getTopPerformers() {
   const now = new Date();
   const startOfDay   = new Date(now); startOfDay.setHours(0, 0, 0, 0);
@@ -117,19 +125,24 @@ export async function getTopPerformers() {
   const agents = await prisma.user.findMany({
     where: { role: "sales_rep" },
     select: {
-      id: true, name: true, email: true,
+      id: true, name: true, email: true, image: true,
       callLogs: { select: { id: true, calledAt: true } },
+      userBadges: {
+        orderBy: { earnedAt: "desc" },
+        take: 3,
+        include: { badge: { select: { id: true, name: true, icon: true, color: true, imageUrl: true } } },
+      },
     },
   });
 
-  type Performer = { id: string; name: string; count: number } | null;
-
-  function topFor(since: Date): Performer {
+  function topFor(since: Date): TopPerformer {
     const ranked = agents
       .map((a) => ({
         id: a.id,
         name: a.name ?? a.email,
+        image: a.image ?? null,
         count: a.callLogs.filter((c) => new Date(c.calledAt) >= since).length,
+        badges: a.userBadges.map((ub) => ub.badge),
       }))
       .sort((x, y) => y.count - x.count);
     const top = ranked[0];
@@ -137,7 +150,13 @@ export async function getTopPerformers() {
   }
 
   const allTimeRanked = agents
-    .map((a) => ({ id: a.id, name: a.name ?? a.email, count: a.callLogs.length }))
+    .map((a) => ({
+      id: a.id,
+      name: a.name ?? a.email,
+      image: a.image ?? null,
+      count: a.callLogs.length,
+      badges: a.userBadges.map((ub) => ub.badge),
+    }))
     .sort((x, y) => y.count - x.count)[0];
 
   return {

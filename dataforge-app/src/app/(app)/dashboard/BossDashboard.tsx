@@ -6,6 +6,7 @@ import { withDbRetry } from "@/lib/prisma";
 import { IndustryBarChart } from "@/components/dashboard/IndustryBarChart";
 import { QualityDonutChart } from "@/components/dashboard/QualityDonutChart";
 import Link from "next/link";
+import Image from "next/image";
 import {
   Flag,
   Award,
@@ -19,6 +20,69 @@ import {
   TrendingUp,
 } from "lucide-react";
 import type { Role } from "@/lib/rbac/roles";
+import type { TopPerformer } from "@/lib/marketing/team.service";
+
+function initials(name: string) {
+  return name.split(" ").map((p) => p[0]).join("").toUpperCase().slice(0, 2);
+}
+
+function PerformerRow({ label, data }: { label: string; data: TopPerformer }) {
+  return (
+    <div className="px-4 py-3 space-y-2">
+      <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">{label}</p>
+      {data ? (
+        <div className="flex items-center gap-2.5">
+          {/* Avatar */}
+          <div className="relative shrink-0">
+            {data.image ? (
+              <Image
+                src={data.image}
+                alt={data.name}
+                width={36}
+                height={36}
+                className="rounded-full object-cover ring-2 ring-border"
+              />
+            ) : (
+              <div className="h-9 w-9 rounded-full bg-foreground text-background flex items-center justify-center text-[11px] font-black ring-2 ring-border">
+                {initials(data.name)}
+              </div>
+            )}
+          </div>
+
+          {/* Name + badges */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between gap-1">
+              <p className="text-xs font-bold truncate">{data.name}</p>
+              <span className="text-[11px] font-bold tabular-nums shrink-0 bg-foreground text-background rounded-full px-1.5 py-0.5 leading-none">
+                {data.count}
+              </span>
+            </div>
+            {data.badges.length > 0 && (
+              <div className="flex items-center gap-1 mt-1 flex-wrap">
+                {data.badges.map((b) => (
+                  <span
+                    key={b.id}
+                    title={b.name}
+                    className="inline-flex items-center justify-center h-5 w-5 rounded-full text-[11px] leading-none"
+                    style={{ background: `${b.color}22`, border: `1px solid ${b.color}66` }}
+                  >
+                    {b.imageUrl ? (
+                      <Image src={b.imageUrl} alt={b.name} width={14} height={14} className="rounded-full object-cover" />
+                    ) : (
+                      b.icon
+                    )}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        <p className="text-[11px] text-muted-foreground italic">No data yet</p>
+      )}
+    </div>
+  );
+}
 
 export async function BossDashboard() {
   const [stats, users, team, leaderboard, widgets, topPerformers] = await withDbRetry(() =>
@@ -122,36 +186,16 @@ export async function BossDashboard() {
         </div>
 
         {/* Top Performers — spans col 5, rows 1–2 */}
-        <div className="row-span-2 rounded-xl bg-card border border-border flex flex-col">
-          <div className="px-4 py-3 border-b border-border/60">
-            <p className="font-semibold text-sm">Top Performers</p>
-            <p className="text-[11px] text-muted-foreground">Sales reps by calls</p>
+        <div className="row-span-2 rounded-xl bg-card border border-border flex flex-col overflow-hidden">
+          <div className="px-4 py-3 border-b border-border/60 bg-foreground text-background">
+            <p className="font-bold text-sm">Top Performers</p>
+            <p className="text-[10px] opacity-50">Sales reps · by calls</p>
           </div>
           <div className="flex-1 divide-y divide-border/40">
-            {(
-              [
-                { label: "Today",     data: topPerformers.today   },
-                { label: "This Week",  data: topPerformers.week   },
-                { label: "This Month", data: topPerformers.month  },
-                { label: "All-Time",   data: topPerformers.allTime },
-              ] as const
-            ).map(({ label, data }) => (
-              <div key={label} className="px-4 py-2.5">
-                <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground mb-1">
-                  {label}
-                </p>
-                {data ? (
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs font-semibold truncate">{data.name}</p>
-                    <span className="text-[11px] font-bold tabular-nums shrink-0 rounded-full bg-muted px-2 py-0.5">
-                      {data.count}
-                    </span>
-                  </div>
-                ) : (
-                  <p className="text-[11px] text-muted-foreground italic">No data yet</p>
-                )}
-              </div>
-            ))}
+            <PerformerRow label="Today"     data={topPerformers.today}   />
+            <PerformerRow label="This Week"  data={topPerformers.week}   />
+            <PerformerRow label="This Month" data={topPerformers.month}  />
+            <PerformerRow label="All-Time"   data={topPerformers.allTime} />
           </div>
         </div>
 
