@@ -32,8 +32,8 @@ export async function POST(req: NextRequest) {
       source: "DataForge",
       timestamp: new Date().toISOString(),
       contact: {
-        name: lead.businessName,
-        companyName: lead.businessName,
+        name: lead.contactPerson ?? lead.businessName,
+        business: lead.businessName,
         phone: lead.phone,
         email: lead.email ?? undefined,
         website: lead.website ?? undefined,
@@ -41,7 +41,6 @@ export async function POST(req: NextRequest) {
         city: lead.city ?? undefined,
         state: lead.state ?? undefined,
         country: lead.country ?? undefined,
-        contactName: lead.contactPerson ?? undefined,
         tags: lead.category ? [lead.category] : [],
         customFields: [
           { key: "dataforge_id",    value: lead.id },
