@@ -1,0 +1,8 @@
+[   42390ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://www.googletagservices.com/tag/js/gpt.js:0
+[   42391ms] Uncaught [object Object]
+    at error (https://www.googletagmanager.com/gtm.js?id=GTM-5FJBVHB:258:503)
+    at onerror (https://www.googletagmanager.com/gtm.js?id=GTM-5FJBVHB:266:44)
+[   42391ms] Uncaught [object Object]
+    at error (https://www.googletagmanager.com/gtm.js?id=GTM-5FJBVHB:258:503)
+    at c.l.onerror (https://www.googletagmanager.com/gtm.js?id=GTM-5FJBVHB:267:160)
+[   42391ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://analytics.twitter.com/i/adsct?bci=3&dv=Asia%2FSingapore%26en-US%2Cen%26Google%20Inc.%26Win32%26255%261920%261080%2616%2632%261920%261032%260%26na&eci=2&event_id=c054d496-1d18-4556-9a79-66d9ef9a15d7&events=%5B%5B%22pageview%22%2C%7B%7D%5D%5D&integration=advertiser&p_id=Twitter&p_user_id=0&pl_id=b8e89ac9-3031-4e30-9a9b-a5584c1127f3&pt=ADA%20Archives%20and%20history%20%7C%20American%20Dental%20Association&tw_document_href=https%3A%2F%2Fwww.ada.org%2Fresources%2Fada-library%2Fada-archives-and-history&tw_iframe_status=0&tw_order_quantity=0&tw_pid_src=1&tw_sale_amount=0&twpid=tw.1773929315392.9519543364245413&txn_id=o34ug&type=javascript&version=2.3.50:0

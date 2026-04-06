@@ -1,0 +1,1 @@
+[    1349ms] [WARNING] Swiper Loop Warning: The number of slides is not enough for loop mode, it will be disabled or not function properly. You need to add more slides (or make duplicates) or lower the values of slidesPerView and slidesPerGroup parameters @ https://cdn.jsdelivr.net/npm/swiper/swiper-bundle.min.js:12

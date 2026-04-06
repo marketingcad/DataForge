@@ -1,0 +1,88 @@
+[   65117ms] [ERROR] %o
+
+%s Error: ErrorEvent
+    at resolveErrorDev (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:1894:148)
+    at processFullStringRow (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2402:29)
+    at processFullBinaryRow (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2361:9)
+    at processBinaryChunk (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2470:221)
+    at progress (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2640:13) The above error occurred in the <SpecialistDashboard> component. It was handled by the <ErrorBoundaryHandler> error boundary. @ http://localhost:3000/_next/static/chunks/ddd51_next_dist_client_004b7a95._.js:1342
+[   65136ms] [ERROR] Error: ErrorEvent
+    at resolveErrorDev (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:1894:148)
+    at processFullStringRow (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2402:29)
+    at processFullBinaryRow (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2361:9)
+    at processBinaryChunk (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2470:221)
+    at progress (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2640:13) @ http://localhost:3000/_next/static/chunks/ddd51_next_dist_c882c940._.js:3127
+[   65139ms] [ERROR] Error: ErrorEvent
+    at resolveErrorDev (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:1894:148)
+    at processFullStringRow (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2402:29)
+    at processFullBinaryRow (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2361:9)
+    at processBinaryChunk (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2470:221)
+    at progress (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2640:13) @ http://localhost:3000/_next/static/chunks/ddd51_next_dist_c882c940._.js:3127
+[   88856ms] [ERROR] %o
+
+%s Error: ErrorEvent
+    at resolveErrorDev (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:1894:148)
+    at processFullStringRow (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2402:29)
+    at processFullBinaryRow (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2361:9)
+    at processBinaryChunk (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2470:221)
+    at progress (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2640:13) The above error occurred in the <LeadsPage> component. It was handled by the <ErrorBoundaryHandler> error boundary. @ http://localhost:3000/_next/static/chunks/ddd51_next_dist_client_004b7a95._.js:1342
+[   88861ms] [ERROR] Error: ErrorEvent
+    at resolveErrorDev (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:1894:148)
+    at processFullStringRow (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2402:29)
+    at processFullBinaryRow (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2361:9)
+    at processBinaryChunk (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2470:221)
+    at progress (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2640:13) @ http://localhost:3000/_next/static/chunks/ddd51_next_dist_c882c940._.js:3127
+[   88861ms] [ERROR] Error: ErrorEvent
+    at resolveErrorDev (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:1894:148)
+    at processFullStringRow (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2402:29)
+    at processFullBinaryRow (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2361:9)
+    at processBinaryChunk (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2470:221)
+    at progress (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2640:13) @ http://localhost:3000/_next/static/chunks/ddd51_next_dist_c882c940._.js:3127
+[  124860ms] [ERROR] %o
+
+%s Error: ErrorEvent
+    at resolveErrorDev (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:1894:148)
+    at processFullStringRow (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2402:29)
+    at processFullBinaryRow (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2361:9)
+    at processBinaryChunk (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2470:221)
+    at progress (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2640:13) The above error occurred in the <SpecialistDashboard> component. It was handled by the <ErrorBoundaryHandler> error boundary. @ http://localhost:3000/_next/static/chunks/ddd51_next_dist_client_004b7a95._.js:1342
+[  124867ms] [ERROR] Error: ErrorEvent
+    at resolveErrorDev (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:1894:148)
+    at processFullStringRow (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2402:29)
+    at processFullBinaryRow (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2361:9)
+    at processBinaryChunk (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2470:221)
+    at progress (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2640:13) @ http://localhost:3000/_next/static/chunks/ddd51_next_dist_c882c940._.js:3127
+[  124868ms] [ERROR] Error: ErrorEvent
+    at resolveErrorDev (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:1894:148)
+    at processFullStringRow (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2402:29)
+    at processFullBinaryRow (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2361:9)
+    at processBinaryChunk (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2470:221)
+    at progress (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2640:13) @ http://localhost:3000/_next/static/chunks/ddd51_next_dist_c882c940._.js:3127
+[  169195ms] [ERROR] %o
+
+%s Error: ErrorEvent
+    at resolveErrorDev (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:1894:148)
+    at processFullStringRow (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2402:29)
+    at processFullBinaryRow (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2361:9)
+    at processBinaryChunk (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2470:221)
+    at progress (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2640:13) The above error occurred in the <LeadsPage> component. It was handled by the <ErrorBoundaryHandler> error boundary. @ http://localhost:3000/_next/static/chunks/ddd51_next_dist_client_004b7a95._.js:1342
+[  169196ms] [ERROR] Error: ErrorEvent
+    at resolveErrorDev (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:1894:148)
+    at processFullStringRow (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2402:29)
+    at processFullBinaryRow (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2361:9)
+    at processBinaryChunk (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2470:221)
+    at progress (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2640:13) @ http://localhost:3000/_next/static/chunks/ddd51_next_dist_c882c940._.js:3127
+[  169197ms] [ERROR] Error: ErrorEvent
+    at resolveErrorDev (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:1894:148)
+    at processFullStringRow (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2402:29)
+    at processFullBinaryRow (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2361:9)
+    at processBinaryChunk (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2470:221)
+    at progress (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2640:13) @ http://localhost:3000/_next/static/chunks/ddd51_next_dist_c882c940._.js:3127
+[  261422ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3000/leads:0
+[  261456ms] Error: ErrorEvent
+    at resolveErrorDev (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:1894:106)
+    at processFullStringRow (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2402:29)
+    at processFullBinaryRow (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2361:9)
+    at processBinaryChunk (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2470:221)
+    at progress (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2640:13)
+[ 1482132ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3000/api/scraping/image:0

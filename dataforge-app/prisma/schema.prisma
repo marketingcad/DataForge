@@ -106,6 +106,10 @@ model Lead {
   keywordId String?
   keyword   ScrapingKeyword? @relation(fields: [keywordId], references: [id], onDelete: Cascade)
 
+  assignedToId String?
+  assignedTo   User?    @relation("AssignedLeads", fields: [assignedToId], references: [id], onDelete: SetNull)
+  assignedAt   DateTime?
+
   @@index([phone])
   @@index([email])
   @@index([website])
@@ -113,6 +117,7 @@ model Lead {
   @@index([folderId])
   @@index([savedById])
   @@index([keywordId])
+  @@index([assignedToId])
 }
 
 // ── Auth.js (NextAuth v5) required models ──────────────────────────────────
@@ -143,7 +148,10 @@ model User {
   chatRoomMembers  ChatRoomMember[]
   notifications      DbNotification[]
   savedLeads         Lead[]             @relation("LeadSavedBy")
+  assignedLeads      Lead[]             @relation("AssignedLeads")
   scrapingKeywords   ScrapingKeyword[]
+  commissionEarnings CommissionEarning[]
+  createdTasks       MarketingTask[]    @relation("TaskCreatedBy")
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 }
@@ -165,13 +173,16 @@ model CallLog {
 }
 
 model Badge {
-  id          String      @id @default(uuid())
-  key         String      @unique
-  name        String
-  description String
-  icon        String
-  color       String      @default("#6366f1")
-  userBadges  UserBadge[]
+  id            String      @id @default(uuid())
+  key           String      @unique
+  name          String
+  description   String
+  icon          String
+  color         String      @default("#6366f1")
+  imageUrl      String?     // optional uploaded image — overrides emoji icon when set
+  criteriaType  String?     // "call_count" | "task_complete" | "top_rank" | "streak" | "manual"
+  criteriaValue Int?        // threshold (e.g. 100 for "make 100 calls")
+  userBadges    UserBadge[]
 }
 
 model UserBadge {
@@ -195,7 +206,11 @@ model MarketingTask {
   startDate   DateTime
   endDate     DateTime
   createdAt   DateTime       @default(now())
+  createdById String?
+  createdBy   User?          @relation("TaskCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   progress    TaskProgress[]
+
+  @@index([createdById])
 }
 
 model TaskProgress {
@@ -382,6 +397,8 @@ model DbNotification {
 enum ChatRoomType {
   general
   group
+  direct
+  announcement
 }
 
 model ChatRoom {
@@ -493,4 +510,37 @@ model ScrapingKeyword {
 
   @@index([enabled, nextRunAt])
   @@index([createdById])
+}
+
+// ── Marketing commissions ─────────────────────────────────────────────────────
+model CommissionRule {
+  id              String              @id @default(uuid())
+  name            String
+  description     String?
+  type            String              // "per_call" | "per_lead_saved" | "flat_monthly" | "milestone"
+  amount          Float               // dollar amount
+  milestoneTarget Int?                // only for milestone type: number of calls to trigger
+  period          String              // "weekly" | "monthly" | "one_time"
+  active          Boolean             @default(true)
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  earnings        CommissionEarning[]
+}
+
+model CommissionEarning {
+  id           String         @id @default(uuid())
+  userId       String
+  ruleId       String
+  amount       Float
+  period       String         // "2025-04" for monthly, "2025-W14" for weekly
+  calculatedAt DateTime       @default(now())
+  paidOut      Boolean        @default(false)
+  paidAt       DateTime?
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rule         CommissionRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, ruleId, period])
+  @@index([userId])
+  @@index([ruleId])
+  @@index([period])
 }

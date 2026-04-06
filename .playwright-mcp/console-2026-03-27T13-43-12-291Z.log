@@ -1,0 +1,57 @@
+[ 2557411ms] Error: Hydration failed because the server rendered text didn't match the client. As a result this tree will be regenerated on the client. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <Primitive.div dir="ltr" data-orientation="horizontal" className="space-y-4" ref={null}>
+      <div dir="ltr" data-orientation="horizontal" className="space-y-4" ref={null}>
+        <_c>
+        <_c4>
+        <_c4>
+        <_c4>
+        <_c4 value="keywords" forceMount={true} className="space-y-4 ...">
+          <TabsContent ref={null} className="mt-2 ring-..." value="keywords" forceMount={true}>
+            <Presence present={true}>
+              <Primitive.div data-state="inactive" data-orientation="horizontal" role="tabpanel" ...>
+                <div data-state="inactive" data-orientation="horizontal" role="tabpanel" aria-labelledby="radix-_R_3..." ...>
+                  <KeywordsManager initial={[...]}>
+                    <div className="space-y-4">
+                      <div>
+                      <div className="rounded-lg...">
+                        <div>
+                        <div className="p-4 flex i...">
+                          <div>
+                          <div className="flex-1 min...">
+                            <div>
+                            <div className="flex flex-...">
+                              <div className="flex items...">
+                                <span>
+                                <span className="text-xs text-muted-foreground">
++                                 4m ago
+-                                 3m ago
+                            ...
+                          ...
+                        ...
+                      ...
+
+    at throwOnHydrationMismatch (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-dom_f01486bf._.js:3348:56)
+    at prepareToHydrateHostInstance (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-dom_f01486bf._.js:3402:23)
+    at completeWork (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-dom_f01486bf._.js:6934:60)
+    at runWithFiberInDEV (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-dom_f01486bf._.js:965:74)
+    at completeUnitOfWork (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-dom_f01486bf._.js:9627:23)
+    at performUnitOfWork (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-dom_f01486bf._.js:9564:28)
+    at workLoopConcurrentByScheduler (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-dom_f01486bf._.js:9558:58)
+    at renderRootConcurrent (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-dom_f01486bf._.js:9541:71)
+    at performWorkOnRoot (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-dom_f01486bf._.js:9068:150)
+    at performWorkOnRootViaSchedulerTask (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-dom_f01486bf._.js:10230:9)
+    at MessagePort.performWorkUntilDeadline (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_7752109e._.js:2647:64)
+[ 3298657ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3000/api/keywords/efecabc8-9bb1-4ddc-bc97-34b26caf3c14/run:0
+[ 3308483ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3000/api/keywords/efecabc8-9bb1-4ddc-bc97-34b26caf3c14/run:0

@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx create-next-app@latest dataforge-app --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --no-git --yes)",
+      "Bash(npm install:*)",
+      "Bash(npx tsc:*)",
+      "Bash(taskkill /F /PID 12328)",
+      "Bash(npx prisma:*)",
+      "Bash(ls -la \"c:/Users/Dev/Desktop/AI projects/DataForge/dataforge-app/src/app/\\(app\\)/feedback/_components/\")",
+      "Bash(node scripts/get-feedback.mjs)",
+      "mcp__plugin_playwright_playwright__browser_click",
+      "mcp__plugin_playwright_playwright__browser_type",
+      "Bash(curl -s -X POST \"https://services.leadconnectorhq.com/hooks/cgAQMEZGL1qQIq1fJXJ3/webhook-trigger/222fab2b-9747-423d-a293-5135f9feb96b\" -H \"Content-Type: application/json\" -d '{:*)"
+    ]
+  }
+}

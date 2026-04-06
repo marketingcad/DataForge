@@ -1,0 +1,6 @@
+[   18906ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://serper.dev/_next/static/css/468bdf1605851136.css:0
+[   18908ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://serper.dev/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js:0
+[   18908ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://serper.dev/_next/static/chunks/webpack-db56d6d1463ea7e2.js:0
+[   18908ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://serper.dev/_next/static/chunks/framework-4ed89e9640adfb9e.js:0
+[   18908ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://serper.dev/_next/static/chunks/main-3c5bdf579588cd4f.js:0
+[   29419ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516:0

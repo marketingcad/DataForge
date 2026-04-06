@@ -1,0 +1,58 @@
+[   28380ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3000/api/keywords/ebc9947d-09bb-4b3e-ab78-ec9877a47ac8/run:0
+[   96561ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3000/scraping:0
+[   96564ms] Error: ErrorEvent
+    at resolveErrorDev (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:1894:106)
+    at processFullStringRow (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2402:29)
+    at processFullBinaryRow (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2361:9)
+    at processBinaryChunk (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2470:221)
+    at progress (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2640:13)
+[   97409ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3000/scraping:0
+[   97419ms] Error: ErrorEvent
+    at resolveErrorDev (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:1894:106)
+    at processFullStringRow (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2402:29)
+    at processFullBinaryRow (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2361:9)
+    at processBinaryChunk (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2470:221)
+    at progress (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2640:13)
+[   97803ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3000/scraping:0
+[   97804ms] Error: ErrorEvent
+    at resolveErrorDev (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:1894:106)
+    at processFullStringRow (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2402:29)
+    at processFullBinaryRow (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2361:9)
+    at processBinaryChunk (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2470:221)
+    at progress (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2640:13)
+[   98138ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3000/scraping:0
+[   98158ms] Error: ErrorEvent
+    at resolveErrorDev (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:1894:106)
+    at processFullStringRow (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2402:29)
+    at processFullBinaryRow (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2361:9)
+    at processBinaryChunk (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2470:221)
+    at progress (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2640:13)
+[  100514ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3000/scraping:0
+[  100515ms] Error: ErrorEvent
+    at resolveErrorDev (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:1894:106)
+    at processFullStringRow (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2402:29)
+    at processFullBinaryRow (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2361:9)
+    at processBinaryChunk (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2470:221)
+    at progress (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2640:13)
+[  108078ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3000/scraping:0
+[  108081ms] Error: ErrorEvent
+    at resolveErrorDev (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:1894:106)
+    at processFullStringRow (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2402:29)
+    at processFullBinaryRow (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2361:9)
+    at processBinaryChunk (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2470:221)
+    at progress (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2640:13)
+[  116163ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3000/scraping:0
+[  116164ms] Error: ErrorEvent
+    at resolveErrorDev (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:1894:106)
+    at processFullStringRow (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2402:29)
+    at processFullBinaryRow (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2361:9)
+    at processBinaryChunk (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2470:221)
+    at progress (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2640:13)
+[  123831ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3000/scraping:0
+[  123832ms] Error: ErrorEvent
+    at resolveErrorDev (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:1894:106)
+    at processFullStringRow (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2402:29)
+    at processFullBinaryRow (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2361:9)
+    at processBinaryChunk (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2470:221)
+    at progress (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2640:13)
+[  212513ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3000/api/keywords/ebc9947d-09bb-4b3e-ab78-ec9877a47ac8/run:0

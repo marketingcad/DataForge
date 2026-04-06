@@ -1,0 +1,8 @@
+[   32762ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3000/sign-in?callbackUrl=http%3A%2F%2Flocalhost%3A3000%2Fscraping:0
+[   32767ms] CredentialsSignin: Read more at https://errors.authjs.dev#credentialssignin
+    at  loginAction (about://React/Server/C:%5CUsers%5CDev%5CDesktop%5CAI%20projects%5CDataForge%5Cdataforge-app%5C.next%5Cdev%5Cserver%5Cchunks%5Cssr%5C%5Broot-of-the-server%5D__159e48fc._.js?10:582:9)
+    at resolveErrorDev (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:1894:106)
+    at processFullStringRow (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2402:29)
+    at processFullBinaryRow (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2361:9)
+    at processBinaryChunk (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2470:221)
+    at progress (http://localhost:3000/_next/static/chunks/ddd51_next_dist_compiled_react-server-dom-turbopack_b56a6fc6._.js:2640:13)

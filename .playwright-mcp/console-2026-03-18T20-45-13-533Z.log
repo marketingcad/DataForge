@@ -1,0 +1,13 @@
+[     201ms] Error: Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings.
+    at rX (https://zenith-dashboard.pages.dev/_next/static/chunks/4bd1b696-10cb4c9d2844a506.js:1:36659)
+    at rZ (https://zenith-dashboard.pages.dev/_next/static/chunks/4bd1b696-10cb4c9d2844a506.js:1:37692)
+    at https://zenith-dashboard.pages.dev/_next/static/chunks/4bd1b696-10cb4c9d2844a506.js:1:131592
+    at sg (https://zenith-dashboard.pages.dev/_next/static/chunks/4bd1b696-10cb4c9d2844a506.js:1:136754)
+    at sp (https://zenith-dashboard.pages.dev/_next/static/chunks/4bd1b696-10cb4c9d2844a506.js:1:128092)
+    at https://zenith-dashboard.pages.dev/_next/static/chunks/4bd1b696-10cb4c9d2844a506.js:1:122921
+    at sn (https://zenith-dashboard.pages.dev/_next/static/chunks/4bd1b696-10cb4c9d2844a506.js:1:123022)
+    at sQ (https://zenith-dashboard.pages.dev/_next/static/chunks/4bd1b696-10cb4c9d2844a506.js:1:149410)
+    at MessagePort.M (https://zenith-dashboard.pages.dev/_next/static/chunks/3794-40f1de0c9e9a728a.js:1:41293)
+[    4501ms] [WARNING] The resource https://zenith-dashboard.pages.dev/_next/static/media/93f479601ee12b01-s.p.woff2 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ https://zenith-dashboard.pages.dev/files:0
+[    4501ms] [WARNING] The resource https://zenith-dashboard.pages.dev/_next/static/media/569ce4b8f30dc480-s.p.woff2 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ https://zenith-dashboard.pages.dev/files:0
+[    4501ms] [WARNING] The resource https://zenith-dashboard.pages.dev/_next/static/css/bdc8353fadd67def.css was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ https://zenith-dashboard.pages.dev/files:0
