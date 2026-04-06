@@ -7,8 +7,6 @@ import { IndustryBarChart } from "@/components/dashboard/IndustryBarChart";
 import { QualityDonutChart } from "@/components/dashboard/QualityDonutChart";
 import Link from "next/link";
 import {
-  Phone,
-  FileText,
   Flag,
   Award,
   DollarSign,
@@ -21,21 +19,6 @@ import {
   TrendingUp,
 } from "lucide-react";
 import type { Role } from "@/lib/rbac/roles";
-
-function timeAgo(date: Date): string {
-  const secs = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
-  if (secs < 60) return `${secs}s ago`;
-  if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
-  if (secs < 86400) return `${Math.floor(secs / 3600)}h ago`;
-  return `${Math.floor(secs / 86400)}d ago`;
-}
-
-function fmtSecs(s: number): string {
-  if (s === 0) return "0s";
-  const m = Math.floor(s / 60);
-  const sec = s % 60;
-  return m > 0 ? `${m}m ${sec}s` : `${sec}s`;
-}
 
 export async function BossDashboard() {
   const [stats, users, team, leaderboard, widgets] = await withDbRetry(() =>
@@ -68,37 +51,6 @@ export async function BossDashboard() {
   ];
 
   const top3 = leaderboard.slice(0, 3);
-
-  type ActivityItem = {
-    key: string;
-    ts: Date;
-    type: "call" | "lead";
-    label: string;
-    sub: string;
-    badge?: string;
-  };
-
-  const callItems: ActivityItem[] = widgets.recentCalls.map((c) => ({
-    key: `call-${c.id}`,
-    ts: new Date(c.calledAt),
-    type: "call",
-    label: c.agent.name ?? c.agent.email,
-    sub: c.contactName ?? "Unknown contact",
-    badge: fmtSecs(c.durationSecs),
-  }));
-
-  const leadItems: ActivityItem[] = stats.recentLeads.slice(0, 5).map((l) => ({
-    key: `lead-${l.id}`,
-    ts: new Date(l.dateCollected),
-    type: "lead",
-    label: l.businessName ?? "Unnamed",
-    sub: l.category ?? "No category",
-    badge: `${l.dataQualityScore ?? 0}%`,
-  }));
-
-  const feed = [...callItems, ...leadItems]
-    .sort((a, b) => b.ts.getTime() - a.ts.getTime())
-    .slice(0, 8);
 
   return (
     <div className="space-y-3">
@@ -193,50 +145,8 @@ export async function BossDashboard() {
         </div>
       </div>
 
-      {/* ── MIDDLE ROW: Activity + Challenges ── */}
-      <div className="grid grid-cols-3 gap-3">
-
-        {/* Recent Activity */}
-        <div className="col-span-2 rounded-2xl bg-card border border-border">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-border/60">
-            <div>
-              <p className="font-semibold text-sm">Recent Activity</p>
-              <p className="text-xs text-muted-foreground">Latest calls &amp; leads</p>
-            </div>
-            <span className="inline-flex items-center rounded-full border border-border/60 px-2.5 py-0.5 text-xs font-semibold">
-              {feed.length} events
-            </span>
-          </div>
-          <div className="divide-y divide-border/40">
-            {feed.length === 0 && (
-              <p className="px-5 py-8 text-sm text-muted-foreground text-center">
-                No recent activity yet.
-              </p>
-            )}
-            {feed.map((item) => {
-              const Icon = item.type === "call" ? Phone : FileText;
-              return (
-                <div key={item.key} className="flex items-center gap-3 px-5 py-3">
-                  <div className="h-7 w-7 rounded-lg bg-muted flex items-center justify-center shrink-0">
-                    <Icon className="h-3.5 w-3.5" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{item.label}</p>
-                    <p className="text-xs text-muted-foreground truncate">{item.sub}</p>
-                  </div>
-                  <div className="flex flex-col items-end gap-1 shrink-0">
-                    {item.badge && (
-                      <span className="text-[11px] font-semibold rounded-full bg-muted px-2 py-0.5">
-                        {item.badge}
-                      </span>
-                    )}
-                    <span className="text-[11px] text-muted-foreground">{timeAgo(item.ts)}</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+      {/* ── MIDDLE ROW: Challenges + Top Agents ── */}
+      <div className="grid grid-cols-2 gap-3">
 
         {/* Active Challenges */}
         <div className="rounded-2xl bg-card border border-border">
@@ -302,10 +212,6 @@ export async function BossDashboard() {
             })}
           </div>
         </div>
-      </div>
-
-      {/* ── BOTTOM ROW: Top Agents + Charts + Quick Actions ── */}
-      <div className="grid grid-cols-4 gap-3">
 
         {/* Top Agents */}
         <div className="rounded-2xl bg-card border border-border">
@@ -350,9 +256,13 @@ export async function BossDashboard() {
             })}
           </div>
         </div>
+      </div>
+
+      {/* ── BOTTOM ROW: Charts + Quick Actions ── */}
+      <div className="grid grid-cols-3 gap-3">
 
         {/* Leads by Industry */}
-        <div className="rounded-2xl bg-card border border-border p-5">
+        <div className="rounded-2xl bg-card border border-border p-5 overflow-auto">
           <p className="font-semibold text-sm mb-0.5">By Industry</p>
           <p className="text-xs text-muted-foreground mb-3">Top 10 categories</p>
           <IndustryBarChart data={stats.leadsByIndustry} />

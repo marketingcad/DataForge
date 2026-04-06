@@ -8,26 +8,48 @@ interface IndustryBarChartProps {
   data: { industry: string; count: number }[];
 }
 
+function truncate(str: string, max = 18): string {
+  return str.length > max ? str.slice(0, max - 1) + "…" : str;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function CustomTick({ x, y, payload }: any) {
+  return (
+    <text
+      x={x}
+      y={y}
+      dy={4}
+      textAnchor="end"
+      fill="hsl(var(--muted-foreground))"
+      fontSize={11}
+    >
+      {truncate(payload.value)}
+    </text>
+  );
+}
+
 export function IndustryBarChart({ data }: IndustryBarChartProps) {
   if (data.length === 0) {
     return (
       <div className="h-52 flex flex-col items-center justify-center gap-2 text-muted-foreground">
-        <span className="text-2xl">📊</span>
         <p className="text-xs">No data yet — start scraping</p>
       </div>
     );
   }
+
+  const chartHeight = Math.max(220, data.length * 30);
+
   return (
-    <ResponsiveContainer width="100%" height={220}>
-      <BarChart data={data} layout="vertical" margin={{ left: 8, right: 16, top: 4, bottom: 4 }}>
+    <ResponsiveContainer width="100%" height={chartHeight}>
+      <BarChart data={data} layout="vertical" margin={{ left: 0, right: 16, top: 4, bottom: 4 }}>
         <XAxis
           type="number" fontSize={11} tickLine={false} axisLine={false}
           tick={{ fill: "hsl(var(--muted-foreground))" }}
         />
         <YAxis
-          type="category" dataKey="industry" width={110} fontSize={11}
+          type="category" dataKey="industry" width={130}
           tickLine={false} axisLine={false}
-          tick={{ fill: "hsl(var(--muted-foreground))" }}
+          tick={<CustomTick />}
         />
         <Tooltip
           contentStyle={{
