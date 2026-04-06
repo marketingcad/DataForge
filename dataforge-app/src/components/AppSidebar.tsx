@@ -197,7 +197,7 @@ function CollapsibleNavItem({ item, pathname }: { item: NavItem; pathname: strin
         <SidebarMenuSub>
           {item.sub!.map((s) => (
             <SidebarMenuSubItem key={s.href}>
-              <SidebarMenuSubButton asChild isActive={isActive(pathname, s.href)}>
+              <SidebarMenuSubButton isActive={isActive(pathname, s.href)}>
                 <Link href={s.href}>{s.label}</Link>
               </SidebarMenuSubButton>
             </SidebarMenuSubItem>
@@ -207,7 +207,7 @@ function CollapsibleNavItem({ item, pathname }: { item: NavItem; pathname: strin
     </SidebarMenuItem>
   );
 }
-
+ 
 /* ── main sidebar ─────────────────────────────────────────────────── */
 
 export function AppSidebar({ role }: { role: Role }) {
@@ -220,7 +220,7 @@ export function AppSidebar({ role }: { role: Role }) {
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" asChild>
+            <SidebarMenuButton size="lg">
               <Link href="/dashboard">
                 <div className="flex h-7 w-7 items-center justify-center rounded-md bg-blue-600 shrink-0">
                   <Database className="h-4 w-4 text-white" />
@@ -251,7 +251,6 @@ export function AppSidebar({ role }: { role: Role }) {
                   ) : (
                     <SidebarMenuItem key={item.href}>
                       <SidebarMenuButton
-                        asChild
                         tooltip={item.label}
                         isActive={isActive(pathname, item.href!)}
                       >
