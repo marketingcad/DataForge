@@ -20,66 +20,49 @@ import {
   TrendingUp,
 } from "lucide-react";
 import type { Role } from "@/lib/rbac/roles";
-import type { TopPerformer } from "@/lib/marketing/team.service";
+// TopPerformer type used via the Badge local type below
 
 function initials(name: string) {
   return name.split(" ").map((p) => p[0]).join("").toUpperCase().slice(0, 2);
 }
 
-function PerformerRow({ label, data }: { label: string; data: TopPerformer }) {
-  return (
-    <div className="px-4 py-3 space-y-2">
-      <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">{label}</p>
-      {data ? (
-        <div className="flex items-center gap-2.5">
-          {/* Avatar */}
-          <div className="relative shrink-0">
-            {data.image ? (
-              <Image
-                src={data.image}
-                alt={data.name}
-                width={36}
-                height={36}
-                className="rounded-full object-cover ring-2 ring-border"
-              />
-            ) : (
-              <div className="h-9 w-9 rounded-full bg-foreground text-background flex items-center justify-center text-[11px] font-black ring-2 ring-border">
-                {initials(data.name)}
-              </div>
-            )}
-          </div>
+function Avatar({
+  image, name, size,
+}: { image: string | null; name: string; size: number }) {
+  const sz = `h-${size} w-${size}`;
+  const fs = size >= 16 ? "text-lg" : size >= 10 ? "text-sm" : "text-[10px]";
+  return image ? (
+    <Image
+      src={image} alt={name}
+      width={size * 4} height={size * 4}
+      className={`${sz} rounded-full object-cover ring-2 ring-background/30 shrink-0`}
+    />
+  ) : (
+    <div className={`${sz} rounded-full bg-background/10 flex items-center justify-center ${fs} font-black shrink-0`}>
+      {initials(name)}
+    </div>
+  );
+}
 
-          {/* Name + badges */}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between gap-1">
-              <p className="text-xs font-bold truncate">{data.name}</p>
-              <span className="text-[11px] font-bold tabular-nums shrink-0 bg-foreground text-background rounded-full px-1.5 py-0.5 leading-none">
-                {data.count}
-              </span>
-            </div>
-            {data.badges.length > 0 && (
-              <div className="flex items-center gap-1 mt-1 flex-wrap">
-                {data.badges.map((b) => (
-                  <span
-                    key={b.id}
-                    title={b.name}
-                    className="inline-flex items-center justify-center h-5 w-5 rounded-full text-[11px] leading-none"
-                    style={{ background: `${b.color}22`, border: `1px solid ${b.color}66` }}
-                  >
-                    {b.imageUrl ? (
-                      <Image src={b.imageUrl} alt={b.name} width={14} height={14} className="rounded-full object-cover" />
-                    ) : (
-                      b.icon
-                    )}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      ) : (
-        <p className="text-[11px] text-muted-foreground italic">No data yet</p>
-      )}
+type Badge = { id: string; name: string; icon: string; color: string; imageUrl: string | null };
+
+function BadgeChips({ badges, chipSize }: { badges: Badge[]; chipSize: "sm" | "md" }) {
+  if (!badges || badges.length === 0) return null;
+  const dim = chipSize === "md" ? "h-6 w-6 text-sm" : "h-4 w-4 text-[9px]";
+  const imgDim = chipSize === "md" ? 14 : 10;
+  return (
+    <div className="flex flex-wrap gap-1 justify-center mt-1.5">
+      {badges.map((b) => (
+        <span
+          key={b.id} title={b.name}
+          className={`inline-flex items-center justify-center rounded-full ${dim}`}
+          style={{ background: `${b.color}33`, border: `1px solid ${b.color}66` }}
+        >
+          {b.imageUrl ? (
+            <Image src={b.imageUrl} alt={b.name} width={imgDim} height={imgDim} className="rounded-full object-cover" />
+          ) : b.icon}
+        </span>
+      ))}
     </div>
   );
 }
@@ -125,37 +108,77 @@ export async function BossDashboard() {
         <p className="text-sm text-muted-foreground">Organisation-wide snapshot</p>
       </div>
 
+      {/* ── TOP STATS STRIP ── */}
+      <div className="grid grid-cols-4 gap-2.5">
+        {[
+          { label: "Total Leads",       value: stats.totalLeads.toLocaleString(),          Icon: Layers       },
+          { label: "Leads This Week",   value: stats.leadsThisWeek.toLocaleString(),        Icon: TrendingUp   },
+          { label: "Scraping Jobs Run", value: stats.totalJobsRun.toLocaleString(),         Icon: ScanSearch   },
+          { label: "Duplicates Caught", value: stats.duplicatesPrevented.toLocaleString(),  Icon: CheckCircle2 },
+        ].map((k) => (
+          <div key={k.label} className="rounded-xl border border-border px-4 py-3 flex items-center gap-3">
+            <div className="h-8 w-8 rounded-lg bg-muted flex items-center justify-center shrink-0">
+              <k.Icon className="h-3.5 w-3.5" />
+            </div>
+            <div>
+              <p className="text-xl font-black tabular-nums leading-none">{k.value}</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">{k.label}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
       {/* ── BENTO HERO ── */}
       <div
         className="grid grid-cols-5 gap-2.5"
-        style={{ gridTemplateRows: "minmax(100px,auto) minmax(100px,auto)" }}
+        style={{ gridTemplateRows: "minmax(120px,auto) minmax(120px,auto)" }}
       >
-        {/* Team Pulse — dark anchor, spans 2 cols × 2 rows */}
-        <div className="col-span-2 row-span-2 rounded-xl bg-foreground text-background p-5 flex flex-col justify-between">
-          <div>
-            <p className="text-[9px] font-bold uppercase tracking-widest opacity-50 mb-1.5">
-              Team Pulse
-            </p>
-            <div className="flex items-end gap-1.5">
-              <span className="text-5xl font-black tabular-nums leading-none">
-                {pulseScore}
-              </span>
-              <span className="text-lg font-semibold opacity-40 mb-0.5">/10</span>
-            </div>
-            <p className="text-[11px] opacity-40 mt-1">quality + call activity index</p>
+        {/* TOP PERFORMERS — col-span-2, row-span-2, dark anchor */}
+        <div className="col-span-2 row-span-2 rounded-xl bg-foreground text-background flex flex-col overflow-hidden">
+          {/* Header */}
+          <div className="px-5 py-3 border-b border-background/10">
+            <p className="text-[9px] font-bold uppercase tracking-widest opacity-40">Top Performers</p>
+            <p className="text-xs font-semibold opacity-20">Sales reps · by calls</p>
           </div>
 
-          <div className="grid grid-cols-3 gap-1.5">
-            {metricTiles.map((tile) => (
-              <div key={tile.label} className="rounded-lg bg-background/[0.08] px-2.5 py-2">
-                <p className="text-[9px] font-bold uppercase tracking-wider opacity-50 leading-none">
-                  {tile.label}
-                </p>
-                <p className="text-base font-black tabular-nums leading-tight mt-1">
-                  {typeof tile.value === "number"
-                    ? tile.value.toLocaleString()
-                    : tile.value}
-                </p>
+          {/* All-Time — hero section */}
+          <div className="flex flex-col items-center justify-center px-5 py-4 border-b border-background/10 flex-1">
+            <p className="text-[9px] font-bold uppercase tracking-widest opacity-40 mb-3">All-Time</p>
+            {topPerformers.allTime ? (
+              <>
+                <Avatar image={topPerformers.allTime.image} name={topPerformers.allTime.name} size={16} />
+                <p className="text-sm font-bold mt-2 text-center">{topPerformers.allTime.name}</p>
+                <span className="text-xs font-black bg-background/20 rounded-full px-2.5 py-0.5 mt-1.5">
+                  {topPerformers.allTime.count} calls
+                </span>
+                <BadgeChips badges={topPerformers.allTime.badges} chipSize="md" />
+              </>
+            ) : (
+              <p className="text-xs opacity-30 italic">No data yet</p>
+            )}
+          </div>
+
+          {/* Today / Week / Month — 3 columns */}
+          <div className="grid grid-cols-3 divide-x divide-background/10">
+            {([
+              { label: "Today", data: topPerformers.today  },
+              { label: "Week",  data: topPerformers.week   },
+              { label: "Month", data: topPerformers.month  },
+            ] as const).map(({ label, data }) => (
+              <div key={label} className="flex flex-col items-center px-2 py-3">
+                <p className="text-[9px] font-bold uppercase tracking-widest opacity-40 mb-2">{label}</p>
+                {data ? (
+                  <>
+                    <Avatar image={data.image} name={data.name} size={8} />
+                    <p className="text-[10px] font-semibold mt-1.5 text-center leading-tight line-clamp-2 w-full px-1">
+                      {data.name}
+                    </p>
+                    <span className="text-[9px] font-bold opacity-50 mt-0.5">{data.count}</span>
+                    <BadgeChips badges={data.badges} chipSize="sm" />
+                  </>
+                ) : (
+                  <p className="text-[10px] opacity-30 mt-1">—</p>
+                )}
               </div>
             ))}
           </div>
@@ -163,9 +186,7 @@ export async function BossDashboard() {
 
         {/* Calls Today */}
         <div className="rounded-xl bg-card border border-border p-4 flex flex-col justify-between">
-          <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">
-            Calls Today
-          </p>
+          <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Calls Today</p>
           <div>
             <p className="text-3xl font-black tabular-nums leading-none">{team.callsToday}</p>
             <p className="text-[11px] text-muted-foreground mt-0.5">logged so far</p>
@@ -174,51 +195,49 @@ export async function BossDashboard() {
 
         {/* Active Leads */}
         <div className="rounded-xl bg-card border border-border p-4 flex flex-col justify-between">
-          <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">
-            Active Leads
-          </p>
+          <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Active Leads</p>
           <div>
-            <p className="text-3xl font-black tabular-nums leading-none">
-              {stats.activeLeads.toLocaleString()}
-            </p>
+            <p className="text-3xl font-black tabular-nums leading-none">{stats.activeLeads.toLocaleString()}</p>
             <p className="text-[11px] text-muted-foreground mt-0.5">in the pipeline</p>
           </div>
         </div>
 
-        {/* Top Performers — spans col 5, rows 1–2 */}
-        <div className="row-span-2 rounded-xl bg-card border border-border flex flex-col overflow-hidden">
-          <div className="px-4 py-3 border-b border-border/60 bg-foreground text-background">
-            <p className="font-bold text-sm">Top Performers</p>
-            <p className="text-[10px] opacity-50">Sales reps · by calls</p>
+        {/* TEAM PULSE — col 5, row-span-2 */}
+        <div className="row-span-2 rounded-xl bg-card border border-border p-4 flex flex-col justify-between">
+          <div>
+            <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest mb-1.5">Team Pulse</p>
+            <div className="flex items-end gap-1">
+              <span className="text-4xl font-black tabular-nums leading-none">{pulseScore}</span>
+              <span className="text-base font-semibold text-muted-foreground mb-0.5">/10</span>
+            </div>
+            <p className="text-[10px] text-muted-foreground mt-1">quality + call activity</p>
           </div>
-          <div className="flex-1 divide-y divide-border/40">
-            <PerformerRow label="Today"     data={topPerformers.today}   />
-            <PerformerRow label="This Week"  data={topPerformers.week}   />
-            <PerformerRow label="This Month" data={topPerformers.month}  />
-            <PerformerRow label="All-Time"   data={topPerformers.allTime} />
+          <div className="grid grid-cols-2 gap-1.5">
+            {metricTiles.map((tile) => (
+              <div key={tile.label} className="rounded-lg bg-muted/40 px-2 py-2">
+                <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground leading-none">{tile.label}</p>
+                <p className="text-sm font-black tabular-nums leading-tight mt-1">
+                  {typeof tile.value === "number" ? tile.value.toLocaleString() : tile.value}
+                </p>
+              </div>
+            ))}
           </div>
         </div>
 
         {/* Team Size */}
         <div className="rounded-xl bg-card border border-border p-4 flex flex-col justify-between">
-          <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">
-            Team Size
-          </p>
+          <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Team Size</p>
           <div>
             <p className="text-3xl font-black tabular-nums leading-none">{users.length}</p>
             <p className="text-[11px] text-muted-foreground mt-0.5">total users</p>
           </div>
         </div>
 
-        {/* Avg Quality — violet accent */}
+        {/* Avg Quality */}
         <div className="rounded-xl bg-violet-600 text-white p-4 flex flex-col justify-between">
-          <p className="text-[9px] font-bold uppercase tracking-widest opacity-70">
-            Avg Quality
-          </p>
+          <p className="text-[9px] font-bold uppercase tracking-widest opacity-70">Avg Quality</p>
           <div>
-            <p className="text-3xl font-black tabular-nums leading-none">
-              {stats.avgQualityScore}%
-            </p>
+            <p className="text-3xl font-black tabular-nums leading-none">{stats.avgQualityScore}%</p>
             <p className="text-[11px] opacity-60 mt-0.5">data completeness</p>
           </div>
         </div>
@@ -361,28 +380,6 @@ export async function BossDashboard() {
         </div>
       </div>
 
-      {/* ── FOOTER STATS ── */}
-      <div className="grid grid-cols-4 gap-2.5">
-        {[
-          { label: "Total Leads",       value: stats.totalLeads.toLocaleString(),          Icon: Layers       },
-          { label: "Leads This Week",   value: stats.leadsThisWeek.toLocaleString(),        Icon: TrendingUp   },
-          { label: "Scraping Jobs Run", value: stats.totalJobsRun.toLocaleString(),         Icon: ScanSearch   },
-          { label: "Duplicates Caught", value: stats.duplicatesPrevented.toLocaleString(),  Icon: CheckCircle2 },
-        ].map((k) => (
-          <div
-            key={k.label}
-            className="rounded-xl border border-border px-4 py-3 flex items-center gap-3"
-          >
-            <div className="h-8 w-8 rounded-lg bg-muted flex items-center justify-center shrink-0">
-              <k.Icon className="h-3.5 w-3.5" />
-            </div>
-            <div>
-              <p className="text-xl font-black tabular-nums leading-none">{k.value}</p>
-              <p className="text-[11px] text-muted-foreground mt-0.5">{k.label}</p>
-            </div>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }

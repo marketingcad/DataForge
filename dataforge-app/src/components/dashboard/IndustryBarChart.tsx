@@ -49,6 +49,7 @@ export function IndustryBarChart({ data }: IndustryBarChartProps) {
         <YAxis
           type="category" dataKey="industry" width={130}
           tickLine={false} axisLine={false}
+          interval={0}
           tick={<CustomTick />}
         />
         <Tooltip
