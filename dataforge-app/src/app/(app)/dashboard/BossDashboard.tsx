@@ -137,13 +137,13 @@ export async function BossDashboard() {
         <div className="col-span-2 row-span-2 rounded-xl bg-foreground text-background flex flex-col overflow-hidden">
           {/* Header */}
           <div className="px-5 py-3 border-b border-background/10">
-            <p className="text-[9px] font-bold uppercase tracking-widest opacity-40">Top Performers</p>
+            <p className="text-xs font-bold uppercase tracking-widest opacity-40">Top Performers</p>
             <p className="text-xs font-semibold opacity-20">Sales reps · by calls</p>
           </div>
 
           {/* All-Time — hero section */}
           <div className="flex flex-col items-center justify-center px-5 py-4 border-b border-background/10 flex-1">
-            <p className="text-[9px] font-bold uppercase tracking-widest opacity-40 mb-3">All-Time</p>
+            <p className="text-xs font-bold uppercase tracking-widest opacity-40 mb-3">All-Time</p>
             {topPerformers.allTime ? (
               <>
                 <Avatar image={topPerformers.allTime.image} name={topPerformers.allTime.name} size={16} />
@@ -166,7 +166,7 @@ export async function BossDashboard() {
               { label: "Month", data: topPerformers.month  },
             ] as const).map(({ label, data }) => (
               <div key={label} className="flex flex-col items-center px-2 py-3">
-                <p className="text-[9px] font-bold uppercase tracking-widest opacity-40 mb-2">{label}</p>
+                <p className="text-xs font-bold uppercase tracking-widest opacity-40 mb-2">{label}</p>
                 {data ? (
                   <>
                     <Avatar image={data.image} name={data.name} size={8} />
@@ -186,7 +186,7 @@ export async function BossDashboard() {
 
         {/* Calls Today */}
         <div className="rounded-xl bg-card border border-border p-4 flex flex-col justify-between">
-          <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Calls Today</p>
+          <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Calls Today</p>
           <div>
             <p className="text-3xl font-black tabular-nums leading-none">{team.callsToday}</p>
             <p className="text-[11px] text-muted-foreground mt-0.5">logged so far</p>
@@ -195,7 +195,7 @@ export async function BossDashboard() {
 
         {/* Active Leads */}
         <div className="rounded-xl bg-card border border-border p-4 flex flex-col justify-between">
-          <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Active Leads</p>
+          <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Active Leads</p>
           <div>
             <p className="text-3xl font-black tabular-nums leading-none">{stats.activeLeads.toLocaleString()}</p>
             <p className="text-[11px] text-muted-foreground mt-0.5">in the pipeline</p>
@@ -205,7 +205,7 @@ export async function BossDashboard() {
         {/* TEAM PULSE — col 5, row-span-2 */}
         <div className="row-span-2 rounded-xl bg-card border border-border p-4 flex flex-col justify-between">
           <div>
-            <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest mb-1.5">Team Pulse</p>
+            <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1.5">Team Pulse</p>
             <div className="flex items-end gap-1">
               <span className="text-4xl font-black tabular-nums leading-none">{pulseScore}</span>
               <span className="text-base font-semibold text-muted-foreground mb-0.5">/10</span>
@@ -215,7 +215,7 @@ export async function BossDashboard() {
           <div className="grid grid-cols-2 gap-1.5">
             {metricTiles.map((tile) => (
               <div key={tile.label} className="rounded-lg bg-muted/40 px-2 py-2">
-                <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground leading-none">{tile.label}</p>
+                <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground leading-none">{tile.label}</p>
                 <p className="text-sm font-black tabular-nums leading-tight mt-1">
                   {typeof tile.value === "number" ? tile.value.toLocaleString() : tile.value}
                 </p>
@@ -226,7 +226,7 @@ export async function BossDashboard() {
 
         {/* Team Size */}
         <div className="rounded-xl bg-card border border-border p-4 flex flex-col justify-between">
-          <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Team Size</p>
+          <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Team Size</p>
           <div>
             <p className="text-3xl font-black tabular-nums leading-none">{users.length}</p>
             <p className="text-[11px] text-muted-foreground mt-0.5">total users</p>
@@ -235,7 +235,7 @@ export async function BossDashboard() {
 
         {/* Avg Quality */}
         <div className="rounded-xl bg-violet-600 text-white p-4 flex flex-col justify-between">
-          <p className="text-[9px] font-bold uppercase tracking-widest opacity-70">Avg Quality</p>
+          <p className="text-xs font-bold uppercase tracking-widest opacity-70">Avg Quality</p>
           <div>
             <p className="text-3xl font-black tabular-nums leading-none">{stats.avgQualityScore}%</p>
             <p className="text-[11px] opacity-60 mt-0.5">data completeness</p>
