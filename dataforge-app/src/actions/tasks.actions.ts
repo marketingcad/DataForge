@@ -1,6 +1,6 @@
 "use server";
 
-import { requireRole } from "@/lib/rbac/requireRole";
+import { requireRole } from "@/lib/rbac/guards";
 import { createTask, updateTask, deleteTask } from "@/lib/marketing/tasks.service";
 import { revalidatePath } from "next/cache";
 

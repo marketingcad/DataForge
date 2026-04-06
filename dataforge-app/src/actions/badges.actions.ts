@@ -1,6 +1,6 @@
 "use server";
 
-import { requireRole } from "@/lib/rbac/requireRole";
+import { requireRole } from "@/lib/rbac/guards";
 import { createBadge, updateBadge, deleteBadge } from "@/lib/marketing/badges.service";
 import { revalidatePath } from "next/cache";
 
