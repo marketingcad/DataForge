@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { Database, ChevronRight } from "lucide-react";
 import {
@@ -36,14 +36,14 @@ type Section = { title?: string; items: NavItem[] };
 
 function buildSections(role: Role): Section[] {
   const marketingSub: SubItem[] = [
-    { label: "Yesterday",  href: "/marketing?period=yesterday" },
-    { label: "This Week",  href: "/marketing?period=week"      },
-    { label: "This Month", href: "/marketing?period=month"     },
+    { label: "Yesterday", href: "/marketing?period=yesterday" },
+    { label: "This Week", href: "/marketing?period=week" },
+    { label: "This Month", href: "/marketing?period=month" },
   ];
 
   const achievementsSub: SubItem[] = [
-    { label: "Badges",      href: "/marketing/manage/badges"      },
-    { label: "Challenges",  href: "/marketing/manage/tasks"       },
+    { label: "Badges", href: "/marketing/manage/badges" },
+    { label: "Challenges", href: "/marketing/manage/tasks" },
     { label: "Commissions", href: "/marketing/manage/commissions" },
   ];
 
@@ -52,14 +52,12 @@ function buildSections(role: Role): Section[] {
     case "admin":
       return [
         {
-          items: [
-            { label: "Dashboard", href: "/dashboard", emoji: "🏠" },
-          ],
+          items: [{ label: "Dashboard", href: "/dashboard", emoji: "🏠" }],
         },
         {
           title: "Leads",
           items: [
-            { label: "Leads",    href: "/leads",    emoji: "👥" },
+            { label: "Leads", href: "/leads", emoji: "👥" },
             { label: "Scraping", href: "/scraping", emoji: "🔍" },
           ],
         },
@@ -82,9 +80,9 @@ function buildSections(role: Role): Section[] {
         {
           title: "Workspace",
           items: [
-            { label: "Kanban",   href: "/kanban",   emoji: "📋" },
+            { label: "Kanban", href: "/kanban", emoji: "📋" },
             { label: "Calendar", href: "/calendar", emoji: "📅" },
-            { label: "Reports",  href: "/reports",  emoji: "📊" },
+            { label: "Reports", href: "/reports", emoji: "📊" },
           ],
         },
         {
@@ -101,9 +99,7 @@ function buildSections(role: Role): Section[] {
     case "sales_rep":
       return [
         {
-          items: [
-            { label: "Dashboard", href: "/dashboard", emoji: "🏠" },
-          ],
+          items: [{ label: "Dashboard", href: "/dashboard", emoji: "🏠" }],
         },
         {
           title: "Marketing",
@@ -114,16 +110,16 @@ function buildSections(role: Role): Section[] {
               emoji: "📣",
               sub: marketingSub,
             },
-            { label: "My Leads",   href: "/marketing/my-leads",  emoji: "📋" },
-            { label: "My Profile", href: "/marketing/profile",   emoji: "👤" },
+            { label: "My Leads", href: "/marketing/my-leads", emoji: "📋" },
+            { label: "My Profile", href: "/marketing/profile", emoji: "👤" },
           ],
         },
         {
           title: "Workspace",
           items: [
-            { label: "Kanban",   href: "/kanban",   emoji: "📌" },
+            { label: "Kanban", href: "/kanban", emoji: "📌" },
             { label: "Calendar", href: "/calendar", emoji: "📅" },
-            { label: "Reports",  href: "/reports",  emoji: "📊" },
+            { label: "Reports", href: "/reports", emoji: "📊" },
           ],
         },
       ];
@@ -133,23 +129,21 @@ function buildSections(role: Role): Section[] {
     default:
       return [
         {
-          items: [
-            { label: "Dashboard", href: "/dashboard", emoji: "🏠" },
-          ],
+          items: [{ label: "Dashboard", href: "/dashboard", emoji: "🏠" }],
         },
         {
           title: "Leads",
           items: [
-            { label: "Leads",    href: "/leads",    emoji: "👥" },
+            { label: "Leads", href: "/leads", emoji: "👥" },
             { label: "Scraping", href: "/scraping", emoji: "🔍" },
           ],
         },
         {
           title: "Workspace",
           items: [
-            { label: "Kanban",   href: "/kanban",   emoji: "📌" },
+            { label: "Kanban", href: "/kanban", emoji: "📌" },
             { label: "Calendar", href: "/calendar", emoji: "📅" },
-            { label: "Reports",  href: "/reports",  emoji: "📊" },
+            { label: "Reports", href: "/reports", emoji: "📊" },
           ],
         },
       ];
@@ -169,18 +163,22 @@ function anySubActive(pathname: string, sub: SubItem[]) {
 
 /* ── collapsible nav item ─────────────────────────────────────────── */
 
-function CollapsibleNavItem({ item, pathname }: { item: NavItem; pathname: string }) {
+function CollapsibleNavItem({
+  item,
+  pathname,
+}: {
+  item: NavItem;
+  pathname: string;
+}) {
   const subActive = item.sub ? anySubActive(pathname, item.sub) : false;
   const [open, setOpen] = useState(subActive);
 
   return (
     <SidebarMenuItem>
-      {/* Parent row — click to toggle sub-menu */}
       <SidebarMenuButton
         tooltip={item.label}
         isActive={subActive}
         onClick={() => setOpen((o) => !o)}
-        // If item has its own href, navigate on click too — handled via link inside
       >
         <span>{item.emoji}</span>
         <span>{item.label}</span>
@@ -192,47 +190,57 @@ function CollapsibleNavItem({ item, pathname }: { item: NavItem; pathname: strin
         />
       </SidebarMenuButton>
 
-      {/* Sub-items */}
-      {open && (
+      {open && item.sub && (
         <SidebarMenuSub>
-          {item.sub!.map((s) => (
-            <SidebarMenuSubItem key={s.href}>
-              <SidebarMenuSubButton isActive={isActive(pathname, s.href)}>
-                <Link href={s.href}>{s.label}</Link>
-              </SidebarMenuSubButton>
-            </SidebarMenuSubItem>
-          ))}
+          {item.sub.map((s) => {
+            const active = isActive(pathname, s.href);
+            return (
+              <SidebarMenuSubItem key={s.href}>
+                <SidebarMenuSubButton asChild>
+                  <Link
+                    href={s.href}
+                    {...({ "data-active": active } as any)}
+                    className={cn(
+                      active && "bg-sidebar-accent text-sidebar-accent-foreground"
+                    )}
+                  >
+                    {s.label}
+                  </Link>
+                </SidebarMenuSubButton>
+              </SidebarMenuSubItem>
+            );
+          })}
         </SidebarMenuSub>
       )}
     </SidebarMenuItem>
   );
 }
- 
+
 /* ── main sidebar ─────────────────────────────────────────────────── */
 
 export function AppSidebar({ role }: { role: Role }) {
-  const pathname  = usePathname();
-  const sections  = buildSections(role);
+  const pathname = usePathname();
+  const sections = buildSections(role);
 
   return (
     <Sidebar collapsible="icon">
-      {/* Brand */}
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg">
+            <SidebarMenuButton size="lg" asChild>
               <Link href="/dashboard">
                 <div className="flex h-7 w-7 items-center justify-center rounded-md bg-blue-600 shrink-0">
                   <Database className="h-4 w-4 text-white" />
                 </div>
-                <span className="font-bold text-base tracking-tight">DataForge</span>
+                <span className="font-bold text-base tracking-tight">
+                  DataForge
+                </span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
 
-      {/* Navigation */}
       <SidebarContent>
         {sections.map((section, si) => (
           <SidebarGroup key={si}>
@@ -251,6 +259,7 @@ export function AppSidebar({ role }: { role: Role }) {
                   ) : (
                     <SidebarMenuItem key={item.href}>
                       <SidebarMenuButton
+                        asChild
                         tooltip={item.label}
                         isActive={isActive(pathname, item.href!)}
                       >
@@ -268,7 +277,6 @@ export function AppSidebar({ role }: { role: Role }) {
         ))}
       </SidebarContent>
 
-      {/* Footer */}
       <SidebarFooter>
         <p className="px-2 py-1 text-[10px] text-muted-foreground/40 text-center">
           DataForge v1.0
