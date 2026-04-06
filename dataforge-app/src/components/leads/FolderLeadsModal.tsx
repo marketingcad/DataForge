@@ -294,14 +294,36 @@ export function FolderLeadsModal({
       addNotif({ type: "warning", title: "Migration already running", message: "Wait for the current migration to finish or stop it first." });
       return;
     }
-    const toMigrate: { id: string; name: string }[] = scope === "selected"
-      ? leads.filter((l) => selected.has(l.id)).map((l) => ({ id: l.id, name: l.businessName }))
-      : (await getAllLeadsForExportAction(folder.id)).leads.map((l: Lead) => ({ id: l.id, name: l.businessName }));
+
+    const allLeads: Lead[] = scope === "selected"
+      ? leads.filter((l) => selected.has(l.id))
+      : (await getAllLeadsForExportAction(folder.id)).leads as Lead[];
+
+    const toMigrate = allLeads
+      .filter((l) => !l.migratedToGhl)
+      .map((l) => ({ id: l.id, name: l.businessName }));
+
+    const skipped = allLeads.length - toMigrate.length;
 
     if (toMigrate.length === 0) {
-      addNotif({ type: "info", title: "Nothing to migrate", message: "No leads selected." });
+      addNotif({
+        type: "info",
+        title: "Nothing to migrate",
+        message: skipped > 0
+          ? `All ${skipped} selected lead${skipped !== 1 ? "s are" : " is"} already exported to GHL.`
+          : "No leads selected.",
+      });
       return;
     }
+
+    if (skipped > 0) {
+      addNotif({
+        type: "info",
+        title: `Skipping ${skipped} already-exported lead${skipped !== 1 ? "s" : ""}`,
+        message: `Migrating the remaining ${toMigrate.length} lead${toMigrate.length !== 1 ? "s" : ""}.`,
+      });
+    }
+
     startMigration(toMigrate, folder.name);
   }
 
