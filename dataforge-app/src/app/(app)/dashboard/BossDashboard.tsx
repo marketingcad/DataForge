@@ -1,7 +1,7 @@
 import { getDashboardStats } from "@/lib/dashboard/service";
 import { getBossWidgets } from "@/lib/dashboard/boss.service";
 import { getUsers } from "@/lib/users/service";
-import { getTeamSummary, getLeaderboard } from "@/lib/marketing/team.service";
+import { getTeamSummary, getLeaderboard, getTopPerformers } from "@/lib/marketing/team.service";
 import { withDbRetry } from "@/lib/prisma";
 import { IndustryBarChart } from "@/components/dashboard/IndustryBarChart";
 import { QualityDonutChart } from "@/components/dashboard/QualityDonutChart";
@@ -21,13 +21,14 @@ import {
 import type { Role } from "@/lib/rbac/roles";
 
 export async function BossDashboard() {
-  const [stats, users, team, leaderboard, widgets] = await withDbRetry(() =>
+  const [stats, users, team, leaderboard, widgets, topPerformers] = await withDbRetry(() =>
     Promise.all([
       getDashboardStats(),
       getUsers(),
       getTeamSummary(),
       getLeaderboard("week"),
       getBossWidgets(),
+      getTopPerformers(),
     ])
   );
 
@@ -62,31 +63,31 @@ export async function BossDashboard() {
 
       {/* ── BENTO HERO ── */}
       <div
-        className="grid grid-cols-4 gap-3"
-        style={{ gridTemplateRows: "minmax(140px,auto) minmax(140px,auto)" }}
+        className="grid grid-cols-5 gap-2.5"
+        style={{ gridTemplateRows: "minmax(100px,auto) minmax(100px,auto)" }}
       >
         {/* Team Pulse — dark anchor, spans 2 cols × 2 rows */}
-        <div className="col-span-2 row-span-2 rounded-2xl bg-foreground text-background p-6 flex flex-col justify-between">
+        <div className="col-span-2 row-span-2 rounded-xl bg-foreground text-background p-5 flex flex-col justify-between">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-widest opacity-50 mb-2">
+            <p className="text-[9px] font-bold uppercase tracking-widest opacity-50 mb-1.5">
               Team Pulse
             </p>
-            <div className="flex items-end gap-2">
-              <span className="text-7xl font-black tabular-nums leading-none">
+            <div className="flex items-end gap-1.5">
+              <span className="text-5xl font-black tabular-nums leading-none">
                 {pulseScore}
               </span>
-              <span className="text-2xl font-semibold opacity-40 mb-1">/10</span>
+              <span className="text-lg font-semibold opacity-40 mb-0.5">/10</span>
             </div>
-            <p className="text-xs opacity-40 mt-1">quality + call activity index</p>
+            <p className="text-[11px] opacity-40 mt-1">quality + call activity index</p>
           </div>
 
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-3 gap-1.5">
             {metricTiles.map((tile) => (
-              <div key={tile.label} className="rounded-xl bg-background/[0.08] px-3 py-2.5">
-                <p className="text-[9px] font-bold uppercase tracking-wider opacity-50">
+              <div key={tile.label} className="rounded-lg bg-background/[0.08] px-2.5 py-2">
+                <p className="text-[9px] font-bold uppercase tracking-wider opacity-50 leading-none">
                   {tile.label}
                 </p>
-                <p className="text-lg font-black tabular-nums leading-tight mt-0.5">
+                <p className="text-base font-black tabular-nums leading-tight mt-1">
                   {typeof tile.value === "number"
                     ? tile.value.toLocaleString()
                     : tile.value}
@@ -97,115 +98,129 @@ export async function BossDashboard() {
         </div>
 
         {/* Calls Today */}
-        <div className="rounded-2xl bg-card border border-border p-5 flex flex-col justify-between">
-          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+        <div className="rounded-xl bg-card border border-border p-4 flex flex-col justify-between">
+          <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">
             Calls Today
           </p>
           <div>
-            <p className="text-5xl font-black tabular-nums leading-none">{team.callsToday}</p>
-            <p className="text-xs text-muted-foreground mt-1">logged so far</p>
+            <p className="text-3xl font-black tabular-nums leading-none">{team.callsToday}</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">logged so far</p>
           </div>
         </div>
 
         {/* Active Leads */}
-        <div className="rounded-2xl bg-card border border-border p-5 flex flex-col justify-between">
-          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+        <div className="rounded-xl bg-card border border-border p-4 flex flex-col justify-between">
+          <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">
             Active Leads
           </p>
           <div>
-            <p className="text-5xl font-black tabular-nums leading-none">
+            <p className="text-3xl font-black tabular-nums leading-none">
               {stats.activeLeads.toLocaleString()}
             </p>
-            <p className="text-xs text-muted-foreground mt-1">in the pipeline</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">in the pipeline</p>
+          </div>
+        </div>
+
+        {/* Top Performers — spans col 5, rows 1–2 */}
+        <div className="row-span-2 rounded-xl bg-card border border-border flex flex-col">
+          <div className="px-4 py-3 border-b border-border/60">
+            <p className="font-semibold text-sm">Top Performers</p>
+            <p className="text-[11px] text-muted-foreground">Sales reps by calls</p>
+          </div>
+          <div className="flex-1 divide-y divide-border/40">
+            {(
+              [
+                { label: "Today",     data: topPerformers.today   },
+                { label: "This Week",  data: topPerformers.week   },
+                { label: "This Month", data: topPerformers.month  },
+                { label: "All-Time",   data: topPerformers.allTime },
+              ] as const
+            ).map(({ label, data }) => (
+              <div key={label} className="px-4 py-2.5">
+                <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground mb-1">
+                  {label}
+                </p>
+                {data ? (
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-semibold truncate">{data.name}</p>
+                    <span className="text-[11px] font-bold tabular-nums shrink-0 rounded-full bg-muted px-2 py-0.5">
+                      {data.count}
+                    </span>
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-muted-foreground italic">No data yet</p>
+                )}
+              </div>
+            ))}
           </div>
         </div>
 
         {/* Team Size */}
-        <div className="rounded-2xl bg-card border border-border p-5 flex flex-col justify-between">
-          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+        <div className="rounded-xl bg-card border border-border p-4 flex flex-col justify-between">
+          <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">
             Team Size
           </p>
           <div>
-            <p className="text-5xl font-black tabular-nums leading-none">{users.length}</p>
-            <p className="text-xs text-muted-foreground mt-1">total users</p>
+            <p className="text-3xl font-black tabular-nums leading-none">{users.length}</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">total users</p>
           </div>
         </div>
 
         {/* Avg Quality — violet accent */}
-        <div className="rounded-2xl bg-violet-600 text-white p-5 flex flex-col justify-between">
-          <p className="text-[10px] font-bold uppercase tracking-widest opacity-70">
+        <div className="rounded-xl bg-violet-600 text-white p-4 flex flex-col justify-between">
+          <p className="text-[9px] font-bold uppercase tracking-widest opacity-70">
             Avg Quality
           </p>
           <div>
-            <p className="text-5xl font-black tabular-nums leading-none">
+            <p className="text-3xl font-black tabular-nums leading-none">
               {stats.avgQualityScore}%
             </p>
-            <p className="text-xs opacity-60 mt-1">data completeness</p>
+            <p className="text-[11px] opacity-60 mt-0.5">data completeness</p>
           </div>
         </div>
       </div>
 
       {/* ── MIDDLE ROW: Challenges + Top Agents ── */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-2.5">
 
         {/* Active Challenges */}
-        <div className="rounded-2xl bg-card border border-border">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-border/60">
+        <div className="rounded-xl bg-card border border-border">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border/60">
             <div>
               <p className="font-semibold text-sm">Challenges</p>
-              <p className="text-xs text-muted-foreground">Running now</p>
+              <p className="text-[11px] text-muted-foreground">Running now</p>
             </div>
-            <Link
-              href="/marketing/manage/tasks"
-              className="text-xs font-medium hover:underline"
-            >
+            <Link href="/marketing/manage/tasks" className="text-xs font-medium hover:underline">
               Manage
             </Link>
           </div>
           <div className="divide-y divide-border/40">
             {widgets.activeTasks.length === 0 && (
-              <p className="px-5 py-8 text-sm text-muted-foreground text-center">
+              <p className="px-4 py-6 text-xs text-muted-foreground text-center">
                 No active challenges.{" "}
-                <Link href="/marketing/manage/tasks" className="underline">
-                  Create one
-                </Link>
+                <Link href="/marketing/manage/tasks" className="underline">Create one</Link>
               </p>
             )}
             {widgets.activeTasks.map((task) => {
               const total     = task._count.progress;
               const completed = task.progress.length;
               const pct       = total > 0 ? Math.round((completed / total) * 100) : 0;
-              const daysLeft  = Math.ceil(
-                (new Date(task.endDate).getTime() - Date.now()) / 86_400_000
-              );
+              const daysLeft  = Math.ceil((new Date(task.endDate).getTime() - Date.now()) / 86_400_000);
               return (
-                <div key={task.id} className="px-5 py-3.5 space-y-2">
+                <div key={task.id} className="px-4 py-3 space-y-1.5">
                   <div className="flex items-start justify-between gap-2">
-                    <p className="text-sm font-medium leading-tight">{task.title}</p>
-                    <span className="text-[11px] shrink-0 text-muted-foreground">
-                      {daysLeft}d left
-                    </span>
+                    <p className="text-xs font-medium leading-tight">{task.title}</p>
+                    <span className="text-[10px] shrink-0 text-muted-foreground">{daysLeft}d left</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-foreground transition-all"
-                        style={{ width: `${pct}%` }}
-                      />
+                    <div className="flex-1 h-1 rounded-full bg-muted overflow-hidden">
+                      <div className="h-full rounded-full bg-foreground transition-all" style={{ width: `${pct}%` }} />
                     </div>
-                    <span className="text-[11px] text-muted-foreground tabular-nums">
-                      {completed}/{total}
-                    </span>
+                    <span className="text-[10px] text-muted-foreground tabular-nums">{completed}/{total}</span>
                   </div>
-                  <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
-                    <span className="flex items-center gap-1">
-                      <Target className="h-3 w-3" />
-                      {task.targetCalls} calls
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Zap className="h-3 w-3" />
-                      {task.pointReward} pts
-                    </span>
+                  <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                    <span className="flex items-center gap-1"><Target className="h-2.5 w-2.5" />{task.targetCalls} calls</span>
+                    <span className="flex items-center gap-1"><Zap className="h-2.5 w-2.5" />{task.pointReward} pts</span>
                   </div>
                 </div>
               );
@@ -214,42 +229,31 @@ export async function BossDashboard() {
         </div>
 
         {/* Top Agents */}
-        <div className="rounded-2xl bg-card border border-border">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-border/60">
+        <div className="rounded-xl bg-card border border-border">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border/60">
             <div>
               <p className="font-semibold text-sm">Top Agents</p>
-              <p className="text-xs text-muted-foreground">This week</p>
+              <p className="text-[11px] text-muted-foreground">This week</p>
             </div>
-            <Link href="/marketing" className="text-xs font-medium hover:underline">
-              All
-            </Link>
+            <Link href="/marketing" className="text-xs font-medium hover:underline">All</Link>
           </div>
           <div className="divide-y divide-border/40">
             {top3.length === 0 && (
-              <p className="px-5 py-8 text-sm text-muted-foreground text-center">
-                No data yet.
-              </p>
+              <p className="px-4 py-6 text-xs text-muted-foreground text-center">No data yet.</p>
             )}
             {top3.map((agent, i) => {
               const RANK = ["#1", "#2", "#3"];
               const maxCalls = top3[0]?.callCount || 1;
               const pct = Math.round((agent.callCount / maxCalls) * 100);
               return (
-                <div key={agent.id} className="px-5 py-3.5 space-y-1.5">
+                <div key={agent.id} className="px-4 py-3 space-y-1.5">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-black w-5 text-center shrink-0 text-muted-foreground">
-                      {RANK[i]}
-                    </span>
-                    <p className="text-sm font-semibold truncate flex-1">{agent.name}</p>
-                    <span className="text-sm font-bold tabular-nums shrink-0">
-                      {agent.callCount}
-                    </span>
+                    <span className="text-[11px] font-black w-4 text-center shrink-0 text-muted-foreground">{RANK[i]}</span>
+                    <p className="text-xs font-semibold truncate flex-1">{agent.name}</p>
+                    <span className="text-xs font-bold tabular-nums shrink-0">{agent.callCount}</span>
                   </div>
-                  <div className="ml-7 h-1 rounded-full bg-muted overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-foreground transition-all"
-                      style={{ width: `${pct}%` }}
-                    />
+                  <div className="ml-6 h-1 rounded-full bg-muted overflow-hidden">
+                    <div className="h-full rounded-full bg-foreground transition-all" style={{ width: `${pct}%` }} />
                   </div>
                 </div>
               );
@@ -259,30 +263,30 @@ export async function BossDashboard() {
       </div>
 
       {/* ── BOTTOM ROW: Charts + Quick Actions ── */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-2.5">
 
         {/* Leads by Industry */}
-        <div className="rounded-2xl bg-card border border-border p-5 overflow-auto">
+        <div className="rounded-xl bg-card border border-border p-4 overflow-auto">
           <p className="font-semibold text-sm mb-0.5">By Industry</p>
-          <p className="text-xs text-muted-foreground mb-3">Top 10 categories</p>
+          <p className="text-[11px] text-muted-foreground mb-2">Top 10 categories</p>
           <IndustryBarChart data={stats.leadsByIndustry} />
         </div>
 
         {/* Quality Distribution */}
-        <div className="rounded-2xl bg-card border border-border p-5">
+        <div className="rounded-xl bg-card border border-border p-4">
           <p className="font-semibold text-sm mb-0.5">Quality Spread</p>
-          <p className="text-xs text-muted-foreground mb-3">Data completeness</p>
+          <p className="text-[11px] text-muted-foreground mb-2">Data completeness</p>
           <QualityDonutChart data={stats.qualityDistribution} />
         </div>
 
         {/* Quick Actions */}
-        <div className="rounded-2xl bg-card border border-border p-5 space-y-4">
+        <div className="rounded-xl bg-card border border-border p-4 space-y-3">
           <div>
             <p className="font-semibold text-sm">Quick Actions</p>
-            <p className="text-xs text-muted-foreground">Shortcuts</p>
+            <p className="text-[11px] text-muted-foreground">Shortcuts</p>
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-1.5">
             {[
               { href: "/marketing/manage/tasks",       label: "New Challenge", Icon: Flag        },
               { href: "/marketing/manage/badges",      label: "New Badge",     Icon: Award       },
@@ -294,21 +298,19 @@ export async function BossDashboard() {
               <Link
                 key={a.href}
                 href={a.href}
-                className="flex items-center gap-2 rounded-xl bg-muted/40 hover:bg-muted/70 px-3 py-2.5 transition-colors"
+                className="flex items-center gap-1.5 rounded-lg bg-muted/40 hover:bg-muted/70 px-2.5 py-2 transition-colors"
               >
-                <a.Icon className="h-3.5 w-3.5 shrink-0" />
-                <span className="text-xs font-medium">{a.label}</span>
+                <a.Icon className="h-3 w-3 shrink-0" />
+                <span className="text-[11px] font-medium">{a.label}</span>
               </Link>
             ))}
           </div>
 
-          <div className="border-t border-border/40 pt-3 grid grid-cols-2 gap-2 text-center">
+          <div className="border-t border-border/40 pt-2.5 grid grid-cols-2 gap-1.5 text-center">
             {(["boss", "admin", "lead_specialist", "sales_rep"] as Role[]).map((r) => (
-              <div key={r} className="rounded-xl bg-muted/30 py-2">
-                <p className="text-base font-bold">{roleGroups[r]}</p>
-                <p className="text-[10px] text-muted-foreground leading-tight">
-                  {r.replace("_", " ")}
-                </p>
+              <div key={r} className="rounded-lg bg-muted/30 py-1.5">
+                <p className="text-sm font-bold">{roleGroups[r]}</p>
+                <p className="text-[9px] text-muted-foreground leading-tight">{r.replace("_", " ")}</p>
               </div>
             ))}
           </div>
@@ -316,7 +318,7 @@ export async function BossDashboard() {
       </div>
 
       {/* ── FOOTER STATS ── */}
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-4 gap-2.5">
         {[
           { label: "Total Leads",       value: stats.totalLeads.toLocaleString(),          Icon: Layers       },
           { label: "Leads This Week",   value: stats.leadsThisWeek.toLocaleString(),        Icon: TrendingUp   },
@@ -325,14 +327,14 @@ export async function BossDashboard() {
         ].map((k) => (
           <div
             key={k.label}
-            className="rounded-2xl border border-border px-5 py-4 flex items-center gap-4"
+            className="rounded-xl border border-border px-4 py-3 flex items-center gap-3"
           >
-            <div className="h-9 w-9 rounded-xl bg-muted flex items-center justify-center shrink-0">
-              <k.Icon className="h-4 w-4" />
+            <div className="h-8 w-8 rounded-lg bg-muted flex items-center justify-center shrink-0">
+              <k.Icon className="h-3.5 w-3.5" />
             </div>
             <div>
-              <p className="text-2xl font-black tabular-nums leading-none">{k.value}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">{k.label}</p>
+              <p className="text-xl font-black tabular-nums leading-none">{k.value}</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">{k.label}</p>
             </div>
           </div>
         ))}

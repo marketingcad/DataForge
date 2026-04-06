@@ -107,6 +107,47 @@ export async function getActiveTasks() {
   });
 }
 
+/** Top performer per period (today / week / month / all-time) */
+export async function getTopPerformers() {
+  const now = new Date();
+  const startOfDay   = new Date(now); startOfDay.setHours(0, 0, 0, 0);
+  const startOfWeek  = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const agents = await prisma.user.findMany({
+    where: { role: "sales_rep" },
+    select: {
+      id: true, name: true, email: true,
+      callLogs: { select: { id: true, calledAt: true } },
+    },
+  });
+
+  type Performer = { id: string; name: string; count: number } | null;
+
+  function topFor(since: Date): Performer {
+    const ranked = agents
+      .map((a) => ({
+        id: a.id,
+        name: a.name ?? a.email,
+        count: a.callLogs.filter((c) => new Date(c.calledAt) >= since).length,
+      }))
+      .sort((x, y) => y.count - x.count);
+    const top = ranked[0];
+    return top && top.count > 0 ? top : null;
+  }
+
+  const allTimeRanked = agents
+    .map((a) => ({ id: a.id, name: a.name ?? a.email, count: a.callLogs.length }))
+    .sort((x, y) => y.count - x.count)[0];
+
+  return {
+    today:   topFor(startOfDay),
+    week:    topFor(startOfWeek),
+    month:   topFor(startOfMonth),
+    allTime: allTimeRanked && allTimeRanked.count > 0 ? allTimeRanked : null,
+  };
+}
+
 /** Agent who made the most calls yesterday */
 export async function getYesterdaysTopPerformer() {
   const yesterday = new Date();

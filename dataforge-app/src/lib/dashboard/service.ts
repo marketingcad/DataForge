@@ -65,10 +65,12 @@ export async function getDashboardStats() {
       { name: "Premium (81+)", value: qualityBuckets[3], color: "#a855f7" },
     ],
     recentLeads,
-    leadsByIndustry: leadsByIndustry.map((r: { industry: string; count: bigint }) => ({
-      industry: r.industry,
-      count: Number(r.count),
-    })),
+    leadsByIndustry: leadsByIndustry
+      .filter((r: { industry: string; count: bigint }) => r.industry && r.industry.trim() !== "")
+      .map((r: { industry: string; count: bigint }) => ({
+        industry: r.industry,
+        count: Number(r.count),
+      })),
     totalJobsRun: jobStats._count.id,
     totalLeadsFromJobs: jobStats._sum.leadsProcessed ?? 0,
   };
