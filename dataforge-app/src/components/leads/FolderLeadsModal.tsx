@@ -715,7 +715,7 @@ export function FolderLeadsModal({
                         {(page - 1) * 20 + idx + 1}
                       </TableCell>
                       <TableCell className="font-medium max-w-[200px]">
-                        <div className="flex items-center gap-1.5 min-w-0">
+                        <div className="flex justify-between gap-1.5 min-w-0">
                           <CopyCell value={lead.businessName} />
                           {lead.migratedToGhl && (
                             <span
