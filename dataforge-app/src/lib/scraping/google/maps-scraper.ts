@@ -462,7 +462,8 @@ export async function scrapeGoogleMapsHeadless(
   onLead?: (lead: SerpLead, count: number) => Promise<boolean | void> | boolean | void,
   maxRuntimeMs?: number,
   isDuplicate?: (lead: SerpLead) => boolean,
-  skipNames?: Set<string>
+  skipNames?: Set<string>,
+  isCancelled?: () => boolean | Promise<boolean>
 ): Promise<SerpLead[]> {
   const leads: SerpLead[] = [];
   const searchQuery = `${keyword} ${location}`;
@@ -533,9 +534,18 @@ export async function scrapeGoogleMapsHeadless(
     const discoveredSet = new Set<string>();
     // Collect at most 2× maxLeads names — enough buffer for ~50% duplicates.
     const DISCOVERY_TARGET = Math.max(maxLeads * 2, maxLeads + 20);
+    const PHASE1_MAX_MS = 60_000; // phase 1 hard cap: 60 s
     let phase1Stale = 0;
 
     while (allDiscoveredNames.length < DISCOVERY_TARGET && phase1Stale < 5) {
+      if (await isCancelled?.()) {
+        onLog?.("Cancelled — stopping");
+        return leads;
+      }
+      if (Date.now() - startedAt >= PHASE1_MAX_MS) {
+        onLog?.(`Phase 1 time limit reached — continuing with ${allDiscoveredNames.length} names`);
+        break;
+      }
       // Read every visible business name in the feed in one JS evaluation.
       const visibleNames: string[] = await page.evaluate(() => {
         const articles = document.querySelectorAll(
@@ -618,6 +628,17 @@ export async function scrapeGoogleMapsHeadless(
       for (const child of childDivs) {
         if (leads.length >= maxLeads) break;
 
+        // Check cancellation + time limit inside the inner loop so we stop
+        // promptly even when iterating hundreds of articles without emitting leads.
+        if (await isCancelled?.()) {
+          onLog?.("Cancelled — stopping");
+          return leads;
+        }
+        if (maxRuntimeMs && Date.now() - startedAt >= maxRuntimeMs) {
+          onLog?.(`Time limit reached — saving ${leads.length} lead${leads.length !== 1 ? "s" : ""} collected so far`);
+          return leads;
+        }
+
         const article = child.locator('div[role="article"]').first();
         if (!(await article.isVisible().catch(() => false))) continue;
 
@@ -655,7 +676,7 @@ export async function scrapeGoogleMapsHeadless(
 
         onLog?.(`Scraping ${leads.length + 1}/${Math.min(maxLeads, toScrape.size)}: "${businessName}"…`);
 
-        const LEAD_TIMEOUT_MS = 60_000;
+        const LEAD_TIMEOUT_MS = 25_000;
         let leadTimedOut = false;
 
         await Promise.race([

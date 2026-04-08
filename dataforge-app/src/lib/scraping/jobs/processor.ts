@@ -22,6 +22,17 @@ export async function processKeywordJob(job: Awaited<ReturnType<typeof getJobByI
 
   await updateJobStatus(id, "running", { startTime: new Date() });
 
+  // ── Periodic cancellation poll ─────────────────────────────────────────────────
+  // The DB status is set to "paused" by the cancel API. We poll every 5 s so the
+  // scraper stops promptly even if it's stuck between leads (not inside onLead).
+  let cancelledFlag = false;
+  const cancelPoll = setInterval(async () => {
+    try {
+      const cur = await prisma.scrapingJob.findUnique({ where: { id }, select: { status: true } });
+      if (cur && cur.status !== "running") cancelledFlag = true;
+    } catch { /* ignore transient DB errors */ }
+  }, 5_000);
+
   // ── Pre-fetch existing leads for duplicate skipping (runs once before scraping) ─
   // Uniqueness: phone number OR business name (case-insensitive). Website/email excluded.
   const existingLeads = await prisma.lead.findMany({ select: { businessName: true, phone: true } });
@@ -41,7 +52,6 @@ export async function processKeywordJob(job: Awaited<ReturnType<typeof getJobByI
   let dupCount        = 0;
   let insertFailures  = 0;
   let firstInsertError: string | null = null;
-  let lastLogMsg = "";
   let insertChain: Promise<void> = Promise.resolve();
 
   let leads: Awaited<ReturnType<typeof scrapeGoogleMapsHeadless>>;
@@ -52,7 +62,6 @@ export async function processKeywordJob(job: Awaited<ReturnType<typeof getJobByI
       job.location,
       job.maxLeads,
       (msg) => {
-        lastLogMsg = msg;
         // Guard: only write while job is still running — prevents a delayed
         // fire-and-forget write from overwriting the final completion message.
         prisma.scrapingJob.updateMany({
@@ -65,10 +74,8 @@ export async function processKeywordJob(job: Awaited<ReturnType<typeof getJobByI
 
         if (count > job.maxLeads) throw new Error("__LIMIT_REACHED__");
 
-        if (count % 3 === 0) {
-          const cur = await prisma.scrapingJob.findUnique({ where: { id }, select: { status: true } });
-          if (cur?.status !== "running") throw new Error("__CANCELLED__");
-        }
+        // Use the pre-polled flag — no extra DB round-trip per lead.
+        if (cancelledFlag) throw new Error("__CANCELLED__");
 
         collectedLeads.push(lead);
         insertChain = insertChain.then(async () => {
@@ -91,8 +98,6 @@ export async function processKeywordJob(job: Awaited<ReturnType<typeof getJobByI
               if (idx !== -1) collectedLeads.splice(idx, 1);
             } else {
               savedCount++;
-              // Update the in-memory dedup sets so the same business appearing
-              // again later in the same scrape run is caught before reaching insertLead.
               if (lead.businessName) skipNames.add(lead.businessName.toLowerCase().trim());
               if (lead.phone) {
                 const p = normalizePhone(lead.phone);
@@ -120,12 +125,14 @@ export async function processKeywordJob(job: Awaited<ReturnType<typeof getJobByI
       },
       MAX_SCRAPE_MS,
       isDuplicate,
-      skipNames
+      skipNames,
+      () => cancelledFlag,
     );
   } catch (err) {
     const errorMsg        = err instanceof Error ? err.message : "Browser scrape failed";
-    const wasCancelled    = errorMsg === "__CANCELLED__";
+    const wasCancelled    = errorMsg === "__CANCELLED__" || cancelledFlag;
     const wasLimitReached = errorMsg === "__LIMIT_REACHED__";
+    clearInterval(cancelPoll);
     await insertChain;
     const isSuccess = wasLimitReached || savedCount > 0;
     await prisma.scrapingJob.update({
@@ -154,7 +161,10 @@ export async function processKeywordJob(job: Awaited<ReturnType<typeof getJobByI
     return;
   }
 
+  clearInterval(cancelPoll);
+
   // Skip final write if job was cancelled externally
+  if (cancelledFlag) return;
   const currentStatus = await prisma.scrapingJob.findUnique({ where: { id }, select: { status: true } });
   if (currentStatus?.status !== "running") return;
 
