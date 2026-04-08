@@ -534,15 +534,18 @@ export async function scrapeGoogleMapsHeadless(
     const discoveredSet = new Set<string>();
     // Collect at most 2× maxLeads names — enough buffer for ~50% duplicates.
     const DISCOVERY_TARGET = Math.max(maxLeads * 2, maxLeads + 20);
-    const PHASE1_MAX_MS = 60_000; // phase 1 hard cap: 60 s
+    // Phase 1 cap starts NOW (not from scraper start) so browser launch time
+    // doesn't eat into the discovery window.
+    const PHASE1_MAX_MS = 90_000; // phase 1 hard cap: 90 s
+    const phase1StartedAt = Date.now();
     let phase1Stale = 0;
 
-    while (allDiscoveredNames.length < DISCOVERY_TARGET && phase1Stale < 5) {
+    while (allDiscoveredNames.length < DISCOVERY_TARGET && phase1Stale < 8) {
       if (await isCancelled?.()) {
         onLog?.("Cancelled — stopping");
         return leads;
       }
-      if (Date.now() - startedAt >= PHASE1_MAX_MS) {
+      if (Date.now() - phase1StartedAt >= PHASE1_MAX_MS) {
         onLog?.(`Phase 1 time limit reached — continuing with ${allDiscoveredNames.length} names`);
         break;
       }
@@ -574,12 +577,13 @@ export async function scrapeGoogleMapsHeadless(
         phase1Stale = 0;
       }
 
-      // Scroll fast — no waiting for network, just DOM reads
+      // Scroll and wait — 700 ms gives Google Maps enough time to lazy-load
+      // the next batch of results before we read again.
       await page.evaluate(() => {
         const feed = document.querySelector('div[role="feed"]');
         if (feed) feed.scrollTop += 1400;
       });
-      await sleep(300);
+      await sleep(700);
     }
 
     // Build the target set: names not already in the DB
