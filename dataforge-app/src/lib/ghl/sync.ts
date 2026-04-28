@@ -1,19 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import { getLocationCallConversations, mapGhlCallStatus, getAgentOpportunities } from "@/lib/ghl/client";
 
-// 1 hour — keeps DB transfer low; syncs still happen automatically but not on every page load
-const SYNC_COOLDOWN_MS = 60 * 60 * 1000;
-
 export async function autoSyncGhlCalls(): Promise<void> {
   try {
     const settings = await prisma.appSettings.findUnique({ where: { id: "singleton" } });
     if (!settings?.ghlApiKey || !settings?.ghlLocationId) return;
 
-    if (settings.ghlCallsLastSyncedAt) {
-      const age = Date.now() - settings.ghlCallsLastSyncedAt.getTime();
-      if (age < SYNC_COOLDOWN_MS) return;
-    }
-
+    // Stamp before fetching so parallel renders don't double-sync
     await prisma.appSettings.update({
       where: { id: "singleton" },
       data: { ghlCallsLastSyncedAt: new Date() },
@@ -78,11 +71,6 @@ export async function autoSyncGhlOpportunities(): Promise<void> {
   try {
     const settings = await prisma.appSettings.findUnique({ where: { id: "singleton" } });
     if (!settings?.ghlApiKey || !settings?.ghlLocationId) return;
-
-    if (settings.ghlOppsLastSyncedAt) {
-      const age = Date.now() - settings.ghlOppsLastSyncedAt.getTime();
-      if (age < SYNC_COOLDOWN_MS) return;
-    }
 
     await prisma.appSettings.update({
       where: { id: "singleton" },
