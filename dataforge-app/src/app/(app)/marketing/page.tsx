@@ -22,7 +22,7 @@ export default async function MarketingPage({
   if (!role || !["boss", "admin", "sales_rep"].includes(role)) redirect("/unauthorized");
 
   const { period: raw } = await searchParams;
-  const period: Period = (["yesterday", "week", "month"] as const).includes(raw as Period)
+  const period: Period = (["yesterday", "week", "month", "all_time"] as const).includes(raw as Period)
     ? (raw as Period)
     : "week";
 

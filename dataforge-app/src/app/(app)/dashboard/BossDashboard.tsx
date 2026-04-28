@@ -1,10 +1,11 @@
 import { getDashboardStats } from "@/lib/dashboard/service";
-import { getBossWidgets } from "@/lib/dashboard/boss.service";
+
 import { getUsers } from "@/lib/users/service";
-import { getTeamSummary, getLeaderboard, getTopPerformers } from "@/lib/marketing/team.service";
+import { getTeamSummary, getLeaderboard, getTopPerformers, getRepDailyLeadsForChart } from "@/lib/marketing/team.service";
 import { withDbRetry } from "@/lib/prisma";
 import { IndustryBarChart } from "@/components/dashboard/IndustryBarChart";
 import { QualityDonutChart } from "@/components/dashboard/QualityDonutChart";
+import { RepPerformanceChart } from "@/components/marketing/RepPerformanceChart";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -68,16 +69,50 @@ function BadgeChips({ badges, chipSize }: { badges: Badge[]; chipSize: "sm" | "m
 }
 
 export async function BossDashboard() {
-  const [stats, users, team, leaderboard, widgets, topPerformers] = await withDbRetry(() =>
-    Promise.all([
-      getDashboardStats(),
-      getUsers(),
-      getTeamSummary(),
-      getLeaderboard("week"),
-      getBossWidgets(),
-      getTopPerformers(),
-    ])
-  );
+  let stats: Awaited<ReturnType<typeof getDashboardStats>>,
+      users: Awaited<ReturnType<typeof getUsers>>,
+      team: Awaited<ReturnType<typeof getTeamSummary>>,
+      leaderboard: Awaited<ReturnType<typeof getLeaderboard>>,
+      topPerformers: Awaited<ReturnType<typeof getTopPerformers>>;
+
+  try {
+    [stats, users, team, leaderboard, topPerformers] = await withDbRetry(() =>
+      Promise.all([
+        getDashboardStats(),
+        getUsers(),
+        getTeamSummary(),
+        getLeaderboard("week"),
+        getTopPerformers(),
+      ])
+    );
+  } catch {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-3 text-center">
+        <p className="text-sm font-medium">Dashboard temporarily unavailable</p>
+        <p className="text-xs text-muted-foreground max-w-xs">
+          The database is under heavy load or has reached its transfer limit. Try again in a few minutes.
+        </p>
+      </div>
+    );
+  }
+
+  // Top 5 reps for the performance line charts
+  const top5 = leaderboard.slice(0, 5);
+  const top5Ids = top5.map((r) => r.id);
+  const repLeadChartData = await withDbRetry(() => getRepDailyLeadsForChart(top5Ids, 30));
+  // Build lead totals per rep from the chart data
+  const repLeadTotals: Record<string, number> = {};
+  for (const row of repLeadChartData) {
+    for (const id of top5Ids) {
+      repLeadTotals[id] = (repLeadTotals[id] ?? 0) + ((row[id] as number) || 0);
+    }
+  }
+  const repLeadMeta = top5.map((r) => ({
+    id: r.id,
+    name: r.name,
+    callCount: repLeadTotals[r.id] ?? 0,
+    metricLabel: `${repLeadTotals[r.id] ?? 0} leads`,
+  }));
 
   const roleGroups: Record<Role, number> = {
     boss: 0, admin: 0, lead_data_analyst: 0, lead_specialist: 0, sales_rep: 0,
@@ -138,7 +173,7 @@ export async function BossDashboard() {
           {/* Header */}
           <div className="px-5 py-3 border-b border-background/10">
             <p className="text-xs font-bold uppercase tracking-widest opacity-40">Top Performers</p>
-            <p className="text-xs font-semibold opacity-20">Sales reps · by calls</p>
+            <p className="text-xs font-semibold opacity-20">Sales reps · by leads secured</p>
           </div>
 
           {/* All-Time — hero section */}
@@ -146,41 +181,16 @@ export async function BossDashboard() {
             <p className="text-xs font-bold uppercase tracking-widest opacity-40 mb-3">All-Time</p>
             {topPerformers.allTime ? (
               <>
-                <Avatar image={topPerformers.allTime.image} name={topPerformers.allTime.name} size={16} />
+                <Avatar image={topPerformers.allTime.image} name={topPerformers.allTime.name} size={48} />
                 <p className="text-sm font-bold mt-2 text-center">{topPerformers.allTime.name}</p>
                 <span className="text-xs font-black bg-background/20 rounded-full px-2.5 py-0.5 mt-1.5">
-                  {topPerformers.allTime.count} calls
+                  {topPerformers.allTime.count} leads
                 </span>
                 <BadgeChips badges={topPerformers.allTime.badges} chipSize="md" />
               </>
             ) : (
               <p className="text-xs opacity-30 italic">No data yet</p>
             )}
-          </div>
-
-          {/* Today / Week / Month — 3 columns */}
-          <div className="grid grid-cols-3 divide-x divide-background/10">
-            {([
-              { label: "Today", data: topPerformers.today  },
-              { label: "Week",  data: topPerformers.week   },
-              { label: "Month", data: topPerformers.month  },
-            ] as const).map(({ label, data }) => (
-              <div key={label} className="flex flex-col items-center px-2 py-3">
-                <p className="text-xs font-bold uppercase tracking-widest opacity-40 mb-2">{label}</p>
-                {data ? (
-                  <>
-                    <Avatar image={data.image} name={data.name} size={8} />
-                    <p className="text-[10px] font-semibold mt-1.5 text-center leading-tight line-clamp-2 w-full px-1">
-                      {data.name}
-                    </p>
-                    <span className="text-[9px] font-bold opacity-50 mt-0.5">{data.count}</span>
-                    <BadgeChips badges={data.badges} chipSize="sm" />
-                  </>
-                ) : (
-                  <p className="text-[10px] opacity-30 mt-1">—</p>
-                )}
-              </div>
-            ))}
           </div>
         </div>
 
@@ -243,10 +253,18 @@ export async function BossDashboard() {
         </div>
       </div>
 
+      {/* ── LEADS SECURED CHART ── */}
+      <RepPerformanceChart
+        data={repLeadChartData}
+        reps={repLeadMeta}
+        title="Leads Secured"
+        subtitle="Daily leads saved — top 5 reps · last 30 days"
+      />
+
       {/* ── MIDDLE ROW: Challenges + Top Agents ── */}
       <div className="grid grid-cols-2 gap-2.5">
 
-        {/* Active Challenges */}
+        {/* Active Challenges 
         <div className="rounded-xl bg-card border border-border">
           <div className="flex items-center justify-between px-4 py-3 border-b border-border/60">
             <div>
@@ -290,6 +308,7 @@ export async function BossDashboard() {
             })}
           </div>
         </div>
+        */}
 
         {/* Top Agents */}
         <div className="rounded-xl bg-card border border-border">

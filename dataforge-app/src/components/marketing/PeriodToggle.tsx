@@ -3,9 +3,10 @@
 import { useRouter, usePathname } from "next/navigation";
 
 const OPTIONS = [
-  { label: "Yesterday", value: "yesterday" },
-  { label: "This Week", value: "week"      },
-  { label: "This Month", value: "month"    },
+  { label: "Yesterday",  value: "yesterday" },
+  { label: "This Week",  value: "week"      },
+  { label: "This Month", value: "month"     },
+  { label: "All Time",   value: "all_time"  },
 ] as const;
 
 export type Period = (typeof OPTIONS)[number]["value"];
@@ -15,7 +16,7 @@ export function PeriodToggle({ period }: { period: Period }) {
   const pathname = usePathname();
 
   return (
-    <div className="flex rounded-lg border bg-muted/30 p-0.5 gap-0.5">
+    <div className="flex rounded-lg bg-muted/30 p-0.5 gap-0.5">
       {OPTIONS.map((o) => (
         <button
           key={o.value}

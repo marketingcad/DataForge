@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { searchContactByPhone } from "@/lib/ghl/client";
 
 const ALLOWED_ROLES = ["boss", "admin", "lead_specialist"];
 
@@ -15,7 +16,7 @@ export async function POST(req: NextRequest) {
     const { leadId } = await req.json();
     if (!leadId) return NextResponse.json({ error: "Missing leadId" }, { status: 400 });
 
-    // Fetch lead + GHL webhook URL in parallel
+    // Fetch lead + settings in parallel
     const [lead, settings] = await Promise.all([
       prisma.lead.findUnique({ where: { id: leadId } }),
       prisma.appSettings.findUnique({ where: { id: "singleton" } }),
@@ -43,10 +44,10 @@ export async function POST(req: NextRequest) {
         country: lead.country ?? undefined,
         tags: lead.category ? [lead.category] : [],
         customFields: [
-          { key: "dataforge_id",    value: lead.id },
-          { key: "quality_score",   value: String(lead.dataQualityScore) },
-          { key: "category",        value: lead.category ?? "" },
-          { key: "source",          value: lead.source },
+          { key: "dataforge_id",  value: lead.id },
+          { key: "quality_score", value: String(lead.dataQualityScore) },
+          { key: "category",      value: lead.category ?? "" },
+          { key: "source",        value: lead.source },
         ],
       },
     };
@@ -66,13 +67,29 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Mark lead as migrated
+    // After webhook push, look up the GHL contact ID by phone so we can sync calls later.
+    // We do this in the background — don't fail the migration if the lookup fails.
+    let ghlContactId: string | null = lead.ghlContactId ?? null;
+    if (!ghlContactId && settings.ghlApiKey && settings.ghlLocationId) {
+      try {
+        const contact = await searchContactByPhone(settings.ghlApiKey, settings.ghlLocationId, lead.phone);
+        ghlContactId = contact?.id ?? null;
+      } catch {
+        // non-fatal — contact ID can be synced later
+      }
+    }
+
+    // Mark lead as migrated and store GHL contact ID
     await prisma.lead.update({
       where: { id: leadId },
-      data: { migratedToGhl: true, migratedToGhlAt: new Date() },
+      data: {
+        migratedToGhl: true,
+        migratedToGhlAt: new Date(),
+        ...(ghlContactId ? { ghlContactId } : {}),
+      },
     });
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, ghlContactId });
   } catch (err) {
     console.error("[ghl/migrate-lead]", err);
     return NextResponse.json({ error: "Internal error" }, { status: 500 });

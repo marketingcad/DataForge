@@ -13,7 +13,7 @@ export async function getAgentStats(agentId: string) {
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
   const startOf30    = new Date(now); startOf30.setDate(now.getDate() - 30);
 
-  const [total, today, thisWeek, thisMonth, last30, badges, activeTasks] = await Promise.all([
+  const [total, today, thisWeek, thisMonth, last30, badges, activeTasks, appointmentsSet, dealsWon] = await Promise.all([
     prisma.callLog.count({ where: { agentId } }),
     prisma.callLog.count({ where: { agentId, calledAt: { gte: startOfDay } } }),
     prisma.callLog.count({ where: { agentId, calledAt: { gte: startOfWeek } } }),
@@ -29,6 +29,8 @@ export async function getAgentStats(agentId: string) {
       include: { task: true },
       orderBy: { task: { endDate: "asc" } },
     }),
+    prisma.ghlOpportunity.count({ where: { agentId } }),
+    prisma.ghlOpportunity.count({ where: { agentId, status: "won" } }),
   ]);
 
   return {
@@ -40,7 +42,73 @@ export async function getAgentStats(agentId: string) {
     avgPerWeek: last30 / (30 / 7),
     badges,
     activeTasks,
+    appointmentsSet,
+    dealsWon,
   };
+}
+
+/**
+ * 6-month call + lead breakdown for the agent radar chart.
+ * Returns one entry per month with calls made and leads saved.
+ */
+export async function getAgentMonthlyBreakdown(agentId: string) {
+  const now = new Date();
+  const months: { label: string; start: Date; end: Date }[] = [];
+  for (let i = 5; i >= 0; i--) {
+    const start = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const end   = new Date(now.getFullYear(), now.getMonth() - i + 1, 0, 23, 59, 59, 999);
+    months.push({
+      label: start.toLocaleDateString("en-US", { month: "short" }),
+      start,
+      end,
+    });
+  }
+
+  const results = await Promise.all(
+    months.map(({ start, end }) =>
+      Promise.all([
+        prisma.callLog.count({ where: { agentId, calledAt: { gte: start, lte: end } } }),
+        prisma.lead.count({ where: { savedById: agentId, dateCollected: { gte: start, lte: end } } }),
+      ])
+    )
+  );
+
+  return months.map(({ label }, i) => ({
+    month: label,
+    calls: results[i][0],
+    leads: results[i][1],
+  }));
+}
+
+/** Leads saved/assigned to this agent with recent activity */
+export async function getAgentLeads(agentId: string) {
+  const [savedLeads, assignedLeads] = await Promise.all([
+    prisma.lead.findMany({
+      where: { savedById: agentId },
+      select: {
+        id: true, businessName: true, city: true, category: true,
+        recordStatus: true, dataQualityScore: true, dateCollected: true,
+      },
+      orderBy: { dateCollected: "desc" },
+      take: 8,
+    }),
+    prisma.lead.findMany({
+      where: { assignedToId: agentId },
+      select: {
+        id: true, businessName: true, city: true, category: true,
+        recordStatus: true, dataQualityScore: true, dateCollected: true,
+      },
+      orderBy: { dateCollected: "desc" },
+      take: 8,
+    }),
+  ]);
+
+  const [totalSaved, totalAssigned] = await Promise.all([
+    prisma.lead.count({ where: { savedById: agentId } }),
+    prisma.lead.count({ where: { assignedToId: agentId } }),
+  ]);
+
+  return { savedLeads, assignedLeads, totalSaved, totalAssigned };
 }
 
 /** Latest N calls for the agent */
@@ -83,28 +151,38 @@ export async function getAgentCallsPerDay(agentId: string, days = 30) {
  * completed tasks, 30-day call history chart data.
  */
 export async function getAgentProfile(userId: string) {
-  const now          = new Date();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const startOfWeek  = new Date(now); startOfWeek.setDate(now.getDate() - 7);
-  const thirtyAgo    = new Date(now); thirtyAgo.setDate(now.getDate() - 29); thirtyAgo.setHours(0, 0, 0, 0);
+  const now           = new Date();
+  const startOfMonth  = new Date(now.getFullYear(), now.getMonth(), 1);
+  const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const endOfLastMonth   = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+  const startOfWeek   = new Date(now); startOfWeek.setDate(now.getDate() - 7);
+  const startOfLastWeek = new Date(now); startOfLastWeek.setDate(now.getDate() - 14);
+  const thirtyAgo     = new Date(now); thirtyAgo.setDate(now.getDate() - 29); thirtyAgo.setHours(0, 0, 0, 0);
 
-  const [user, totalCalls, callsThisMonth, callsThisWeek, allBadges, completedTasks] = await Promise.all([
+  const [user, totalCalls, callsThisMonth, callsLastMonth, callsThisWeek, callsLastWeek, allBadges, completedTasks, repCommissions] = await Promise.all([
     prisma.user.findUniqueOrThrow({
       where: { id: userId },
       select: {
-        id: true, name: true, email: true, points: true, createdAt: true,
+        id: true, name: true, email: true, points: true, role: true, createdAt: true,
         userBadges: { include: { badge: true }, orderBy: { earnedAt: "asc" } },
       },
     }),
     prisma.callLog.count({ where: { agentId: userId } }),
     prisma.callLog.count({ where: { agentId: userId, calledAt: { gte: startOfMonth } } }),
+    prisma.callLog.count({ where: { agentId: userId, calledAt: { gte: startOfLastMonth, lte: endOfLastMonth } } }),
     prisma.callLog.count({ where: { agentId: userId, calledAt: { gte: startOfWeek } } }),
+    prisma.callLog.count({ where: { agentId: userId, calledAt: { gte: startOfLastWeek, lt: startOfWeek } } }),
     prisma.badge.findMany({ orderBy: { key: "asc" } }),
     prisma.taskProgress.findMany({
       where: { userId, completed: true },
       include: { task: { select: { title: true, pointReward: true } } },
       orderBy: { completedAt: "desc" },
       take: 10,
+    }),
+    prisma.repCommission.findMany({
+      where: { repId: userId },
+      include: { rule: { select: { name: true } } },
+      orderBy: { createdAt: "desc" },
     }),
   ]);
 
@@ -145,7 +223,9 @@ export async function getAgentProfile(userId: string) {
     stats: {
       totalCalls,
       callsThisMonth,
+      callsLastMonth,
       callsThisWeek,
+      callsLastWeek,
       bestDay,
       avgPerDay:   +(totalCalls / Math.max(1, monthsActive * 30)).toFixed(1),
       avgPerMonth: Math.round(totalCalls / monthsActive),
@@ -153,5 +233,6 @@ export async function getAgentProfile(userId: string) {
     allBadges: allBadges.map((b) => ({ ...b, earned: earnedKeys.has(b.key) })),
     completedTasks,
     callHistory,
+    repCommissions,
   };
 }

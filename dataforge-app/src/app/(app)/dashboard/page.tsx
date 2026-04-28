@@ -23,7 +23,19 @@ import { BossDashboard } from "./BossDashboard";
 
 /* ─── Lead specialist view (unchanged) ─── */
 async function SpecialistDashboard() {
-  const stats = await withDbRetry(() => getDashboardStats());
+  let stats: Awaited<ReturnType<typeof getDashboardStats>>;
+  try {
+    stats = await withDbRetry(() => getDashboardStats());
+  } catch {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-3 text-center">
+        <p className="text-sm font-medium">Dashboard temporarily unavailable</p>
+        <p className="text-xs text-muted-foreground max-w-xs">
+          The database is under heavy load or has reached its transfer limit. Try again in a few minutes.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -75,7 +87,19 @@ async function SpecialistDashboard() {
 
 /* ─── Sales rep dashboard — leaderboard front and center ─── */
 async function SalesRepDashboard({ userId, period }: { userId: string; period: Period }) {
-  const leaderboard = await withDbRetry(() => getLeaderboard(period));
+  let leaderboard: Awaited<ReturnType<typeof getLeaderboard>>;
+  try {
+    leaderboard = await withDbRetry(() => getLeaderboard(period));
+  } catch {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-3 text-center">
+        <p className="text-sm font-medium">Dashboard temporarily unavailable</p>
+        <p className="text-xs text-muted-foreground max-w-xs">
+          The database is under heavy load or has reached its transfer limit. Try again in a few minutes.
+        </p>
+      </div>
+    );
+  }
   const myRank = leaderboard.findIndex((a) => a.id === userId) + 1;
 
   return (
@@ -122,7 +146,7 @@ export default async function DashboardPage({
 
   if (role === "sales_rep") {
     const { period: raw } = await searchParams;
-    const period: Period = (["yesterday", "week", "month"] as const).includes(raw as Period)
+    const period: Period = (["yesterday", "week", "month", "all_time"] as const).includes(raw as Period)
       ? (raw as Period)
       : "week";
     return <SalesRepDashboard userId={session!.user.id!} period={period} />;
