@@ -32,7 +32,8 @@ const CHART_DAYS: Record<Period, number> = {
 };
 
 export async function BossDashboard({ period = "week" }: { period?: Period }) {
-  await Promise.all([autoSyncGhlCalls(), autoSyncGhlOpportunities()]);
+  // Fire-and-forget — never block the render or propagate sync errors
+  void Promise.all([autoSyncGhlCalls(), autoSyncGhlOpportunities()]);
 
   const [summary, leaderboard, volumeData, tasks, monthlyBreakdown] = await withDbRetry(() =>
     Promise.all([

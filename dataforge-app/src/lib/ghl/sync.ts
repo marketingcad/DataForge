@@ -1,26 +1,19 @@
 import { prisma } from "@/lib/prisma";
 import { getLocationCallConversations, mapGhlCallStatus, getAgentOpportunities } from "@/lib/ghl/client";
 
-const SYNC_COOLDOWN_MS = 10 * 60 * 1000; // 10 minutes
+// 1 hour — keeps DB transfer low; syncs still happen automatically but not on every page load
+const SYNC_COOLDOWN_MS = 60 * 60 * 1000;
 
-/**
- * Auto-syncs GHL call conversations into the CallLog table.
- * Incremental: only fetches conversations updated since the last sync.
- * Skips if synced within the cooldown window.
- * Safe to call from any server component — does nothing if GHL is not configured.
- */
 export async function autoSyncGhlCalls(): Promise<void> {
   try {
     const settings = await prisma.appSettings.findUnique({ where: { id: "singleton" } });
     if (!settings?.ghlApiKey || !settings?.ghlLocationId) return;
 
-    // Cooldown: don't hammer the GHL API on every page load
     if (settings.ghlCallsLastSyncedAt) {
       const age = Date.now() - settings.ghlCallsLastSyncedAt.getTime();
       if (age < SYNC_COOLDOWN_MS) return;
     }
 
-    // Mark sync as started immediately to prevent parallel syncs
     await prisma.appSettings.update({
       where: { id: "singleton" },
       data: { ghlCallsLastSyncedAt: new Date() },
@@ -34,18 +27,14 @@ export async function autoSyncGhlCalls(): Promise<void> {
 
     const agentByGhlId = new Map(dfAgents.map((a) => [a.ghlUserId!, a.id]));
 
-    const allLeads = await prisma.lead.findMany({
-      select: { id: true, phone: true, ghlContactId: true },
+    // Only fetch leads that are already linked to GHL contacts — avoids a full table scan
+    const linkedLeads = await prisma.lead.findMany({
+      where: { ghlContactId: { not: null } },
+      select: { id: true, ghlContactId: true },
     });
-    const phoneToLeadId = new Map(allLeads.map((l) => [l.phone?.replace(/\D/g, ""), l.id]));
-    const contactToLeadId = new Map(
-      allLeads.filter((l) => l.ghlContactId).map((l) => [l.ghlContactId!, l.id])
-    );
+    const contactToLeadId = new Map(linkedLeads.map((l) => [l.ghlContactId!, l.id]));
 
-    // First sync: no since date → fetches ALL historical data
-    // Subsequent syncs: only fetch conversations updated after last sync
     const since = settings.ghlCallsLastSyncedAt ?? undefined;
-
     const callConvs = await getLocationCallConversations(
       settings.ghlApiKey,
       settings.ghlLocationId,
@@ -59,11 +48,7 @@ export async function autoSyncGhlCalls(): Promise<void> {
       const ghlMessageId = conv.id;
       const rawDate = conv.sort?.[0] ?? conv.lastMessageDate ?? conv.dateUpdated ?? conv.dateAdded;
       const calledAt = rawDate ? new Date(Number(rawDate)) : new Date();
-
-      const leadId =
-        (conv.contactId ? contactToLeadId.get(conv.contactId) : undefined) ??
-        (conv.phone ? phoneToLeadId.get(conv.phone.replace(/\D/g, "")) : undefined) ??
-        null;
+      const leadId = conv.contactId ? (contactToLeadId.get(conv.contactId) ?? null) : null;
 
       const record = {
         agentId: dfAgentId,
@@ -85,15 +70,10 @@ export async function autoSyncGhlCalls(): Promise<void> {
       });
     }
   } catch (err) {
-    // Never crash the page render — sync errors are non-fatal
     console.error("[autoSyncGhlCalls]", err);
   }
 }
 
-/**
- * Auto-syncs GHL opportunities per agent into the GhlOpportunity table.
- * Runs once per cooldown window. Safe to call from any server component.
- */
 export async function autoSyncGhlOpportunities(): Promise<void> {
   try {
     const settings = await prisma.appSettings.findUnique({ where: { id: "singleton" } });
@@ -115,12 +95,12 @@ export async function autoSyncGhlOpportunities(): Promise<void> {
     });
     if (dfAgents.length === 0) return;
 
-    const allLeads = await prisma.lead.findMany({
+    // Only fetch leads already linked to GHL contacts
+    const linkedLeads = await prisma.lead.findMany({
+      where: { ghlContactId: { not: null } },
       select: { id: true, ghlContactId: true },
     });
-    const contactToLeadId = new Map(
-      allLeads.filter((l) => l.ghlContactId).map((l) => [l.ghlContactId!, l.id])
-    );
+    const contactToLeadId = new Map(linkedLeads.map((l) => [l.ghlContactId!, l.id]));
 
     for (const agent of dfAgents) {
       const opps = await getAgentOpportunities(
