@@ -104,7 +104,7 @@ export function CommissionsManager({ rules: initial, currency }: { rules: Rule[]
   function openEdit(r: Rule) {
     setForm({
       name: r.name, description: r.description ?? "", type: r.type,
-      amount: String(r.amount), period: r.period, active: r.active,
+      amount: String(r.amount), period: r.period ?? "one_time", active: r.active,
     });
     setEditing(r); setError(null); setDrawerOpen(true);
   }
@@ -271,7 +271,7 @@ export function CommissionsManager({ rules: initial, currency }: { rules: Rule[]
               </div>
               <div className="space-y-2">
                 <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Period</Label>
-                <Select value={form.period ?? ""} onValueChange={(v) => f("period", v)}>
+                <Select value={form.period} onValueChange={(v) => f("period", v)}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
