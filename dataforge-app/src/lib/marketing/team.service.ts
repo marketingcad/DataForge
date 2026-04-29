@@ -9,7 +9,7 @@ export type LeaderboardPeriod = "yesterday" | "week" | "month" | "all_time";
 export type LeaderboardMetric = "calls" | "leads" | "appts_set" | "deals_won" | "commissions" | "avg_call_time" | "badges";
 
 /** Roles that participate in the marketing leaderboard / KPIs */
-const MARKETING_ROLES = { in: ["sales_rep", "team_lead"] as const };
+const MARKETING_ROLES = { in: ["sales_rep", "team_lead"] };
 
 function periodRange(period: LeaderboardPeriod): { gte?: Date; lte?: Date } {
   const now = new Date();
