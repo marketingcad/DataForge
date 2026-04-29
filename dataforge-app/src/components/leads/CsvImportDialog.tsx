@@ -214,21 +214,17 @@ export function CsvImportDialog({ open, onClose, folders, userId, categories = [
               <div className="space-y-1.5">
                 <Label>Save to Folder <span className="text-muted-foreground text-xs">(optional)</span></Label>
                 <Popover open={folderOpen} onOpenChange={setFolderOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      role="combobox"
-                      aria-expanded={folderOpen}
-                      className="w-full justify-between font-normal"
-                    >
-                      <span className="truncate text-left">{folderLabel || "Select a folder…"}</span>
-                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
+                  <PopoverTrigger
+                    className="inline-flex w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm font-normal shadow-sm hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    aria-expanded={folderOpen}
+                  >
+                    <span className="truncate">{folderLabel || "Select a folder…"}</span>
+                    <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
                   </PopoverTrigger>
                   <PopoverContent
                     className="p-0"
                     align="start"
-                    style={{ width: "var(--radix-popover-trigger-width)" }}
+                    style={{ width: "var(--anchor-width)" }}
                   >
                     <Command>
                       <CommandInput placeholder="Search folders…" />
@@ -263,21 +259,17 @@ export function CsvImportDialog({ open, onClose, folders, userId, categories = [
               <div className="space-y-1.5">
                 <Label>Category <span className="text-muted-foreground text-xs">(optional override)</span></Label>
                 <Popover open={categoryOpen} onOpenChange={setCategoryOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      role="combobox"
-                      aria-expanded={categoryOpen}
-                      className="w-full justify-between font-normal"
-                    >
-                      <span className="truncate text-left">{categoryLabel}</span>
-                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
+                  <PopoverTrigger
+                    className="inline-flex w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm font-normal shadow-sm hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    aria-expanded={categoryOpen}
+                  >
+                    <span className="truncate">{categoryLabel}</span>
+                    <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
                   </PopoverTrigger>
                   <PopoverContent
                     className="p-0"
                     align="start"
-                    style={{ width: "var(--radix-popover-trigger-width)" }}
+                    style={{ width: "var(--anchor-width)" }}
                   >
                     <Command>
                       <CommandInput placeholder="Search categories…" />
