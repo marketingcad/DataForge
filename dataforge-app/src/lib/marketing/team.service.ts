@@ -4,12 +4,13 @@
  * Do NOT call these from sales_rep views.
  */
 import { prisma } from "@/lib/prisma";
+import { UserRole } from "@/generated/prisma";
 
 export type LeaderboardPeriod = "yesterday" | "week" | "month" | "all_time";
 export type LeaderboardMetric = "calls" | "leads" | "appts_set" | "deals_won" | "commissions" | "avg_call_time" | "badges";
 
 /** Roles that participate in the marketing leaderboard / KPIs */
-const MARKETING_ROLES = { in: ["sales_rep", "team_lead"] };
+const MARKETING_ROLES = { in: [UserRole.sales_rep, UserRole.team_lead] };
 
 function periodRange(period: LeaderboardPeriod): { gte?: Date; lte?: Date } {
   const now = new Date();
