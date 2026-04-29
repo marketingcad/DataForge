@@ -143,7 +143,7 @@ export async function getAgentCallsPerDay(agentId: string, days = 30) {
     if (key in map) map[key]++;
   }
 
-  return Object.entries(map).map(([date, count]) => ({ date, count }));
+  return Object.entries(map).map(([date, count]) => ({ label: date, calls: count }));
 }
 
 /**
