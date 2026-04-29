@@ -136,15 +136,33 @@ export type CsvLeadRow = {
   category?: string;
 };
 
+async function getOrCreateDefaultCsvFolder(userId: string): Promise<string> {
+  let industry = await prisma.industry.findFirst({ where: { name: "CSV Imports", userId } });
+  if (!industry) {
+    industry = await prisma.industry.create({
+      data: { userId, name: "CSV Imports", color: "#64748b" },
+    });
+  }
+  let folder = await prisma.folder.findFirst({ where: { name: "General", industryId: industry.id } });
+  if (!folder) {
+    folder = await prisma.folder.create({
+      data: { userId, name: "General", color: "#64748b", industryId: industry.id },
+    });
+  }
+  return folder.id;
+}
+
 export async function importLeadsFromCsvAction(
   rows: CsvLeadRow[],
-  folderId: string,
+  folderId: string | null,
   categoryOverride: string | null,
   savedById: string,
 ) {
   await requireDepartment("leads");
 
   if (!rows.length) return { created: 0, duplicates: 0, errors: 0 };
+
+  const resolvedFolderId = folderId || await getOrCreateDefaultCsvFolder(savedById);
 
   let created = 0, duplicates = 0, errors = 0;
 
@@ -162,7 +180,7 @@ export async function importLeadsFromCsvAction(
         country: row.country,
         category: categoryOverride ?? row.category,
         source: "CSV Import",
-        folderId: folderId || undefined,
+        folderId: resolvedFolderId,
         savedById,
       });
       if (result.status === "created") created++;

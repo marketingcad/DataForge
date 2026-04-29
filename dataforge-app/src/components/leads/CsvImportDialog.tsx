@@ -91,11 +91,11 @@ export function CsvImportDialog({ open, onClose, folders, userId }: Props) {
   }
 
   function handleImport() {
-    if (!rows.length || !folderId) return;
+    if (!rows.length) return;
     startTransition(async () => {
       const res = await importLeadsFromCsvAction(
         rows,
-        folderId,
+        folderId || null,
         categoryOverride === "none" ? null : categoryOverride,
         userId,
       );
@@ -161,7 +161,7 @@ export function CsvImportDialog({ open, onClose, folders, userId }: Props) {
 
           {/* Folder selector */}
           <div className="space-y-1.5">
-            <Label>Save to Folder <span className="text-destructive">*</span></Label>
+            <Label>Save to Folder <span className="text-muted-foreground text-xs">(optional)</span></Label>
             <Select value={folderId} onValueChange={(v) => v != null && setFolderId(v)}>
               <SelectTrigger>
                 <SelectValue placeholder="Select a folder…" />
@@ -174,6 +174,9 @@ export function CsvImportDialog({ open, onClose, folders, userId }: Props) {
                 ))}
               </SelectContent>
             </Select>
+            {!folderId && (
+              <p className="text-xs text-muted-foreground">No folder selected — leads will go to <strong>CSV Imports › General</strong></p>
+            )}
           </div>
 
           {/* Category override */}
@@ -205,7 +208,7 @@ export function CsvImportDialog({ open, onClose, folders, userId }: Props) {
           <Button variant="outline" onClick={handleClose} disabled={isPending}>Cancel</Button>
           <Button
             onClick={result ? handleClose : handleImport}
-            disabled={isPending || (!result && (rows.length === 0 || !folderId))}
+            disabled={isPending || (!result && rows.length === 0)}
           >
             {isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             {result ? "Done" : isPending ? "Importing…" : `Import ${rows.length > 0 ? rows.length : ""} Leads`}
