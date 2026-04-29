@@ -132,7 +132,7 @@ export function LedgerPanel({ entries: initial, currency }: { entries: LedgerRow
 
       {/* ── Toolbar ── */}
       <div className="flex flex-wrap items-center gap-3">
-        <Select value={filterAgent} onValueChange={setFilterAgent}>
+        <Select value={filterAgent} onValueChange={(v) => v != null && setFilterAgent(v)}>
           <SelectTrigger className="w-[180px] h-9">
             <SelectValue placeholder="All Reps" />
           </SelectTrigger>
@@ -144,7 +144,7 @@ export function LedgerPanel({ entries: initial, currency }: { entries: LedgerRow
           </SelectContent>
         </Select>
 
-        <Select value={filterStatus} onValueChange={setFilterStatus}>
+        <Select value={filterStatus} onValueChange={(v) => v != null && setFilterStatus(v)}>
           <SelectTrigger className="w-[160px] h-9">
             <SelectValue placeholder="All Statuses" />
           </SelectTrigger>

@@ -101,7 +101,8 @@ export function RepCommissionsPanel({
   const [note, setNote]         = useState("");
   const [formError, setFormError] = useState<string | null>(null);
 
-  function onRuleChange(id: string) {
+  function onRuleChange(id: string | null) {
+    if (id == null) return;
     setRuleId(id);
     const rule = rules.find((r) => r.id === id);
     if (rule) setAmount(String(rule.amount));
@@ -191,7 +192,7 @@ export function RepCommissionsPanel({
 
       {/* ── Toolbar ── */}
       <div className="flex flex-wrap items-center gap-3">
-        <Select value={filterRep} onValueChange={setFilterRep}>
+        <Select value={filterRep} onValueChange={(v) => v != null && setFilterRep(v)}>
           <SelectTrigger className="w-[180px] h-9">
             <SelectValue placeholder="All Reps" />
           </SelectTrigger>
@@ -203,7 +204,7 @@ export function RepCommissionsPanel({
           </SelectContent>
         </Select>
 
-        <Select value={filterStatus} onValueChange={setFilterStatus}>
+        <Select value={filterStatus} onValueChange={(v) => v != null && setFilterStatus(v)}>
           <SelectTrigger className="w-[160px] h-9">
             <SelectValue placeholder="All Statuses" />
           </SelectTrigger>
@@ -245,7 +246,7 @@ export function RepCommissionsPanel({
               <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Sales Rep <span className="text-red-500">*</span>
               </Label>
-              <Select value={repId} onValueChange={setRepId}>
+              <Select value={repId} onValueChange={(v) => v != null && setRepId(v)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select a rep…" />
                 </SelectTrigger>

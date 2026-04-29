@@ -247,7 +247,7 @@ export function TaskDetailModal({ task: initialTask, open, onOpenChange, isAdmin
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label className="text-xs text-muted-foreground font-medium">Priority</Label>
-                  <Select value={editPriority} onValueChange={(v) => setEditPriority(v as KanbanPriority)}>
+                  <Select value={editPriority} onValueChange={(v) => v != null && setEditPriority(v as KanbanPriority)}>
                     <SelectTrigger className="w-full h-9 text-sm">
                       <SelectValue />
                     </SelectTrigger>

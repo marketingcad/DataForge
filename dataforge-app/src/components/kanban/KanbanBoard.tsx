@@ -300,7 +300,7 @@ function NewTaskDialog({
           {/* ── Metadata: Priority, Date, Assignee ── */}
           <div className="px-4 py-3 border-t border-border/40">
             <div className="grid grid-cols-3 gap-2">
-              <Select value={priority} onValueChange={(v) => setPriority(v as KanbanPriority)}>
+              <Select value={priority} onValueChange={(v) => v != null && setPriority(v as KanbanPriority)}>
                 <SelectTrigger className="h-8 text-xs gap-1.5 border-border/50">
                   <span>{PRIORITY_ICONS[priority]}</span>
                   <SelectValue />
