@@ -82,7 +82,8 @@ const PERIODS = [
   { value: "one_time", label: "One-Time" },
 ];
 
-const EMPTY = {
+type FormState = { name: string; description: string; type: string; amount: string; period: string; active: boolean };
+const EMPTY: FormState = {
   name: "", description: "", type: "per_lead_saved",
   amount: "5", period: "one_time", active: true,
 };
@@ -94,7 +95,7 @@ export function CommissionsManager({ rules: initial, currency }: { rules: Rule[]
   const [editing, setEditing]   = useState<Rule | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
-  const [form, setForm]         = useState(EMPTY);
+  const [form, setForm]         = useState<FormState>(EMPTY);
   const [error, setError]       = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -110,7 +111,7 @@ export function CommissionsManager({ rules: initial, currency }: { rules: Rule[]
   }
   function closeDrawer() { setDrawerOpen(false); setEditing(null); setError(null); }
 
-  function f<K extends keyof typeof EMPTY>(key: K, val: (typeof EMPTY)[K]) {
+  function f<K extends keyof FormState>(key: K, val: FormState[K]) {
     setForm((p) => ({ ...p, [key]: val }));
   }
 
