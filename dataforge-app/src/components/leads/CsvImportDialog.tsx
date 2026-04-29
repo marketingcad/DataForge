@@ -191,20 +191,43 @@ export function CsvImportDialog({ open, onClose, folders, userId, categories = [
             </div>
           )}
 
-          {/* Progress bar */}
-          {(isImporting || (result && progress.total > 0)) && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground flex items-center gap-1.5">
-                  {isImporting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                  {isImporting ? "Importing leads…" : "Import complete"}
-                </span>
-                <span className="font-medium tabular-nums">
-                  {Math.min(progress.imported, progress.total)}&nbsp;/&nbsp;{progress.total} leads
-                </span>
+          {/* Import progress — shown during and after import */}
+          {(isImporting || result) && progress.total > 0 && (
+            <div className="rounded-xl border bg-muted/40 p-4 space-y-4">
+              {/* Progress bar + counter */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm font-medium">
+                  <span className="flex items-center gap-1.5">
+                    {isImporting
+                      ? <><Loader2 className="h-3.5 w-3.5 animate-spin text-primary" /> Importing…</>
+                      : <><CheckCircle2 className="h-3.5 w-3.5 text-green-500" /> Import complete</>
+                    }
+                  </span>
+                  <span className="tabular-nums">
+                    {Math.min(progress.imported, progress.total)}&nbsp;/&nbsp;{progress.total} leads
+                  </span>
+                </div>
+                <Progress value={progressPct} className="h-3" />
+                <p className="text-xs text-muted-foreground text-right">{progressPct}%</p>
               </div>
-              <Progress value={progressPct} />
-              <p className="text-xs text-muted-foreground text-center">{progressPct}% complete</p>
+
+              {/* Result breakdown — shown after import */}
+              {result && (
+                <div className="grid grid-cols-3 gap-3 pt-1">
+                  <div className="rounded-lg bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-900 p-3 text-center space-y-0.5">
+                    <p className="text-2xl font-bold text-green-600 dark:text-green-400 tabular-nums">{result.created}</p>
+                    <p className="text-xs text-green-700 dark:text-green-300 font-medium">Imported</p>
+                  </div>
+                  <div className="rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 p-3 text-center space-y-0.5">
+                    <p className="text-2xl font-bold text-amber-600 dark:text-amber-400 tabular-nums">{result.duplicates}</p>
+                    <p className="text-xs text-amber-700 dark:text-amber-300 font-medium">Already in DB</p>
+                  </div>
+                  <div className="rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 p-3 text-center space-y-0.5">
+                    <p className="text-2xl font-bold text-red-600 dark:text-red-400 tabular-nums">{result.errors}</p>
+                    <p className="text-xs text-red-700 dark:text-red-300 font-medium">Errors</p>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -302,15 +325,6 @@ export function CsvImportDialog({ open, onClose, folders, userId, categories = [
             </>
           )}
 
-          {/* Result summary */}
-          {result && (
-            <div className="rounded-lg bg-muted p-3 text-sm space-y-0.5">
-              <p className="font-medium">Import complete</p>
-              <p className="text-muted-foreground">
-                ✅ {result.created} created &nbsp;·&nbsp; ⚠️ {result.duplicates} duplicates &nbsp;·&nbsp; ❌ {result.errors} errors
-              </p>
-            </div>
-          )}
         </div>
 
         <DialogFooter>
