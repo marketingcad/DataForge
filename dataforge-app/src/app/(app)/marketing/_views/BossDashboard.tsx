@@ -163,7 +163,7 @@ export async function BossDashboard({ period = "week", metric = "appts_set" }: {
       </div>
 
       {/* ── Champions leaderboard ── */}
-      <LeaderboardSection leaderboard={leaderboard} period={period} metric={metric} />
+      <LeaderboardSection leaderboard={leaderboard} period={period} />
 
       {/* ── Chart + Active challenges ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
