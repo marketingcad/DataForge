@@ -122,3 +122,56 @@ export async function updateLeadStatusAction(id: string, status: "active" | "fla
   revalidatePath("/leads");
   revalidatePath(`/leads/${id}`);
 }
+
+export type CsvLeadRow = {
+  businessName: string;
+  phone: string;
+  email?: string;
+  website?: string;
+  contactPerson?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  category?: string;
+};
+
+export async function importLeadsFromCsvAction(
+  rows: CsvLeadRow[],
+  folderId: string,
+  categoryOverride: string | null,
+  savedById: string,
+) {
+  await requireDepartment("leads");
+
+  if (!rows.length) return { created: 0, duplicates: 0, errors: 0 };
+
+  let created = 0, duplicates = 0, errors = 0;
+
+  for (const row of rows) {
+    try {
+      const result = await insertLead({
+        businessName: row.businessName,
+        phone: row.phone,
+        email: row.email,
+        website: row.website,
+        contactPerson: row.contactPerson,
+        address: row.address,
+        city: row.city,
+        state: row.state,
+        country: row.country,
+        category: categoryOverride ?? row.category,
+        source: "CSV Import",
+        folderId: folderId || undefined,
+        savedById,
+      });
+      if (result.status === "created") created++;
+      else duplicates++;
+    } catch {
+      errors++;
+    }
+  }
+
+  revalidatePath("/leads");
+  return { created, duplicates, errors };
+}
