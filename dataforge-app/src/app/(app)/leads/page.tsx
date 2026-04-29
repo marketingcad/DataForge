@@ -108,6 +108,7 @@ export default async function LeadsPage({
             name: f.name,
             industryName: f.industry?.name ?? null,
           }))}
+          csvCategories={(industries as { name: string }[]).map((ind) => ind.name)}
         />
       )}
     </div>

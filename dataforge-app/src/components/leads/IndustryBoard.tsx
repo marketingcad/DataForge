@@ -188,9 +188,10 @@ interface IndustryBoardProps {
   filterUsers?: { id: string; name: string | null; email: string }[];
   userId?: string;
   csvFolders?: { id: string; name: string; industryName?: string | null }[];
+  csvCategories?: string[];
 }
 
-export function IndustryBoard({ industries: initialIndustries, unfiledFolders, filterUserId, filterUsers, userId, csvFolders }: IndustryBoardProps) {
+export function IndustryBoard({ industries: initialIndustries, unfiledFolders, filterUserId, filterUsers, userId, csvFolders, csvCategories }: IndustryBoardProps) {
   const router = useRouter();
   const [industries, setIndustries] = useState<IndustryData[]>(initialIndustries);
   const [selected, setSelected] = useState<IndustryData | null>(null);
@@ -337,6 +338,7 @@ export function IndustryBoard({ industries: initialIndustries, unfiledFolders, f
           onClose={() => setCsvImportOpen(false)}
           folders={csvFolders}
           userId={userId}
+          categories={csvCategories}
         />
       )}
 

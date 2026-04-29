@@ -8,11 +8,6 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { importLeadsFromCsvAction, type CsvLeadRow } from "@/actions/leads.actions";
 
-const CATEGORIES = [
-  "Roofing", "Dental", "Healthcare", "Real Estate", "Legal",
-  "Finance", "Construction", "Automotive", "Retail", "Restaurant", "Other",
-];
-
 // Maps common CSV header variations to our field names
 const HEADER_MAP: Record<string, keyof CsvLeadRow> = {
   "business name": "businessName", businessname: "businessName", name: "businessName", business: "businessName",
@@ -60,9 +55,10 @@ interface Props {
   onClose: () => void;
   folders: Folder[];
   userId: string;
+  categories?: string[];
 }
 
-export function CsvImportDialog({ open, onClose, folders, userId }: Props) {
+export function CsvImportDialog({ open, onClose, folders, userId, categories = [] }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [rows, setRows] = useState<CsvLeadRow[]>([]);
   const [skipped, setSkipped] = useState(0);
@@ -167,11 +163,14 @@ export function CsvImportDialog({ open, onClose, folders, userId }: Props) {
                 <SelectValue placeholder="Select a folder…" />
               </SelectTrigger>
               <SelectContent>
-                {folders.map((f) => (
-                  <SelectItem key={f.id} value={f.id}>
-                    {f.industryName ? `${f.industryName} / ` : ""}{f.name}
-                  </SelectItem>
-                ))}
+                {folders.map((f) => {
+                  const label = f.industryName ? `${f.industryName} / ${f.name}` : f.name;
+                  return (
+                    <SelectItem key={f.id} value={f.id} textValue={label}>
+                      {label}
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
             {!folderId && (
@@ -188,7 +187,7 @@ export function CsvImportDialog({ open, onClose, folders, userId }: Props) {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">Use category from CSV</SelectItem>
-                {CATEGORIES.map((c) => (
+                {categories.map((c) => (
                   <SelectItem key={c} value={c}>{c}</SelectItem>
                 ))}
               </SelectContent>
