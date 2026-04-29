@@ -4,7 +4,7 @@
  * Do NOT call these from sales_rep views.
  */
 import { prisma } from "@/lib/prisma";
-import { UserRole } from "@/generated/prisma";
+import { UserRole } from "@/generated/prisma/enums";
 
 export type LeaderboardPeriod = "yesterday" | "week" | "month" | "all_time";
 export type LeaderboardMetric = "calls" | "leads" | "appts_set" | "deals_won" | "commissions" | "avg_call_time" | "badges";
