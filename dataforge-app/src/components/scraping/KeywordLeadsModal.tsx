@@ -44,6 +44,7 @@ type Lead = {
   address: string | null;
   city: string | null;
   state: string | null;
+  country: string | null;
   dataQualityScore: number;
 };
 
@@ -114,11 +115,11 @@ function scoreBadgeStyle(score: number) {
 }
 
 function exportToCSV(leads: Lead[], filename: string) {
-  const headers = ["Business Name", "Phone", "Website", "Address", "City", "State", "Score"];
-  const rows = leads.map((l) => [
-    l.businessName, l.phone, l.website ?? "",
-    l.address ?? "", l.city ?? "", l.state ?? "", String(l.dataQualityScore),
-  ]);
+  const headers = ["Business Name", "Phone", "Website", "Address", "Score"];
+  const rows = leads.map((l) => {
+    const address = [l.address, l.city, l.state, l.country].filter(Boolean).join(", ");
+    return [l.businessName, l.phone, l.website ?? "", address, String(l.dataQualityScore)];
+  });
   const csv = [headers, ...rows]
     .map((r) => r.map((c) => `"${c.replace(/"/g, '""')}"`).join(","))
     .join("\n");

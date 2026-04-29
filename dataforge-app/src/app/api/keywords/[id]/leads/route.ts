@@ -60,6 +60,7 @@ export async function GET(
         address: true,
         city: true,
         state: true,
+        country: true,
         contactPerson: true,
         dataQualityScore: true,
       },

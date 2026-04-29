@@ -123,12 +123,15 @@ function scoreBadgeStyle(score: number) {
 }
 
 function exportToCSV(leads: Lead[], filename: string) {
-  const headers = ["Business Name", "Contact", "Phone", "Email", "Website", "City", "State", "Score"];
-  const rows = leads.map((l) => [
-    l.businessName, l.contactPerson ?? "", l.phone,
-    l.email ?? "", l.website ?? "", l.city ?? "", l.state ?? "",
-    String(l.dataQualityScore),
-  ]);
+  const headers = ["Business Name", "Contact", "Phone", "Email", "Website", "Address", "Score"];
+  const rows = leads.map((l) => {
+    const address = [l.address, l.city, l.state, l.country].filter(Boolean).join(", ");
+    return [
+      l.businessName, l.contactPerson ?? "", l.phone,
+      l.email ?? "", l.website ?? "", address,
+      String(l.dataQualityScore),
+    ];
+  });
   const csv = [headers, ...rows]
     .map((r) => r.map((c) => `"${c.replace(/"/g, '""')}"`).join(","))
     .join("\n");
