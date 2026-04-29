@@ -31,7 +31,7 @@ async function SpecialistDashboard() {
       <div className="flex flex-col items-center justify-center h-64 gap-3 text-center">
         <p className="text-sm font-medium">Dashboard temporarily unavailable</p>
         <p className="text-xs text-muted-foreground max-w-xs">
-          The database is under heavy load or has reached its transfer limit. Try again in a few minutes.
+          Something went wrong loading the dashboard. Please try again.
         </p>
       </div>
     );
@@ -95,7 +95,7 @@ async function SalesRepDashboard({ userId, period }: { userId: string; period: P
       <div className="flex flex-col items-center justify-center h-64 gap-3 text-center">
         <p className="text-sm font-medium">Dashboard temporarily unavailable</p>
         <p className="text-xs text-muted-foreground max-w-xs">
-          The database is under heavy load or has reached its transfer limit. Try again in a few minutes.
+          Something went wrong loading the dashboard. Please try again.
         </p>
       </div>
     );
