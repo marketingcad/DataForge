@@ -3,6 +3,7 @@
  * Boss / Admin only — team-wide marketing analytics queries.
  * Do NOT call these from sales_rep views.
  */
+import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { UserRole } from "@/generated/prisma/enums";
 
@@ -29,7 +30,7 @@ function periodRange(period: LeaderboardPeriod): { gte?: Date; lte?: Date } {
 }
 
 /** Team KPI summary: agent count + call totals for today / yesterday / week / month */
-export async function getTeamSummary() {
+export const getTeamSummary = unstable_cache(async function getTeamSummary() {
   const now = new Date();
   const startOfDay   = new Date(now); startOfDay.setHours(0, 0, 0, 0);
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -49,10 +50,10 @@ export async function getTeamSummary() {
   ]);
 
   return { agentCount, callsToday, callsYesterday, callsThisWeek, callsThisMonth, callsAllTime, teamApptsSet, teamWon };
-}
+}, ["team-summary"], { revalidate: 120, tags: ["marketing"] });
 
 /** Sorted leaderboard of all marketing agents for the given period + metric */
-export async function getLeaderboard(
+export const getLeaderboard = unstable_cache(async function getLeaderboard(
   period: LeaderboardPeriod = "week",
   metric: LeaderboardMetric = "appts_set",
 ) {
@@ -120,7 +121,7 @@ export async function getLeaderboard(
       default:              return b.appointmentsSet - a.appointmentsSet;
     }
   });
-}
+}, ["leaderboard"], { revalidate: 120, tags: ["marketing"] });
 
 /** Team-wide call volume bucketed by day (pass days=1 for today hourly is handled in UI) */
 export async function getTeamCallsPerDay(days = 30) {
