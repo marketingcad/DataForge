@@ -272,7 +272,7 @@ export function CommissionsManager({ rules: initial, currency }: { rules: Rule[]
               </div>
               <div className="space-y-2">
                 <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Period</Label>
-                <Select value={form.period} onValueChange={(v) => f("period", v)}>
+                <Select value={form.period} onValueChange={(v: string) => setForm(p => ({ ...p, period: v }))}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
