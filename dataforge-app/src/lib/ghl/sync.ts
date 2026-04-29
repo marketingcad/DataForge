@@ -124,6 +124,7 @@ export async function autoSyncGhlOpportunities(): Promise<void> {
   try {
     const settings = await prisma.appSettings.findUnique({ where: { id: "singleton" } });
     if (!settings?.ghlApiKey || !settings?.ghlLocationId) return;
+    const { ghlApiKey, ghlLocationId } = settings;
 
     await prisma.appSettings.update({
       where: { id: "singleton" },
@@ -145,8 +146,8 @@ export async function autoSyncGhlOpportunities(): Promise<void> {
 
     await Promise.all(dfAgents.map(async (agent) => {
       const opps = await getAgentOpportunities(
-        settings.ghlApiKey,
-        settings.ghlLocationId,
+        ghlApiKey,
+        ghlLocationId,
         agent.ghlUserId!
       );
 
