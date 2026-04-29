@@ -160,13 +160,17 @@ export function CsvImportDialog({ open, onClose, folders, userId, categories = [
             <Label>Save to Folder <span className="text-muted-foreground text-xs">(optional)</span></Label>
             <Select value={folderId} onValueChange={(v) => v != null && setFolderId(v)}>
               <SelectTrigger>
-                <SelectValue placeholder="Select a folder…" />
+                <SelectValue placeholder="Select a folder…">
+                  {folderId
+                    ? (() => { const f = folders.find((x) => x.id === folderId); return f ? (f.industryName ? `${f.industryName} / ${f.name}` : f.name) : "Select a folder…"; })()
+                    : "Select a folder…"}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {folders.map((f) => {
                   const label = f.industryName ? `${f.industryName} / ${f.name}` : f.name;
                   return (
-                    <SelectItem key={f.id} value={f.id} textValue={label}>
+                    <SelectItem key={f.id} value={f.id}>
                       {label}
                     </SelectItem>
                   );
