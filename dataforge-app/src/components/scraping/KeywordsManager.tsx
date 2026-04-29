@@ -24,28 +24,30 @@ import {
 } from "@/components/ui/select";
 import {
   Plus,
-  Play,
-  Square,
-  Trash2,
   Clock,
-  MapPin,
-  AlertTriangle,
-  CheckCircle2,
-  Check,
-  Pencil,
   Loader2,
-  Inbox,
-  LayoutGrid,
-  List,
-  History,
-  Upload,
   Tags,
+  Check,
+  Trash2,
+  Folder,
+  Inbox,
+  Users,
+  Search,
+  Activity,
 } from "lucide-react";
 import { KeywordLeadsModal } from "@/components/scraping/KeywordLeadsModal";
 import { KeywordHistoryModal } from "@/components/scraping/KeywordHistoryModal";
+import { KeywordCategoryModal } from "@/components/scraping/KeywordCategoryModal";
+import { CategoryCombobox } from "@/components/scraping/CategoryCombobox";
+import { LocationCombobox } from "@/components/scraping/LocationCombobox";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+
+const CAT_COLORS = [
+  "#6366f1", "#8b5cf6", "#ec4899", "#ef4444", "#f97316",
+  "#eab308", "#22c55e", "#06b6d4", "#3b82f6", "#64748b",
+];
 
 interface KeywordRow {
   id: string;
@@ -58,11 +60,13 @@ interface KeywordRow {
   nextRunAt: string | null;
   failedAttempts: number;
   lastError: string | null;
+  category: string;
   extraKeywords: string[];
   extraKeywordsMode: string;
   extraKeywordsMin: number;
   extraKeywordsMax: number;
   extraKeywordsOrder: string[];
+  cityRotationEnabled: boolean;
   _count: { jobs: number; leads: number };
   jobs: {
     id: string;
@@ -126,12 +130,80 @@ function intervalLabel(minutes: number) {
 export function KeywordsManager({ initial }: KeywordsManagerProps) {
   const [keywords, setKeywords] = useState<KeywordRow[]>(initial);
 
+  // Track in-flight category moves so the background poller doesn't revert them
+  const pendingMovesRef = useRef<Map<string, string>>(new Map());
+
+  // Category folder state
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+
+  // Extra (empty) categories created manually — persisted in localStorage
+  const [manualCategories, setManualCategories] = useState<{ name: string; color: string }[]>([]);
+  // User-chosen colors per category name — persisted in localStorage
+  const [categoryColors, setCategoryColors] = useState<Record<string, string>>({});
+
+  // Load from localStorage on mount
+  useEffect(() => {
+    try {
+      const mc = localStorage.getItem("kw-manual-categories");
+      if (mc) setManualCategories(JSON.parse(mc));
+      const cc = localStorage.getItem("kw-category-colors");
+      if (cc) setCategoryColors(JSON.parse(cc));
+    } catch { /* ignore */ }
+  }, []);
+
+  function saveManualCategories(list: { name: string; color: string }[]) {
+    setManualCategories(list);
+    localStorage.setItem("kw-manual-categories", JSON.stringify(list));
+  }
+  function saveCategoryColor(name: string, color: string) {
+    const next = { ...categoryColors, [name]: color };
+    setCategoryColors(next);
+    localStorage.setItem("kw-category-colors", JSON.stringify(next));
+  }
+
+  // Create category dialog
+  const [createCatOpen, setCreateCatOpen] = useState(false);
+  const [createCatName, setCreateCatName] = useState("");
+  const [createCatColor, setCreateCatColor] = useState(CAT_COLORS[0]);
+
+  function handleCreateCategory() {
+    const name = createCatName.trim();
+    if (!name) return;
+    // Persist the color for this category name
+    saveCategoryColor(name, createCatColor);
+    // If no keywords exist for this category yet, track it as a manual category
+    const exists = keywords.some((k) => (k.category || "Uncategorized") === name);
+    if (!exists && !manualCategories.some((c) => c.name === name)) {
+      saveManualCategories([...manualCategories, { name, color: createCatColor }]);
+    }
+    setCreateCatOpen(false);
+    setCreateCatName("");
+    setCreateCatColor(CAT_COLORS[0]);
+  }
+
+  // Derived: sorted unique categories (from keywords + manual empty ones)
+  const allCategoryNames = Array.from(new Set([
+    ...keywords.map((k) => k.category || "Uncategorized"),
+    ...manualCategories.map((c) => c.name),
+  ])).sort((a, b) =>
+    a === "Uncategorized" ? -1 : b === "Uncategorized" ? 1 : a.localeCompare(b)
+  );
+
+  function getCategoryColor(cat: string, idx: number): string {
+    if (cat === "Uncategorized") return "#64748b";
+    if (categoryColors[cat]) return categoryColors[cat];
+    const manual = manualCategories.find((c) => c.name === cat);
+    if (manual) return manual.color;
+    return CAT_COLORS[idx % (CAT_COLORS.length - 1)];
+  }
+
   // Add dialog
   const [addOpen, setAddOpen] = useState(false);
   const [newKeyword, setNewKeyword] = useState("");
   const [newLocation, setNewLocation] = useState("");
   const [newMaxLeads, setNewMaxLeads] = useState("50");
   const [newInterval, setNewInterval] = useState("1440");
+  const [newCategory, setNewCategory] = useState("Uncategorized");
   const [newExtraKeywords, setNewExtraKeywords] = useState<string[]>([]);
   const [newExtraMode, setNewExtraMode] = useState<"random" | "ordered">("random");
   const [newExtraMin, setNewExtraMin] = useState("1");
@@ -145,6 +217,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
   const [editLocation, setEditLocation] = useState("");
   const [editMaxLeads, setEditMaxLeads] = useState("50");
   const [editInterval, setEditInterval] = useState("1440");
+  const [editCategory, setEditCategory] = useState("Uncategorized");
   const [editExtraKeywords, setEditExtraKeywords] = useState<string[]>([]);
   const [editExtraMode, setEditExtraMode] = useState<"random" | "ordered">("random");
   const [editExtraMin, setEditExtraMin] = useState("1");
@@ -160,17 +233,6 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
 
   // History modal
   const [historyKw, setHistoryKw] = useState<KeywordRow | null>(null);
-
-  // Grid vs list view — persisted in localStorage
-  const [view, setView] = useState<"list" | "grid">("list");
-  useEffect(() => {
-    const stored = localStorage.getItem("kw-view");
-    if (stored === "list" || stored === "grid") setView(stored);
-  }, []);
-  function handleSetView(v: "list" | "grid") {
-    setView(v);
-    localStorage.setItem("kw-view", v);
-  }
 
   // Run now loading state per keyword
   const [runningId, setRunningId] = useState<string | null>(null);
@@ -191,6 +253,12 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
   // Track which job IDs we've already started live-polling to avoid duplicates
   const livePolledJobsRef = useRef<Set<string>>(new Set());
 
+  // Auto-run state — loops handleRunNow until stopped or page leave
+  const autoRunRef = useRef<string | null>(null);
+  const [autoRunId, setAutoRunId] = useState<string | null>(null);
+
+  useEffect(() => () => { autoRunRef.current = null; }, []);
+
   useEffect(() => {
     function isActive(kws: KeywordRow[]) {
       return kws.some((k) => k.jobs[0]?.status === "pending" || k.jobs[0]?.status === "running");
@@ -201,7 +269,15 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
         const res = await fetch("/api/keywords");
         if (!res.ok) return;
         const data = await res.json();
-        const fresh: KeywordRow[] = data.keywords ?? [];
+        let fresh: KeywordRow[] = data.keywords ?? [];
+        // Re-apply any optimistic category moves still in-flight so the poll
+        // doesn't revert the UI back to the old category before PATCH completes.
+        if (pendingMovesRef.current.size > 0) {
+          fresh = fresh.map((k) => {
+            const pending = pendingMovesRef.current.get(k.id);
+            return pending !== undefined ? { ...k, category: pending } : k;
+          });
+        }
         setKeywords(fresh);
 
         // If the cron fired a job we're not already tracking, start live polling for it
@@ -215,8 +291,8 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
           resumePolling(kw.id, j.id);
         }
 
-        // Switch interval speed based on whether any job is active
-        const targetMs = isActive(fresh) ? 3000 : 5000;
+        // Fast poll while a job is running; slow poll when idle to save DB quota
+        const targetMs = isActive(fresh) ? 4000 : 30000;
         if (pollIntervalRef.current !== targetMs) {
           pollIntervalRef.current = targetMs;
           clearInterval(pollRef.current!);
@@ -228,7 +304,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
     // Fire immediately so the UI is always fresh on mount / visibility change
     refresh();
 
-    pollIntervalRef.current = isActive(keywords) ? 3000 : 5000;
+    pollIntervalRef.current = isActive(keywords) ? 4000 : 30000;
     pollRef.current = setInterval(refresh, pollIntervalRef.current);
 
     // Re-fire instantly when user returns to the tab
@@ -310,11 +386,38 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
     }
   }
 
-  async function handleStop(_kwId: string, jobId: string) {
-    // Clear running state immediately so the UI stops showing the spinner.
-    // The scraper will finish in the background and write its final result.
+  async function handleStop(kwId: string, jobId: string) {
+    // Also stop auto-run loop for this keyword if active
+    if (autoRunRef.current === kwId) {
+      autoRunRef.current = null;
+      setAutoRunId(null);
+    }
     setRunningId(null); setRunningJobId(null);
     await fetch(`/api/scraping/jobs/${jobId}/cancel`, { method: "POST" }).catch(() => null);
+  }
+
+  async function handleAutoRun(kwId: string) {
+    // Toggle off if already auto-running this keyword
+    if (autoRunRef.current === kwId) {
+      autoRunRef.current = null;
+      setAutoRunId(null);
+      return;
+    }
+
+    autoRunRef.current = kwId;
+    setAutoRunId(kwId);
+
+    while (autoRunRef.current === kwId) {
+      await handleRunNow(kwId);
+      if (autoRunRef.current !== kwId) break;
+      // Brief pause between runs so DB writes settle before next job starts
+      await new Promise((r) => setTimeout(r, 3000));
+    }
+
+    if (autoRunRef.current === kwId) {
+      autoRunRef.current = null;
+      setAutoRunId(null);
+    }
   }
 
   function openEdit(kw: KeywordRow) {
@@ -323,6 +426,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
     setEditLocation(kw.location);
     setEditMaxLeads(String(kw.maxLeads));
     setEditInterval(String(kw.intervalMinutes));
+    setEditCategory(kw.category || "Uncategorized");
     setEditExtraKeywords(kw.extraKeywords ?? []);
     setEditExtraMode((kw.extraKeywordsMode ?? "random") as "random" | "ordered");
     setEditExtraMin(String(kw.extraKeywordsMin ?? 1));
@@ -342,6 +446,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
           location: newLocation.trim(),
           maxLeads: parseInt(newMaxLeads),
           intervalMinutes: parseInt(newInterval),
+          category: newCategory || "Uncategorized",
           extraKeywords: newExtraKeywords,
           extraKeywordsMode: newExtraMode,
           extraKeywordsMin: parseInt(newExtraMin),
@@ -349,16 +454,18 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
           extraKeywordsOrder: newExtraOrder,
         }),
       });
+      const data = await res.json();
       if (res.ok) {
-        const data = await res.json();
         const kw = data.keyword;
         setKeywords((prev) => [
           { ...kw, _count: { jobs: 0, leads: 0 }, jobs: [], failedAttempts: kw.failedAttempts ?? 0, lastError: kw.lastError ?? null },
           ...prev,
         ]);
         setAddOpen(false);
-        setNewKeyword(""); setNewLocation(""); setNewMaxLeads("50"); setNewInterval("1440");
+        setNewKeyword(""); setNewLocation(""); setNewMaxLeads("50"); setNewInterval("1440"); setNewCategory("Uncategorized");
         setNewExtraKeywords([]); setNewExtraMode("random"); setNewExtraMin("1"); setNewExtraMax("3"); setNewExtraOrder([]);
+      } else {
+        toast.error(data.error ?? "Failed to save keyword.");
       }
     } finally {
       setAddSaving(false);
@@ -377,6 +484,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
           location: editLocation.trim(),
           maxLeads: parseInt(editMaxLeads),
           intervalMinutes: parseInt(editInterval),
+          category: editCategory || "Uncategorized",
           extraKeywords: editExtraKeywords,
           extraKeywordsMode: editExtraMode,
           extraKeywordsMin: parseInt(editExtraMin),
@@ -389,7 +497,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
         setKeywords((prev) =>
           prev.map((k) =>
             k.id === editTarget.id
-              ? { ...k, keyword: updated.keyword.keyword, location: updated.keyword.location, maxLeads: updated.keyword.maxLeads, intervalMinutes: updated.keyword.intervalMinutes, extraKeywords: updated.keyword.extraKeywords ?? [], extraKeywordsMode: updated.keyword.extraKeywordsMode ?? "random", extraKeywordsMin: updated.keyword.extraKeywordsMin ?? 1, extraKeywordsMax: updated.keyword.extraKeywordsMax ?? 3, extraKeywordsOrder: updated.keyword.extraKeywordsOrder ?? [] }
+              ? { ...k, keyword: updated.keyword.keyword, location: updated.keyword.location, maxLeads: updated.keyword.maxLeads, intervalMinutes: updated.keyword.intervalMinutes, category: updated.keyword.category ?? "Uncategorized", extraKeywords: updated.keyword.extraKeywords ?? [], extraKeywordsMode: updated.keyword.extraKeywordsMode ?? "random", extraKeywordsMin: updated.keyword.extraKeywordsMin ?? 1, extraKeywordsMax: updated.keyword.extraKeywordsMax ?? 3, extraKeywordsOrder: updated.keyword.extraKeywordsOrder ?? [] }
               : k
           )
         );
@@ -409,10 +517,37 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
     });
   }
 
+  async function handleUpdateSetting(id: string, data: Partial<KeywordRow>) {
+    setKeywords((prev) => prev.map((k) => (k.id === id ? { ...k, ...data } : k)));
+    await fetch(`/api/keywords/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+  }
+
   async function handleDelete(id: string) {
     await fetch(`/api/keywords/${id}`, { method: "DELETE" });
     setKeywords((prev) => prev.filter((k) => k.id !== id));
     setDeleteConfirm(null);
+  }
+
+  async function handleMoveCategory(kwId: string, newCategory: string) {
+    // Optimistic update
+    setKeywords((prev) =>
+      prev.map((k) => k.id === kwId ? { ...k, category: newCategory } : k)
+    );
+    // Register as in-flight so the background poller doesn't revert it
+    pendingMovesRef.current.set(kwId, newCategory);
+    try {
+      await fetch(`/api/keywords/${kwId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ category: newCategory }),
+      });
+    } finally {
+      pendingMovesRef.current.delete(kwId);
+    }
   }
 
   async function handleRunNow(kwId: string) {
@@ -559,25 +694,14 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
       <div className="flex items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">
           {keywords.length} keyword{keywords.length !== 1 ? "s" : ""} ·{" "}
-          {keywords.filter((k) => k.enabled).length} active
+          {keywords.filter((k) => k.enabled).length} active ·{" "}
+          {allCategoryNames.length} categor{allCategoryNames.length !== 1 ? "ies" : "y"}
         </p>
         <div className="flex items-center gap-2">
-          <div className="flex items-center rounded-md border overflow-hidden">
-            <button
-              onClick={() => handleSetView("list")}
-              className={cn("px-2.5 py-1.5 transition-colors", view === "list" ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground")}
-              title="List view"
-            >
-              <List className="h-4 w-4" />
-            </button>
-            <button
-              onClick={() => handleSetView("grid")}
-              className={cn("px-2.5 py-1.5 transition-colors", view === "grid" ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground")}
-              title="Grid view"
-            >
-              <LayoutGrid className="h-4 w-4" />
-            </button>
-          </div>
+          <Button size="sm" variant="outline" onClick={() => setCreateCatOpen(true)} className="gap-1.5">
+            <Folder className="h-4 w-4" />
+            New Category
+          </Button>
           <Button size="sm" onClick={() => setAddOpen(true)} className="gap-1.5">
             <Plus className="h-4 w-4" />
             Add Keyword
@@ -586,7 +710,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
       </div>
 
       {/* Empty state */}
-      {keywords.length === 0 && (
+      {keywords.length === 0 && manualCategories.length === 0 && (
         <div className="flex flex-col items-center justify-center py-20 gap-3 text-muted-foreground rounded-lg border border-dashed">
           <Clock className="h-10 w-10 text-muted-foreground/30" />
           <p className="text-sm font-medium">No keywords yet</p>
@@ -600,168 +724,131 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
         </div>
       )}
 
-      {/* ── List view ── */}
-      {keywords.length > 0 && view === "list" && (
-        <div className="rounded-lg border divide-y">
-          {keywords.map((kw) => {
-            const job = kw.jobs[0] ?? null;
-            const hasFailed = kw.failedAttempts > 0;
-            const isDisabledByFailure = !kw.enabled && kw.failedAttempts >= 5;
+      {/* ── Folder board ── */}
+      {(keywords.length > 0 || manualCategories.length > 0) && (
+        <div className="flex flex-wrap gap-4">
+          {allCategoryNames.map((cat, idx) => {
+            const kwsInCat = keywords.filter((k) => (k.category || "Uncategorized") === cat);
+            const color = getCategoryColor(cat, idx);
+            const activeCount = kwsInCat.filter((k) => k.enabled).length;
+            const hasRunning = kwsInCat.some((k) => k.id === runningId);
+            const totalLeads = kwsInCat.reduce((sum, k) => sum + k._count.leads, 0);
+            const isUncategorized = cat === "Uncategorized";
+
             return (
-              <div key={kw.id} className="p-4 flex items-start gap-4">
-                <div className="pt-0.5">
-                  <Switch checked={kw.enabled} onCheckedChange={(v) => handleToggle(kw.id, v)} />
-                </div>
-                <div className="flex-1 min-w-0 space-y-1.5">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-medium text-sm">{kw.keyword}</span>
-                    <span className="text-muted-foreground text-xs flex items-center gap-1">
-                      <MapPin className="h-3 w-3" />{kw.location}
-                    </span>
-                    <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                      up to {kw.maxLeads} leads/run
-                    </span>
-                    {isDisabledByFailure && <Badge variant="destructive" className="text-xs gap-1"><AlertTriangle className="h-3 w-3" />Disabled (5 failures)</Badge>}
-                    {!kw.enabled && !isDisabledByFailure && <Badge variant="outline" className="text-xs text-muted-foreground">Paused</Badge>}
-                    {kw.enabled && !hasFailed && <Badge variant="secondary" className="text-xs gap-1 text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800"><CheckCircle2 className="h-3 w-3" />Active</Badge>}
-                    {hasFailed && kw.enabled && <Badge variant="outline" className="text-xs gap-1 text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-950/20"><AlertTriangle className="h-3 w-3" />{kw.failedAttempts}/5 failures</Badge>}
-                    {(
-                      <button onClick={() => setViewLeadsKw(kw)} className="inline-flex items-center gap-1 rounded-full border border-blue-300 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 hover:bg-blue-100 dark:border-blue-700 dark:bg-blue-950/30 dark:text-blue-400 dark:hover:bg-blue-950/50 transition-colors">
-                        <Inbox className="h-3 w-3" />View {kw._count.leads > 0 ? `${kw._count.leads} ` : ""}scraped leads
-                      </button>
-                    )}
-                  </div>
-                  {runningId === kw.id ? (
-                    <div className="flex items-center gap-1.5 text-xs font-medium text-blue-600 dark:text-blue-400">
-                      <Loader2 className="h-3 w-3 animate-spin shrink-0" /><span>{runningLabel}</span>
-                    </div>
-                  ) : job ? (
-                    <div className="flex flex-col gap-0.5">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {job.status === "completed" && job.leadsProcessed > 0 && <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 px-2.5 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-400"><CheckCircle2 className="h-3 w-3" />{job.leadsProcessed} lead{job.leadsProcessed !== 1 ? "s" : ""} saved last run</span>}
-                        {job.status === "completed" && job.leadsProcessed === 0 && <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 px-2.5 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400"><AlertTriangle className="h-3 w-3" />No new leads</span>}
-                        {job.status === "running" && <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 px-2.5 py-0.5 text-xs font-medium text-blue-700 dark:text-blue-400"><Loader2 className="h-3 w-3 animate-spin" />Scraping…</span>}
-                        {job.status === "failed" && <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800 px-2.5 py-0.5 text-xs font-medium text-rose-600 dark:text-rose-400"><AlertTriangle className="h-3 w-3" />Last run failed</span>}
-                        <span className="text-xs text-muted-foreground" suppressHydrationWarning>{relativeTime(job.createdAt)}</span>
+              <div
+                key={cat}
+                className="relative w-64 shrink-0 rounded-xl border bg-card hover:border-border hover:shadow-md transition-all duration-150 overflow-hidden group"
+              >
+                {/* Card body — clickable */}
+                <button
+                  onClick={() => setSelectedCategory(cat)}
+                  className="w-full text-left p-4 space-y-4 focus:outline-none"
+                >
+                  {/* Icon + name + count */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-lg shrink-0 bg-muted">
+                        {isUncategorized
+                          ? <Inbox className="h-4 w-4 text-muted-foreground" />
+                          : <Folder className="h-4 w-4 text-muted-foreground" />}
                       </div>
-                      {job.status === "completed" && job.leadsProcessed === 0 && job.errorMessage && !job.errorMessage.startsWith("Done") && (
-                        <span className="text-xs text-muted-foreground truncate max-w-xs">{job.errorMessage}</span>
-                      )}
+                      <div className="min-w-0 pr-6">
+                        <p className="text-sm font-semibold truncate leading-tight">{cat}</p>
+                        <p className="text-[11px] text-muted-foreground truncate mt-0.5">
+                          {activeCount} active · {kwsInCat.length - activeCount} paused
+                        </p>
+                      </div>
                     </div>
-                  ) : (
-                    <span className="text-xs text-muted-foreground">No runs yet</span>
-                  )}
-                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                    <span>{intervalLabel(kw.intervalMinutes)}</span>
-                    <span suppressHydrationWarning>Last run: {relativeTime(kw.lastRunAt)}</span>
-                    <span>Next: {kw.enabled ? nextRunLabel(kw.nextRunAt) : "Paused"}</span>
-                    <span>{kw._count.jobs} run{kw._count.jobs !== 1 ? "s" : ""} total</span>
+                    <Badge variant="secondary" className="shrink-0 text-xs tabular-nums font-semibold">
+                      {kwsInCat.length}
+                    </Badge>
                   </div>
-                  {kw.lastError && <p className="text-xs text-rose-500 truncate max-w-xl">Error: {kw.lastError}</p>}
-                </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  {runningId === kw.id ? (
-                    <Button size="sm" variant="outline" className="gap-1.5 h-8 text-rose-600 border-rose-300 hover:bg-rose-50" onClick={() => runningJobId && handleStop(kw.id, runningJobId)}>
-                      <Square className="h-3.5 w-3.5" />Stop
-                    </Button>
-                  ) : (
-                    <Button size="sm" variant="outline" className="gap-1.5 h-8" onClick={() => handleRunNow(kw.id)}>
-                      <Play className="h-3.5 w-3.5" />Run now
-                    </Button>
-                  )}
-                  <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground" title="Run history" onClick={() => setHistoryKw(kw)}><History className="h-3.5 w-3.5" /></Button>
-                  <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground" onClick={() => openEdit(kw)}><Pencil className="h-3.5 w-3.5" /></Button>
-                  <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-muted-foreground hover:text-rose-500" onClick={() => setDeleteConfirm(kw.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
 
-      {/* ── Grid view ── */}
-      {keywords.length > 0 && view === "grid" && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {keywords.map((kw) => {
-            const job = kw.jobs[0] ?? null;
-            const hasFailed = kw.failedAttempts > 0;
-            const isDisabledByFailure = !kw.enabled && kw.failedAttempts >= 5;
-            return (
-              <div key={kw.id} className="rounded-lg border bg-card p-4 flex flex-col gap-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="font-semibold text-sm leading-tight truncate">{kw.keyword}</p>
-                    <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                      <MapPin className="h-3 w-3 shrink-0" />{kw.location}
-                    </p>
-                  </div>
-                  <Switch checked={kw.enabled} onCheckedChange={(v) => handleToggle(kw.id, v)} />
-                </div>
-
-                <div className="flex flex-wrap gap-1.5">
-                  <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                    up to {kw.maxLeads} leads/run
-                  </span>
-                  {isDisabledByFailure && <Badge variant="destructive" className="text-xs gap-1"><AlertTriangle className="h-3 w-3" />Disabled</Badge>}
-                  {!kw.enabled && !isDisabledByFailure && <Badge variant="outline" className="text-xs text-muted-foreground">Paused</Badge>}
-                  {kw.enabled && !hasFailed && <Badge variant="secondary" className="text-xs gap-1 text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800"><CheckCircle2 className="h-3 w-3" />Active</Badge>}
-                  {hasFailed && kw.enabled && <Badge variant="outline" className="text-xs gap-1 text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-950/20"><AlertTriangle className="h-3 w-3" />{kw.failedAttempts}/5 failures</Badge>}
-                </div>
-
-                {(
-                  <button onClick={() => setViewLeadsKw(kw)} className="w-full inline-flex items-center justify-center gap-1.5 rounded-md border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100 dark:border-blue-700 dark:bg-blue-950/30 dark:text-blue-400 dark:hover:bg-blue-950/50 transition-colors">
-                    <Inbox className="h-3.5 w-3.5" />View {kw._count.leads > 0 ? `${kw._count.leads} ` : ""}scraped leads
-                  </button>
-                )}
-
-                {runningId === kw.id ? (
-                  <div className="flex items-center gap-1.5 text-xs font-medium text-blue-600 dark:text-blue-400">
-                    <Loader2 className="h-3 w-3 animate-spin shrink-0" /><span className="truncate">{runningLabel}</span>
-                  </div>
-                ) : job ? (
-                  <div className="flex flex-col gap-0.5">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {job.status === "completed" && job.leadsProcessed > 0 && <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-400"><CheckCircle2 className="h-3 w-3" />{job.leadsProcessed} saved</span>}
-                      {job.status === "completed" && job.leadsProcessed === 0 && <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400"><AlertTriangle className="h-3 w-3" />No new leads</span>}
-                      {job.status === "running" && <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 px-2 py-0.5 text-xs font-medium text-blue-700 dark:text-blue-400"><Loader2 className="h-3 w-3 animate-spin" />Scraping…</span>}
-                      {job.status === "failed" && <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800 px-2 py-0.5 text-xs font-medium text-rose-600 dark:text-rose-400"><AlertTriangle className="h-3 w-3" />Failed</span>}
-                      <span className="text-xs text-muted-foreground" suppressHydrationWarning>{relativeTime(job.createdAt)}</span>
+                  {/* Meta info */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                      <Search className="h-3 w-3 shrink-0" />
+                      <span>{kwsInCat.length} keyword{kwsInCat.length !== 1 ? "s" : ""}</span>
                     </div>
-                    {job.status === "completed" && job.leadsProcessed === 0 && job.errorMessage && !job.errorMessage.startsWith("Done") && (
-                      <span className="text-xs text-muted-foreground truncate">{job.errorMessage}</span>
+                    <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                      <Users className="h-3 w-3 shrink-0" />
+                      <span>{totalLeads} lead{totalLeads !== 1 ? "s" : ""} scraped</span>
+                    </div>
+                    {hasRunning ? (
+                      <div className="flex items-center gap-2 text-[11px] text-blue-600 dark:text-blue-400">
+                        <Loader2 className="h-3 w-3 animate-spin shrink-0" />
+                        <span>Scraping in progress…</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                        <Activity className="h-3 w-3 shrink-0" />
+                        <span>{activeCount} active</span>
+                      </div>
                     )}
                   </div>
-                ) : (
-                  <span className="text-xs text-muted-foreground">No runs yet</span>
-                )}
 
-                <div className="text-xs text-muted-foreground space-y-0.5 border-t pt-2">
-                  <div className="flex justify-between"><span>Schedule</span><span className="font-medium text-foreground">{intervalLabel(kw.intervalMinutes)}</span></div>
-                  <div className="flex justify-between"><span>Last run</span><span suppressHydrationWarning>{relativeTime(kw.lastRunAt)}</span></div>
-                  <div className="flex justify-between"><span>Next</span><span>{kw.enabled ? nextRunLabel(kw.nextRunAt) : "Paused"}</span></div>
-                </div>
-
-                {kw.lastError && <p className="text-xs text-rose-500 truncate">Error: {kw.lastError}</p>}
-
-                <div className="flex items-center gap-1 pt-1 mt-auto">
-                  {runningId === kw.id ? (
-                    <Button size="sm" variant="outline" className="gap-1.5 h-8 flex-1 text-rose-600 border-rose-300 hover:bg-rose-50" onClick={() => runningJobId && handleStop(kw.id, runningJobId)}>
-                      <Square className="h-3.5 w-3.5" />Stop
-                    </Button>
-                  ) : (
-                    <Button size="sm" variant="outline" className="gap-1.5 h-8 flex-1" onClick={() => handleRunNow(kw.id)}>
-                      <Play className="h-3.5 w-3.5" />Run now
-                    </Button>
-                  )}
-                  <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground" title="Run history" onClick={() => setHistoryKw(kw)}><History className="h-3.5 w-3.5" /></Button>
-                  <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground" onClick={() => openEdit(kw)}><Pencil className="h-3.5 w-3.5" /></Button>
-                  <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-muted-foreground hover:text-rose-500" onClick={() => setDeleteConfirm(kw.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
-                </div>
+                  {/* Hover hint */}
+                  <p className="text-[11px] font-medium text-muted-foreground">
+                    Click to manage keywords →
+                  </p>
+                </button>
               </div>
             );
           })}
         </div>
       )}
+
+      {/* ── Category modal ── */}
+      {selectedCategory !== null && (
+        <KeywordCategoryModal
+          category={selectedCategory}
+          keywords={keywords.filter((k) => (k.category || "Uncategorized") === selectedCategory)}
+          open={selectedCategory !== null}
+          onOpenChange={(o) => { if (!o) setSelectedCategory(null); }}
+          runningId={runningId}
+          runningJobId={runningJobId}
+          runningLabel={runningLabel}
+          allCategories={allCategoryNames}
+          onToggle={handleToggle}
+          onRunNow={handleRunNow}
+          onStop={handleStop}
+          autoRunId={autoRunId}
+          onAutoRun={handleAutoRun}
+          onUpdateSetting={handleUpdateSetting}
+          onEdit={openEdit}
+          onDelete={(kwId) => setDeleteConfirm(kwId)}
+          onViewLeads={(kw) => setViewLeadsKw(kw)}
+          onHistory={(kw) => setHistoryKw(kw)}
+          onMoveCategory={handleMoveCategory}
+        />
+      )}
+
+
+      {/* ── Create category dialog ── */}
+      <Dialog open={createCatOpen} onOpenChange={(v) => { if (!v) setCreateCatName(""); setCreateCatOpen(v); }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader><DialogTitle>New Category</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label>Category name</Label>
+              <Input
+                placeholder="e.g. Healthcare, Real Estate…"
+                value={createCatName}
+                onChange={(e) => setCreateCatName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") handleCreateCategory(); }}
+                autoFocus
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setCreateCatOpen(false)}>Cancel</Button>
+            <Button onClick={handleCreateCategory} disabled={!createCatName.trim()}>
+              Create category
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Add keyword dialog ── */}
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
@@ -772,6 +859,8 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
             location={newLocation}  onLocation={setNewLocation}
             maxLeads={newMaxLeads}  onMaxLeads={setNewMaxLeads}
             interval={newInterval}  onInterval={setNewInterval}
+            category={newCategory}  onCategory={setNewCategory}
+            existingCategories={allCategoryNames}
             extraKeywords={newExtraKeywords} onExtraKeywords={setNewExtraKeywords}
             extraMode={newExtraMode}   onExtraMode={setNewExtraMode}
             extraMin={newExtraMin}     onExtraMin={setNewExtraMin}
@@ -797,6 +886,8 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
             location={editLocation}  onLocation={setEditLocation}
             maxLeads={editMaxLeads}  onMaxLeads={setEditMaxLeads}
             interval={editInterval}  onInterval={setEditInterval}
+            category={editCategory}  onCategory={setEditCategory}
+            existingCategories={allCategoryNames}
             extraKeywords={editExtraKeywords} onExtraKeywords={setEditExtraKeywords}
             extraMode={editExtraMode}     onExtraMode={setEditExtraMode}
             extraMin={editExtraMin}       onExtraMin={setEditExtraMin}
@@ -867,6 +958,8 @@ function KeywordForm({
   location, onLocation,
   maxLeads, onMaxLeads,
   interval, onInterval,
+  category, onCategory,
+  existingCategories,
   extraKeywords, onExtraKeywords,
   extraMode, onExtraMode,
   extraMin, onExtraMin,
@@ -877,6 +970,8 @@ function KeywordForm({
   location: string;        onLocation:        (v: string) => void;
   maxLeads: string;        onMaxLeads:        (v: string) => void;
   interval: string;        onInterval:        (v: string) => void;
+  category: string;        onCategory:        (v: string) => void;
+  existingCategories: string[];
   extraKeywords: string[]; onExtraKeywords:   (v: string[]) => void;
   extraMode: "random" | "ordered"; onExtraMode: (v: "random" | "ordered") => void;
   extraMin: string;        onExtraMin:        (v: string) => void;
@@ -916,10 +1011,17 @@ function KeywordForm({
         </Button>
       </div>
 
+      {/* Category */}
       <div className="space-y-1.5">
-        <Label>Location</Label>
-        <Input placeholder="e.g. Chicago, IL" value={location} onChange={(e) => onLocation(e.target.value)} />
+        <Label>Category</Label>
+        <CategoryCombobox
+          categories={existingCategories}
+          value={category}
+          onSelect={onCategory}
+        />
       </div>
+
+      <LocationCombobox value={location} onChange={onLocation} />
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <Label>Max leads per run</Label>
@@ -951,6 +1053,8 @@ function KeywordForm({
         onExtraMax={onExtraMax}
         extraOrder={extraOrder}
         onExtraOrder={onExtraOrder}
+        mainKeyword={keyword}
+        mainLocation={location}
       />
     </div>
   );
@@ -964,6 +1068,7 @@ function ExtraKeywordsModal({
   extraMin, onExtraMin,
   extraMax, onExtraMax,
   extraOrder, onExtraOrder,
+  mainKeyword, mainLocation,
 }: {
   open: boolean; onOpenChange: (v: boolean) => void;
   extraKeywords: string[]; onExtraKeywords: (v: string[]) => void;
@@ -971,6 +1076,7 @@ function ExtraKeywordsModal({
   extraMin: string; onExtraMin: (v: string) => void;
   extraMax: string; onExtraMax: (v: string) => void;
   extraOrder: string[]; onExtraOrder: (v: string[]) => void;
+  mainKeyword: string; mainLocation: string;
 }) {
   const [inputVal, setInputVal] = useState("");
 
@@ -978,9 +1084,53 @@ function ExtraKeywordsModal({
   const minVal = Math.max(1, Math.min(parseInt(extraMin) || 1, maxExtras || 1));
 
   function addExtras() {
-    const parts = inputVal.split(",").map((s) => s.trim()).filter(Boolean);
+    const parts = inputVal.split(/[,\s]+/).map((s) => s.trim()).filter(Boolean);
     if (parts.length === 0) return;
-    const merged = [...new Set([...extraKeywords, ...parts])];
+
+    // Seed blocked words: main keyword + location + all already-saved extra keywords
+    const usedWords = new Set<string>(
+      [
+        ...mainKeyword.split(/\s+/),
+        ...mainLocation.split(/[\s,]+/),
+        ...extraKeywords.flatMap((k) => k.split(/\s+/)),
+      ]
+        .map((w) => w.toLowerCase().trim())
+        .filter(Boolean)
+    );
+
+    let strippedWordCount = 0;
+    let skippedCount = 0;
+    const deduped: string[] = [];
+
+    for (const part of parts) {
+      const words = part.split(/\s+/);
+      const kept = words.filter((w) => {
+        const lower = w.toLowerCase().trim();
+        if (usedWords.has(lower)) return false;
+        return true;
+      });
+
+      strippedWordCount += words.length - kept.length;
+
+      const result = kept.join(" ").trim();
+      if (!result) {
+        skippedCount++;
+        continue;
+      }
+
+      // Mark these words as used so later entries in this batch don't repeat them
+      for (const w of kept) usedWords.add(w.toLowerCase().trim());
+
+      deduped.push(result);
+    }
+
+    const merged = [...extraKeywords, ...deduped];
+
+    const msgs: string[] = [];
+    if (strippedWordCount > 0) msgs.push("The system removes multiple keywords that are included multiple times");
+    if (skippedCount > 0) msgs.push(`${skippedCount} entr${skippedCount !== 1 ? "ies" : "y"} became empty after stripping and were skipped`);
+    if (msgs.length > 0) toast.info(msgs.join(". ") + ".", { duration: 4000 });
+
     onExtraKeywords(merged);
     setInputVal("");
   }

@@ -3,25 +3,25 @@
  * All permission logic lives here. Never scatter permission checks across the app.
  */
 
-export type Role = "boss" | "admin" | "sales_rep" | "lead_specialist" | "lead_data_analyst";
+export type Role = "boss" | "admin" | "team_lead" | "sales_rep" | "lead_specialist";
 export type Department = "leads" | "marketing";
 
 /** Human-readable labels for each role */
 export const ROLE_LABELS: Record<Role, string> = {
-  boss:               "Boss",
-  admin:              "Admin",
-  sales_rep:          "Sales Representative",
-  lead_specialist:    "Lead Data Specialist",
-  lead_data_analyst:  "Lead Data Analyst",
+  boss:            "Boss",
+  admin:           "Admin",
+  team_lead:       "Team Lead",
+  sales_rep:       "Sales Representative",
+  lead_specialist: "Lead Data Specialist",
 };
 
 /** Which departments each role can access */
 export const ROLE_DEPARTMENTS: Record<Role, Department[]> = {
-  boss:               ["leads", "marketing"],
-  admin:              ["leads", "marketing"],
-  sales_rep:          ["marketing"],
-  lead_specialist:    ["leads"],
-  lead_data_analyst:  ["leads"],
+  boss:            ["leads", "marketing"],
+  admin:           ["leads", "marketing"],
+  team_lead:       ["marketing"],
+  sales_rep:       ["marketing"],
+  lead_specialist: ["leads"],
 };
 
 /**
@@ -29,20 +29,20 @@ export const ROLE_DEPARTMENTS: Record<Role, Department[]> = {
  * Boss can create any role. Admin cannot create Boss.
  */
 export const ROLE_CAN_CREATE: Record<Role, Role[]> = {
-  boss:               ["boss", "admin", "sales_rep", "lead_specialist", "lead_data_analyst"],
-  admin:              ["admin", "sales_rep", "lead_specialist", "lead_data_analyst"],
-  sales_rep:          [],
-  lead_specialist:    [],
-  lead_data_analyst:  [],
+  boss:            ["boss", "admin", "team_lead", "sales_rep", "lead_specialist"],
+  admin:           ["admin", "team_lead", "sales_rep", "lead_specialist"],
+  team_lead:       [],
+  sales_rep:       [],
+  lead_specialist: [],
 };
 
 /** Whether this role can modify system-wide settings */
 export const ROLE_CAN_MODIFY_SETTINGS: Record<Role, boolean> = {
-  boss:               true,
-  admin:              false,
-  sales_rep:          false,
-  lead_specialist:    false,
-  lead_data_analyst:  false,
+  boss:            true,
+  admin:           false,
+  team_lead:       false,
+  sales_rep:       false,
+  lead_specialist: false,
 };
 
 export function canAccessDepartment(role: Role, dept: Department): boolean {
@@ -58,4 +58,4 @@ export function canManageUsers(role: Role): boolean {
 }
 
 /** All roles sorted by authority level (highest first) */
-export const ROLE_ORDER: Role[] = ["boss", "admin", "lead_data_analyst", "lead_specialist", "sales_rep"];
+export const ROLE_ORDER: Role[] = ["boss", "admin", "team_lead", "lead_specialist", "sales_rep"];

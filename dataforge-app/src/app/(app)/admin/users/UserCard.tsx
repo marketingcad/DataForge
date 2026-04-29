@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Star, Phone, Award } from "lucide-react";
+import { Phone, Settings, MoreHorizontal } from "lucide-react";
 import { ROLE_LABELS, type Role } from "@/lib/rbac/roles";
 import { UserDetailModal } from "./UserDetailModal";
 
@@ -11,9 +11,10 @@ export type UserData = {
   email: string;
   role: string;
   createdAt: Date;
-  _count: { callLogs: number; userBadges: number };
+  _count: { callLogs: number; userBadges: number; savedLeads: number };
 };
 
+// Keep SectionStyle exported so other files that import it don't break
 export type SectionStyle = {
   tag: string;
   tagClass: string;
@@ -23,129 +24,99 @@ export type SectionStyle = {
   title: string;
 };
 
+const ROLE_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
+  boss:              { bg: "bg-violet-100 dark:bg-violet-900/40", text: "text-violet-700 dark:text-violet-300", dot: "bg-violet-400" },
+  admin:             { bg: "bg-violet-100 dark:bg-violet-900/40", text: "text-violet-700 dark:text-violet-300", dot: "bg-violet-400" },
+  sales_rep:         { bg: "bg-rose-100 dark:bg-rose-900/40",     text: "text-rose-700 dark:text-rose-300",     dot: "bg-rose-400"   },
+  lead_specialist:   { bg: "bg-blue-100 dark:bg-blue-900/40",     text: "text-blue-700 dark:text-blue-300",     dot: "bg-blue-400"   },
+  team_lead:         { bg: "bg-rose-100 dark:bg-rose-900/40",     text: "text-rose-700 dark:text-rose-300",     dot: "bg-rose-400"   },
+};
+
+function formatDate(date: Date) {
+  return new Date(date).toLocaleDateString("en-US", { month: "numeric", day: "numeric", year: "numeric" });
+}
+
 interface Props {
   user: UserData;
   actorRole: Role;
   currentUserId: string;
-  sectionStyle: SectionStyle;
-  isPinned: boolean;
-  onTogglePin: () => void;
+  // kept optional so UsersSection.tsx callers don't break if still passing sectionStyle
+  sectionStyle?: SectionStyle;
+  isPinned?: boolean;
+  onTogglePin?: () => void;
 }
 
-function memberDuration(createdAt: Date): string {
-  const days = Math.floor((Date.now() - new Date(createdAt).getTime()) / 86400000);
-  if (days < 1)   return "Today";
-  if (days < 30)  return `${days} d`;
-  if (days < 365) return `${Math.floor(days / 30)} mo ${days % 30} d`;
-  return `${Math.floor(days / 365)} y ${Math.floor((days % 365) / 30)} mo`;
-}
-
-export function UserCard({ user: u, actorRole, currentUserId, sectionStyle: s, isPinned, onTogglePin }: Props) {
+export function UserCard({ user: u, actorRole, currentUserId }: Props) {
   const [modalOpen, setModalOpen] = useState(false);
 
-  const isMe = u.id === currentUserId;
-  const initial = (u.name ?? u.email)[0].toUpperCase();
-  const isSalesRep = u.role === "sales_rep";
-  const nameParts = (u.name ?? u.email).split(" ");
-  const nameFirstLine = nameParts.slice(0, 2).join(" ");
-  const nameSecondLine = nameParts.slice(2).join(" ");
+  const isMe      = u.id === currentUserId;
+  const initial   = (u.name ?? u.email)[0].toUpperCase();
+  const shortId   = `Emp-${u.id.slice(0, 6).toUpperCase()}`;
+  const colors    = ROLE_COLORS[u.role] ?? ROLE_COLORS["lead_specialist"];
+  const roleLabel = ROLE_LABELS[u.role as Role] ?? u.role;
 
   return (
     <>
       <div
-        className="rounded-2xl bg-[#f4f7fb] dark:bg-muted/30 overflow-hidden shadow-sm cursor-pointer hover:shadow-md transition-shadow"
+        className="rounded-2xl bg-white dark:bg-card border border-border/60 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden cursor-pointer group"
         onClick={() => setModalOpen(true)}
       >
-        {/* Top section */}
-        <div className="p-3">
-          <div className="flex items-start gap-4">
-
-            {/* Avatar */}
-            <div className="relative shrink-0">
-              <div className={`h-16 w-16 rounded-full flex items-center justify-center text-2xl font-bold ${s.avatarClass}`}>
-                {initial}
-              </div>
-              <span className="absolute top-0.5 right-0.5 h-3 w-3 rounded-full bg-rose-400 ring-2 ring-white dark:ring-muted/30" />
-            </div>
-
-            {/* Name + tags */}
-            <div className="flex-1 min-w-0">
-              <p className="font-bold text-base leading-snug">
-                {nameFirstLine}
-                {nameSecondLine && <><br />{nameSecondLine}</>}
-              </p>
-              <div className="flex flex-wrap gap-1.5 mt-2">
-                <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${s.tagClass}`}>
-                  {s.tag}
-                </span>
-              </div>
-            </div>
-
-            {/* Pin button */}
-            <button
-              onClick={(e) => { e.stopPropagation(); onTogglePin(); }}
-              title={isPinned ? "Unpin" : "Pin to top"}
-              className={`shrink-0 h-8 w-8 rounded-full flex items-center justify-center shadow-sm transition-colors ${
-                isPinned ? "bg-amber-400" : "bg-white dark:bg-card hover:bg-amber-50"
-              }`}
-            >
-              <Star className={`h-3.5 w-3.5 transition-colors ${isPinned ? "text-white fill-white" : "text-gray-300"}`} />
-            </button>
-          </div>
+        {/* Top row: "you" badge + three-dot */}
+        <div className="flex items-center justify-between px-3 pt-3 min-h-[28px]">
+          {isMe ? (
+            <span className="text-[10px] font-bold text-primary bg-primary/10 rounded-full px-2 py-0.5">You</span>
+          ) : <span />}
+          <button
+            onClick={(e) => { e.stopPropagation(); setModalOpen(true); }}
+            className="h-6 w-6 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted/60 transition-colors opacity-0 group-hover:opacity-100"
+          >
+            <MoreHorizontal className="h-3.5 w-3.5" />
+          </button>
         </div>
 
-        {/* Stats table */}
-        <div className="mx-4 mb-4 rounded-xl bg-white dark:bg-card overflow-hidden">
-          <div className="flex items-center gap-2 px-4 py-2.5 border-b border-gray-100 dark:border-border">
-            <div className={`h-6 w-6 rounded-full flex items-center justify-center text-[11px] font-bold text-white ${isSalesRep ? "bg-rose-400" : "bg-blue-400"}`}>
-              {isSalesRep ? (u._count.callLogs > 99 ? "99+" : u._count.callLogs) : "—"}
+        {/* Avatar */}
+        <div className="flex flex-col items-center px-4 pb-5 gap-3">
+          <div className="relative">
+            <div className={`h-[72px] w-[72px] rounded-full flex items-center justify-center text-2xl font-black select-none ${colors.bg} ${colors.text}`}>
+              {initial}
             </div>
-            <p className="text-xs font-semibold">{isSalesRep ? "Performance" : "Access"}</p>
-            {isSalesRep && (
-              <p className="ml-auto text-[11px] text-muted-foreground">Calls &amp; Badges</p>
-            )}
+            {/* Online dot */}
+            <span className={`absolute bottom-0.5 right-0.5 h-3.5 w-3.5 rounded-full ${colors.dot} ring-2 ring-white dark:ring-card`} />
           </div>
 
-          {isSalesRep ? (
-            <div className="divide-y divide-gray-50 dark:divide-border">
-              <div className="flex items-center gap-3 px-4 py-2.5">
-                <p className="text-xs text-muted-foreground w-16 shrink-0">Total calls</p>
-                <div className="flex-1" />
-                <div className={`flex items-center gap-2 rounded-full px-3 py-1 ${s.pill1}`}>
-                  <Phone className="h-3 w-3" />
-                  <span className="text-xs font-semibold">{u._count.callLogs}</span>
-                </div>
-              </div>
-              <div className="flex items-center gap-3 px-4 py-2.5">
-                <p className="text-xs text-muted-foreground w-16 shrink-0">Badges</p>
-                <div className="flex-1" />
-                <div className={`flex items-center gap-2 rounded-full px-3 py-1 ${s.pill2}`}>
-                  <Award className="h-3 w-3" />
-                  <span className="text-xs font-semibold">{u._count.userBadges} earned</span>
-                </div>
-              </div>
+          {/* Name + role */}
+          <div className="text-center space-y-1">
+            <p className="font-bold text-sm leading-tight">
+              {u.name ?? u.email}
+            </p>
+            <span className={`inline-block text-[11px] font-medium px-2.5 py-0.5 rounded-full ${colors.bg} ${colors.text}`}>
+              {roleLabel}
+            </span>
+          </div>
+
+          {/* Divider + meta */}
+          <div className="w-full border-t border-border/50 pt-3 grid grid-cols-2 gap-x-2 gap-y-0.5 text-center">
+            <div>
+              <p className="text-[10px] text-muted-foreground">Join Date</p>
+              <p className="text-[11px] font-semibold tabular-nums">{formatDate(u.createdAt)}</p>
             </div>
-          ) : (
-            <div className="divide-y divide-gray-50 dark:divide-border">
-              <div className="flex items-center gap-3 px-4 py-2.5">
-                <p className="text-xs text-muted-foreground w-24 shrink-0">Leads</p>
-                <div className="flex-1" />
-                <div className={`rounded-full px-3 py-1 text-xs font-semibold ${s.pill1}`}>Full access</div>
-              </div>
-              <div className="flex items-center gap-3 px-4 py-2.5">
-                <p className="text-xs text-muted-foreground w-24 shrink-0">Scraping</p>
-                <div className="flex-1" />
-                <div className={`rounded-full px-3 py-1 text-xs font-semibold ${s.pill2}`}>Full access</div>
-              </div>
-              {(u.role === "boss" || u.role === "admin") && (
-                <div className="flex items-center gap-3 px-4 py-2.5">
-                  <p className="text-xs text-muted-foreground w-24 shrink-0">Marketing</p>
-                  <div className="flex-1" />
-                  <div className={`rounded-full px-3 py-1 text-xs font-semibold ${s.pill1}`}>Full access</div>
+            {u.role === "sales_rep" && (
+              <div className="col-span-2 grid grid-cols-3 gap-x-2 mt-1.5">
+                <div>
+                  <p className="text-[10px] text-muted-foreground">Leads</p>
+                  <p className="text-[11px] font-semibold tabular-nums">{u._count.savedLeads}</p>
                 </div>
-              )}
-            </div>
-          )}
+                <div>
+                  <p className="text-[10px] text-muted-foreground">Calls</p>
+                  <p className="text-[11px] font-semibold tabular-nums">{u._count.callLogs}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-muted-foreground">Badges</p>
+                  <p className="text-[11px] font-semibold tabular-nums">{u._count.userBadges}</p>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -154,7 +125,14 @@ export function UserCard({ user: u, actorRole, currentUserId, sectionStyle: s, i
           user={u}
           actorRole={actorRole}
           isCurrentUser={isMe}
-          sectionStyle={s}
+          sectionStyle={{
+            title: roleLabel,
+            tag: roleLabel,
+            tagClass: `${colors.bg} ${colors.text}`,
+            avatarClass: `${colors.bg} ${colors.text}`,
+            pill1: `${colors.bg} ${colors.text}`,
+            pill2: `${colors.bg} ${colors.text}`,
+          }}
           onClose={() => setModalOpen(false)}
         />
       )}

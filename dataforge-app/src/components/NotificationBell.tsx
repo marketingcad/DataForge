@@ -13,6 +13,8 @@ import {
   clearAllNotificationsAction,
 } from "@/actions/notifications.actions";
 import Link from "next/link";
+import { io, type Socket } from "socket.io-client";
+import type { NotifPayload } from "@/lib/socket/emit";
 
 type DbNotif = {
   id: string;
@@ -38,58 +40,76 @@ const TYPE_BADGE: Record<string, { bg: string; text: string; label: string }> = 
   info:    { bg: "bg-blue-100 dark:bg-blue-950/50",     text: "text-blue-700 dark:text-blue-400",     label: "Info"    },
 };
 
-export function NotificationBell() {
+export function NotificationBell({ userId }: { userId: string }) {
   const [notifications, setNotifications] = useState<DbNotif[]>([]);
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<DbNotif | null>(null);
   const [, startTransition] = useTransition();
   const ref = useRef<HTMLDivElement>(null);
+  const socketRef = useRef<Socket | null>(null);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
-  // Track IDs already seen so we can toast only truly new ones.
-  // null = not yet initialised (first load — never toast on first load).
-  const seenIds = useRef<Set<string> | null>(null);
+  // Coerce dates (socket payloads arrive as strings)
+  function coerce(n: DbNotif | NotifPayload): DbNotif {
+    return { ...n, createdAt: new Date(n.createdAt) } as DbNotif;
+  }
 
-  const fetchNotifications = useCallback(async () => {
-    const res = await getMyNotificationsAction();
-    const incoming = res.notifications as DbNotif[];
-
-    if (seenIds.current === null) {
-      // First load — just record what exists, no toasts.
-      seenIds.current = new Set(incoming.map((n) => n.id));
-    } else {
-      // Subsequent polls — toast anything we haven't seen before.
-      for (const n of incoming) {
-        if (!seenIds.current.has(n.id)) {
-          seenIds.current.add(n.id);
-          const fn =
-            n.type === "error"   ? toast.error   :
-            n.type === "warning" ? toast.warning  :
-            n.type === "success" ? toast.success  :
-            toast.info;
-          fn(n.title, {
-            description: n.message ?? undefined,
-            duration: 8000,
-            action: n.link
-              ? { label: "View", onClick: () => { window.location.href = n.link!; } }
-              : undefined,
-          });
-        }
+  // Load existing notifications once on mount (no polling)
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const res = await getMyNotificationsAction() as { notifications: DbNotif[] };
+        if (!cancelled) setNotifications(res.notifications.map(coerce));
+      } catch {
+        // DB unavailable — stay silent
       }
     }
-
-    setNotifications(incoming);
+    load();
+    return () => { cancelled = true; };
   }, []);
 
-  // Initial load
-  useEffect(() => { fetchNotifications(); }, [fetchNotifications]);
-
-  // Poll every 8 seconds
+  // Connect to Socket.IO and listen for push events
   useEffect(() => {
-    const interval = setInterval(fetchNotifications, 8000);
-    return () => clearInterval(interval);
-  }, [fetchNotifications]);
+    if (!userId) return;
+
+    const socket = io({ path: "/api/socket", addTrailingSlash: false });
+    socketRef.current = socket;
+
+    socket.on("connect", () => {
+      socket.emit("join", userId);
+    });
+
+    socket.on("notification", (notif: NotifPayload) => {
+      const n = coerce(notif as unknown as DbNotif);
+
+      // Only add if not already in list (e.g. refreshed earlier)
+      setNotifications((prev) => {
+        if (n.id && prev.some((p) => p.id === n.id)) return prev;
+        return [n, ...prev];
+      });
+
+      // Show toast
+      const fn =
+        n.type === "error"   ? toast.error   :
+        n.type === "warning" ? toast.warning  :
+        n.type === "success" ? toast.success  :
+        toast.info;
+      fn(n.title, {
+        description: n.message ?? undefined,
+        duration: 8000,
+        action: n.link
+          ? { label: "View", onClick: () => { window.location.href = n.link!; } }
+          : undefined,
+      });
+    });
+
+    return () => {
+      socket.disconnect();
+      socketRef.current = null;
+    };
+  }, [userId]);
 
   // Close on outside click
   useEffect(() => {

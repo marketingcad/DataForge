@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import {
   Database,
@@ -21,8 +21,10 @@ import {
   Settings,
   Bookmark,
   UserCircle,
-  Flag,
+  Bug,
   DollarSign,
+  Globe,
+  Wand2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Role } from "@/lib/rbac/roles";
@@ -38,9 +40,17 @@ function buildSections(role: Role): Section[] {
     { label: "This Month", href: "/marketing?period=month"     },
   ];
   const achievementsSub: SubItem[] = [
-    { label: "Badges",      href: "/marketing/manage/badges"      },
-    { label: "Challenges",  href: "/marketing/manage/tasks"       },
-    { label: "Commissions", href: "/marketing/manage/commissions" },
+    { label: "Badges",       href: "/marketing/manage/badges"      },
+    { label: "Challenges",   href: "/marketing/manage/tasks"       },
+    { label: "Commissions",  href: "/marketing/manage/commissions" },
+  ];
+  const scrapingSub: SubItem[] = [
+    { label: "Scrape a Website", href: "/scraping?tab=domain"   },
+    { label: "Search by Google", href: "/scraping?tab=google"   },
+    ...( ["boss", "admin", "team_lead"].includes(role)
+      ? [{ label: "Auto Keywords", href: "/scraping?tab=keywords" }]
+      : []
+    ),
   ];
 
   switch (role) {
@@ -49,25 +59,27 @@ function buildSections(role: Role): Section[] {
       return [
         { items: [{ label: "Dashboard", href: "/dashboard", icon: LayoutDashboard }] },
         {
-          title: "Leads",
+          title: "Workspace",
           items: [
-            { label: "Leads",    href: "/leads",    icon: Users      },
-            { label: "Scraping", href: "/scraping", icon: ScanSearch },
+            { label: "Kanban",      href: "/kanban",   icon: LayoutGrid   },
+            { label: "Calendar",    href: "/calendar", icon: CalendarDays },
+            { label: "Reports",     href: "/reports",  icon: BarChart2    },
+            { label: "Bug Reports", href: "/feedback", icon: Bug          },
           ],
         },
         {
           title: "Marketing",
           items: [
-            { label: "Marketing",    icon: Megaphone, sub: marketingSub    },
+            // { label: "Marketing",    icon: Megaphone, sub: marketingSub    },
+            { label: "Marketing",      href: "/marketing",   icon: Megaphone   },
             { label: "Achievements", icon: Trophy,    sub: achievementsSub },
           ],
         },
         {
-          title: "Workspace",
+          title: "Leads",
           items: [
-            { label: "Kanban",   href: "/kanban",   icon: LayoutGrid   },
-            { label: "Calendar", href: "/calendar", icon: CalendarDays },
-            { label: "Reports",  href: "/reports",  icon: BarChart2    },
+            { label: "Leads",    href: "/leads",   icon: Users      },
+            { label: "Scraping", icon: ScanSearch, sub: scrapingSub },
           ],
         },
         {
@@ -75,6 +87,12 @@ function buildSections(role: Role): Section[] {
           items: [
             { label: "Users",    href: "/admin/users", icon: UserCog  },
             ...(role === "boss" ? [{ label: "Settings", href: "/settings", icon: Settings }] : []),
+          ],
+        },
+        {
+          title: "Account",
+          items: [
+            { label: "My Profile", href: "/profile", icon: UserCircle },
           ],
         },
       ];
@@ -85,17 +103,50 @@ function buildSections(role: Role): Section[] {
         {
           title: "Marketing",
           items: [
-            { label: "Marketing",  icon: Megaphone, sub: marketingSub              },
-            { label: "My Leads",   href: "/marketing/my-leads",  icon: Bookmark    },
-            { label: "My Profile", href: "/marketing/profile",   icon: UserCircle  },
+            { label: "Marketing",      icon: Megaphone, sub: marketingSub                 },
+            { label: "My Leads",       href: "/marketing/my-leads", icon: Bookmark        },
           ],
         },
         {
           title: "Workspace",
           items: [
-            { label: "Kanban",   href: "/kanban",   icon: LayoutGrid   },
-            { label: "Calendar", href: "/calendar", icon: CalendarDays },
-            { label: "Reports",  href: "/reports",  icon: BarChart2    },
+            { label: "Kanban",      href: "/kanban",   icon: LayoutGrid   },
+            { label: "Calendar",    href: "/calendar", icon: CalendarDays },
+            { label: "Reports",     href: "/reports",  icon: BarChart2    },
+            { label: "Bug Reports", href: "/feedback", icon: Bug          },
+          ],
+        },
+        {
+          title: "Account",
+          items: [
+            { label: "My Profile", href: "/profile", icon: UserCircle },
+          ],
+        },
+      ];
+
+    case "team_lead":
+      return [
+        { items: [{ label: "Dashboard", href: "/dashboard", icon: LayoutDashboard }] },
+        {
+          title: "Leads",
+          items: [
+            { label: "Leads",    href: "/leads",   icon: Users      },
+            { label: "Scraping", icon: ScanSearch, sub: scrapingSub },
+          ],
+        },
+        {
+          title: "Workspace",
+          items: [
+            { label: "Kanban",      href: "/kanban",   icon: LayoutGrid   },
+            { label: "Calendar",    href: "/calendar", icon: CalendarDays },
+            { label: "Reports",     href: "/reports",  icon: BarChart2    },
+            { label: "Bug Reports", href: "/feedback", icon: Bug          },
+          ],
+        },
+        {
+          title: "Account",
+          items: [
+            { label: "My Profile", href: "/profile", icon: UserCircle },
           ],
         },
       ];
@@ -106,43 +157,75 @@ function buildSections(role: Role): Section[] {
         {
           title: "Leads",
           items: [
-            { label: "Leads",    href: "/leads",    icon: Users      },
-            { label: "Scraping", href: "/scraping", icon: ScanSearch },
+            { label: "Leads",    href: "/leads",   icon: Users      },
+            { label: "Scraping", icon: ScanSearch, sub: scrapingSub },
           ],
         },
         {
           title: "Workspace",
           items: [
-            { label: "Kanban",   href: "/kanban",   icon: LayoutGrid   },
-            { label: "Calendar", href: "/calendar", icon: CalendarDays },
-            { label: "Reports",  href: "/reports",  icon: BarChart2    },
+            { label: "Kanban",      href: "/kanban",   icon: LayoutGrid   },
+            { label: "Calendar",    href: "/calendar", icon: CalendarDays },
+            { label: "Reports",     href: "/reports",  icon: BarChart2    },
+            { label: "Bug Reports", href: "/feedback", icon: Bug          },
+          ],
+        },
+        {
+          title: "Account",
+          items: [
+            { label: "My Profile", href: "/profile", icon: UserCircle },
           ],
         },
       ];
   }
 }
 
-function isActive(pathname: string, href: string) {
-  const base = href.split("?")[0];
-  if (base === "/dashboard") return pathname === "/dashboard";
-  return pathname.startsWith(base);
+function isActive(pathname: string, search: string, href: string) {
+  const [base, query] = href.split("?");
+  const normalizedBase = base === "/dashboard" ? "/dashboard" : base;
+  if (base === "/dashboard" && pathname !== "/dashboard") return false;
+  if (!pathname.startsWith(normalizedBase)) return false;
+  if (query) {
+    const hrefParams = new URLSearchParams(query);
+    const currentParams = new URLSearchParams(search);
+    for (const [k, v] of hrefParams.entries()) {
+      if (currentParams.get(k) !== v) return false;
+    }
+  }
+  return true;
 }
-function anySubActive(pathname: string, sub: SubItem[]) {
-  return sub.some((s) => isActive(pathname, s.href));
+
+function anySubActive(pathname: string, search: string, sub: SubItem[]) {
+  return sub.some((s) => isActive(pathname, search, s.href));
 }
 
 const SUB_ICONS: Record<string, React.ElementType> = {
-  "Yesterday":   CalendarDays,
-  "This Week":   CalendarDays,
-  "This Month":  CalendarDays,
-  "Badges":      Medal,
-  "Challenges":  Flag,
-  "Commissions": DollarSign,
+  "Yesterday":        CalendarDays,
+  "This Week":        CalendarDays,
+  "This Month":       CalendarDays,
+  "Badges":           Medal,
+  "Challenges":       Trophy,
+  "Commissions":      DollarSign,
+  "Scrape a Website": Globe,
+  "Search by Google": ScanSearch,
+  "Auto Keywords":    Wand2,
 };
 
-function CollapsibleItem({ item, pathname, collapsed }: { item: NavItem; pathname: string; collapsed: boolean }) {
-  const subActive = anySubActive(pathname, item.sub!);
-  const [open, setOpen] = useState(true);
+function CollapsibleItem({
+  item,
+  pathname,
+  search,
+  collapsed,
+  defaultOpen = false,
+}: {
+  item: NavItem;
+  pathname: string;
+  search: string;
+  collapsed: boolean;
+  defaultOpen?: boolean;
+}) {
+  const subActive = anySubActive(pathname, search, item.sub!);
+  const [open, setOpen] = useState(defaultOpen || subActive);
   const Icon = item.icon;
 
   return (
@@ -166,10 +249,10 @@ function CollapsibleItem({ item, pathname, collapsed }: { item: NavItem; pathnam
       </button>
 
       {!collapsed && open && (
-        <ul className="mt-0.5 ml-3 pl-3 border-l border-border/40 space-y-0.5">
+        <ul className="mt-0.5 ml-3 border-l border-border/100 space-y-0.5">
           {item.sub!.map((s) => {
             const SubIcon = SUB_ICONS[s.label];
-            const active = isActive(pathname, s.href);
+            const active = isActive(pathname, search, s.href);
             return (
               <li key={s.href}>
                 <Link
@@ -194,8 +277,10 @@ function CollapsibleItem({ item, pathname, collapsed }: { item: NavItem; pathnam
 }
 
 export function AppSidebar({ role }: { role: Role }) {
-  const pathname  = usePathname();
-  const sections  = buildSections(role);
+  const pathname     = usePathname();
+  const searchParams = useSearchParams();
+  const search       = searchParams.toString();
+  const sections     = buildSections(role);
   const [collapsed, setCollapsed] = useState(false);
 
   return (
@@ -214,7 +299,7 @@ export function AppSidebar({ role }: { role: Role }) {
           {!collapsed && <span className="font-bold text-base tracking-tight truncate">DataForge</span>}
         </Link>
         {!collapsed && (
-          <button onClick={() => setCollapsed(true)} className="shrink-0 opacity-40 hover:opacity-100 transition-opacity" title="Collapse sidebar">
+          <button onClick={() => setCollapsed(true)} className="shrink-0 opacity-100 hover:opacity-40 transition-opacity" title="Collapse sidebar">
             <PanelLeftClose className="h-4 w-4" />
           </button>
         )}
@@ -233,7 +318,14 @@ export function AppSidebar({ role }: { role: Role }) {
               {section.items.map((item) => {
                 const Icon = item.icon;
                 return item.sub ? (
-                  <CollapsibleItem key={item.label} item={item} pathname={pathname} collapsed={collapsed} />
+                  <CollapsibleItem
+                    key={item.label}
+                    item={item}
+                    pathname={pathname}
+                    search={search}
+                    collapsed={collapsed}
+                    defaultOpen={true}
+                  />
                 ) : (
                   <li key={item.href}>
                     <Link
@@ -242,7 +334,7 @@ export function AppSidebar({ role }: { role: Role }) {
                       className={cn(
                         "flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
                         collapsed && "justify-center px-0",
-                        isActive(pathname, item.href!)
+                        isActive(pathname, search, item.href!)
                           ? "bg-sidebar-accent text-foreground font-semibold"
                           : "text-foreground hover:bg-sidebar-accent"
                       )}
@@ -260,10 +352,10 @@ export function AppSidebar({ role }: { role: Role }) {
 
       {/* Footer */}
       <div className={cn("border-t py-3 flex items-center", collapsed ? "justify-center px-2" : "px-4 justify-between")}>
-        {!collapsed && <p className="text-[10px] opacity-30">DataForge v1.0</p>}
+        {!collapsed && <p className="text-[10px]">DataForge v1.0</p>}
         <button
           onClick={() => setCollapsed((c) => !c)}
-          className="opacity-30 hover:opacity-100 transition-opacity"
+          className="opacity-100 hover:opacity-40 transition-opacity"
           title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
           {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}

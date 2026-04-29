@@ -4,7 +4,7 @@ import { getKeywordById, pickSearchTerm } from "@/lib/keywords/service";
 import { createJob } from "@/lib/scraping/jobs/service";
 import { prisma } from "@/lib/prisma";
 
-const ALLOWED_ROLES = ["boss", "admin", "lead_data_analyst"];
+const ALLOWED_ROLES = ["boss", "admin", "team_lead"];
 
 export async function POST(
   req: NextRequest,

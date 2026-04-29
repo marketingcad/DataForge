@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { getKeywordById, updateKeyword, deleteKeyword } from "@/lib/keywords/service";
 
-const ALLOWED_ROLES = ["boss", "admin", "lead_data_analyst"];
+const ALLOWED_ROLES = ["boss", "admin", "team_lead"];
 
 export async function GET(
   _req: NextRequest,
@@ -33,7 +33,7 @@ export async function PATCH(
 
   const { id } = await params;
   const body = await req.json();
-  const { keyword, location, maxLeads, intervalMinutes, enabled, extraKeywords, extraKeywordsMode, extraKeywordsMin, extraKeywordsMax, extraKeywordsOrder } = body;
+  const { keyword, location, maxLeads, intervalMinutes, enabled, extraKeywords, extraKeywordsMode, extraKeywordsMin, extraKeywordsMax, extraKeywordsOrder, category, cityRotationEnabled } = body;
 
   const existing = await getKeywordById(id).catch(() => null);
 
@@ -42,6 +42,7 @@ export async function PATCH(
   // - keyword is being re-enabled (so it doesn't wait until the old nextRunAt)
   const intervalChanged = intervalMinutes !== undefined && existing && existing.intervalMinutes !== intervalMinutes;
   const beingEnabled = enabled === true && existing && !existing.enabled;
+  const locationChanged = location !== undefined && existing && existing.location !== location;
   const resetNextRun = intervalChanged || beingEnabled;
 
   const updated = await updateKeyword(id, {
@@ -55,7 +56,10 @@ export async function PATCH(
     extraKeywordsMin,
     extraKeywordsMax,
     extraKeywordsOrder,
+    ...(category !== undefined ? { category: category?.trim() || "Uncategorized" } : {}),
+    ...(cityRotationEnabled !== undefined ? { cityRotationEnabled } : {}),
     ...(resetNextRun ? { nextRunAt: new Date() } : {}),
+    ...(locationChanged ? { cityIndex: 0 } : {}),
   });
   return NextResponse.json({ keyword: updated });
 }

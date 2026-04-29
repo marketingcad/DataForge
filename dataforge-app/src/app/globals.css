@@ -116,6 +116,93 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+/* ── Accent colour system ─────────────────────────────────────────────────── */
+/* --heatmap-accent holds the OKLCH triplet (L C H) used by AgentHeatmap.   */
+/* data-accent="X" on <html> activates a named colour scheme.               */
+
+:root {
+  /* Default: neutral theme → use blue for heatmap so it doesn't look gray  */
+  --heatmap-accent: 0.623 0.214 259.815;
+}
+
+[data-accent="blue"] {
+  --primary: oklch(0.50 0.24 232);
+  --primary-foreground: oklch(0.985 0 0);
+  --ring: oklch(0.623 0.214 232);
+  --sidebar-primary: oklch(0.50 0.24 232);
+  --heatmap-accent: 0.50 0.24 232;
+}
+.dark[data-accent="blue"] {
+  --primary: oklch(0.65 0.22 232);
+  --primary-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.50 0.24 232);
+}
+
+[data-accent="violet"] {
+  --primary: oklch(0.50 0.245 262);
+  --primary-foreground: oklch(0.985 0 0);
+  --ring: oklch(0.60 0.23 262);
+  --sidebar-primary: oklch(0.50 0.245 262);
+  --heatmap-accent: 0.50 0.245 262;
+}
+.dark[data-accent="violet"] {
+  --primary: oklch(0.65 0.22 262);
+  --primary-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.50 0.245 262);
+}
+
+[data-accent="emerald"] {
+  --primary: oklch(0.50 0.19 155);
+  --primary-foreground: oklch(0.985 0 0);
+  --ring: oklch(0.60 0.18 155);
+  --sidebar-primary: oklch(0.50 0.19 155);
+  --heatmap-accent: 0.50 0.19 155;
+}
+.dark[data-accent="emerald"] {
+  --primary: oklch(0.65 0.18 155);
+  --primary-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.50 0.19 155);
+}
+
+[data-accent="rose"] {
+  --primary: oklch(0.52 0.24 7);
+  --primary-foreground: oklch(0.985 0 0);
+  --ring: oklch(0.62 0.22 7);
+  --sidebar-primary: oklch(0.52 0.24 7);
+  --heatmap-accent: 0.52 0.24 7;
+}
+.dark[data-accent="rose"] {
+  --primary: oklch(0.66 0.22 7);
+  --primary-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.52 0.24 7);
+}
+
+[data-accent="amber"] {
+  --primary: oklch(0.60 0.20 65);
+  --primary-foreground: oklch(0.985 0 0);
+  --ring: oklch(0.70 0.18 65);
+  --sidebar-primary: oklch(0.60 0.20 65);
+  --heatmap-accent: 0.60 0.20 65;
+}
+.dark[data-accent="amber"] {
+  --primary: oklch(0.74 0.18 65);
+  --primary-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.60 0.20 65);
+}
+
+[data-accent="teal"] {
+  --primary: oklch(0.50 0.16 195);
+  --primary-foreground: oklch(0.985 0 0);
+  --ring: oklch(0.60 0.15 195);
+  --sidebar-primary: oklch(0.50 0.16 195);
+  --heatmap-accent: 0.50 0.16 195;
+}
+.dark[data-accent="teal"] {
+  --primary: oklch(0.65 0.15 195);
+  --primary-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.50 0.16 195);
+}
+
 /* ── Sonner toast customisation ── */
 [data-sonner-toast] {
   border-left-width: 3px !important;

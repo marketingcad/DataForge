@@ -14,6 +14,7 @@ export async function GET(
     select: {
       id: true,
       status: true,
+      location: true,
       leadsDiscovered: true,
       leadsProcessed: true,
       duplicatesFound: true,

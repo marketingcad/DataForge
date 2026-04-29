@@ -2,6 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
+import { Check } from "lucide-react";
 import { updateSettingsAction } from "@/actions/settings.actions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -9,6 +10,48 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
+import { ACCENT_LS_KEY } from "@/components/providers";
+
+const ACCENT_SCHEMES = [
+  { id: "neutral", label: "Neutral",  swatch: "oklch(0.40 0 0)" },
+  { id: "blue",    label: "Blue",     swatch: "oklch(0.50 0.24 232)" },
+  { id: "violet",  label: "Violet",   swatch: "oklch(0.50 0.245 262)" },
+  { id: "emerald", label: "Emerald",  swatch: "oklch(0.50 0.19 155)" },
+  { id: "rose",    label: "Rose",     swatch: "oklch(0.52 0.24 7)" },
+  { id: "amber",   label: "Amber",    swatch: "oklch(0.60 0.20 65)" },
+  { id: "teal",    label: "Teal",     swatch: "oklch(0.50 0.16 195)" },
+] as const;
+
+type AccentId = typeof ACCENT_SCHEMES[number]["id"];
+
+function getStoredAccent(): AccentId {
+  try {
+    const v = localStorage.getItem(ACCENT_LS_KEY) as AccentId | null;
+    return ACCENT_SCHEMES.some((s) => s.id === v) ? (v as AccentId) : "neutral";
+  } catch { return "neutral"; }
+}
+
+function ApplyAccent({ accent }: { accent: AccentId }) {
+  if (accent === "neutral") {
+    document.documentElement.removeAttribute("data-accent");
+  } else {
+    document.documentElement.setAttribute("data-accent", accent);
+  }
+  try { localStorage.setItem(ACCENT_LS_KEY, accent); } catch { /* ignore */ }
+}
+
+const CURRENCIES = [
+  { symbol: "₱", label: "₱ — Philippine Peso (PHP)" },
+  { symbol: "$", label: "$ — US Dollar (USD)" },
+  { symbol: "€", label: "€ — Euro (EUR)" },
+  { symbol: "£", label: "£ — British Pound (GBP)" },
+  { symbol: "¥", label: "¥ — Japanese Yen / Chinese Yuan" },
+  { symbol: "₩", label: "₩ — Korean Won (KRW)" },
+  { symbol: "₹", label: "₹ — Indian Rupee (INR)" },
+  { symbol: "A$", label: "A$ — Australian Dollar (AUD)" },
+  { symbol: "C$", label: "C$ — Canadian Dollar (CAD)" },
+  { symbol: "R", label: "R — South African Rand (ZAR)" },
+];
 
 interface Settings {
   companyName: string;
@@ -18,12 +61,24 @@ interface Settings {
   leadQualityGoodThreshold: number;
   leadQualityMediumThreshold: number;
   ghlWebhookUrl: string | null;
+  ghlApiKey: string | null;
+  ghlLocationId: string | null;
+  commissionCurrency: string;
 }
 
 export function SettingsClient({ settings }: { settings: Settings }) {
   const formRef = useRef<HTMLFormElement>(null);
   const [globalPause, setGlobalPause] = useState(settings.scrapingGlobalPause);
   const [isPending, startTransition] = useTransition();
+  const [accent, setAccent] = useState<AccentId>(() => {
+    if (typeof window === "undefined") return "neutral";
+    return getStoredAccent();
+  });
+
+  function handleAccentChange(id: AccentId) {
+    setAccent(id);
+    ApplyAccent({ accent: id });
+  }
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -41,6 +96,7 @@ export function SettingsClient({ settings }: { settings: Settings }) {
   }
 
   return (
+    <div className="space-y-6">
     <form ref={formRef} onSubmit={handleSubmit} className="space-y-6">
       {/* General */}
       <Card>
@@ -153,6 +209,32 @@ export function SettingsClient({ settings }: { settings: Settings }) {
         </CardContent>
       </Card>
 
+      {/* Commissions */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Commissions</CardTitle>
+          <CardDescription>Configure how commission amounts are displayed across the app.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="commissionCurrency">Currency</Label>
+            <select
+              id="commissionCurrency"
+              name="commissionCurrency"
+              defaultValue={settings.commissionCurrency}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              {CURRENCIES.map((c) => (
+                <option key={c.symbol} value={c.symbol}>{c.label}</option>
+              ))}
+            </select>
+            <p className="text-xs text-muted-foreground">
+              This symbol is shown on all commission amounts in the app.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Integrations */}
       <Card>
         <CardHeader className="pb-3">
@@ -161,7 +243,7 @@ export function SettingsClient({ settings }: { settings: Settings }) {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor="ghlWebhookUrl">GoHighLevel Webhook URL</Label>
+            <Label htmlFor="ghlWebhookUrl">Webhook URL</Label>
             <Input
               id="ghlWebhookUrl"
               name="ghlWebhookUrl"
@@ -173,6 +255,37 @@ export function SettingsClient({ settings }: { settings: Settings }) {
               Leads will be pushed to this webhook when uploaded to GHL.
             </p>
           </div>
+
+          <Separator />
+
+          <div className="space-y-1.5">
+            <Label htmlFor="ghlApiKey">API Key</Label>
+            <Input
+              id="ghlApiKey"
+              name="ghlApiKey"
+              type="password"
+              defaultValue={settings.ghlApiKey ?? ""}
+              placeholder="eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."
+              autoComplete="off"
+            />
+            <p className="text-xs text-muted-foreground">
+              Private Integration API key from your GHL sub-account. Used to read call logs and contact data.
+            </p>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="ghlLocationId">Location ID</Label>
+            <Input
+              id="ghlLocationId"
+              name="ghlLocationId"
+              defaultValue={settings.ghlLocationId ?? ""}
+              placeholder="abc123XYZ..."
+              autoComplete="off"
+            />
+            <p className="text-xs text-muted-foreground">
+              The sub-account Location ID from GHL. Found under Settings → Business Info in your GHL account.
+            </p>
+          </div>
         </CardContent>
       </Card>
 
@@ -182,5 +295,42 @@ export function SettingsClient({ settings }: { settings: Settings }) {
         </Button>
       </div>
     </form>
+
+    {/* Appearance — localStorage only, outside the server-action form */}
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base">Appearance</CardTitle>
+        <CardDescription>Choose an accent colour scheme for the app.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="flex flex-wrap gap-3">
+          {ACCENT_SCHEMES.map((scheme) => {
+            const active = accent === scheme.id;
+            return (
+              <button
+                key={scheme.id}
+                type="button"
+                onClick={() => handleAccentChange(scheme.id)}
+                className={`flex flex-col items-center gap-1.5 rounded-lg border-2 p-2 transition-colors ${
+                  active
+                    ? "border-foreground"
+                    : "border-transparent hover:border-border"
+                }`}
+                title={scheme.label}
+              >
+                <span
+                  className="relative flex h-8 w-8 items-center justify-center rounded-full shadow-sm"
+                  style={{ backgroundColor: scheme.swatch }}
+                >
+                  {active && <Check className="h-4 w-4 text-white drop-shadow" strokeWidth={3} />}
+                </span>
+                <span className="text-[11px] text-muted-foreground font-medium">{scheme.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
+    </div>
   );
 }

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import type { NotifType } from "@/generated/prisma/enums";
+import { emitNotification, emitNotificationToMany } from "@/lib/socket/emit";
 
 export async function createNotification(data: {
   userId: string;
@@ -8,7 +9,9 @@ export async function createNotification(data: {
   message?: string;
   link?: string;
 }) {
-  return prisma.dbNotification.create({ data: { type: "info", ...data } });
+  const notif = await prisma.dbNotification.create({ data: { type: "info", ...data } });
+  emitNotification(data.userId, notif);
+  return notif;
 }
 
 export async function createNotificationsForRole(
@@ -26,6 +29,17 @@ export async function createNotificationsForRole(
   if (users.length === 0) return;
   await prisma.dbNotification.createMany({
     data: users.map((u) => ({ userId: u.id, type: "info" as NotifType, ...data })),
+  });
+  // Emit to all affected users — best-effort, no id available from createMany
+  const userIds = users.map((u) => u.id);
+  emitNotificationToMany(userIds, {
+    id: "",
+    type: data.type ?? "info",
+    title: data.title,
+    message: data.message ?? null,
+    link: data.link ?? null,
+    read: false,
+    createdAt: new Date(),
   });
 }
 

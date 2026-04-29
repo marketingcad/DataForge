@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { PeriodToggle, type Period } from "./PeriodToggle";
+import { METRIC_LABELS, type Metric } from "./MetricToggle";
 
 export interface LeaderboardEntry {
   id: string;
@@ -9,15 +9,37 @@ export interface LeaderboardEntry {
   callCount: number;
   points: number;
   totalDuration: number;
+  avgCallTime: number;
   topBadges: { id: string; name: string; icon: string }[];
-  appointmentsSet?: number;
-  dealsWon?: number;
+  appointmentsSet: number;
+  dealsWon: number;
+  leadsBooked: number;
+  commissionsEarned: number;
+  badgesEarned: number;
 }
 
 interface Props {
   leaderboard: LeaderboardEntry[];
   period?: string;
+  metric?: Metric;
 }
+
+function formatMetricValue(entry: LeaderboardEntry, metric: Metric): string {
+  switch (metric) {
+    case "calls":         return entry.callCount.toLocaleString();
+    case "leads":         return entry.leadsBooked.toLocaleString();
+    case "appts_set":     return entry.appointmentsSet.toLocaleString();
+    case "deals_won":     return entry.dealsWon.toLocaleString();
+    case "commissions":   return `₱${entry.commissionsEarned.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+    case "avg_call_time": {
+      const m = Math.floor(entry.avgCallTime / 60);
+      const s = entry.avgCallTime % 60;
+      return m > 0 ? `${m}m ${s}s` : `${s}s`;
+    }
+    case "badges": return entry.badgesEarned.toLocaleString();
+  }
+}
+
 
 const LIST_ACCENT = [
   "bg-violet-500",
@@ -35,14 +57,10 @@ function initials(name: string | null) {
   return parts[0].slice(0, 2).toUpperCase();
 }
 
-export function SalesLeaderboard({ leaderboard, period = "week" }: Props) {
+export function SalesLeaderboard({ leaderboard, metric = "appts_set" }: Props) {
   if (leaderboard.length === 0) {
     return (
       <div className="rounded-3xl border bg-card overflow-hidden">
-        {/* Period toggle */}
-        <div className="px-6 pt-6 pb-4 flex justify-center">
-          <PeriodToggle period={period as Period} />
-        </div>
         <div className="p-12 text-center space-y-2">
           <p className="text-3xl">🎮</p>
           <p className="text-sm font-semibold">No data for this period.</p>
@@ -57,7 +75,7 @@ export function SalesLeaderboard({ leaderboard, period = "week" }: Props) {
   const second = leaderboard[1];
   const third  = leaderboard[2];
   const rest   = leaderboard.slice(3);
-  const maxCalls = first?.callCount || 1;
+  const metricLabel = METRIC_LABELS[metric];
 
   // Podium slot config: [left=2nd, center=1st, right=3rd]
   type PodiumSlot = {
@@ -102,11 +120,6 @@ export function SalesLeaderboard({ leaderboard, period = "week" }: Props) {
   return (
     <div className="rounded-3xl border bg-card overflow-hidden">
 
-      {/* ── Period toggle ── */}
-      <div className="px-6 pt-6 pb-0 flex justify-center">
-        <PeriodToggle period={period as Period} />
-      </div>
-
       {/* ── Podium ── */}
       <div className="px-6 pt-8 pb-2">
         <div className="flex items-end justify-center gap-3 max-w-xl mx-auto">
@@ -116,7 +129,8 @@ export function SalesLeaderboard({ leaderboard, period = "week" }: Props) {
               <div key={slot.rank} className="flex-1 flex flex-col items-center">
                 {/* Score pill above avatar */}
                 <div className="flex flex-col items-center gap-1 mb-2">
-                  <span className="text-[30px] font-black tabular-nums">{slot.entry.callCount.toLocaleString()}</span>
+                  <span className="text-[30px] font-black tabular-nums">{formatMetricValue(slot.entry, metric)}</span>
+                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">{metricLabel}</span>
                 </div>
 
                 {/* Avatar circle — floats above the card */}
@@ -169,7 +183,7 @@ export function SalesLeaderboard({ leaderboard, period = "week" }: Props) {
               {/* Name + score */}
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-bold truncate">{entry.name ?? "—"}</p>
-                <p className="text-xs text-muted-foreground tabular-nums">{entry.callCount.toLocaleString()} calls</p>
+                <p className="text-xs text-muted-foreground tabular-nums">{formatMetricValue(entry, metric)} {metricLabel.toLowerCase()}</p>
               </div>
 
               {/* Badges */}

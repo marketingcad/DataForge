@@ -80,7 +80,7 @@ export default async function ReportsPage() {
           <div>
             <p className="font-semibold text-sm">Agent Performance Matrix</p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {rows.length} agent{rows.length !== 1 ? "s" : ""} · sorted by calls this week
+              {rows.length} agent{rows.length !== 1 ? "s" : ""} · sorted by leads assigned
             </p>
           </div>
           {/* Legend */}

@@ -4,12 +4,19 @@
  */
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaNeon } from "@prisma/adapter-neon";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { Pool } from "pg";
 import * as bcrypt from "bcryptjs";
 import "dotenv/config";
 
-const adapter = new PrismaNeon({
-  connectionString: process.env.POSTGRES_PRISMA_URL ?? process.env.DATABASE_URL!,
-});
+const connectionString = process.env.POSTGRES_PRISMA_URL ?? process.env.DATABASE_URL!;
+const isNeon  = connectionString?.includes("neon.tech");
+const isLocal = connectionString?.includes("localhost") || connectionString?.includes("127.0.0.1");
+
+const adapter = isNeon
+  ? new PrismaNeon({ connectionString })
+  : new PrismaPg(new Pool({ connectionString, ssl: isLocal ? false : { rejectUnauthorized: false } }));
+
 const prisma = new PrismaClient({ adapter });
 
 /* ── helpers ── */
@@ -114,12 +121,29 @@ const TASKS = [
 
 /* ── AGENTS ── */
 const AGENTS = [
-  { name: "Marco Reyes",    email: "marco@dataforge.com",    callsProfile: { dailyMin: 8,  dailyMax: 22 } },
-  { name: "Lisa Santos",    email: "lisa@dataforge.com",     callsProfile: { dailyMin: 5,  dailyMax: 18 } },
-  { name: "Jake Villanueva",email: "jake@dataforge.com",     callsProfile: { dailyMin: 12, dailyMax: 25 } },
-  { name: "Carla Mendoza",  email: "carla@dataforge.com",    callsProfile: { dailyMin: 3,  dailyMax: 14 } },
-  { name: "Ryan Torres",    email: "ryan@dataforge.com",     callsProfile: { dailyMin: 10, dailyMax: 20 } },
+  { name: "Marco Reyes",    email: "marco@dataforge.com",    callsProfile: { dailyMin: 8,  dailyMax: 22 }, leadsProfile: { dailyMin: 3, dailyMax: 6 } },
+  { name: "Lisa Santos",    email: "lisa@dataforge.com",     callsProfile: { dailyMin: 5,  dailyMax: 18 }, leadsProfile: { dailyMin: 1, dailyMax: 3 } },
+  { name: "Jake Villanueva",email: "jake@dataforge.com",     callsProfile: { dailyMin: 12, dailyMax: 25 }, leadsProfile: { dailyMin: 4, dailyMax: 8 } },
+  { name: "Carla Mendoza",  email: "carla@dataforge.com",    callsProfile: { dailyMin: 3,  dailyMax: 14 }, leadsProfile: { dailyMin: 0, dailyMax: 2 } },
+  { name: "Ryan Torres",    email: "ryan@dataforge.com",     callsProfile: { dailyMin: 10, dailyMax: 20 }, leadsProfile: { dailyMin: 2, dailyMax: 5 } },
 ];
+
+const BUSINESS_NAMES = [
+  "Sunrise Bakery","Metro Plumbing","Green Leaf Landscaping","Peak Fitness","City Dental Clinic",
+  "Blue Ocean Consulting","Maple Auto Repair","Golden Gate Realty","Swift Logistics","Nova Tech Solutions",
+  "Harbor Coffee Roasters","Pinewood Construction","Clearview Optometry","Red Rock Catering","Silverline Marketing",
+  "Canyon Yoga Studio","Bright Kids Academy","Iron Shield Security","Coastal Cleaning Co.","Horizon Law Group",
+  "Ember Restaurant","Apex Accounting","Vivid Print Studio","Keystone Insurance","Summit Sports Gear",
+  "Pacific Wellness Spa","Diamond Events","Orion Photography","Blueprint Architecture","Riverside Pharmacy",
+  "Thunder Gym","Meadow Dental","Crestview Realty","Harbor Freight","Cascade Coffee",
+  "Lakeside Auto","Frontier Legal","Pixel Studios","Alpine Insurance","Sunset Catering",
+];
+const CATEGORIES = [
+  "Food & Beverage","Home Services","Healthcare","Fitness","Legal",
+  "Technology","Real Estate","Retail","Education","Consulting",
+  "Construction","Automotive","Marketing","Finance","Events",
+];
+const CITIES = ["New York","Los Angeles","Chicago","Houston","Phoenix","Philadelphia","San Antonio","San Diego"];
 
 async function main() {
   console.log("🌱 Seeding marketing system...");
@@ -166,6 +190,17 @@ async function main() {
     agentIds.push({ id: userId, profile: agent.callsProfile });
   }
 
+  /* 3b. Upsert boss account */
+  console.log("  Creating boss account...");
+  const bossEmail = "boss@dataforge.dev";
+  const bossPassword = await bcrypt.hash("Password1234", 10);
+  const existingBoss = await prisma.user.findUnique({ where: { email: bossEmail } });
+  if (existingBoss) {
+    await prisma.user.update({ where: { id: existingBoss.id }, data: { role: "boss", password: bossPassword } });
+  } else {
+    await prisma.user.create({ data: { name: "Boss", email: bossEmail, password: bossPassword, role: "boss" } });
+  }
+
   /* 4. Generate 90 days of call logs per agent */
   console.log("  Generating call logs (90 days)...");
   // Delete existing dummy call logs for these agents
@@ -209,7 +244,50 @@ async function main() {
   await prisma.callLog.createMany({ data: allCallLogs });
   console.log(`  Created ${allCallLogs.length} call logs`);
 
-  /* 5. Assign TaskProgress for each agent × each task */
+  /* 5. Generate 90 days of leads per agent */
+  console.log("  Generating leads (90 days)...");
+  await prisma.lead.deleteMany({
+    where: { savedById: { in: agentIds.map((a) => a.id) }, source: "seed" },
+  });
+
+  const allLeads: {
+    businessName: string; phone: string; source: string;
+    savedById: string; dateCollected: Date;
+    category: string; city: string; dataQualityScore: number;
+  }[] = [];
+
+  let leadIdx = 0;
+  for (let ai = 0; ai < agentIds.length; ai++) {
+    const agent = agentIds[ai];
+    const agentDef = AGENTS[ai] ?? AGENTS[0];
+    for (let day = 89; day >= 0; day--) {
+      const date = new Date();
+      date.setDate(date.getDate() - day);
+      const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+      const leadsToday = isWeekend
+        ? randInt(0, 1)
+        : randInt(agentDef.leadsProfile.dailyMin, agentDef.leadsProfile.dailyMax);
+      for (let l = 0; l < leadsToday; l++) {
+        const collected = new Date(date);
+        collected.setHours(randInt(8, 18), randInt(0, 59), 0, 0);
+        allLeads.push({
+          businessName: BUSINESS_NAMES[leadIdx % BUSINESS_NAMES.length] + ` #${leadIdx + 1}`,
+          phone: `555${String(leadIdx).padStart(7, "0")}`,
+          source: "seed",
+          savedById: agent.id,
+          dateCollected: collected,
+          category: CATEGORIES[leadIdx % CATEGORIES.length],
+          city: CITIES[leadIdx % CITIES.length],
+          dataQualityScore: randInt(55, 99),
+        });
+        leadIdx++;
+      }
+    }
+  }
+  await prisma.lead.createMany({ data: allLeads });
+  console.log(`  Created ${allLeads.length} leads`);
+
+  /* 7. Assign TaskProgress for each agent × each task */
   console.log("  Assigning task progress...");
   await prisma.taskProgress.deleteMany({ where: { userId: { in: agentIds.map((a) => a.id) } } });
 
@@ -257,7 +335,7 @@ async function main() {
     }
   }
 
-  /* 6. Assign badges based on actual performance */
+  /* 8. Assign badges based on actual performance */
   console.log("  Assigning badges...");
   await prisma.userBadge.deleteMany({ where: { userId: { in: agentIds.map((a) => a.id) } } });
 
@@ -294,6 +372,8 @@ async function main() {
   }
 
   console.log("✅ Seed complete!");
+  console.log("\nBoss account (password: Password1234):");
+  console.log("  boss@dataforge.dev");
   console.log("\nMarketing team accounts (password: password123):");
   for (const a of AGENTS) console.log(`  ${a.email}`);
 }

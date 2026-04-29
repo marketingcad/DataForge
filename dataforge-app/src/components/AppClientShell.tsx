@@ -14,9 +14,10 @@ interface AppClientShellProps {
   children: ReactNode;
   userName?: string | null;
   userEmail?: string | null;
+  userId?: string;
 }
 
-export function AppClientShell({ children, userName, userEmail }: AppClientShellProps) {
+export function AppClientShell({ children, userName, userEmail, userId = "" }: AppClientShellProps) {
   return (
     <MigrationProvider>
       <div className="flex flex-col flex-1 overflow-hidden">
@@ -28,7 +29,7 @@ export function AppClientShell({ children, userName, userEmail }: AppClientShell
             <MigrationStatusBadge />
             <FeedbackButton />
             <ThemeToggle />
-            <NotificationBell />
+            <NotificationBell userId={userId} />
             <Separator orientation="vertical" className="h-6" />
             <UserNav name={userName} email={userEmail} />
           </div>

@@ -1,16 +1,20 @@
+import { Suspense } from "react";
 import { getJobs } from "@/lib/scraping/jobs/service";
 import { getKeywords } from "@/lib/keywords/service";
 import { ScrapingPageTabs } from "@/components/scraping/ScrapingPageTabs";
 import { Separator } from "@/components/ui/separator";
 import { withDbRetry } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { redirect } from "next/navigation";
 
-const KEYWORD_ROLES = ["boss", "admin", "lead_data_analyst"];
+const SCRAPING_ROLES = ["boss", "admin", "lead_specialist"];
+const KEYWORD_ROLES = ["boss", "admin"];
 
 export default async function ScrapingPage() {
   const session = await auth();
   const role = (session?.user as unknown as Record<string, unknown>)?.role as string | undefined;
-  const canUseKeywords = role ? KEYWORD_ROLES.includes(role) : false;
+  if (!role || !SCRAPING_ROLES.includes(role)) redirect("/unauthorized");
+  const canUseKeywords = KEYWORD_ROLES.includes(role);
 
   const [{ jobs }, keywords] = await Promise.all([
     withDbRetry(() => getJobs({})).catch(() => ({ jobs: [] })),
@@ -29,11 +33,13 @@ export default async function ScrapingPage() {
 
       <Separator />
 
-      <ScrapingPageTabs
-        canUseKeywords={canUseKeywords}
-        keywords={keywords as never[]}
-        jobs={jobs}
-      />
+      <Suspense fallback={null}>
+        <ScrapingPageTabs
+          canUseKeywords={canUseKeywords}
+          keywords={keywords as never[]}
+          jobs={jobs}
+        />
+      </Suspense>
     </div>
   );
 }

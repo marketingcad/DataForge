@@ -1,5 +1,39 @@
 import { prisma } from "@/lib/prisma";
-import { getLocationCallConversations, mapGhlCallStatus, getAgentOpportunities } from "@/lib/ghl/client";
+import { getLocationCallConversations, getConversationCalls, mapGhlCallStatus, getAgentOpportunities } from "@/lib/ghl/client";
+
+/**
+ * Fetch call durations for a batch of conversations in parallel.
+ * GHL stores duration in message meta — either meta.durationSecs (seconds)
+ * or meta.duration (milliseconds). We normalise to whole seconds.
+ * Batched to 10 concurrent requests to stay within GHL rate limits.
+ */
+async function fetchDurations(
+  apiKey: string,
+  convIds: string[],
+): Promise<Map<string, number>> {
+  const map = new Map<string, number>();
+  const BATCH = 10;
+
+  for (let i = 0; i < convIds.length; i += BATCH) {
+    const batch = convIds.slice(i, i + BATCH);
+    await Promise.all(batch.map(async (id) => {
+      try {
+        const messages = await getConversationCalls(apiKey, id);
+        let best = 0;
+        for (const m of messages) {
+          const secs  = typeof m.meta?.durationSecs === "number" ? m.meta.durationSecs : 0;
+          const fromMs = typeof m.meta?.duration    === "number" ? Math.round(m.meta.duration / 1000) : 0;
+          best = Math.max(best, secs, fromMs);
+        }
+        map.set(id, best);
+      } catch {
+        map.set(id, 0);
+      }
+    }));
+  }
+
+  return map;
+}
 
 export async function autoSyncGhlCalls(): Promise<void> {
   try {
@@ -20,7 +54,6 @@ export async function autoSyncGhlCalls(): Promise<void> {
 
     const agentByGhlId = new Map(dfAgents.map((a) => [a.ghlUserId!, a.id]));
 
-    // Only fetch leads that are already linked to GHL contacts — avoids a full table scan
     const linkedLeads = await prisma.lead.findMany({
       where: { ghlContactId: { not: null } },
       select: { id: true, ghlContactId: true },
@@ -34,14 +67,34 @@ export async function autoSyncGhlCalls(): Promise<void> {
       since
     );
 
-    for (const conv of callConvs) {
+    if (callConvs.length === 0) return;
+
+    // Find which conversations already exist in DB so we don't overwrite their duration
+    const convIds = callConvs.map((c) => c.id);
+    const existing = await prisma.callLog.findMany({
+      where: { ghlMessageId: { in: convIds } },
+      select: { ghlMessageId: true, durationSecs: true },
+    });
+    const existingMap = new Map(existing.map((e) => [e.ghlMessageId, e.durationSecs]));
+
+    // Only fetch durations for NEW conversations (not in DB yet), cap at 50 per sync
+    const newConvIds = convIds
+      .filter((id) => !existingMap.has(id))
+      .slice(0, 50);
+    const durations = await fetchDurations(settings.ghlApiKey, newConvIds);
+
+    await Promise.all(callConvs.map((conv) => {
       const dfAgentId = conv.assignedTo ? agentByGhlId.get(conv.assignedTo) : undefined;
-      if (!dfAgentId) continue;
+      if (!dfAgentId) return;
 
       const ghlMessageId = conv.id;
       const rawDate = conv.sort?.[0] ?? conv.lastMessageDate ?? conv.dateUpdated ?? conv.dateAdded;
       const calledAt = rawDate ? new Date(Number(rawDate)) : new Date();
       const leadId = conv.contactId ? (contactToLeadId.get(conv.contactId) ?? null) : null;
+      // New record: use fetched duration. Existing record: preserve what's already stored.
+      const durationSecs = existingMap.has(ghlMessageId)
+        ? (existingMap.get(ghlMessageId) ?? 0)
+        : (durations.get(ghlMessageId) ?? 0);
 
       const record = {
         agentId: dfAgentId,
@@ -49,19 +102,19 @@ export async function autoSyncGhlCalls(): Promise<void> {
         contactName: conv.contactName ?? null,
         contactPhone: conv.phone ?? null,
         direction: "outbound" as const,
-        durationSecs: 0,
+        durationSecs,
         status: mapGhlCallStatus(String(conv.lastMessageType ?? conv.type ?? "")),
         calledAt,
         ghlMessageId,
         notes: "Synced from GHL",
       };
 
-      await prisma.callLog.upsert({
+      return prisma.callLog.upsert({
         where: { ghlMessageId },
         create: record,
         update: { calledAt, agentId: dfAgentId, leadId, status: record.status },
       });
-    }
+    }));
   } catch (err) {
     console.error("[autoSyncGhlCalls]", err);
   }
@@ -90,14 +143,14 @@ export async function autoSyncGhlOpportunities(): Promise<void> {
     });
     const contactToLeadId = new Map(linkedLeads.map((l) => [l.ghlContactId!, l.id]));
 
-    for (const agent of dfAgents) {
+    await Promise.all(dfAgents.map(async (agent) => {
       const opps = await getAgentOpportunities(
         settings.ghlApiKey,
         settings.ghlLocationId,
         agent.ghlUserId!
       );
 
-      for (const opp of opps) {
+      await Promise.all(opps.map((opp) => {
         const leadId = opp.contactId ? (contactToLeadId.get(opp.contactId) ?? null) : null;
         const record = {
           ghlId: opp.id,
@@ -110,7 +163,7 @@ export async function autoSyncGhlOpportunities(): Promise<void> {
           createdAt: opp.createdAt ? new Date(opp.createdAt) : new Date(),
         };
 
-        await prisma.ghlOpportunity.upsert({
+        return prisma.ghlOpportunity.upsert({
           where: { ghlId: opp.id },
           create: record,
           update: {
@@ -120,8 +173,8 @@ export async function autoSyncGhlOpportunities(): Promise<void> {
             leadId: record.leadId,
           },
         });
-      }
-    }
+      }));
+    }));
   } catch (err) {
     console.error("[autoSyncGhlOpportunities]", err);
   }

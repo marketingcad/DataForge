@@ -45,6 +45,7 @@ const ROLE_COLORS: Record<string, string> = {
   boss:            "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-400",
   admin:           "bg-violet-100 text-violet-800 dark:bg-violet-950/40 dark:text-violet-400",
   sales_rep:       "bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-400",
+  team_lead:       "bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-400",
   lead_specialist: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400",
 };
 

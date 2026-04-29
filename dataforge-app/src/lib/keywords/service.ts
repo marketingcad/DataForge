@@ -1,14 +1,17 @@
 import { prisma } from "@/lib/prisma";
+import { Country, State, City } from "country-state-city";
 
 export async function getKeywords(createdById?: string) {
   return prisma.scrapingKeyword.findMany({
     where: createdById ? { createdById } : undefined,
     include: {
+      // Count only jobs — leads count is fetched on-demand via /api/keywords/[id]/leads
       _count: { select: { jobs: true, leads: { where: { folderId: null } } } },
       jobs: {
         orderBy: { createdAt: "desc" },
         take: 1,
-        select: { id: true, status: true, leadsProcessed: true, leadsDiscovered: true, pendingLeads: true, errorMessage: true, createdAt: true },
+        // Exclude pendingLeads (large JSON) from the polling payload
+        select: { id: true, status: true, leadsProcessed: true, leadsDiscovered: true, errorMessage: true, createdAt: true },
       },
     },
     orderBy: { createdAt: "desc" },
@@ -46,6 +49,7 @@ export async function createKeyword(data: {
   extraKeywordsMin?: number;
   extraKeywordsMax?: number;
   extraKeywordsOrder?: string[];
+  category?: string;
   createdById?: string;
 }) {
   const nextRunAt = new Date();
@@ -60,6 +64,7 @@ export async function createKeyword(data: {
       extraKeywordsMin: data.extraKeywordsMin ?? 1,
       extraKeywordsMax: data.extraKeywordsMax ?? 3,
       extraKeywordsOrder: data.extraKeywordsOrder ?? [],
+      category: data.category?.trim() || "Uncategorized",
       nextRunAt,
       createdById: data.createdById ?? null,
     },
@@ -80,9 +85,59 @@ export async function updateKeyword(
     extraKeywordsMin: number;
     extraKeywordsMax: number;
     extraKeywordsOrder: string[];
+    category: string;
+    cityIndex: number;
+    cityRotationEnabled: boolean;
   }>
 ) {
   return prisma.scrapingKeyword.update({ where: { id }, data });
+}
+
+/**
+ * Resolves the actual location to use for a given run.
+ * - If the stored location already includes a city (3 parts) → use as-is every run.
+ * - If only state + country (2 parts) → cycle through all cities using cityIndex,
+ *   returning the city's lat/lng so the scraper can pin geolocation precisely.
+ */
+export function resolveRunLocation(kw: { location: string; cityIndex: number; cityRotationEnabled?: boolean }): {
+  location: string;
+  coords?: { latitude: number; longitude: number };
+} {
+  // If city rotation is disabled, always use the stored location as-is
+  if (kw.cityRotationEnabled === false) return { location: kw.location };
+
+  const parts = kw.location.split(",").map((s) => s.trim());
+
+  // City already embedded → fixed city, use every run
+  if (parts.length >= 3) return { location: kw.location };
+
+  // State + country → auto-cycle cities
+  if (parts.length === 2) {
+    const [stateName, countryName] = parts;
+    const country = Country.getAllCountries().find(
+      (c) => c.name.toLowerCase() === countryName.toLowerCase()
+    );
+    if (!country) return { location: kw.location };
+
+    const state = State.getStatesOfCountry(country.isoCode).find(
+      (s) => s.name.toLowerCase() === stateName.toLowerCase()
+    );
+    if (!state) return { location: kw.location };
+
+    const cities = City.getCitiesOfState(country.isoCode, state.isoCode).filter((c) => c?.name);
+    if (cities.length === 0) return { location: kw.location };
+
+    const city = cities[kw.cityIndex % cities.length];
+    if (!city) return { location: kw.location };
+    const cityLocation = `${city.name}, ${state.name}, ${country.name}`;
+    const coords = city.latitude && city.longitude
+      ? { latitude: parseFloat(city.latitude), longitude: parseFloat(city.longitude) }
+      : undefined;
+
+    return { location: cityLocation, coords };
+  }
+
+  return { location: kw.location };
 }
 
 /**
@@ -112,7 +167,9 @@ export function pickSearchTerm(kw: {
     const pool = kw.extraKeywordsOrder.filter(Boolean);
     const ordered = pool.length > 0 ? pool : extras;
     const idx = kw.extraKeywordsIndex % ordered.length;
-    return `${kw.keyword} ${ordered[idx]}`;
+    // Shuffle the two parts so main keyword isn't always first
+    const parts = [kw.keyword, ordered[idx]];
+    return parts.sort(() => Math.random() - 0.5).join(" ");
   }
 
   // Random mode
@@ -121,7 +178,8 @@ export function pickSearchTerm(kw: {
   const count = min + Math.floor(Math.random() * (max - min + 1));
   if (count === 0) return kw.keyword;
   const shuffled = [...extras].sort(() => Math.random() - 0.5);
-  return [kw.keyword, ...shuffled.slice(0, count)].join(" ");
+  // Shuffle main keyword position among the selected extras
+  return [kw.keyword, ...shuffled.slice(0, count)].sort(() => Math.random() - 0.5).join(" ");
 }
 
 export async function deleteKeyword(id: string) {
@@ -150,6 +208,7 @@ export async function onKeywordJobSuccess(id: string, intervalMinutes: number) {
       failedAttempts: 0,
       lastError: null,
       extraKeywordsIndex: { increment: 1 },
+      cityIndex: { increment: 1 },
     },
   });
 }

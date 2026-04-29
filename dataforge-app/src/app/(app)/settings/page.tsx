@@ -9,7 +9,7 @@ export default async function SettingsPage() {
   if (!session) redirect("/sign-in");
 
   const role = ((session.user as unknown as Record<string, unknown>)?.role as Role) ?? "lead_specialist";
-  if (role !== "boss") redirect("/unauthorized");
+  if (role !== "boss" && role !== "admin") redirect("/unauthorized");
 
   const settings = await getSettings();
 

@@ -186,7 +186,7 @@ function KanbanColumn({
   onCardClick: (report: Report) => void;
 }) {
   return (
-    <div className="flex flex-col min-w-0">
+    <div className="flex max-h-[650px] flex-col min-w-0">
       {/* Column header */}
       <div className={`rounded-t-xl border-t-2 ${col.accent} border border-b-0 ${col.headerBg} px-4 py-3 flex items-center gap-2`}>
         <span className={`h-2 w-2 rounded-full ${col.dotColor} shrink-0`} />
@@ -197,7 +197,7 @@ function KanbanColumn({
       </div>
 
       {/* Cards */}
-      <div className="flex-1 border border-t-0 rounded-b-xl bg-muted/10 p-3 space-y-2.5 min-h-[200px]">
+      <div className="flex-1 border border-t-0 rounded-b-xl bg-muted/10 p-3 space-y-2.5 min-h-[200px] overflow-hidden overflow-y-auto">
         {reports.length === 0 ? (
           <div className="flex flex-col items-center gap-1.5 py-10 text-center">
             <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">

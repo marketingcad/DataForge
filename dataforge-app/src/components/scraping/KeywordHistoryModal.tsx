@@ -16,12 +16,14 @@ import {
   Copy,
   AlertTriangle,
   Info,
+  MapPin,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface JobHistory {
   id: string;
   status: string;
+  location: string;
   leadsDiscovered: number;
   leadsProcessed: number;
   duplicatesFound: number;
@@ -187,6 +189,12 @@ export function KeywordHistoryModal({ kwId, keyword, location, open, onOpenChang
 
                     {/* Stats row */}
                     <div className="flex flex-wrap gap-x-5 gap-y-1.5 text-xs">
+                      {job.location && (
+                        <span className="flex items-center gap-1 text-muted-foreground">
+                          <MapPin className="h-3 w-3" />
+                          {job.location}
+                        </span>
+                      )}
                       {job.leadsDiscovered > 0 && (
                         <span className="flex items-center gap-1 text-muted-foreground">
                           <Users className="h-3 w-3" />

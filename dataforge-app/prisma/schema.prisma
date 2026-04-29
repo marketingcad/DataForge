@@ -539,9 +539,9 @@ model RepCommission {
 enum UserRole {
   boss
   admin
+  team_lead
   sales_rep
   lead_specialist
-  lead_data_analyst
 }
 
 enum CallDirection {

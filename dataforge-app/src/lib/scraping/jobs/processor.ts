@@ -10,7 +10,7 @@ import { getJobById, updateJobStatus } from "@/lib/scraping/jobs/service";
 import { scrapeGoogleMapsHeadless } from "@/lib/scraping/google/maps-scraper";
 import { insertLead } from "@/lib/leads/service";
 import { normalizePhone } from "@/lib/utils/normalize";
-import { onKeywordJobSuccess, onKeywordJobFailure, getKeywordById } from "@/lib/keywords/service";
+import { onKeywordJobSuccess, onKeywordJobFailure, getKeywordById, pickSearchTerm, resolveRunLocation } from "@/lib/keywords/service";
 import { createNotification, createNotificationsForRole } from "@/lib/notifications/service";
 
 const MAX_KEYWORD_FAILURES = 5;
@@ -54,148 +54,197 @@ export async function processKeywordJob(job: Awaited<ReturnType<typeof getJobByI
   let firstInsertError: string | null = null;
   let insertChain: Promise<void> = Promise.resolve();
 
-  let leads: Awaited<ReturnType<typeof scrapeGoogleMapsHeadless>>;
-  try {
-    const MAX_SCRAPE_MS = 270 * 1000;
-    leads = await scrapeGoogleMapsHeadless(
-      job.industry,
-      job.location,
-      job.maxLeads,
-      (msg) => {
-        // Guard: only write while job is still running — prevents a delayed
-        // fire-and-forget write from overwriting the final completion message.
-        prisma.scrapingJob.updateMany({
-          where: { id, status: "running" },
-          data: { errorMessage: msg },
-        }).catch(() => {});
-      },
-      async (lead: import("@/lib/scraping/google/maps-scraper").SerpLead, count: number) => {
-        await insertChain;
+  // Fetch the keyword once so we can re-roll extra keywords on retries.
+  let kw: Awaited<ReturnType<typeof getKeywordById>> | null = null;
+  try { kw = await getKeywordById(job.keywordId!); } catch { /* keyword deleted */ }
 
-        if (count > job.maxLeads) throw new Error("__LIMIT_REACHED__");
+  const MAX_RETRIES = 2;
+  const MAX_SCRAPE_MS = 270 * 1000;
+  let wasCancelled = false;
+  let fatalError: string | null = null;
+  let leads: Awaited<ReturnType<typeof scrapeGoogleMapsHeadless>> = [];
 
-        // Use the pre-polled flag — no extra DB round-trip per lead.
-        if (cancelledFlag) throw new Error("__CANCELLED__");
+  // Resolve the city once for the whole run (retries stay on the same city)
+  const { location: runLocation, coords: runCoords } = kw
+    ? resolveRunLocation(kw)
+    : { location: job.location, coords: undefined };
 
-        collectedLeads.push(lead);
-        insertChain = insertChain.then(async () => {
-          try {
-            const result = await insertLead({
-              businessName: lead.businessName,
-              phone:        lead.phone ?? "N/A",
-              email:        lead.email,
-              website:      lead.website,
-              address:      lead.address,
-              city:         lead.city,
-              state:        lead.state,
-              category:     job.industry,
-              source:       `GoogleMaps:keyword_${job.keywordId}`,
-              keywordId:    job.keywordId ?? undefined,
-            });
-            if (result.status === "duplicate") {
-              dupCount++;
-              const idx = collectedLeads.indexOf(lead);
-              if (idx !== -1) collectedLeads.splice(idx, 1);
-            } else {
-              savedCount++;
-              if (lead.businessName) skipNames.add(lead.businessName.toLowerCase().trim());
-              if (lead.phone) {
-                const p = normalizePhone(lead.phone);
-                if (p) knownPhones.add(p);
-              }
-            }
-          } catch (insertErr) {
-            insertFailures++;
-            if (!firstInsertError) {
-              firstInsertError = insertErr instanceof Error
-                ? insertErr.message
-                : String(insertErr);
-            }
-          }
+  // Record the resolved city in the job so it shows in run history
+  prisma.scrapingJob.update({
+    where: { id },
+    data: { location: runLocation },
+  }).catch(() => {});
 
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    if (cancelledFlag) { wasCancelled = true; break; }
+    if (savedCount >= job.maxLeads) break;
+
+    // On retries, re-roll extra keywords for a different search term.
+    const searchTerm = (attempt === 0 || !kw) ? job.industry : pickSearchTerm(kw);
+    const remaining  = job.maxLeads - savedCount;
+
+    if (attempt > 0) {
+      prisma.scrapingJob.updateMany({
+        where: { id, status: "running" },
+        data: { errorMessage: `Retry ${attempt}/${MAX_RETRIES} — got ${savedCount}/${job.maxLeads} leads, trying "${searchTerm}"…` },
+      }).catch(() => {});
+    }
+
+    let hitLimit = false;
+    try {
+      const attemptLeads = await scrapeGoogleMapsHeadless(
+        searchTerm,
+        runLocation,
+        remaining,
+        (msg) => {
           prisma.scrapingJob.updateMany({
             where: { id, status: "running" },
-            data: {
-              leadsDiscovered: count,
-              leadsProcessed:  savedCount,
-              duplicatesFound: dupCount,
-            },
+            data: { errorMessage: attempt > 0 ? `[Retry ${attempt}/${MAX_RETRIES}] ${msg}` : msg },
           }).catch(() => {});
-        }).catch(() => {});
-      },
-      MAX_SCRAPE_MS,
-      isDuplicate,
-      skipNames,
-      () => cancelledFlag,
-    );
-  } catch (err) {
-    const errorMsg        = err instanceof Error ? err.message : "Browser scrape failed";
-    const wasCancelled    = errorMsg === "__CANCELLED__" || cancelledFlag;
-    const wasLimitReached = errorMsg === "__LIMIT_REACHED__";
-    clearInterval(cancelPoll);
-    await insertChain;
-    const isSuccess = wasLimitReached || savedCount > 0;
-    await prisma.scrapingJob.update({
-      where: { id },
-      data: {
-        status:          isSuccess ? "completed" : "failed",
-        completedTime:   new Date(),
-        leadsProcessed:  savedCount,
-        duplicatesFound: dupCount,
-        errorMessage:    isSuccess
-          ? `Done — ${savedCount} new${dupCount > 0 ? `, ${dupCount} duplicates` : ""}${insertFailures > 0 ? ` ⚠ ${insertFailures} failed: ${firstInsertError}` : ""}`
-          : (wasCancelled ? "Stopped by user" : errorMsg),
-      },
-    });
-    if (isSuccess) {
-      revalidatePath("/leads");
-      revalidatePath("/scraping");
-      try {
-        const kw = await getKeywordById(job.keywordId!);
-        await onKeywordJobSuccess(kw.id, kw.intervalMinutes);
-      } catch { /* keyword may have been deleted */ }
-      await notifyKeywordSuccess(job.keywordId!, savedCount, dupCount, collectedLeads.length);
-    } else if (!wasCancelled) {
-      await handleKeywordFailure(job.keywordId!, errorMsg);
+        },
+        async (lead: import("@/lib/scraping/google/maps-scraper").SerpLead, count: number) => {
+          await insertChain;
+          if (cancelledFlag) throw new Error("__CANCELLED__");
+
+          collectedLeads.push(lead);
+          insertChain = insertChain.then(async () => {
+            try {
+              const result = await insertLead({
+                businessName: lead.businessName,
+                phone:        lead.phone ?? "N/A",
+                email:        lead.email,
+                website:      lead.website,
+                address:      lead.address,
+                city:         lead.city,
+                state:        lead.state,
+                category:     job.industry,
+                source:       `GoogleMaps:keyword_${job.keywordId}`,
+                keywordId:    job.keywordId ?? undefined,
+              });
+              if (result.status === "duplicate") {
+                dupCount++;
+                const idx = collectedLeads.indexOf(lead);
+                if (idx !== -1) collectedLeads.splice(idx, 1);
+              } else {
+                savedCount++;
+                if (lead.businessName) skipNames.add(lead.businessName.toLowerCase().trim());
+                if (lead.phone) {
+                  const p = normalizePhone(lead.phone);
+                  if (p) knownPhones.add(p);
+                }
+              }
+            } catch (insertErr) {
+              insertFailures++;
+              if (!firstInsertError) {
+                firstInsertError = insertErr instanceof Error
+                  ? insertErr.message
+                  : String(insertErr);
+              }
+            }
+
+            prisma.scrapingJob.updateMany({
+              where: { id, status: "running" },
+              data: {
+                leadsDiscovered: collectedLeads.length,
+                leadsProcessed:  savedCount,
+                duplicatesFound: dupCount,
+              },
+            }).catch(() => {});
+          }).catch(() => {});
+        },
+        MAX_SCRAPE_MS,
+        isDuplicate,
+        skipNames,
+        () => cancelledFlag,
+        runCoords,
+      );
+      leads = [...leads, ...attemptLeads];
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Browser scrape failed";
+      if (msg === "__CANCELLED__" || cancelledFlag) { wasCancelled = true; }
+      else if (msg !== "__LIMIT_REACHED__") { fatalError = msg; }
+      else { hitLimit = true; }
     }
-    return;
+
+    // Always flush inserts before deciding whether to retry
+    await insertChain;
+
+    if (wasCancelled) break;
+    if (hitLimit || savedCount >= job.maxLeads) break;
+
+    // Log retry decision
+    if (attempt < MAX_RETRIES) {
+      prisma.scrapingJob.updateMany({
+        where: { id, status: "running" },
+        data: { errorMessage: `Got ${savedCount}/${job.maxLeads} leads — starting retry ${attempt + 1}/${MAX_RETRIES} with new keywords…` },
+      }).catch(() => {});
+    }
   }
 
   clearInterval(cancelPoll);
+  await insertChain;
 
-  // Skip final write if job was cancelled externally
-  if (cancelledFlag) return;
+  if (wasCancelled || cancelledFlag) {
+    const currentStatus = await prisma.scrapingJob.findUnique({ where: { id }, select: { status: true } });
+    if (currentStatus?.status !== "running") return;
+    await prisma.scrapingJob.update({
+      where: { id },
+      data: {
+        status:         "completed",
+        completedTime:  new Date(),
+        leadsProcessed: savedCount,
+        duplicatesFound: dupCount,
+        errorMessage:   `Stopped by user — ${savedCount} saved so far`,
+      },
+    });
+    return;
+  }
+
   const currentStatus = await prisma.scrapingJob.findUnique({ where: { id }, select: { status: true } });
   if (currentStatus?.status !== "running") return;
 
-  await insertChain;
+  const isSuccess = savedCount > 0 || dupCount > 0;
   const finalLeads = leads.length > 0 ? leads : collectedLeads;
+
+  let completionMsg: string;
+  if (savedCount > 0) {
+    completionMsg = `Done — ${savedCount} new${dupCount > 0 ? `, ${dupCount} duplicates` : ""}`;
+    if (savedCount < job.maxLeads) completionMsg += ` (${MAX_RETRIES} retries — could not reach ${job.maxLeads})`;
+    if (insertFailures > 0) completionMsg += ` ⚠ ${insertFailures} failed: ${firstInsertError}`;
+  } else if (dupCount > 0) {
+    completionMsg = `No new leads — ${dupCount} duplicates${insertFailures > 0 ? ` ⚠ ${insertFailures} failed: ${firstInsertError}` : ""}`;
+  } else if (fatalError) {
+    completionMsg = fatalError;
+  } else if (insertFailures > 0) {
+    completionMsg = `⚠ All ${insertFailures} inserts failed: ${firstInsertError}`;
+  } else {
+    completionMsg = "No leads found after retries — try a different location or keyword";
+  }
+
   await prisma.scrapingJob.update({
     where: { id },
     data: {
-      status:          "completed",
+      status:          isSuccess ? "completed" : "failed",
       completedTime:   new Date(),
       leadsDiscovered: finalLeads.length,
       leadsProcessed:  savedCount,
       duplicatesFound: dupCount,
       pendingLeads:    finalLeads.length > 0 ? (finalLeads as never) : (null as never),
-      errorMessage:    savedCount > 0
-        ? `Done — ${savedCount} new${dupCount > 0 ? `, ${dupCount} duplicates` : ""}${insertFailures > 0 ? ` ⚠ ${insertFailures} failed: ${firstInsertError}` : ""}`
-        : (dupCount > 0
-            ? `No new leads — ${dupCount} duplicates${insertFailures > 0 ? ` ⚠ ${insertFailures} failed: ${firstInsertError}` : ""}`
-            : insertFailures > 0
-              ? `⚠ All ${insertFailures} inserts failed: ${firstInsertError}`
-              : "No leads found"),
+      errorMessage:    completionMsg,
     },
   });
 
   revalidatePath("/leads");
   revalidatePath("/scraping");
-  try {
-    const kw = await getKeywordById(job.keywordId!);
-    await onKeywordJobSuccess(kw.id, kw.intervalMinutes);
-  } catch { /* keyword may have been deleted */ }
-  await notifyKeywordSuccess(job.keywordId!, savedCount, dupCount, finalLeads.length);
+  if (isSuccess) {
+    try {
+      const kwFresh = await getKeywordById(job.keywordId!);
+      await onKeywordJobSuccess(kwFresh.id, kwFresh.intervalMinutes);
+    } catch { /* keyword may have been deleted */ }
+    await notifyKeywordSuccess(job.keywordId!, savedCount, dupCount, finalLeads.length);
+  } else {
+    await handleKeywordFailure(job.keywordId!, completionMsg);
+  }
 }
 
 // ─── Keyword success notifier ─────────────────────────────────────────────────

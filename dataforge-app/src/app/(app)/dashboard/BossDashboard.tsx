@@ -115,7 +115,7 @@ export async function BossDashboard() {
   }));
 
   const roleGroups: Record<Role, number> = {
-    boss: 0, admin: 0, lead_data_analyst: 0, lead_specialist: 0, sales_rep: 0,
+    boss: 0, admin: 0, team_lead: 0, lead_specialist: 0, sales_rep: 0,
   };
   for (const u of users) roleGroups[u.role as Role]++;
 
@@ -389,7 +389,7 @@ export async function BossDashboard() {
           </div>
 
           <div className="border-t border-border/40 pt-2.5 grid grid-cols-2 gap-1.5 text-center">
-            {(["boss", "admin", "lead_specialist", "sales_rep"] as Role[]).map((r) => (
+            {(["boss", "admin", "team_lead", "lead_specialist", "sales_rep"] as Role[]).map((r) => (
               <div key={r} className="rounded-lg bg-muted/30 py-1.5">
                 <p className="text-sm font-bold">{roleGroups[r]}</p>
                 <p className="text-[9px] text-muted-foreground leading-tight">{r.replace("_", " ")}</p>

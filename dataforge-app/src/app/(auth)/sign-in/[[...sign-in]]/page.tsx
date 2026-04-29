@@ -10,15 +10,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Database, EyeIcon, EyeOffIcon, Loader2 } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 export default function SignInPage() {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [email, setEmail] = useState("marco@dataforge.com");
-  const [password, setPassword] = useState("password123");
-  const [activeQuick, setActiveQuick] = useState<"boss" | "sales_rep">("sales_rep");
 
   async function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -28,17 +24,6 @@ export default function SignInPage() {
     if (result?.error) {
       setError(result.error);
       setPending(false);
-    }
-  }
-
-  function quickLogin(role: "boss" | "sales_rep") {
-    setActiveQuick(role);
-    if (role === "boss") {
-      setEmail("boss@dataforge.com");
-      setPassword("password123");
-    } else {
-      setEmail("marco@dataforge.com");
-      setPassword("password123");
     }
   }
 
@@ -75,7 +60,6 @@ export default function SignInPage() {
 
       <Card className="z-10 w-full border-none shadow-lg sm:max-w-sm">
         <CardHeader className="gap-5">
-          {/* Logo */}
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600 text-white">
               <Database className="h-5 w-5" />
@@ -94,24 +78,9 @@ export default function SignInPage() {
         <CardContent className="space-y-6">
           <Separator />
 
-          {/* Quick login buttons */}
-          <div className="flex flex-wrap gap-3">
-            <button type="button" onClick={() => quickLogin("boss")}
-              className={cn("grow rounded-md border px-4 py-2 text-sm font-medium transition-colors", activeQuick === "boss" ? "bg-blue-600 border-blue-600 text-white hover:bg-blue-700" : "border-input bg-background text-foreground hover:bg-accent")}>
-              Login as Admin
-            </button>
-            <button type="button" onClick={() => quickLogin("sales_rep")}
-              className={cn("grow rounded-md border px-4 py-2 text-sm font-medium transition-colors", activeQuick === "sales_rep" ? "bg-blue-600 border-blue-600 text-white hover:bg-blue-700" : "border-input bg-background text-foreground hover:bg-accent")}>
-              Login as User
-            </button>
-          </div>
-
           <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Email */}
             <div className="space-y-1.5">
-              <Label htmlFor="email" className="leading-5">
-                Email address
-              </Label>
+              <Label htmlFor="email" className="leading-5">Email address</Label>
               <Input
                 id="email"
                 name="email"
@@ -119,16 +88,11 @@ export default function SignInPage() {
                 placeholder="Enter your email address"
                 required
                 autoComplete="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
               />
             </div>
 
-            {/* Password */}
             <div className="space-y-1.5">
-              <Label htmlFor="password" className="leading-5">
-                Password
-              </Label>
+              <Label htmlFor="password" className="leading-5">Password</Label>
               <div className="relative">
                 <Input
                   id="password"
@@ -138,8 +102,6 @@ export default function SignInPage() {
                   required
                   autoComplete="current-password"
                   className="pr-10"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
                 />
                 <Button
                   type="button"
@@ -154,7 +116,6 @@ export default function SignInPage() {
               </div>
             </div>
 
-            {/* Remember me + Forgot password */}
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2.5">
                 <Checkbox id="rememberMe" className="size-5" />

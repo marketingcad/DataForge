@@ -24,6 +24,7 @@ export async function getUsers() {
         select: {
           callLogs:   true,
           userBadges: true,
+          savedLeads: true,
         },
       },
     },
@@ -43,8 +44,13 @@ export async function createUser(data: {
   email: string;
   password: string;
   role: Role;
+  ghlUserId?: string | null;
 }) {
   return prisma.user.create({ data });
+}
+
+export async function updateUserGhlLink(id: string, ghlUserId: string | null) {
+  return prisma.user.update({ where: { id }, data: { ghlUserId } });
 }
 
 export async function deleteUser(id: string) {

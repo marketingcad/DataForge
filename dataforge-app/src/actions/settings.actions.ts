@@ -15,6 +15,9 @@ export async function updateSettingsAction(formData: FormData) {
     const leadQualityGoodThreshold = parseInt(formData.get("leadQualityGoodThreshold") as string, 10);
     const leadQualityMediumThreshold = parseInt(formData.get("leadQualityMediumThreshold") as string, 10);
     const ghlWebhookUrl = (formData.get("ghlWebhookUrl") as string)?.trim() || null;
+    const ghlApiKey = (formData.get("ghlApiKey") as string)?.trim() || null;
+    const ghlLocationId = (formData.get("ghlLocationId") as string)?.trim() || null;
+    const commissionCurrency = (formData.get("commissionCurrency") as string)?.trim() || "₱";
 
     await updateSettings({
       ...(companyName ? { companyName } : {}),
@@ -24,6 +27,9 @@ export async function updateSettingsAction(formData: FormData) {
       ...(!isNaN(leadQualityGoodThreshold) ? { leadQualityGoodThreshold } : {}),
       ...(!isNaN(leadQualityMediumThreshold) ? { leadQualityMediumThreshold } : {}),
       ghlWebhookUrl,
+      ghlApiKey,
+      ghlLocationId,
+      commissionCurrency,
     });
 
     revalidatePath("/settings");

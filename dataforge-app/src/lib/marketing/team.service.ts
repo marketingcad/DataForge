@@ -6,6 +6,10 @@
 import { prisma } from "@/lib/prisma";
 
 export type LeaderboardPeriod = "yesterday" | "week" | "month" | "all_time";
+export type LeaderboardMetric = "calls" | "leads" | "appts_set" | "deals_won" | "commissions" | "avg_call_time" | "badges";
+
+/** Roles that participate in the marketing leaderboard / KPIs */
+const MARKETING_ROLES = { in: ["sales_rep", "team_lead"] as const };
 
 function periodRange(period: LeaderboardPeriod): { gte?: Date; lte?: Date } {
   const now = new Date();
@@ -33,29 +37,33 @@ export async function getTeamSummary() {
   const yesterdayEnd   = new Date(now); yesterdayEnd.setDate(now.getDate() - 1);   yesterdayEnd.setHours(23, 59, 59, 999);
 
   const [agentCount, callsToday, callsYesterday, callsThisWeek, callsThisMonth, callsAllTime, teamApptsSet, teamWon] = await Promise.all([
-    prisma.user.count({ where: { role: "sales_rep" } }),
-    prisma.callLog.count({ where: { calledAt: { gte: startOfDay },                          agent: { role: "sales_rep" } } }),
-    prisma.callLog.count({ where: { calledAt: { gte: yesterdayStart, lte: yesterdayEnd },   agent: { role: "sales_rep" } } }),
-    prisma.callLog.count({ where: { calledAt: { gte: startOfWeek },                         agent: { role: "sales_rep" } } }),
-    prisma.callLog.count({ where: { calledAt: { gte: startOfMonth },                        agent: { role: "sales_rep" } } }),
-    prisma.callLog.count({ where: {                                                          agent: { role: "sales_rep" } } }),
-    prisma.ghlOpportunity.count({ where: { agent: { role: "sales_rep" } } }),
-    prisma.ghlOpportunity.count({ where: { agent: { role: "sales_rep" }, status: "won" } }),
+    prisma.user.count({ where: { role: MARKETING_ROLES } }),
+    prisma.callLog.count({ where: { calledAt: { gte: startOfDay },                          agent: { role: MARKETING_ROLES } } }),
+    prisma.callLog.count({ where: { calledAt: { gte: yesterdayStart, lte: yesterdayEnd },   agent: { role: MARKETING_ROLES } } }),
+    prisma.callLog.count({ where: { calledAt: { gte: startOfWeek },                         agent: { role: MARKETING_ROLES } } }),
+    prisma.callLog.count({ where: { calledAt: { gte: startOfMonth },                        agent: { role: MARKETING_ROLES } } }),
+    prisma.callLog.count({ where: {                                                          agent: { role: MARKETING_ROLES } } }),
+    prisma.ghlOpportunity.count({ where: { agent: { role: MARKETING_ROLES } } }),
+    prisma.ghlOpportunity.count({ where: { agent: { role: MARKETING_ROLES }, status: "won" } }),
   ]);
 
   return { agentCount, callsToday, callsYesterday, callsThisWeek, callsThisMonth, callsAllTime, teamApptsSet, teamWon };
 }
 
-/** Sorted leaderboard of all sales_rep agents for the given period */
-export async function getLeaderboard(period: LeaderboardPeriod = "week") {
+/** Sorted leaderboard of all marketing agents for the given period + metric */
+export async function getLeaderboard(
+  period: LeaderboardPeriod = "week",
+  metric: LeaderboardMetric = "appts_set",
+) {
   const range = periodRange(period);
+  const dateFilter = Object.keys(range).length > 0 ? range : undefined;
 
   const agents = await prisma.user.findMany({
-    where: { role: "sales_rep" },
+    where: { role: MARKETING_ROLES },
     select: {
       id: true, name: true, email: true, points: true,
       callLogs: {
-        where: Object.keys(range).length > 0 ? { calledAt: range } : undefined,
+        where: dateFilter ? { calledAt: dateFilter } : undefined,
         select: { id: true, durationSecs: true },
       },
       userBadges: {
@@ -64,24 +72,53 @@ export async function getLeaderboard(period: LeaderboardPeriod = "week") {
         take: 3,
       },
       ghlOpportunities: {
+        where: dateFilter ? { createdAt: dateFilter } : undefined,
         select: { id: true, status: true },
+      },
+      savedLeads: {
+        where: dateFilter ? { dateCollected: dateFilter } : undefined,
+        select: { id: true },
+      },
+      repCommissions: {
+        where: dateFilter ? { createdAt: dateFilter } : undefined,
+        select: { amount: true },
       },
     },
   });
 
-  return agents
-    .map((a) => ({
-      id: a.id,
-      name: a.name ?? a.email,
-      email: a.email,
-      points: a.points,
-      callCount: a.callLogs.length,
-      totalDuration: a.callLogs.reduce((s, c) => s + c.durationSecs, 0),
-      topBadges: a.userBadges.map((ub) => ub.badge),
-      appointmentsSet: a.ghlOpportunities.length,
-      dealsWon: a.ghlOpportunities.filter((o) => o.status === "won").length,
-    }))
-    .sort((a, b) => b.callCount - a.callCount);
+  const mapped = agents.map((a) => {
+    const callCount      = a.callLogs.length;
+    const totalDuration  = a.callLogs.reduce((s, c) => s + c.durationSecs, 0);
+    const avgCallTime    = callCount > 0 ? Math.round(totalDuration / callCount) : 0;
+    return {
+      id:                a.id,
+      name:              a.name ?? a.email,
+      email:             a.email,
+      points:            a.points,
+      callCount,
+      totalDuration,
+      avgCallTime,
+      topBadges:         a.userBadges.map((ub) => ub.badge),
+      badgesEarned:      a.userBadges.length,
+      appointmentsSet:   a.ghlOpportunities.length,
+      dealsWon:          a.ghlOpportunities.filter((o) => o.status === "won").length,
+      leadsBooked:       a.savedLeads.length,
+      commissionsEarned: a.repCommissions.reduce((s, c) => s + c.amount, 0),
+    };
+  });
+
+  return mapped.sort((a, b) => {
+    switch (metric) {
+      case "calls":         return b.callCount - a.callCount;
+      case "leads":         return b.leadsBooked - a.leadsBooked;
+      case "deals_won":     return b.dealsWon - a.dealsWon;
+      case "commissions":   return b.commissionsEarned - a.commissionsEarned;
+      case "avg_call_time": return b.avgCallTime - a.avgCallTime;
+      case "badges":        return b.badgesEarned - a.badgesEarned;
+      case "appts_set":
+      default:              return b.appointmentsSet - a.appointmentsSet;
+    }
+  });
 }
 
 /** Team-wide call volume bucketed by day (pass days=1 for today hourly is handled in UI) */
@@ -90,7 +127,7 @@ export async function getTeamCallsPerDay(days = 30) {
   since.setDate(since.getDate() - days);
 
   const logs = await prisma.callLog.findMany({
-    where: { calledAt: { gte: since }, agent: { role: "sales_rep" } },
+    where: { calledAt: { gte: since }, agent: { role: MARKETING_ROLES } },
     select: { calledAt: true },
   });
 
@@ -104,7 +141,7 @@ export async function getTeamCallsPerDay(days = 30) {
     if (key in map) map[key]++;
   }
 
-  return Object.entries(map).map(([date, count]) => ({ date, count }));
+  return Object.entries(map).map(([date, count]) => ({ label: date, calls: count }));
 }
 
 /**
@@ -188,6 +225,28 @@ export async function getRepDailyLeadsForChart(
 }
 
 /**
+ * All-time call volume grouped by month — no date cap.
+ * Used for the chart when period === "all_time".
+ */
+export async function getTeamCallsAllTime() {
+  const logs = await prisma.callLog.findMany({
+    where: { agent: { role: MARKETING_ROLES } },
+    select: { calledAt: true },
+    orderBy: { calledAt: "asc" },
+  });
+
+  if (logs.length === 0) return [];
+
+  const map: Record<string, number> = {};
+  for (const log of logs) {
+    const key = log.calledAt.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+    map[key] = (map[key] ?? 0) + 1;
+  }
+
+  return Object.entries(map).map(([label, count]) => ({ label, calls: count }));
+}
+
+/**
  * 6-month team call + saved-lead breakdown for the radar chart.
  */
 export async function getTeamMonthlyBreakdown() {
@@ -206,8 +265,8 @@ export async function getTeamMonthlyBreakdown() {
   const results = await Promise.all(
     months.map(({ start, end }) =>
       Promise.all([
-        prisma.callLog.count({ where: { calledAt: { gte: start, lte: end }, agent: { role: "sales_rep" } } }),
-        prisma.lead.count({ where: { dateCollected: { gte: start, lte: end }, savedBy: { role: "sales_rep" } } }),
+        prisma.callLog.count({ where: { calledAt: { gte: start, lte: end }, agent: { role: MARKETING_ROLES } } }),
+        prisma.lead.count({ where: { dateCollected: { gte: start, lte: end }, savedBy: { role: MARKETING_ROLES } } }),
       ])
     )
   );
@@ -250,7 +309,7 @@ export async function getTopPerformers() {
 
   // Fetch agents + badges — no leads loaded here (we count below)
   const agents = await prisma.user.findMany({
-    where: { role: "sales_rep" },
+    where: { role: MARKETING_ROLES },
     select: {
       id: true, name: true, email: true, image: true,
       userBadges: {
@@ -311,7 +370,7 @@ export async function getYesterdaysTopPerformer() {
   const end   = new Date(yesterday); end.setHours(23, 59, 59, 999);
 
   const agents = await prisma.user.findMany({
-    where: { role: "sales_rep" },
+    where: { role: MARKETING_ROLES },
     select: {
       id: true, name: true, email: true,
       callLogs: { where: { calledAt: { gte: start, lte: end } }, select: { id: true } },

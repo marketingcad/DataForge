@@ -16,6 +16,8 @@ export async function getJobs({ page = 1, pageSize = 20, status }: { page?: numb
       orderBy: { createdAt: "desc" },
       skip: (page - 1) * pageSize,
       take: pageSize,
+      // Exclude pendingLeads (large JSON blob) — only needed during commit flow
+      omit: { pendingLeads: true },
     }),
     prisma.scrapingJob.count({ where }),
   ]);

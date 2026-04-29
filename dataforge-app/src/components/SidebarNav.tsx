@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import {
   LayoutDashboard,
   Users,
@@ -11,16 +11,24 @@ import {
   UserCircle,
   LayoutGrid,
   CalendarDays,
-  Flag,
+  Bug,
   Settings,
+  DollarSign,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { type Role } from "@/lib/rbac/roles";
+
+interface NavChild {
+  href: string;
+  label: string;
+  emoji: string;
+}
 
 interface NavItem {
   href: string;
   label: string;
   icon: React.ElementType;
+  children?: NavChild[];
 }
 
 interface NavSection {
@@ -29,6 +37,21 @@ interface NavSection {
 }
 
 function buildSections(role: Role): NavSection[] {
+  const scrapingChildren: NavChild[] = [
+    { href: "/scraping?tab=domain",   label: "Scrape a Website",  emoji: "🌐" },
+    { href: "/scraping?tab=google",   label: "Search by Google",  emoji: "🔍" },
+  ];
+  if (["boss", "admin"].includes(role)) {
+    scrapingChildren.push({ href: "/scraping?tab=keywords", label: "Auto Keywords", emoji: "⚡" });
+  }
+
+  const scrapingItem: NavItem = {
+    href: "/scraping",
+    label: "Scraping",
+    icon: ScanSearch,
+    children: scrapingChildren,
+  };
+
   switch (role) {
     case "boss":
       return [
@@ -40,25 +63,26 @@ function buildSections(role: Role): NavSection[] {
         {
           title: "Leads Department",
           items: [
-            { href: "/leads",    label: "Leads",    icon: Users },
-            { href: "/scraping", label: "Scraping", icon: ScanSearch },
+            { href: "/leads", label: "Leads", icon: Users },
+            scrapingItem,
           ],
         },
         {
           title: "Marketing Department",
           items: [
-            { href: "/marketing",                    label: "Marketing",    icon: Megaphone },
-            { href: "/marketing/manage/badges",      label: "Badges",       icon: Settings },
-            { href: "/marketing/manage/tasks",       label: "Challenges",   icon: Flag },
-            { href: "/marketing/manage/commissions", label: "Commissions",  icon: UserCog },
+            { href: "/marketing",                    label: "Marketing",   icon: Megaphone },
+            { href: "/marketing/manage/badges",      label: "Badges",      icon: Settings  },
+            { href: "/marketing/manage/tasks",       label: "Challenges",  icon: Settings  },
+            { href: "/marketing/manage/commissions", label: "Commissions", icon: UserCog   },
           ],
         },
         {
           title: "Workspace",
           items: [
-            { href: "/kanban",   label: "Kanban",   icon: LayoutGrid },
-            { href: "/calendar", label: "Calendar", icon: CalendarDays },
-            { href: "/reports",  label: "Reports",  icon: Flag },
+            { href: "/kanban",   label: "Kanban",      icon: LayoutGrid   },
+            { href: "/calendar", label: "Calendar",    icon: CalendarDays },
+            { href: "/reports",  label: "Reports",     icon: Settings     },
+            { href: "/feedback", label: "Bug Reports", icon: Bug          },
           ],
         },
         {
@@ -66,6 +90,12 @@ function buildSections(role: Role): NavSection[] {
           items: [
             { href: "/admin/users", label: "Manage Users", icon: UserCog },
             { href: "/settings",    label: "Settings",     icon: Settings },
+          ],
+        },
+        {
+          title: "Account",
+          items: [
+            { href: "/profile", label: "My Profile", icon: UserCircle },
           ],
         },
       ];
@@ -80,31 +110,38 @@ function buildSections(role: Role): NavSection[] {
         {
           title: "Leads Department",
           items: [
-            { href: "/leads",    label: "Leads",    icon: Users },
-            { href: "/scraping", label: "Scraping", icon: ScanSearch },
+            { href: "/leads", label: "Leads", icon: Users },
+            scrapingItem,
           ],
         },
         {
           title: "Marketing Department",
           items: [
             { href: "/marketing",                    label: "Marketing",   icon: Megaphone },
-            { href: "/marketing/manage/badges",      label: "Badges",      icon: Settings },
-            { href: "/marketing/manage/tasks",       label: "Challenges",  icon: Flag },
-            { href: "/marketing/manage/commissions", label: "Commissions", icon: UserCog },
+            { href: "/marketing/manage/badges",      label: "Badges",      icon: Settings  },
+            { href: "/marketing/manage/tasks",       label: "Challenges",  icon: Settings  },
+            { href: "/marketing/manage/commissions", label: "Commissions", icon: UserCog   },
           ],
         },
         {
           title: "Workspace",
           items: [
-            { href: "/kanban",   label: "Kanban",   icon: LayoutGrid },
-            { href: "/calendar", label: "Calendar", icon: CalendarDays },
-            { href: "/reports",  label: "Reports",  icon: Flag },
+            { href: "/kanban",   label: "Kanban",      icon: LayoutGrid   },
+            { href: "/calendar", label: "Calendar",    icon: CalendarDays },
+            { href: "/reports",  label: "Reports",     icon: Settings     },
+            { href: "/feedback", label: "Bug Reports", icon: Bug          },
           ],
         },
         {
           title: "Administration",
           items: [
             { href: "/admin/users", label: "Manage Users", icon: UserCog },
+          ],
+        },
+        {
+          title: "Account",
+          items: [
+            { href: "/profile", label: "My Profile", icon: UserCircle },
           ],
         },
       ];
@@ -119,23 +156,28 @@ function buildSections(role: Role): NavSection[] {
         {
           title: "Marketing Department",
           items: [
-            { href: "/marketing",           label: "Marketing",   icon: Megaphone },
-            { href: "/marketing/my-leads",  label: "My Leads",    icon: Users },
-            { href: "/marketing/profile",   label: "My Profile",  icon: UserCircle },
+            { href: "/marketing",          label: "Marketing",      icon: Megaphone  },
+            { href: "/marketing/my-leads", label: "My Leads",       icon: Users      },
+            { href: "/my-commissions",     label: "My Commissions", icon: DollarSign },
           ],
         },
         {
           title: "Workspace",
           items: [
-            { href: "/kanban",   label: "Kanban",   icon: LayoutGrid },
-            { href: "/calendar", label: "Calendar", icon: CalendarDays },
-            // { href: "/chat",     label: "Chat",     icon: MessageSquare }, // hidden — WIP
-            { href: "/feedback", label: "Reports",  icon: Flag },
+            { href: "/kanban",   label: "Kanban",      icon: LayoutGrid   },
+            { href: "/calendar", label: "Calendar",    icon: CalendarDays },
+            { href: "/feedback", label: "Bug Reports", icon: Bug          },
+          ],
+        },
+        {
+          title: "Account",
+          items: [
+            { href: "/profile", label: "My Profile", icon: UserCircle },
           ],
         },
       ];
 
-    case "lead_data_analyst":
+    case "team_lead":
       return [
         {
           items: [
@@ -143,18 +185,26 @@ function buildSections(role: Role): NavSection[] {
           ],
         },
         {
-          title: "Leads Department",
+          title: "Marketing Department",
           items: [
-            { href: "/leads",    label: "Leads",    icon: Users },
-            { href: "/scraping", label: "Scraping", icon: ScanSearch },
+            { href: "/marketing",                    label: "Marketing",   icon: Megaphone },
+            { href: "/marketing/manage/badges",      label: "Badges",      icon: Settings  },
+            { href: "/marketing/manage/tasks",       label: "Challenges",  icon: Settings  },
+            { href: "/marketing/manage/commissions", label: "Commissions", icon: UserCog   },
           ],
         },
         {
           title: "Workspace",
           items: [
-            { href: "/kanban",   label: "Kanban",   icon: LayoutGrid },
-            { href: "/calendar", label: "Calendar", icon: CalendarDays },
-            { href: "/feedback", label: "Reports",  icon: Flag },
+            { href: "/kanban",   label: "Kanban",      icon: LayoutGrid   },
+            { href: "/calendar", label: "Calendar",    icon: CalendarDays },
+            { href: "/feedback", label: "Bug Reports", icon: Bug          },
+          ],
+        },
+        {
+          title: "Account",
+          items: [
+            { href: "/profile", label: "My Profile", icon: UserCircle },
           ],
         },
       ];
@@ -166,7 +216,7 @@ function buildSections(role: Role): NavSection[] {
           items: [
             { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
             { href: "/leads",     label: "Leads",     icon: Users },
-            { href: "/scraping",  label: "Scraping",  icon: ScanSearch },
+            scrapingItem,
           ],
         },
         {
@@ -174,8 +224,7 @@ function buildSections(role: Role): NavSection[] {
           items: [
             { href: "/kanban",   label: "Kanban",   icon: LayoutGrid },
             { href: "/calendar", label: "Calendar", icon: CalendarDays },
-            // { href: "/chat",     label: "Chat",     icon: MessageSquare }, // hidden — WIP
-            { href: "/feedback", label: "Reports",  icon: Flag },
+            { href: "/feedback", label: "Bug Reports", icon: Bug },
           ],
         },
       ];
@@ -210,6 +259,60 @@ function NavLink({ href, label, icon: Icon }: NavItem) {
   );
 }
 
+function NavLinkWithChildren({ href, label, icon: Icon, children }: NavItem) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const isOnPage = pathname === href || pathname.startsWith(href + "/");
+  const currentTab = searchParams.get("tab");
+
+  return (
+    <div className="flex flex-col">
+      {/* Parent row — not clickable, just a label */}
+      <div
+        className={cn(
+          "flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm font-medium",
+          isOnPage ? "text-blue-600" : "text-muted-foreground"
+        )}
+      >
+        <Icon
+          className={cn(
+            "h-3.5 w-3.5 shrink-0",
+            isOnPage ? "text-blue-600" : "text-muted-foreground"
+          )}
+        />
+        {label}
+      </div>
+
+      {/* Sub-items — always visible */}
+      <div className="ml-4 flex flex-col gap-0.5 border-l border-border pl-2.5">
+        {children?.map((child) => {
+          const childTab = new URL(child.href, "http://x").searchParams.get("tab");
+          const childActive = isOnPage && currentTab === childTab;
+
+          return (
+            <Link
+              key={child.href}
+              href={child.href}
+              className={cn(
+                "flex items-center gap-2 rounded-md px-2 py-1 text-xs font-medium transition-all duration-150",
+                childActive
+                  ? "bg-blue-600/10 text-blue-600"
+                  : "text-muted-foreground hover:bg-accent hover:text-foreground"
+              )}
+            >
+              <span className="text-[11px]">{child.emoji}</span>
+              {child.label}
+              {childActive && (
+                <span className="ml-auto h-1.5 w-1.5 rounded-full bg-blue-600" />
+              )}
+            </Link>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function SidebarNav({ role }: { role: Role }) {
   const effectiveRole: Role = role ?? "lead_specialist";
   const sections = buildSections(effectiveRole);
@@ -223,9 +326,13 @@ export function SidebarNav({ role }: { role: Role }) {
               {section.title}
             </p>
           )}
-          {section.items.map((item) => (
-            <NavLink key={item.href} {...item} />
-          ))}
+          {section.items.map((item) =>
+            item.children ? (
+              <NavLinkWithChildren key={item.href} {...item} />
+            ) : (
+              <NavLink key={item.href} {...item} />
+            )
+          )}
         </div>
       ))}
     </nav>

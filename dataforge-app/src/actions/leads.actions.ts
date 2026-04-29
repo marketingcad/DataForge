@@ -62,7 +62,11 @@ export async function deleteAllKeywordLeadsAction(kwId: string) {
 export async function moveLeadsToFolderAction(ids: string[], folderId: string | null) {
   await requireDepartment("leads");
   if (!ids.length) return;
-  await prisma.lead.updateMany({ where: { id: { in: ids } }, data: { folderId } });
+  // When saving to a real folder, clear keywordId so the keyword card count resets.
+  // The lead's `source` field already records which keyword found it.
+  const data: { folderId: string | null; keywordId?: null } = { folderId };
+  if (folderId !== null) data.keywordId = null;
+  await prisma.lead.updateMany({ where: { id: { in: ids } }, data });
   revalidatePath("/leads");
 }
 

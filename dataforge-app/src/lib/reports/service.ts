@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 export type AgentReportRow = {
   id: string;
   name: string;
+  leadsCount: number;
   callsWeek: number;
   callsMonth: number;
   avgDuration: number; // seconds
@@ -28,6 +29,7 @@ export async function getAgentReportMatrix(): Promise<AgentReportRow[]> {
         select: { id: true, durationSecs: true, status: true, calledAt: true },
       },
       userBadges: { select: { id: true } },
+      _count: { select: { savedLeads: true } },
     },
     orderBy: { name: "asc" },
   });
@@ -46,6 +48,7 @@ export async function getAgentReportMatrix(): Promise<AgentReportRow[]> {
     return {
       id:          a.id,
       name:        a.name ?? a.email,
+      leadsCount:  a._count.savedLeads,
       callsWeek:   weekCalls.length,
       callsMonth:  monthCalls.length,
       avgDuration: avgDur,

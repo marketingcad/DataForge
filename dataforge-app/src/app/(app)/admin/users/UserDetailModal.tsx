@@ -4,7 +4,7 @@ import { useState, useTransition, useEffect, useRef } from "react";
 import {
   X, MoreVertical, Trash2, AlertTriangle, Award,
 } from "lucide-react";
-import { ROLE_LABELS, ROLE_ORDER, ROLE_CAN_CREATE, type Role } from "@/lib/rbac/roles";
+import { ROLE_LABELS, ROLE_ORDER, ROLE_CAN_CREATE, ROLE_DEPARTMENTS, type Role } from "@/lib/rbac/roles";
 import {
   updateUserRoleAction,
   updateUserEmailAction,
@@ -287,26 +287,36 @@ export function UserDetailModal({ user, actorRole, isCurrentUser, sectionStyle: 
             </div>
           ) : null}
 
-          {/* ── Department access (non-sales_rep) ── */}
-          {user.role !== "sales_rep" && (
-            <div>
-              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Access</p>
-              <div className="rounded-xl border divide-y overflow-hidden">
-                {[
-                  { label: "Leads", pill: s.pill1 },
-                  { label: "Scraping", pill: s.pill2 },
-                  ...(user.role === "boss" || user.role === "admin"
-                    ? [{ label: "Marketing", pill: s.pill1 }, { label: "Admin Panel", pill: s.pill2 }]
-                    : []),
-                ].map(({ label, pill }) => (
-                  <div key={label} className="flex items-center gap-3 px-4 py-2.5">
-                    <p className="text-xs text-muted-foreground flex-1">{label}</p>
-                    <div className={`rounded-full px-3 py-0.5 text-xs font-semibold ${pill}`}>Full access</div>
-                  </div>
-                ))}
+          {/* ── Department access ── */}
+          {(() => {
+            const role = user.role as Role;
+            const depts = ROLE_DEPARTMENTS[role] ?? [];
+            const items: { label: string; pill: string }[] = [];
+            if (depts.includes("leads")) {
+              items.push({ label: "Leads",    pill: s.pill1 });
+              items.push({ label: "Scraping", pill: s.pill2 });
+            }
+            if (depts.includes("marketing")) {
+              items.push({ label: "Marketing", pill: s.pill1 });
+            }
+            if (role === "boss" || role === "admin") {
+              items.push({ label: "Admin Panel", pill: s.pill2 });
+            }
+            if (items.length === 0) return null;
+            return (
+              <div>
+                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Access</p>
+                <div className="rounded-xl border divide-y overflow-hidden">
+                  {items.map(({ label, pill }) => (
+                    <div key={label} className="flex items-center gap-3 px-4 py-2.5">
+                      <p className="text-xs text-muted-foreground flex-1">{label}</p>
+                      <div className={`rounded-full px-3 py-0.5 text-xs font-semibold ${pill}`}>Full access</div>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* ── Action panels (from 3-dot menu) ── */}
 
@@ -333,6 +343,7 @@ export function UserDetailModal({ user, actorRole, isCurrentUser, sectionStyle: 
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {r === "boss"            && "Full access to everything"}
                         {r === "admin"           && "Full access, manages users"}
+                        {r === "team_lead"       && "Marketing department, team management"}
                         {r === "lead_specialist" && "Leads department only"}
                         {r === "sales_rep"       && "Marketing department only"}
                       </p>
@@ -405,6 +416,7 @@ export function UserDetailModal({ user, actorRole, isCurrentUser, sectionStyle: 
               )}
             </div>
           )}
+
         </div>
       </div>
     </div>

@@ -9,6 +9,7 @@ type Column = {
 };
 
 const COLUMNS: Column[] = [
+  { key: "leadsCount",  label: "Leads",     format: (v) => v.toString() },
   { key: "callsWeek",   label: "Calls/Wk",  format: (v) => v.toString() },
   { key: "callsMonth",  label: "Calls/Mo",  format: (v) => v.toString() },
   { key: "totalCalls",  label: "All-Time",  format: (v) => v.toString() },
@@ -29,9 +30,11 @@ function cellStyle(value: number, max: number) {
   if (max === 0 || value === 0)
     return { backgroundColor: "transparent" } as React.CSSProperties;
   const intensity = value / max; // 0 → 1
-  const alpha = 0.08 + intensity * 0.72; // 0.08 → 0.80
+  const alpha = (0.08 + intensity * 0.72).toFixed(2); // 0.08 → 0.80
   return {
-    backgroundColor: `rgba(124, 58, 237, ${alpha})`,
+    // Uses the --heatmap-accent CSS var (L C H triplet) so it respects the
+    // active colour scheme set in globals.css via [data-accent="X"].
+    backgroundColor: `oklch(var(--heatmap-accent) / ${alpha})`,
     color: intensity > 0.52 ? "white" : undefined,
     fontWeight: 600,
   } as React.CSSProperties;
@@ -53,8 +56,10 @@ export function AgentHeatmap({ rows }: { rows: AgentReportRow[] }) {
     ])
   );
 
-  // Sort rows by callsWeek desc
-  const sorted = [...rows].sort((a, b) => b.callsWeek - a.callsWeek);
+  // Sort rows by leadsCount desc, break ties by callsWeek
+  const sorted = [...rows].sort((a, b) =>
+    b.leadsCount !== a.leadsCount ? b.leadsCount - a.leadsCount : b.callsWeek - a.callsWeek
+  );
 
   return (
     <div className="overflow-x-auto">

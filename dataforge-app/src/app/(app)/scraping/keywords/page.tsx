@@ -5,7 +5,7 @@ import { KeywordsManager } from "@/components/scraping/KeywordsManager";
 import { Separator } from "@/components/ui/separator";
 import { withDbRetry } from "@/lib/prisma";
 
-const ALLOWED_ROLES = ["boss", "admin", "lead_data_analyst"];
+const ALLOWED_ROLES = ["boss", "admin"];
 
 export default async function KeywordsPage() {
   const session = await auth();

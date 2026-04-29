@@ -17,6 +17,9 @@ export async function updateSettings(data: {
   leadQualityGoodThreshold?: number;
   leadQualityMediumThreshold?: number;
   ghlWebhookUrl?: string | null;
+  ghlApiKey?: string | null;
+  ghlLocationId?: string | null;
+  commissionCurrency?: string;
 }) {
   return prisma.appSettings.upsert({
     where: { id: "singleton" },

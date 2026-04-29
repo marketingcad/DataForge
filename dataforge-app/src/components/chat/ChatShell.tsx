@@ -206,7 +206,7 @@ export function ChatShell({
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
-  // Poll for new messages every 3s
+  // Poll for new messages every 15s
   useEffect(() => {
     const interval = setInterval(async () => {
       if (!activeRoomId) return;
@@ -215,7 +215,7 @@ export function ChatShell({
         lastTsRef.current = new Date(res.messages.at(-1)!.createdAt).toISOString();
         setMessages((prev) => [...prev, ...res.messages as Message[]]);
       }
-    }, 3000);
+    }, 15000);
     return () => clearInterval(interval);
   }, [activeRoomId]);
 

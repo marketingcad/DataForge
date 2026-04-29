@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireRole } from "@/lib/rbac/guards";
 import { canCreateRole, type Role } from "@/lib/rbac/roles";
-import { getUsers, updateUserRole, createUser, deleteUser } from "@/lib/users/service";
+import { getUsers, updateUserRole, createUser, deleteUser, updateUserGhlLink } from "@/lib/users/service";
 import { auth } from "@/lib/auth";
 import bcrypt from "bcryptjs";
 import { prisma, withDbRetry } from "@/lib/prisma";
@@ -15,10 +15,9 @@ export async function getUsersAction() {
 
 export async function updateUserRoleAction(targetUserId: string, newRole: Role) {
   const actor = await requireRole("boss", "admin");
-  const session = await auth();
 
   // Cannot change your own role
-  if (actor.id === session?.user?.id) {
+  if (targetUserId === actor.id) {
     throw new Error("You cannot change your own role.");
   }
 
@@ -36,8 +35,13 @@ export async function createUserAction(formData: {
   email: string;
   password: string;
   role: Role;
+  ghlUserId?: string | null;
 }) {
   const actor = await requireRole("boss", "admin");
+
+  if (formData.role === "sales_rep") {
+    throw new Error("Sales Rep accounts must be created via GHL import.");
+  }
 
   if (!canCreateRole(actor.role as Role, formData.role)) {
     throw new Error(`You are not allowed to create a user with the '${formData.role}' role.`);
@@ -50,8 +54,58 @@ export async function createUserAction(formData: {
   if (existing) throw new Error("An account with that email already exists.");
 
   const hashed = await bcrypt.hash(formData.password, 12);
-  await createUser({ name: formData.name, email: formData.email, password: hashed, role: formData.role });
+  await createUser({
+    name: formData.name,
+    email: formData.email,
+    password: hashed,
+    role: formData.role,
+    ghlUserId: formData.ghlUserId || null,
+  });
   revalidatePath("/admin/users");
+}
+
+export async function updateUserGhlLinkAction(targetUserId: string, ghlUserId: string | null) {
+  await requireRole("boss", "admin");
+  await updateUserGhlLink(targetUserId, ghlUserId || null);
+  revalidatePath("/admin/users");
+}
+
+export async function importGhlAgentsAction(
+  agents: { ghlUserId: string; name: string; email: string; role: Role }[]
+) {
+  await requireRole("boss", "admin");
+  if (!agents.length) throw new Error("No agents selected.");
+
+  const results: { name: string; email: string; tempPassword?: string; error?: string }[] = [];
+
+  const tempPassword = "Password123";
+
+  for (const agent of agents) {
+
+    try {
+      const existing = await prisma.user.findUnique({ where: { email: agent.email } });
+      if (existing) {
+        // Already exists — just link the ghlUserId
+        await prisma.user.update({ where: { id: existing.id }, data: { ghlUserId: agent.ghlUserId } });
+        results.push({ name: agent.name, email: agent.email, tempPassword: undefined });
+        continue;
+      }
+      const hashed = await bcrypt.hash(tempPassword, 12);
+      await createUser({
+        name: agent.name,
+        email: agent.email,
+        password: hashed,
+        role: agent.role,
+        ghlUserId: agent.ghlUserId,
+      });
+      results.push({ name: agent.name, email: agent.email, tempPassword });
+    } catch (err) {
+      results.push({ name: agent.name, email: agent.email, error: (err as Error).message });
+    }
+  }
+
+  revalidatePath("/admin/users");
+  return results;
 }
 
 export async function updateUserEmailAction(targetUserId: string, email: string) {
@@ -67,9 +121,8 @@ export async function updateUserEmailAction(targetUserId: string, email: string)
 
 export async function deleteUserAction(targetUserId: string) {
   const actor = await requireRole("boss", "admin");
-  const session = await auth();
 
-  if (actor.id === session?.user?.id) throw new Error("You cannot delete your own account.");
+  if (actor.id === targetUserId) throw new Error("You cannot delete your own account.");
 
   const target = await prisma.user.findUnique({ where: { id: targetUserId }, select: { role: true } });
   if (!target) throw new Error("User not found.");

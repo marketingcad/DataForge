@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { JobForm } from "@/components/scraping/JobForm";
 import { JobsTable } from "@/components/scraping/JobsTable";
@@ -9,7 +10,7 @@ import { GoogleScrapeForm } from "@/components/scraping/GoogleScrapeForm";
 import { KeywordsManager } from "@/components/scraping/KeywordsManager";
 import { Globe, ScanSearch, Wand2 } from "lucide-react";
 
-const STORAGE_KEY = "scraping-tab";
+const VALID_TABS = ["domain", "google", "keywords"];
 
 interface ScrapingPageTabsProps {
   canUseKeywords: boolean;
@@ -20,16 +21,28 @@ interface ScrapingPageTabsProps {
 }
 
 export function ScrapingPageTabs({ canUseKeywords, keywords, jobs }: ScrapingPageTabsProps) {
-  const [activeTab, setActiveTab] = useState("domain");
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
+  const paramTab = searchParams.get("tab");
+  const activeTab =
+    paramTab && VALID_TABS.includes(paramTab) && (paramTab !== "keywords" || canUseKeywords)
+      ? paramTab
+      : "domain";
+
+  // If URL has no tab param, set it to the default so sidebar highlights correctly
   useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) setActiveTab(stored);
-  }, []);
+    if (!paramTab) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("tab", "domain");
+      router.replace(`/scraping?${params.toString()}`, { scroll: false });
+    }
+  }, [paramTab, router, searchParams]);
 
   function handleTabChange(value: string) {
-    setActiveTab(value);
-    localStorage.setItem(STORAGE_KEY, value);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", value);
+    router.replace(`/scraping?${params.toString()}`, { scroll: false });
   }
 
   return (

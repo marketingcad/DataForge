@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { AssignCommissionPanel } from "./AssignCommissionPanel";
 import { getLeadCommission } from "@/lib/marketing/lead-commissions.service";
 import { getAllCommissionRules } from "@/lib/marketing/commissions.service";
+import { getSettings } from "@/lib/settings/service";
 import { GhlLeadButton } from "@/components/leads/GhlLeadButton";
 
 interface PageProps {
@@ -33,7 +34,7 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
   if (!lead) notFound();
 
   // Fetch assignment data only for managers (avoid unnecessary queries for reps)
-  const [salesReps, rules, existingCommission] = isManager
+  const [salesReps, rules, existingCommission, settings] = isManager
     ? await Promise.all([
         prisma.user.findMany({
           where: { role: "sales_rep" },
@@ -42,8 +43,10 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
         }),
         getAllCommissionRules(),
         getLeadCommission(id),
+        getSettings(),
       ])
-    : [[], [], null];
+    : [[], [], null, null];
+  const currency = (settings as { commissionCurrency?: string } | null)?.commissionCurrency ?? "₱";
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -162,6 +165,7 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
           salesReps={salesReps}
           rules={rules.map((r) => ({ id: r.id, name: r.name, amount: r.amount }))}
           existing={existingCommission as Parameters<typeof AssignCommissionPanel>[0]["existing"]}
+          currency={currency}
         />
       )}
 

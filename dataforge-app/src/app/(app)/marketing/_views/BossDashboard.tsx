@@ -1,9 +1,9 @@
 import { withDbRetry } from "@/lib/prisma";
-import { autoSyncGhlCalls, autoSyncGhlOpportunities } from "@/lib/ghl/sync";
 import {
   getTeamSummary,
   getLeaderboard,
   getTeamCallsPerDay,
+  getTeamCallsAllTime,
   getActiveTasks,
   getTeamMonthlyBreakdown,
   getRepDailyCallsForChart,
@@ -11,11 +11,13 @@ import {
 } from "@/lib/marketing/team.service";
 import { TaskCard } from "../TaskCard";
 import { SeedMarketingButton } from "../SeedMarketingButton";
+import { SyncGhlButton } from "../SyncGhlButton";
 import { CallVolumeChart } from "@/components/marketing/CallVolumeChart";
 import { LeaderboardSection } from "@/components/marketing/LeaderboardSection";
 import { AgentRadarChart } from "@/components/marketing/AgentRadarChart";
 import { RepPerformanceChart } from "@/components/marketing/RepPerformanceChart";
-import type { Period } from "@/components/marketing/PeriodToggle";
+import { PeriodToggle, type Period } from "@/components/marketing/PeriodToggle";
+import { MetricToggle, type Metric, METRIC_LABELS } from "@/components/marketing/MetricToggle";
 
 const PERIOD_LABELS: Record<Period, string> = {
   yesterday: "Yesterday",
@@ -24,22 +26,19 @@ const PERIOD_LABELS: Record<Period, string> = {
   all_time:  "All Time",
 };
 
-const CHART_DAYS: Record<Period, number> = {
+const CHART_DAYS: Record<Exclude<Period, "all_time">, number> = {
   yesterday: 2,
   week:      7,
   month:     30,
-  all_time:  90,
 };
 
-export async function BossDashboard({ period = "week" }: { period?: Period }) {
-  // Fire-and-forget — never block the render or propagate sync errors
-  void Promise.all([autoSyncGhlCalls(), autoSyncGhlOpportunities()]);
+export async function BossDashboard({ period = "week", metric = "appts_set" }: { period?: Period; metric?: Metric }) {
 
   const [summary, leaderboard, volumeData, tasks, monthlyBreakdown] = await withDbRetry(() =>
     Promise.all([
       getTeamSummary(),
-      getLeaderboard(period),
-      getTeamCallsPerDay(CHART_DAYS[period]),
+      getLeaderboard(period, metric),
+      period === "all_time" ? getTeamCallsAllTime() : getTeamCallsPerDay(CHART_DAYS[period]),
       getActiveTasks(),
       getTeamMonthlyBreakdown(),
     ])
@@ -77,7 +76,7 @@ export async function BossDashboard({ period = "week" }: { period?: Period }) {
 
   const chartTitle =
     period === "month"    ? "Team Call Volume — Last 30 Days" :
-    period === "all_time" ? "Team Call Volume — Last 90 Days" :
+    period === "all_time" ? "Team Call Volume — All Time (Monthly)" :
     "Team Call Volume — Last 7 Days";
 
   const kpis = [
@@ -96,14 +95,6 @@ export async function BossDashboard({ period = "week" }: { period?: Period }) {
       accent: "bg-blue-500",
       num:    "text-blue-600 dark:text-blue-400",
       icon:   "📞",
-    },
-    {
-      label:  "Calls Today",
-      value:  summary.callsToday,
-      sub:    "Current day",
-      accent: "bg-emerald-500",
-      num:    "text-emerald-600 dark:text-emerald-400",
-      icon:   "⚡",
     },
     {
       label:  "Avg / Agent",
@@ -140,7 +131,16 @@ export async function BossDashboard({ period = "week" }: { period?: Period }) {
           <h1 className="text-xl font-black tracking-tight">Marketing</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Team performance overview</p>
         </div>
-        <SeedMarketingButton />
+        <div className="flex flex-col items-end gap-2">
+          <div className="flex items-center gap-2">
+            <SyncGhlButton />
+            <SeedMarketingButton />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <PeriodToggle period={period} />
+            <MetricToggle metric={metric} />
+          </div>
+        </div>
       </div>
 
       {/* ── KPI tiles — 3 cols on md, 6 cols on xl ── */}
@@ -163,13 +163,13 @@ export async function BossDashboard({ period = "week" }: { period?: Period }) {
       </div>
 
       {/* ── Champions leaderboard ── */}
-      <LeaderboardSection leaderboard={leaderboard} period={period} />
+      <LeaderboardSection leaderboard={leaderboard} period={period} metric={metric} />
 
       {/* ── Chart + Active challenges ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         <div className="lg:col-span-2">
           <CallVolumeChart
-            data={volumeData.map((d) => ({ label: d.date, calls: d.count }))}
+            data={volumeData}
             title={chartTitle}
           />
         </div>

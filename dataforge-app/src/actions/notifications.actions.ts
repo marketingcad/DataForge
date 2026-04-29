@@ -10,25 +10,35 @@ import {
 import { withDbRetry } from "@/lib/prisma";
 
 export async function getMyNotificationsAction() {
-  const session = await requireAuth();
-  const notifs = await withDbRetry(() => getUserNotifications(session.user.id!));
-  return { notifications: notifs };
+  try {
+    const session = await requireAuth();
+    const notifs = await withDbRetry(() => getUserNotifications(session.user.id!));
+    return { notifications: notifs };
+  } catch {
+    return { notifications: [] };
+  }
 }
 
 export async function markReadAction(id: string) {
-  const session = await requireAuth();
-  await withDbRetry(() => markNotificationRead(id, session.user.id!));
+  try {
+    const session = await requireAuth();
+    await withDbRetry(() => markNotificationRead(id, session.user.id!));
+  } catch { /* ignore */ }
   return { success: true };
 }
 
 export async function markAllReadAction() {
-  const session = await requireAuth();
-  await withDbRetry(() => markAllNotificationsRead(session.user.id!));
+  try {
+    const session = await requireAuth();
+    await withDbRetry(() => markAllNotificationsRead(session.user.id!));
+  } catch { /* ignore */ }
   return { success: true };
 }
 
 export async function clearAllNotificationsAction() {
-  const session = await requireAuth();
-  await withDbRetry(() => clearNotifications(session.user.id!));
+  try {
+    const session = await requireAuth();
+    await withDbRetry(() => clearNotifications(session.user.id!));
+  } catch { /* ignore */ }
   return { success: true };
 }

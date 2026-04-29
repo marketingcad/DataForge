@@ -32,11 +32,13 @@ export function AssignCommissionPanel({
   salesReps,
   rules,
   existing,
+  currency,
 }: {
   leadId: string;
   salesReps: Rep[];
   rules: Rule[];
   existing: Existing;
+  currency: string;
 }) {
   const [open, setOpen] = useState(!existing);
   const [agentId, setAgentId] = useState(existing?.agentId ?? "");
@@ -110,7 +112,7 @@ export function AssignCommissionPanel({
               </div>
             </div>
             <div className="text-right">
-              <p className="text-lg font-black text-amber-600">₱{existing.amount.toLocaleString()}</p>
+              <p className="text-lg font-black text-amber-600">{currency}{existing.amount.toLocaleString()}</p>
               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${STATUS_STYLE[existing.status]}`}>
                 {STATUS_LABEL[existing.status] ?? existing.status}
               </span>
@@ -166,7 +168,7 @@ export function AssignCommissionPanel({
               <option value="">— No rule / manual amount —</option>
               {rules.map((r) => (
                 <option key={r.id} value={r.id}>
-                  {r.name} — ₱{r.amount.toLocaleString()}
+                  {r.name} — {currency}{r.amount.toLocaleString()}
                 </option>
               ))}
             </select>
@@ -180,11 +182,11 @@ export function AssignCommissionPanel({
           {/* Amount override */}
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-              Commission Amount (₱) *
+              Commission Amount ({currency}) *
             </label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-muted-foreground">
-                ₱
+                {currency}
               </span>
               <input
                 type="number"
