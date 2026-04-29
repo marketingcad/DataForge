@@ -33,9 +33,11 @@ import {
   X,
   LayoutGrid,
   List,
+  Upload,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { LeadsUserFilter } from "./LeadsUserFilter";
+import { CsvImportDialog } from "./CsvImportDialog";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -184,15 +186,18 @@ interface IndustryBoardProps {
   unfiledFolders: FolderData[];
   filterUserId?: string;
   filterUsers?: { id: string; name: string | null; email: string }[];
+  userId?: string;
+  csvFolders?: { id: string; name: string; industryName?: string | null }[];
 }
 
-export function IndustryBoard({ industries: initialIndustries, unfiledFolders, filterUserId, filterUsers }: IndustryBoardProps) {
+export function IndustryBoard({ industries: initialIndustries, unfiledFolders, filterUserId, filterUsers, userId, csvFolders }: IndustryBoardProps) {
   const router = useRouter();
   const [industries, setIndustries] = useState<IndustryData[]>(initialIndustries);
   const [selected, setSelected] = useState<IndustryData | null>(null);
   const [showUncategorized, setShowUncategorized] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
+  const [csvImportOpen, setCsvImportOpen] = useState(false);
 
   // New category dialog
   const [createCategoryOpen, setCreateCategoryOpen] = useState(false);
@@ -313,12 +318,27 @@ export function IndustryBoard({ industries: initialIndustries, unfiledFolders, f
             <Plus className="h-4 w-4" />
             New Category
           </Button>
+          {userId && csvFolders && (
+            <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setCsvImportOpen(true)}>
+              <Upload className="h-3.5 w-3.5" />
+              Import CSV
+            </Button>
+          )}
           <Button size="sm" className="gap-1.5" onClick={() => setCreateFolderOpen(true)}>
             <Plus className="h-4 w-4" />
             New Folder
           </Button>
         </div>
       </div>
+
+      {userId && csvFolders && (
+        <CsvImportDialog
+          open={csvImportOpen}
+          onClose={() => setCsvImportOpen(false)}
+          folders={csvFolders}
+          userId={userId}
+        />
+      )}
 
       {viewMode === "grid" ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">

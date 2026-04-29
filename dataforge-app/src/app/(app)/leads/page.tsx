@@ -1,6 +1,5 @@
 import { Button } from "@/components/ui/button";
 import { IndustryBoard } from "@/components/leads/IndustryBoard";
-import { CsvImportButton } from "@/components/leads/CsvImportButton";
 import { LeadsGlobe } from "@/components/leads/LeadsGlobe";
 import { getIndustries } from "@/lib/industry/service";
 import { getFolders } from "@/lib/folders/service";
@@ -62,14 +61,6 @@ export default async function LeadsPage({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <CsvImportButton
-            userId={session.user.id!}
-            folders={allFolders.map((f: { id: string; name: string; industry?: { name: string } | null }) => ({
-              id: f.id,
-              name: f.name,
-              industryName: f.industry?.name ?? null,
-            }))}
-          />
           <Link href="/leads/new">
             <Button size="sm" variant="outline" className="gap-1.5">
               Add Lead
@@ -111,6 +102,12 @@ export default async function LeadsPage({
           unfiledFolders={unfiledFolders as any}
           filterUserId={filterUserId}
           filterUsers={isAdmin && users.length > 0 ? users.map((u) => ({ id: u.id, name: u.name, email: u.email })) : undefined}
+          userId={session.user.id!}
+          csvFolders={(allFolders as { id: string; name: string; industry?: { name: string } | null }[]).map((f) => ({
+            id: f.id,
+            name: f.name,
+            industryName: f.industry?.name ?? null,
+          }))}
         />
       )}
     </div>
