@@ -27,8 +27,10 @@ import {
   Search, Phone, Globe, Loader2,
   ChevronLeft, ChevronRight, Trash2, Download,
   AlertTriangle, Check, ChevronDown, CheckCircle2,
-  Copy, MapPin, MoreHorizontal, ExternalLink, FolderOpen,
+  Copy, MapPin, MoreHorizontal, ExternalLink, FolderOpen, SlidersHorizontal,
 } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { useNotifications } from "@/lib/notifications";
 import { formatPhone } from "@/lib/utils/normalize";
@@ -114,16 +116,24 @@ function scoreBadgeStyle(score: number) {
   return "bg-rose-500/10 text-rose-600 border-rose-200 dark:border-rose-800";
 }
 
-function exportToCSV(leads: Lead[], filename: string) {
-  const headers = ["Business Name", "Phone", "Website", "Address", "City", "State", "Country", "Score"];
-  const rows = leads.map((l) => [
-    l.businessName, l.phone, l.website ?? "",
-    l.address ?? "", l.city ?? "", l.state ?? "", l.country ?? "",
-    String(l.dataQualityScore),
-  ]);
-  const csv = [headers, ...rows]
-    .map((r) => r.map((c) => `"${c.replace(/"/g, '""').replace(/[\r\n]+/g, ' ')}"`).join(","))
-    .join("\n");
+type ColDef = { key: string; label: string; getValue: (l: Lead) => string };
+const COLUMNS: ColDef[] = [
+  { key: "businessName",     label: "Business Name", getValue: (l) => l.businessName },
+  { key: "contactPerson",    label: "Contact",       getValue: (l) => l.contactPerson ?? "" },
+  { key: "address",          label: "Address",       getValue: (l) => l.address ?? "" },
+  { key: "phone",            label: "Phone",         getValue: (l) => l.phone },
+  { key: "email",            label: "Email",         getValue: (l) => l.email ?? "" },
+  { key: "website",          label: "Website",       getValue: (l) => l.website ?? "" },
+  { key: "dataQualityScore", label: "Score",         getValue: (l) => String(l.dataQualityScore) },
+];
+type ColKey = "businessName" | "contactPerson" | "address" | "phone" | "email" | "website" | "dataQualityScore";
+const DEFAULT_COLS = new Set<ColKey>(["businessName", "contactPerson", "address", "phone", "email", "website"]);
+
+function exportToCSV(leads: Lead[], filename: string, cols: Set<ColKey>) {
+  const active = COLUMNS.filter(c => cols.has(c.key as ColKey));
+  const escape = (s: string) => `"${s.replace(/"/g, '""').replace(/[\r\n]+/g, ' ')}"`;
+  const csv = [active.map(c => c.label), ...leads.map(l => active.map(c => c.getValue(l)))]
+    .map(r => r.map(escape).join(",")).join("\n");
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -149,6 +159,8 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting]     = useState(false);
   const [exporting, setExporting]   = useState(false);
+  const [exportCols, setExportCols] = useState<Set<ColKey>>(new Set(DEFAULT_COLS));
+  const [colPickerOpen, setColPickerOpen] = useState(false);
 
   // Folder picker state
   const [folderModalOpen, setFolderModalOpen] = useState(false);
@@ -294,7 +306,7 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
         const data = await res.json();
         toExport = data.leads as Lead[];
       }
-      exportToCSV(toExport, `${keyword.replace(/\s+/g, "_")}_${location.replace(/\s+/g, "_")}_leads.csv`);
+      exportToCSV(toExport, `${keyword.replace(/\s+/g, "_")}_${location.replace(/\s+/g, "_")}_leads.csv`, exportCols);
       addNotif({ type: "success", title: `${toExport.length} lead${toExport.length !== 1 ? "s" : ""} exported`, message: `Saved as CSV for "${keyword} — ${location}".` });
     } catch {
       addNotif({ type: "error", title: "Export failed", message: "Something went wrong. Please try again." });
@@ -401,11 +413,37 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
                 <FolderOpen className="h-3 w-3" />
                 Save to folder
               </Button>
-              <Button variant="outline" size="sm" className="h-8 gap-1 text-xs shrink-0"
-                onClick={() => handleExport("all")} disabled={exporting || total === 0}>
-                {exporting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
-                Export
-              </Button>
+              <div className="flex items-center shrink-0">
+                <Button variant="outline" size="sm" className="h-8 gap-1 text-xs rounded-r-none border-r-0"
+                  onClick={() => handleExport("all")} disabled={exporting || total === 0}>
+                  {exporting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+                  Export CSV
+                </Button>
+                <Popover open={colPickerOpen} onOpenChange={setColPickerOpen}>
+                  <PopoverTrigger
+                    disabled={total === 0}
+                    className="h-8 px-1.5 rounded-l-none border border-input bg-background hover:bg-accent hover:text-accent-foreground inline-flex items-center justify-center shrink-0 disabled:opacity-50"
+                  >
+                    <SlidersHorizontal className="h-3 w-3" />
+                  </PopoverTrigger>
+                  <PopoverContent align="end" side="bottom" className="w-44 p-2">
+                    <p className="text-[10px] font-medium text-muted-foreground px-1 pb-1.5">Columns to export</p>
+                    {COLUMNS.map(col => (
+                      <label key={col.key} className="flex items-center gap-2 px-1 py-1 cursor-pointer text-xs rounded hover:bg-accent">
+                        <Checkbox
+                          checked={exportCols.has(col.key as ColKey)}
+                          onCheckedChange={(checked) => setExportCols(prev => {
+                            const next = new Set(prev);
+                            if (checked) next.add(col.key as ColKey); else next.delete(col.key as ColKey);
+                            return next;
+                          })}
+                        />
+                        {col.label}
+                      </label>
+                    ))}
+                  </PopoverContent>
+                </Popover>
+              </div>
               <Button variant="outline" size="sm" className="h-8 gap-1 text-xs shrink-0 text-destructive hover:text-destructive"
                 onClick={() => setConfirmDelete("all")} disabled={total === 0}>
                 <Trash2 className="h-3 w-3" />
@@ -467,11 +505,34 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
                   <FolderOpen className="h-3.5 w-3.5" />
                   Save to folder
                 </Button>
-                <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs"
-                  onClick={() => handleExport("selected")} disabled={exporting}>
-                  {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-                  Export
-                </Button>
+                <div className="flex items-center">
+                  <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs rounded-r-none border-r-0"
+                    onClick={() => handleExport("selected")} disabled={exporting}>
+                    {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                    Export CSV
+                  </Button>
+                  <Popover open={colPickerOpen} onOpenChange={setColPickerOpen}>
+                    <PopoverTrigger className="h-7 px-1.5 rounded-l-none border border-input bg-background hover:bg-accent hover:text-accent-foreground inline-flex items-center justify-center shrink-0">
+                      <SlidersHorizontal className="h-3 w-3" />
+                    </PopoverTrigger>
+                    <PopoverContent align="end" side="top" className="w-44 p-2">
+                      <p className="text-[10px] font-medium text-muted-foreground px-1 pb-1.5">Columns to export</p>
+                      {COLUMNS.map(col => (
+                        <label key={col.key} className="flex items-center gap-2 px-1 py-1 cursor-pointer text-xs rounded hover:bg-accent">
+                          <Checkbox
+                            checked={exportCols.has(col.key as ColKey)}
+                            onCheckedChange={(checked) => setExportCols(prev => {
+                              const next = new Set(prev);
+                              if (checked) next.add(col.key as ColKey); else next.delete(col.key as ColKey);
+                              return next;
+                            })}
+                          />
+                          {col.label}
+                        </label>
+                      ))}
+                    </PopoverContent>
+                  </Popover>
+                </div>
                 <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs text-destructive hover:text-destructive"
                   onClick={() => setConfirmDelete("selected")}>
                   <Trash2 className="h-3.5 w-3.5" />
