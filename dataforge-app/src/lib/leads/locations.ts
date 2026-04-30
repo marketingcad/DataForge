@@ -112,28 +112,49 @@ const CITIES: Record<string, [number, number]> = {
 };
 
 function resolveCoords(city?: string | null, state?: string | null, country?: string | null): [number, number] | null {
-  // Try city name lookup first
   if (city) {
     const key = city.toLowerCase().trim();
     if (CITIES[key]) return CITIES[key];
   }
-
-  // Try US state abbreviation
   if (state) {
     const abbr = state.toUpperCase().trim().slice(0, 2);
     if (US_STATES[abbr]) return US_STATES[abbr];
-    // Try as full state name match via fuzzy
     const stateKey = Object.keys(US_STATES).find(
       (k) => state.toLowerCase().startsWith(k.toLowerCase())
     );
     if (stateKey) return US_STATES[stateKey];
   }
-
-  // Try country lookup
   if (country) {
     const key = country.toLowerCase().trim();
     const match = Object.keys(COUNTRIES).find((k) => key.includes(k) || k.includes(key));
     if (match) return COUNTRIES[match];
+  }
+  return null;
+}
+
+function parseCoordsFromAddress(address: string): [number, number] | null {
+  const parts = address.split(",").map((s) => s.trim());
+
+  // Scan for a US state abbreviation (e.g. "FL" or "FL 32801")
+  for (let i = 0; i < parts.length; i++) {
+    const m = parts[i].match(/^([A-Z]{2})(?:\s+\d{5}(?:-\d{4})?)?$/);
+    if (m) {
+      const state = m[1];
+      const city = i > 0 ? parts[i - 1].replace(/\d{5}(-\d{4})?/, "").trim() : undefined;
+      const coords = resolveCoords(city, state, null);
+      if (coords) return coords;
+      // Fall back to just state
+      const stateOnly = resolveCoords(null, state, null);
+      if (stateOnly) return stateOnly;
+    }
+  }
+
+  // Try each part as a city or country name (right to left — more specific last)
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const part = parts[i].replace(/\d{5}(-\d{4})?/, "").trim();
+    if (part.length < 2) continue;
+    const coords = resolveCoords(part, null, part);
+    if (coords) return coords;
   }
 
   return null;
@@ -142,41 +163,32 @@ function resolveCoords(city?: string | null, state?: string | null, country?: st
 export async function getLeadLocations(): Promise<GlobePoint[]> {
   const rows = await prisma.lead.findMany({
     select: {
-      city: true,
-      state: true,
-      country: true,
+      address: true,
       folder: {
         select: {
           industry: { select: { name: true, color: true } },
         },
       },
     },
-    where: {
-      OR: [
-        { city: { not: null } },
-        { state: { not: null } },
-        { country: { not: null } },
-      ],
-    },
+    where: { address: { not: null } },
   });
 
-  // Group by resolved coordinates + industry so each industry gets its own colored dot
   const map = new Map<string, GlobePoint>();
 
   for (const row of rows) {
-    const coords = resolveCoords(row.city, row.state, row.country);
+    if (!row.address) continue;
+    const coords = parseCoordsFromAddress(row.address);
     if (!coords) continue;
 
     const industry = row.folder?.industry ?? null;
     const cat = industry?.name ?? null;
     const color = industry?.color ?? "#ffffff";
     const key = `${coords[0].toFixed(2)},${coords[1].toFixed(2)}:${cat ?? "none"}`;
-    const label = [row.city, row.state, row.country].filter(Boolean).join(", ");
 
     if (map.has(key)) {
       map.get(key)!.count += 1;
     } else {
-      map.set(key, { lat: coords[0], long: coords[1], name: label, count: 1, color, category: cat });
+      map.set(key, { lat: coords[0], long: coords[1], name: row.address, count: 1, color, category: cat });
     }
   }
 
