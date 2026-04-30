@@ -30,7 +30,6 @@ import {
   Copy, MapPin, MoreHorizontal, ExternalLink, FolderOpen, SlidersHorizontal,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { useNotifications } from "@/lib/notifications";
 import { formatPhone } from "@/lib/utils/normalize";
