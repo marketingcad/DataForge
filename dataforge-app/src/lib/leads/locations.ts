@@ -136,25 +136,28 @@ function parseCoordsFromAddress(address: string): [number, number] | null {
   const parts = address.split(",").map((s) => s.trim());
 
   // Scan for a US state abbreviation (e.g. "FL" or "FL 32801")
+  // State takes full priority — never let a city name override the state code
   for (let i = 0; i < parts.length; i++) {
     const m = parts[i].match(/^([A-Z]{2})(?:\s+\d{5}(?:-\d{4})?)?$/);
     if (m) {
       const state = m[1];
-      const city = i > 0 ? parts[i - 1].replace(/\d{5}(-\d{4})?/, "").trim() : undefined;
-      const coords = resolveCoords(city, state, null);
-      if (coords) return coords;
-      // Fall back to just state
-      const stateOnly = resolveCoords(null, state, null);
-      if (stateOnly) return stateOnly;
+      if (US_STATES[state]) return US_STATES[state];
     }
   }
 
-  // Try each part as a city or country name (right to left — more specific last)
+  // No state found — try country lookup
   for (let i = parts.length - 1; i >= 0; i--) {
-    const part = parts[i].replace(/\d{5}(-\d{4})?/, "").trim();
+    const part = parts[i].replace(/\d{5}(-\d{4})?/, "").trim().toLowerCase();
     if (part.length < 2) continue;
-    const coords = resolveCoords(part, null, part);
-    if (coords) return coords;
+    const match = Object.keys(COUNTRIES).find((k) => part.includes(k) || k.includes(part));
+    if (match) return COUNTRIES[match];
+  }
+
+  // Last resort — try city name lookup
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const part = parts[i].replace(/\d{5}(-\d{4})?/, "").trim().toLowerCase();
+    if (part.length < 2) continue;
+    if (CITIES[part]) return CITIES[part];
   }
 
   return null;
