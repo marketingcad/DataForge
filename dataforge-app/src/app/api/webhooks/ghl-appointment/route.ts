@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+export async function GET() {
+  return NextResponse.json({ ok: true, message: "GHL appointment webhook is live" });
+}
+
 export async function POST(req: NextRequest) {
   let body: Record<string, unknown>;
 
@@ -9,6 +13,8 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
+
+  try {
 
   const clientName  = String(body.name        ?? body.client_name  ?? "").trim();
   const clientPhone = String(body.phone        ?? body.client_phone ?? "").trim() || null;
@@ -80,5 +86,9 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  return NextResponse.json({ ok: true, agent: matched.name, clientName, bookedAt });
+    return NextResponse.json({ ok: true, agent: matched.name, clientName, bookedAt });
+  } catch (err) {
+    console.error("[ghl-webhook] error:", err);
+    return NextResponse.json({ ok: false, error: String(err) }, { status: 500 });
+  }
 }
