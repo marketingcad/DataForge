@@ -553,6 +553,19 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
   async function handleDuplicate(kwId: string, targetCategory: string) {
     const source = keywords.find((k) => k.id === kwId);
     if (!source) return;
+
+    const conflict = keywords.find(
+      (k) =>
+        k.id !== kwId &&
+        k.category === targetCategory &&
+        k.keyword.trim().toLowerCase() === source.keyword.trim().toLowerCase() &&
+        k.location.trim().toLowerCase() === source.location.trim().toLowerCase()
+    );
+    if (conflict) {
+      toast.warning(`"${source.keyword}" in ${source.location} already exists in "${targetCategory}" — duplicate not created.`);
+      return;
+    }
+
     try {
       const res = await fetch("/api/keywords", {
         method: "POST",
