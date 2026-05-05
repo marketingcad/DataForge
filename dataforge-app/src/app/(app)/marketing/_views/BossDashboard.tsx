@@ -232,7 +232,7 @@ export async function BossDashboard({ period = "week", metric = "appts_set" }: {
         <div className="rounded-2xl bg-card shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-border/40">
             <p className="font-bold text-sm">Team 6-Month Breakdown</p>
-            <p className="text-xs text-muted-foreground mt-0.5">Total calls vs leads saved per month</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Total calls vs appointments booked per month</p>
           </div>
           <div className="p-4">
             <AgentRadarChart data={monthlyBreakdown} />
@@ -242,7 +242,7 @@ export async function BossDashboard({ period = "week", metric = "appts_set" }: {
         <div className="rounded-2xl bg-card shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-border/40">
             <p className="font-bold text-sm">Monthly Activity Summary</p>
-            <p className="text-xs text-muted-foreground mt-0.5">Calls and leads per month at a glance</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Calls and appointments booked per month at a glance</p>
           </div>
           <div className="divide-y divide-border/30">
             {monthlyBreakdown.map((row) => (
@@ -260,7 +260,7 @@ export async function BossDashboard({ period = "week", metric = "appts_set" }: {
                     <span className="text-xs font-bold tabular-nums w-8 text-right">{row.calls}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-muted-foreground w-9 shrink-0">Leads</span>
+                    <span className="text-[10px] text-muted-foreground w-9 shrink-0">Appts</span>
                     <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
                       <div
                         className="h-full rounded-full bg-blue-500 transition-all"

@@ -318,7 +318,7 @@ export async function getTeamMonthlyBreakdown() {
     months.map(({ start, end }) =>
       Promise.all([
         prisma.callLog.count({ where: { calledAt: { gte: start, lte: end }, agent: { role: MARKETING_ROLES } } }),
-        prisma.lead.count({ where: { dateCollected: { gte: start, lte: end }, savedBy: { role: MARKETING_ROLES } } }),
+        prisma.bookedAppointment.count({ where: { createdAt: { gte: start, lte: end }, agent: { role: MARKETING_ROLES } } }),
       ])
     )
   );
