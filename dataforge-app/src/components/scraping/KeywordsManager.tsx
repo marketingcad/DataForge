@@ -550,6 +550,43 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
     }
   }
 
+  async function handleDuplicate(kwId: string, targetCategory: string) {
+    const source = keywords.find((k) => k.id === kwId);
+    if (!source) return;
+    try {
+      const res = await fetch("/api/keywords", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          keyword: source.keyword,
+          location: source.location,
+          maxLeads: source.maxLeads,
+          intervalMinutes: source.intervalMinutes,
+          extraKeywords: source.extraKeywords,
+          extraKeywordsMode: source.extraKeywordsMode,
+          extraKeywordsMin: source.extraKeywordsMin,
+          extraKeywordsMax: source.extraKeywordsMax,
+          extraKeywordsOrder: source.extraKeywordsOrder,
+          category: targetCategory,
+        }),
+      });
+      if (!res.ok) { toast.error("Failed to duplicate keyword"); return; }
+      const data = await res.json();
+      setKeywords((prev) => [...prev, {
+        ...data.keyword,
+        lastRunAt: null,
+        nextRunAt: data.keyword.nextRunAt ?? null,
+        failedAttempts: 0,
+        lastError: null,
+        _count: { jobs: 0, leads: 0 },
+        jobs: [],
+      }]);
+      toast.success(`Keyword duplicated to "${targetCategory}"`);
+    } catch {
+      toast.error("Failed to duplicate keyword");
+    }
+  }
+
   async function handleRunNow(kwId: string) {
     setRunningId(kwId);
     setRunningLabel("Starting…");
@@ -821,6 +858,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
           onViewLeads={(kw) => setViewLeadsKw(kw)}
           onHistory={(kw) => setHistoryKw(kw)}
           onMoveCategory={handleMoveCategory}
+          onDuplicate={handleDuplicate}
         />
       )}
 

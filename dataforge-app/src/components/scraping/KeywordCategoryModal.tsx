@@ -33,6 +33,7 @@ import {
   Star,
   Repeat2,
   Settings2,
+  Copy,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -138,6 +139,7 @@ interface KeywordCategoryModalProps {
   onViewLeads: (kw: KeywordRow) => void;
   onHistory: (kw: KeywordRow) => void;
   onMoveCategory: (kwId: string, newCategory: string) => void;
+  onDuplicate: (kwId: string, targetCategory: string) => void;
 }
 
 export function KeywordCategoryModal({
@@ -160,9 +162,11 @@ export function KeywordCategoryModal({
   onViewLeads,
   onHistory,
   onMoveCategory,
+  onDuplicate,
 }: KeywordCategoryModalProps) {
   const [view, setView] = useState<"grid" | "list">("grid");
   const [movingKwId, setMovingKwId] = useState<string | null>(null);
+  const [duplicatingKwId, setDuplicatingKwId] = useState<string | null>(null);
   const [favorites, setFavorites] = useState<string[]>([]);
 
   useEffect(() => {
@@ -222,6 +226,55 @@ export function KeywordCategoryModal({
                 <Check className={cn("h-4 w-4 shrink-0", currentCat === cat ? "opacity-100" : "opacity-0")} />
                 <span className="flex-1 truncate">{cat}</span>
                 <button type="button" onClick={(e) => toggleFavorite(e, cat)} className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-muted" title="Add to favorites">
+                  <Star className="h-3 w-3 text-muted-foreground" />
+                </button>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        </CommandList>
+      </Command>
+    );
+  }
+
+  function DuplicateCategoryContent({ kwId }: { kwId: string }) {
+    const favCats = favorites.filter((f) => allCategories.includes(f));
+    const otherCats = allCategories.filter((c) => !favorites.includes(c));
+    return (
+      <Command>
+        <CommandInput placeholder="Search categories…" />
+        <CommandList>
+          <CommandEmpty>No category found.</CommandEmpty>
+          {favCats.length > 0 && (
+            <>
+              <CommandGroup heading="Favorites">
+                {favCats.map((cat) => (
+                  <CommandItem
+                    key={cat}
+                    value={cat}
+                    onSelect={() => { onDuplicate(kwId, cat); setDuplicatingKwId(null); }}
+                    className="group flex items-center gap-2 pr-1"
+                  >
+                    <Star className="h-3 w-3 shrink-0 fill-yellow-400 text-yellow-400" />
+                    <span className="flex-1 truncate">{cat}</span>
+                    <button type="button" onClick={(e) => toggleFavorite(e, cat)} className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-muted">
+                      <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                    </button>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+              <CommandSeparator />
+            </>
+          )}
+          <CommandGroup heading={favCats.length > 0 ? "All Categories" : undefined}>
+            {otherCats.map((cat) => (
+              <CommandItem
+                key={cat}
+                value={cat}
+                onSelect={() => { onDuplicate(kwId, cat); setDuplicatingKwId(null); }}
+                className="group flex items-center gap-2 pr-1"
+              >
+                <span className="flex-1 truncate">{cat}</span>
+                <button type="button" onClick={(e) => toggleFavorite(e, cat)} className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-muted">
                   <Star className="h-3 w-3 text-muted-foreground" />
                 </button>
               </CommandItem>
@@ -512,6 +565,22 @@ export function KeywordCategoryModal({
                           <MoveCategoryContent kwId={kw.id} currentCat={kw.category || "Uncategorized"} />
                         </PopoverContent>
                       </Popover>
+                      {/* Duplicate to folder */}
+                      <Popover open={duplicatingKwId === kw.id} onOpenChange={(o) => setDuplicatingKwId(o ? kw.id : null)}>
+                        <PopoverTrigger
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-md p-0 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+                          title="Duplicate to another folder"
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                        </PopoverTrigger>
+                        <PopoverContent className="p-0 w-[240px]" align="end">
+                          <div className="px-3 py-2 border-b">
+                            <p className="text-xs font-semibold">Duplicate to folder</p>
+                            <p className="text-[11px] text-muted-foreground">Creates a copy in the selected folder</p>
+                          </div>
+                          <DuplicateCategoryContent kwId={kw.id} />
+                        </PopoverContent>
+                      </Popover>
                       <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-muted-foreground hover:text-rose-500" onClick={() => onDelete(kw.id)}>
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
@@ -702,6 +771,22 @@ export function KeywordCategoryModal({
                         </PopoverTrigger>
                         <PopoverContent className="p-0 w-[240px]" align="end">
                           <MoveCategoryContent kwId={kw.id} currentCat={kw.category || "Uncategorized"} />
+                        </PopoverContent>
+                      </Popover>
+                      {/* Duplicate to folder */}
+                      <Popover open={duplicatingKwId === kw.id} onOpenChange={(o) => setDuplicatingKwId(o ? kw.id : null)}>
+                        <PopoverTrigger
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-md p-0 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+                          title="Duplicate to another folder"
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                        </PopoverTrigger>
+                        <PopoverContent className="p-0 w-[240px]" align="end">
+                          <div className="px-3 py-2 border-b">
+                            <p className="text-xs font-semibold">Duplicate to folder</p>
+                            <p className="text-[11px] text-muted-foreground">Creates a copy in the selected folder</p>
+                          </div>
+                          <DuplicateCategoryContent kwId={kw.id} />
                         </PopoverContent>
                       </Popover>
                       <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-muted-foreground hover:text-rose-500" onClick={() => onDelete(kw.id)}>
