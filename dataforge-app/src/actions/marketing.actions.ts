@@ -16,6 +16,14 @@ export async function getMarketingDashboardAction() {
   });
 }
 
+export async function getLeaderboardAction(
+  period: "yesterday" | "week" | "month" | "all_time" = "week",
+  metric: "calls" | "leads" | "appts_set" | "deals_won" | "commissions" | "avg_call_time" | "badges" = "appts_set",
+) {
+  await requireDepartment("marketing");
+  return withDbRetry(() => getLeaderboard(period, metric));
+}
+
 export async function getAgentProfileAction(agentId: string) {
   await requireDepartment("marketing");
   return withDbRetry(() => getAgentStats(agentId));

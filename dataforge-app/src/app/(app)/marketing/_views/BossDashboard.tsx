@@ -16,7 +16,7 @@ import { SyncGhlButton } from "../SyncGhlButton";
 import { AddAppointmentModal } from "@/components/marketing/AddAppointmentModal";
 import { AppointmentsModalButton } from "@/components/marketing/AppointmentsModal";
 import { CallVolumeChart } from "@/components/marketing/CallVolumeChart";
-import { LeaderboardSection } from "@/components/marketing/LeaderboardSection";
+import { LeaderboardClientWrapper } from "@/components/marketing/LeaderboardClientWrapper";
 import { AgentRadarChart } from "@/components/marketing/AgentRadarChart";
 import { RepPerformanceChart } from "@/components/marketing/RepPerformanceChart";
 import { PeriodToggle, type Period } from "@/components/marketing/PeriodToggle";
@@ -169,7 +169,11 @@ export async function BossDashboard({ period = "week", metric = "appts_set" }: {
       </div>
 
       {/* ── Champions leaderboard ── */}
-      <LeaderboardSection leaderboard={leaderboard} period={period} metric={metric} />
+      <LeaderboardClientWrapper
+        initialLeaderboard={leaderboard}
+        initialPeriod={period}
+        initialMetric={metric}
+      />
 
       {/* ── Chart + Active challenges ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">

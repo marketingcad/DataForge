@@ -1,6 +1,7 @@
 "use client";
 
-import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
 
 const METRICS = [
   { label: "Calls",          value: "calls"        },
@@ -19,31 +20,32 @@ export const METRIC_LABELS: Record<Metric, string> = Object.fromEntries(
 ) as Record<Metric, string>;
 
 export function MetricToggle({ metric }: { metric: Metric }) {
-  const router      = useRouter();
   const pathname    = usePathname();
   const searchParams = useSearchParams();
+  const activeMetric = (searchParams.get("metric") ?? metric) as Metric;
 
-  function go(value: Metric) {
+  function href(value: Metric) {
     const params = new URLSearchParams(searchParams.toString());
     params.set("metric", value);
-    router.push(`${pathname}?${params.toString()}`);
+    return `${pathname}?${params.toString()}`;
   }
 
   return (
     <div className="flex flex-wrap rounded-lg bg-muted/30 p-0.5 gap-0.5">
       {METRICS.map((m) => (
-        <button
+        <Link
           key={m.value}
-          onClick={() => go(m.value)}
+          href={href(m.value)}
+          prefetch={false}
           className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-            metric === m.value
+            activeMetric === m.value
               ? "bg-background shadow-sm text-foreground"
               : "text-muted-foreground hover:text-foreground"
           }`}
         >
           {m.label}
-        </button>
-      ))}
+        </Link>
+              ))}
     </div>
   );
 }

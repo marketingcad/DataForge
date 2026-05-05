@@ -1,6 +1,7 @@
 "use client";
 
-import { useRouter, usePathname } from "next/navigation";
+import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
 
 const OPTIONS = [
   { label: "Yesterday",  value: "yesterday" },
@@ -12,23 +13,31 @@ const OPTIONS = [
 export type Period = (typeof OPTIONS)[number]["value"];
 
 export function PeriodToggle({ period }: { period: Period }) {
-  const router   = useRouter();
-  const pathname = usePathname();
+  const pathname    = usePathname();
+  const searchParams = useSearchParams();
+  const activePeriod = (searchParams.get("period") ?? period) as Period;
+
+  function href(value: string) {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("period", value);
+    return `${pathname}?${params.toString()}`;
+  }
 
   return (
     <div className="flex rounded-lg bg-muted/30 p-0.5 gap-0.5">
       {OPTIONS.map((o) => (
-        <button
+        <Link
           key={o.value}
-          onClick={() => router.push(`${pathname}?period=${o.value}`)}
+          href={href(o.value)}
+          prefetch={false}
           className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
-            period === o.value
+            activePeriod === o.value
               ? "bg-background shadow-sm text-foreground"
               : "text-muted-foreground hover:text-foreground"
           }`}
         >
           {o.label}
-        </button>
+        </Link>
       ))}
     </div>
   );

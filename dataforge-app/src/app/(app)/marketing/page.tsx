@@ -6,6 +6,7 @@
 
 // Allow up to 5 minutes for server actions on this route (GHL sync can be slow)
 export const maxDuration = 300;
+export const dynamic = "force-dynamic";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import type { Role } from "@/lib/rbac/roles";

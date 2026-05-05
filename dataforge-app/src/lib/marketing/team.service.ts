@@ -53,7 +53,7 @@ export const getTeamSummary = unstable_cache(async function getTeamSummary() {
 }, ["team-summary"], { revalidate: 120, tags: ["marketing"] });
 
 /** Sorted leaderboard of all marketing agents for the given period + metric */
-export const getLeaderboard = unstable_cache(async function getLeaderboard(
+export async function getLeaderboard(
   period: LeaderboardPeriod = "week",
   metric: LeaderboardMetric = "appts_set",
 ) {
@@ -73,6 +73,7 @@ export const getLeaderboard = unstable_cache(async function getLeaderboard(
         orderBy: { earnedAt: "desc" },
         take: 3,
       },
+      _count: { select: { userBadges: true } },
       bookedAppointments: {
         where: dateFilter ? { createdAt: dateFilter } : undefined,
         select: { id: true },
@@ -93,9 +94,9 @@ export const getLeaderboard = unstable_cache(async function getLeaderboard(
   });
 
   const mapped = agents.map((a) => {
-    const callCount      = a.callLogs.length;
-    const totalDuration  = a.callLogs.reduce((s, c) => s + c.durationSecs, 0);
-    const avgCallTime    = callCount > 0 ? Math.round(totalDuration / callCount) : 0;
+    const callCount     = a.callLogs.length;
+    const totalDuration = a.callLogs.reduce((s, c) => s + c.durationSecs, 0);
+    const avgCallTime   = callCount > 0 ? Math.round(totalDuration / callCount) : 0;
     return {
       id:                a.id,
       name:              a.name ?? a.email,
@@ -105,7 +106,7 @@ export const getLeaderboard = unstable_cache(async function getLeaderboard(
       totalDuration,
       avgCallTime,
       topBadges:         a.userBadges.map((ub) => ub.badge),
-      badgesEarned:      a.userBadges.length,
+      badgesEarned:      a._count.userBadges,
       appointmentsSet:   a.bookedAppointments.length,
       dealsWon:          a.ghlOpportunities.length,
       leadsBooked:       a.savedLeads.length,
@@ -115,17 +116,15 @@ export const getLeaderboard = unstable_cache(async function getLeaderboard(
 
   return mapped.sort((a, b) => {
     switch (metric) {
-      case "calls":         return b.callCount - a.callCount;
-      case "leads":         return b.leadsBooked - a.leadsBooked;
-      case "deals_won":     return b.dealsWon - a.dealsWon;
-      case "commissions":   return b.commissionsEarned - a.commissionsEarned;
-      case "avg_call_time": return b.avgCallTime - a.avgCallTime;
-      case "badges":        return b.badgesEarned - a.badgesEarned;
+      case "calls":       return b.callCount - a.callCount;
+      case "deals_won":   return b.dealsWon - a.dealsWon;
+      case "commissions": return b.commissionsEarned - a.commissionsEarned;
+      case "badges":      return b.badgesEarned - a.badgesEarned;
       case "appts_set":
-      default:              return b.appointmentsSet - a.appointmentsSet;
+      default:            return b.appointmentsSet - a.appointmentsSet;
     }
   });
-}, ["leaderboard"], { revalidate: 120, tags: ["marketing"] });
+}
 
 /** Team-wide call volume bucketed by day (pass days=1 for today hourly is handled in UI) */
 export async function getTeamCallsPerDay(days = 30) {
