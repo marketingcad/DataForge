@@ -1,7 +1,7 @@
 "use server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { revalidateTag } from "next/cache";
+import { revalidatePath } from "next/cache";
 
 export async function addManualAppointment(data: {
   agentId: string;
@@ -26,7 +26,7 @@ export async function addManualAppointment(data: {
     },
   });
 
-  revalidateTag("marketing");
+  revalidatePath("/marketing");
 }
 
 export async function getSalesReps() {
