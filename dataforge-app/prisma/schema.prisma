@@ -116,10 +116,12 @@ model User {
   createdTasks         MarketingTask[]     @relation("TaskCreatedBy")
   earnedRepCommissions RepCommission[]     @relation("EarnedRepCommissions")
   repCommissions       RepCommission[]     @relation("RepCommissions")
-  ghlOpportunities     GhlOpportunity[]
-  ghlAppointments      GhlAppointment[]
-  ghlBookedContacts    GhlBookedContact[]
-  scrapingKeywords     ScrapingKeyword[]
+  ghlOpportunities        GhlOpportunity[]
+  ghlAppointments         GhlAppointment[]
+  ghlBookedContacts       GhlBookedContact[]
+  bookedAppointments      BookedAppointment[] @relation("BookedAppointmentAgent")
+  createdAppointments     BookedAppointment[] @relation("BookedAppointmentCreator")
+  scrapingKeywords        ScrapingKeyword[]
   sessions             Session[]
   taskProgress         TaskProgress[]
   userBadges           UserBadge[]
@@ -464,6 +466,25 @@ model GhlAppointment {
   @@index([agentId])
   @@index([status])
   @@index([startTime])
+}
+
+model BookedAppointment {
+  id          String   @id @default(uuid())
+  agentId     String
+  clientName  String
+  bookedAt    DateTime
+  source      String   @default("manual") // "manual" | "webhook"
+  createdById String?
+  ghlId       String?  @unique
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  agent     User  @relation("BookedAppointmentAgent",   fields: [agentId],     references: [id], onDelete: Cascade)
+  createdBy User? @relation("BookedAppointmentCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([agentId])
+  @@index([bookedAt])
 }
 
 model ScrapingKeyword {

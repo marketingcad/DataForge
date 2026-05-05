@@ -9,9 +9,11 @@ import {
   getRepDailyCallsForChart,
   getRepDailyLeadsForChart,
 } from "@/lib/marketing/team.service";
+import { getSalesReps } from "@/actions/appointments.actions";
 import { TaskCard } from "../TaskCard";
 import { SeedMarketingButton } from "../SeedMarketingButton";
 import { SyncGhlButton } from "../SyncGhlButton";
+import { AddAppointmentModal } from "@/components/marketing/AddAppointmentModal";
 import { CallVolumeChart } from "@/components/marketing/CallVolumeChart";
 import { LeaderboardSection } from "@/components/marketing/LeaderboardSection";
 import { AgentRadarChart } from "@/components/marketing/AgentRadarChart";
@@ -34,13 +36,14 @@ const CHART_DAYS: Record<Exclude<Period, "all_time">, number> = {
 
 export async function BossDashboard({ period = "week", metric = "appts_set" }: { period?: Period; metric?: Metric }) {
 
-  const [summary, leaderboard, volumeData, tasks, monthlyBreakdown] = await withDbRetry(() =>
+  const [summary, leaderboard, volumeData, tasks, monthlyBreakdown, salesReps] = await withDbRetry(() =>
     Promise.all([
       getTeamSummary(),
       getLeaderboard(period, metric),
       period === "all_time" ? getTeamCallsAllTime() : getTeamCallsPerDay(CHART_DAYS[period]),
       getActiveTasks(),
       getTeamMonthlyBreakdown(),
+      getSalesReps(),
     ])
   );
 
@@ -133,6 +136,7 @@ export async function BossDashboard({ period = "week", metric = "appts_set" }: {
         </div>
         <div className="flex flex-col items-end gap-2">
           <div className="flex items-center gap-2">
+            <AddAppointmentModal reps={salesReps} />
             <SyncGhlButton />
             <SeedMarketingButton />
           </div>

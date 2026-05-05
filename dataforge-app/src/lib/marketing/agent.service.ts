@@ -29,7 +29,7 @@ export async function getAgentStats(agentId: string) {
       include: { task: true },
       orderBy: { task: { endDate: "asc" } },
     }),
-    prisma.ghlBookedContact.count({ where: { agentId } }),
+    prisma.bookedAppointment.count({ where: { agentId } }),
     prisma.ghlOpportunity.count({ where: { agentId, status: "won" } }),
   ]);
 
