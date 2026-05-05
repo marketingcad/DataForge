@@ -19,7 +19,7 @@ export const authConfig: NextAuthConfig = {
         return Response.redirect(new URL("/dashboard", nextUrl));
       }
 
-      const publicPaths = ["/", "/sign-in", "/sign-up", "/api/auth", "/api/scraping/cron"];
+      const publicPaths = ["/", "/sign-in", "/sign-up", "/api/auth", "/api/scraping/cron", "/api/webhooks"];
       const isPublic = publicPaths.some(
         (p) => pathname === p || pathname.startsWith(p + "/")
       );
