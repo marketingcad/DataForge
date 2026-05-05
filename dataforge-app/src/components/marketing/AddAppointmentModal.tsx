@@ -10,13 +10,14 @@ export function AddAppointmentModal({ reps }: { reps: Rep[] }) {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
-  const [agentId, setAgentId]     = useState("");
-  const [clientName, setClientName] = useState("");
-  const [bookedAt, setBookedAt]   = useState("");
-  const [notes, setNotes]         = useState("");
+  const [agentId, setAgentId]         = useState("");
+  const [clientName, setClientName]   = useState("");
+  const [clientPhone, setClientPhone] = useState("");
+  const [bookedAt, setBookedAt]       = useState("");
+  const [notes, setNotes]             = useState("");
 
   function reset() {
-    setAgentId(""); setClientName(""); setBookedAt(""); setNotes("");
+    setAgentId(""); setClientName(""); setClientPhone(""); setBookedAt(""); setNotes("");
     setError(null); setSuccess(false);
   }
 
@@ -29,7 +30,7 @@ export function AddAppointmentModal({ reps }: { reps: Rep[] }) {
     }
     startTransition(async () => {
       try {
-        await addManualAppointment({ agentId, clientName, bookedAt, notes });
+        await addManualAppointment({ agentId, clientName, clientPhone, bookedAt, notes });
         setSuccess(true);
         setTimeout(() => { setOpen(false); reset(); }, 1200);
       } catch {
@@ -82,6 +83,18 @@ export function AddAppointmentModal({ reps }: { reps: Rep[] }) {
                   value={clientName}
                   onChange={(e) => setClientName(e.target.value)}
                   placeholder="e.g. Chad Aitken"
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+                />
+              </div>
+
+              {/* Phone */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-foreground/70 uppercase tracking-wide">Client Phone</label>
+                <input
+                  type="tel"
+                  value={clientPhone}
+                  onChange={(e) => setClientPhone(e.target.value)}
+                  placeholder="e.g. +13172893647"
                   className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
                 />
               </div>

@@ -472,6 +472,7 @@ model BookedAppointment {
   id          String   @id @default(uuid())
   agentId     String
   clientName  String
+  clientPhone String?
   bookedAt    DateTime
   source      String   @default("manual") // "manual" | "webhook"
   createdById String?
@@ -483,6 +484,7 @@ model BookedAppointment {
   agent     User  @relation("BookedAppointmentAgent",   fields: [agentId],     references: [id], onDelete: Cascade)
   createdBy User? @relation("BookedAppointmentCreator", fields: [createdById], references: [id], onDelete: SetNull)
 
+  @@unique([clientPhone, bookedAt])
   @@index([agentId])
   @@index([bookedAt])
 }

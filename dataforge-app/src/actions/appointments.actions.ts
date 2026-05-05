@@ -6,7 +6,8 @@ import { revalidatePath } from "next/cache";
 export async function addManualAppointment(data: {
   agentId: string;
   clientName: string;
-  bookedAt: string; // ISO string from client
+  clientPhone?: string;
+  bookedAt: string;
   notes?: string;
 }) {
   const session = await auth();
@@ -15,14 +16,27 @@ export async function addManualAppointment(data: {
     throw new Error("Unauthorized");
   }
 
-  await prisma.bookedAppointment.create({
-    data: {
+  await prisma.bookedAppointment.upsert({
+    where: {
+      clientPhone_bookedAt: {
+        clientPhone: data.clientPhone?.trim() || "",
+        bookedAt:    new Date(data.bookedAt),
+      },
+    },
+    create: {
       agentId:     data.agentId,
       clientName:  data.clientName.trim(),
+      clientPhone: data.clientPhone?.trim() || null,
       bookedAt:    new Date(data.bookedAt),
       source:      "manual",
       createdById: user.id,
       notes:       data.notes?.trim() || null,
+    },
+    update: {
+      agentId:    data.agentId,
+      clientName: data.clientName.trim(),
+      source:     "manual",
+      createdById: user.id,
     },
   });
 
