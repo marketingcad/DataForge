@@ -43,6 +43,35 @@ export async function addManualAppointment(data: {
   revalidatePath("/marketing");
 }
 
+export async function deleteAppointmentAction(id: string) {
+  const session = await auth();
+  const user = session?.user as { id?: string; role?: string } | undefined;
+  if (!user?.id || !["boss", "admin"].includes(user.role ?? "")) {
+    throw new Error("Unauthorized");
+  }
+  await prisma.bookedAppointment.delete({ where: { id } });
+  revalidatePath("/marketing");
+  revalidatePath("/marketing/appointments");
+}
+
+export async function getAppointmentsAction(agentId?: string) {
+  const session = await auth();
+  const user = session?.user as { id?: string; role?: string } | undefined;
+  if (!user?.id) throw new Error("Unauthorized");
+
+  const allowed = ["boss", "admin", "sales_rep", "team_lead"];
+  if (!allowed.includes(user.role ?? "")) throw new Error("Unauthorized");
+
+  return prisma.bookedAppointment.findMany({
+    where: agentId ? { agentId } : undefined,
+    include: {
+      agent:     { select: { name: true } },
+      createdBy: { select: { name: true } },
+    },
+    orderBy: { bookedAt: "desc" },
+  });
+}
+
 export async function getSalesReps() {
   return prisma.user.findMany({
     where: { role: { in: ["sales_rep", "team_lead"] } },

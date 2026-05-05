@@ -67,6 +67,7 @@ export function CreateUserDialog({ actorRole }: Props) {
       password:      fd.get("password") as string,
       role:          selectedRole,
       ghlUserId:     selectedGhlUserId || null,
+      nickname:     ((fd.get("nickname") as string) ?? "").trim() || null,
     };
 
     startTransition(async () => {
@@ -156,6 +157,20 @@ export function CreateUserDialog({ actorRole }: Props) {
               ))}
             </div>
           </div>
+
+          {/* Nickname — only relevant for lead_specialist (sales_rep come via GHL import) */}
+          {selectedRole === "lead_specialist" && (
+            <div className="space-y-2">
+              <Label htmlFor="nickname">
+                Nickname
+                <span className="ml-1.5 text-xs font-normal text-muted-foreground">(optional)</span>
+              </Label>
+              <Input id="nickname" name="nickname" placeholder="e.g. Chris, Billy…" />
+              <p className="text-xs text-muted-foreground">
+                Used for GHL webhook name matching when the full name isn't available.
+              </p>
+            </div>
+          )}
 
           {/* GHL Agent link — only shown if GHL API is configured */}
           {ghlConfigured && (

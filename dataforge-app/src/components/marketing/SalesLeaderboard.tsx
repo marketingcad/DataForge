@@ -26,17 +26,12 @@ interface Props {
 
 function formatMetricValue(entry: LeaderboardEntry, metric: Metric): string {
   switch (metric) {
-    case "calls":         return entry.callCount.toLocaleString();
-    case "leads":         return entry.leadsBooked.toLocaleString();
-    case "appts_set":     return entry.appointmentsSet.toLocaleString();
-    case "deals_won":     return entry.dealsWon.toLocaleString();
-    case "commissions":   return `₱${entry.commissionsEarned.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
-    case "avg_call_time": {
-      const m = Math.floor(entry.avgCallTime / 60);
-      const s = entry.avgCallTime % 60;
-      return m > 0 ? `${m}m ${s}s` : `${s}s`;
-    }
-    case "badges": return entry.badgesEarned.toLocaleString();
+    case "calls":       return entry.callCount.toLocaleString();
+    case "appts_set":   return entry.appointmentsSet.toLocaleString();
+    case "deals_won":   return entry.dealsWon.toLocaleString();
+    case "commissions": return `₱${entry.commissionsEarned.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+    case "badges":      return entry.badgesEarned.toLocaleString();
+    default:            return "—";
   }
 }
 
@@ -75,7 +70,7 @@ export function SalesLeaderboard({ leaderboard, metric = "appts_set" }: Props) {
   const second = leaderboard[1];
   const third  = leaderboard[2];
   const rest   = leaderboard.slice(3);
-  const metricLabel = METRIC_LABELS[metric];
+  const metricLabel = METRIC_LABELS[metric] ?? "—";
 
   // Podium slot config: [left=2nd, center=1st, right=3rd]
   type PodiumSlot = {

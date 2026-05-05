@@ -36,6 +36,7 @@ export async function createUserAction(formData: {
   password: string;
   role: Role;
   ghlUserId?: string | null;
+  nickname?: string | null;
 }) {
   const actor = await requireRole("boss", "admin");
 
@@ -60,7 +61,19 @@ export async function createUserAction(formData: {
     password: hashed,
     role: formData.role,
     ghlUserId: formData.ghlUserId || null,
+    nickname: formData.nickname?.trim() || null,
   });
+  revalidatePath("/admin/users");
+}
+
+export async function updateUserNicknameAction(targetUserId: string, nickname: string) {
+  await requireRole("boss", "admin");
+  const target = await prisma.user.findUnique({ where: { id: targetUserId }, select: { role: true } });
+  if (!target) throw new Error("User not found.");
+  if (!["sales_rep", "lead_specialist"].includes(target.role)) {
+    throw new Error("Nicknames can only be set for Sales Reps and Lead Data Specialists.");
+  }
+  await prisma.user.update({ where: { id: targetUserId }, data: { nickname: nickname.trim() || null } });
   revalidatePath("/admin/users");
 }
 

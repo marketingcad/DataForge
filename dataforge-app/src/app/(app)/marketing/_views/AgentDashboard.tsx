@@ -17,6 +17,7 @@ import {
 import { TaskCard } from "../TaskCard";
 import { Phone, Clock, Flame, ArrowRight, BookmarkCheck, Users } from "lucide-react";
 import Link from "next/link";
+import { AppointmentsModalButton } from "@/components/marketing/AppointmentsModal";
 import { AgentRadarChart } from "@/components/marketing/AgentRadarChart";
 import { RepPerformanceChart } from "@/components/marketing/RepPerformanceChart";
 
@@ -145,12 +146,15 @@ export async function AgentDashboard({ userId }: Props) {
           }
         </div>
 
-        <Link
-          href="/marketing/profile"
-          className="inline-flex items-center gap-1.5 rounded-xl bg-card/80 shadow-sm border border-border/40 px-4 py-2 text-sm font-semibold hover:bg-muted/40 transition-colors shrink-0"
-        >
-          My Profile →
-        </Link>
+        <div className="flex items-center gap-2 shrink-0">
+          <AppointmentsModalButton agentId={userId} />
+          <Link
+            href="/marketing/profile"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-card/80 shadow-sm border border-border/40 px-4 py-2 text-sm font-semibold hover:bg-muted/40 transition-colors"
+          >
+            My Profile →
+          </Link>
+        </div>
       </div>
 
       {/* ── Stat cards ── */}

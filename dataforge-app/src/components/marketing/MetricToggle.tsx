@@ -4,11 +4,11 @@ import { useRouter, usePathname, useSearchParams } from "next/navigation";
 
 const METRICS = [
   { label: "Calls",          value: "calls"        },
-  { label: "Lead Book",      value: "leads"        },
+  // { label: "Lead Book",      value: "leads"        },
   { label: "Appts Set",      value: "appts_set"    },
   { label: "Deals Won",      value: "deals_won"    },
   { label: "Commissions",    value: "commissions"  },
-  { label: "Avg Call Time",  value: "avg_call_time"},
+  // { label: "Avg Call Time",  value: "avg_call_time"},
   { label: "Badges",         value: "badges"       },
 ] as const;
 

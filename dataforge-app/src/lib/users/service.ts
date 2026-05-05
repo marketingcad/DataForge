@@ -16,6 +16,7 @@ export async function getUsers() {
     select: {
       id:        true,
       name:      true,
+      nickname:  true,
       email:     true,
       role:      true,
       points:    true,
@@ -45,6 +46,7 @@ export async function createUser(data: {
   password: string;
   role: Role;
   ghlUserId?: string | null;
+  nickname?: string | null;
 }) {
   return prisma.user.create({ data });
 }

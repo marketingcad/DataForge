@@ -10,6 +10,7 @@ import {
   updateUserEmailAction,
   deleteUserAction,
   getUserDetailAction,
+  updateUserNicknameAction,
 } from "@/actions/users.actions";
 import { useNotifications } from "@/lib/notifications";
 import type { SectionStyle } from "./UserCard";
@@ -19,6 +20,7 @@ type DetailData = Awaited<ReturnType<typeof getUserDetailAction>>;
 type UserData = {
   id: string;
   name: string | null;
+  nickname: string | null;
   email: string;
   role: string;
   createdAt: Date;
@@ -33,7 +35,7 @@ interface Props {
   onClose: () => void;
 }
 
-type ActiveAction = "role" | "email" | "delete" | null;
+type ActiveAction = "role" | "email" | "nickname" | "delete" | null;
 
 function memberDuration(createdAt: Date): string {
   const days = Math.floor((Date.now() - new Date(createdAt).getTime()) / 86400000);
@@ -50,13 +52,16 @@ export function UserDetailModal({ user, actorRole, isCurrentUser, sectionStyle: 
   const [menuOpen, setMenuOpen]       = useState(false);
   const [activeAction, setActiveAction] = useState<ActiveAction>(null);
 
-  const [pendingRole,   startRoleTransition]   = useTransition();
-  const [pendingEmail,  startEmailTransition]  = useTransition();
-  const [pendingDelete, startDeleteTransition] = useTransition();
-  const [email,         setEmail]              = useState(user.email);
-  const [confirmDelete, setConfirmDelete]      = useState(false);
-  const [roleError,     setRoleError]          = useState<string | null>(null);
-  const [emailError,    setEmailError]         = useState<string | null>(null);
+  const [pendingRole,     startRoleTransition]     = useTransition();
+  const [pendingEmail,    startEmailTransition]    = useTransition();
+  const [pendingNickname, startNicknameTransition] = useTransition();
+  const [pendingDelete,   startDeleteTransition]   = useTransition();
+  const [email,           setEmail]                = useState(user.email);
+  const [nickname,        setNickname]             = useState(user.nickname ?? "");
+  const [confirmDelete,   setConfirmDelete]        = useState(false);
+  const [roleError,       setRoleError]            = useState<string | null>(null);
+  const [emailError,      setEmailError]           = useState<string | null>(null);
+  const [nicknameError,   setNicknameError]        = useState<string | null>(null);
 
   const menuRef = useRef<HTMLDivElement>(null);
   const { add } = useNotifications();
@@ -107,6 +112,19 @@ export function UserDetailModal({ user, actorRole, isCurrentUser, sectionStyle: 
         setActiveAction(null);
       } catch (e) {
         setEmailError((e as Error).message);
+      }
+    });
+  }
+
+  function handleNicknameSave() {
+    setNicknameError(null);
+    startNicknameTransition(async () => {
+      try {
+        await updateUserNicknameAction(user.id, nickname);
+        add({ title: "Nickname updated", message: "Nickname saved.", type: "success" });
+        setActiveAction(null);
+      } catch (e) {
+        setNicknameError((e as Error).message);
       }
     });
   }
@@ -178,6 +196,14 @@ export function UserDetailModal({ user, actorRole, isCurrentUser, sectionStyle: 
                       >
                         Edit Email
                       </button>
+                      {["sales_rep", "lead_specialist"].includes(user.role) && (
+                        <button
+                          onClick={() => selectAction("nickname")}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors"
+                        >
+                          Edit Nickname
+                        </button>
+                      )}
                       <div className="my-1 border-t" />
                       <button
                         onClick={() => selectAction("delete")}
@@ -227,6 +253,12 @@ export function UserDetailModal({ user, actorRole, isCurrentUser, sectionStyle: 
               <p className="text-xs text-muted-foreground w-24 shrink-0">Full Name</p>
               <p className="text-sm font-medium">{user.name ?? <span className="text-muted-foreground italic">Not set</span>}</p>
             </div>
+            {["sales_rep", "lead_specialist"].includes(user.role) && (
+              <div className="flex items-center px-4 py-3 gap-3">
+                <p className="text-xs text-muted-foreground w-24 shrink-0">Nickname</p>
+                <p className="text-sm font-medium">{user.nickname ?? <span className="text-muted-foreground italic">Not set</span>}</p>
+              </div>
+            )}
             <div className="flex items-center px-4 py-3 gap-3">
               <p className="text-xs text-muted-foreground w-24 shrink-0">Email</p>
               <p className="text-sm font-medium truncate">{user.email}</p>
@@ -375,6 +407,31 @@ export function UserDetailModal({ user, actorRole, isCurrentUser, sectionStyle: 
                 </button>
               </div>
               {emailError && <p className="text-xs text-destructive">{emailError}</p>}
+            </div>
+          )}
+
+          {activeAction === "nickname" && !isCurrentUser && ["sales_rep", "lead_specialist"].includes(user.role) && (
+            <div className="rounded-xl border p-4 space-y-3">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Edit Nickname</p>
+              <p className="text-xs text-muted-foreground">Used for GHL webhook name matching. Leave blank to remove.</p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={nickname}
+                  onChange={(e) => setNickname(e.target.value)}
+                  disabled={pendingNickname}
+                  placeholder="e.g. Will, Billy, Chris…"
+                  className="flex-1 rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+                />
+                <button
+                  onClick={handleNicknameSave}
+                  disabled={pendingNickname || nickname.trim() === (user.nickname ?? "")}
+                  className="rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                >
+                  {pendingNickname ? "Saving…" : "Save"}
+                </button>
+              </div>
+              {nicknameError && <p className="text-xs text-destructive">{nicknameError}</p>}
             </div>
           )}
 

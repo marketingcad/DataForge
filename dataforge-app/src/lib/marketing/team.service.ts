@@ -74,7 +74,7 @@ export const getLeaderboard = unstable_cache(async function getLeaderboard(
         take: 3,
       },
       bookedAppointments: {
-        where: dateFilter ? { bookedAt: dateFilter } : undefined,
+        where: dateFilter ? { createdAt: dateFilter } : undefined,
         select: { id: true },
       },
       ghlOpportunities: {
@@ -222,6 +222,44 @@ export async function getRepDailyLeadsForChart(
     if (!lead.savedById) continue;
     const key = new Date(lead.dateCollected).toISOString().slice(0, 10);
     if (counts[key]) counts[key][lead.savedById] = (counts[key][lead.savedById] ?? 0) + 1;
+  }
+
+  return dates.map((date) => ({
+    label: new Date(date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+    ...counts[date],
+  }));
+}
+
+/**
+ * Per-rep daily booked appointments for the last N days — used for the "Appts Set" performance chart.
+ */
+export async function getRepDailyApptsForChart(
+  repIds: string[],
+  days = 30
+): Promise<{ label: string; [repId: string]: number | string }[]> {
+  if (repIds.length === 0) return [];
+
+  const since = new Date();
+  since.setDate(since.getDate() - (days - 1));
+  since.setHours(0, 0, 0, 0);
+
+  const appts = await prisma.bookedAppointment.findMany({
+    where: { agentId: { in: repIds }, createdAt: { gte: since } },
+    select: { agentId: true, createdAt: true },
+  });
+
+  const dates: string[] = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    dates.push(d.toISOString().slice(0, 10));
+  }
+
+  const counts: Record<string, Record<string, number>> = {};
+  for (const date of dates) counts[date] = Object.fromEntries(repIds.map((id) => [id, 0]));
+  for (const appt of appts) {
+    const key = new Date(appt.createdAt).toISOString().slice(0, 10);
+    if (counts[key]) counts[key][appt.agentId] = (counts[key][appt.agentId] ?? 0) + 1;
   }
 
   return dates.map((date) => ({

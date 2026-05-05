@@ -10,7 +10,7 @@ import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import type { Role } from "@/lib/rbac/roles";
 import type { Period } from "@/components/marketing/PeriodToggle";
-import type { Metric } from "@/components/marketing/MetricToggle";
+import { METRIC_LABELS, type Metric } from "@/components/marketing/MetricToggle";
 import { BossDashboard } from "./_views/BossDashboard";
 import { AgentDashboard } from "./_views/AgentDashboard";
 
@@ -31,7 +31,8 @@ export default async function MarketingPage({
     ? (rawPeriod as Period)
     : "week";
 
-  const metric: Metric = (["calls", "leads", "appts_set", "deals_won", "commissions", "avg_call_time", "badges"] as const).includes(rawMetric as Metric)
+  const validMetrics = Object.keys(METRIC_LABELS) as Metric[];
+  const metric: Metric = validMetrics.includes(rawMetric as Metric)
     ? (rawMetric as Metric)
     : "appts_set";
 

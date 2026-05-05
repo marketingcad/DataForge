@@ -32,25 +32,31 @@ export async function POST(req: NextRequest) {
   // ── Match rep by name ──
   const allReps = await prisma.user.findMany({
     where: { role: { in: ["sales_rep", "team_lead", "boss", "admin"] } },
-    select: { id: true, name: true },
+    select: { id: true, name: true, nickname: true },
   });
 
   const repNameLower = repName.toLowerCase();
 
-  function score(userName: string): number {
-    const u = userName.toLowerCase();
-    const parts = u.split(" ");
-    if (u === repNameLower)                                        return 100;
-    if (parts[0] === repNameLower)                                 return 90;
-    if (parts[parts.length - 1] === repNameLower)                  return 80;
-    if (u.startsWith(repNameLower))                                return 70;
-    if (repNameLower.split(" ").every((w) => u.includes(w)))       return 60;
-    if (u.includes(repNameLower))                                  return 40;
+  function scoreAgainst(candidate: string): number {
+    const c = candidate.toLowerCase();
+    const parts = c.split(" ");
+    if (c === repNameLower)                                   return 100;
+    if (parts[0] === repNameLower)                            return 90;
+    if (parts[parts.length - 1] === repNameLower)             return 80;
+    if (c.startsWith(repNameLower))                           return 70;
+    if (repNameLower.split(" ").every((w) => c.includes(w))) return 60;
+    if (c.includes(repNameLower))                             return 40;
     return 0;
   }
 
+  function score(u: { name: string | null; nickname: string | null }): number {
+    const byName     = scoreAgainst(u.name     ?? "");
+    const byNickname = u.nickname ? scoreAgainst(u.nickname) : 0;
+    return Math.max(byName, byNickname);
+  }
+
   const matched = allReps
-    .map((u) => ({ u, s: score(u.name ?? "") }))
+    .map((u) => ({ u, s: score(u) }))
     .filter((x) => x.s > 0)
     .sort((a, b) => b.s - a.s)[0]?.u ?? null;
 

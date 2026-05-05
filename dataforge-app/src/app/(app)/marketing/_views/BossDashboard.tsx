@@ -7,13 +7,14 @@ import {
   getActiveTasks,
   getTeamMonthlyBreakdown,
   getRepDailyCallsForChart,
-  getRepDailyLeadsForChart,
+  getRepDailyApptsForChart,
 } from "@/lib/marketing/team.service";
 import { getSalesReps } from "@/actions/appointments.actions";
 import { TaskCard } from "../TaskCard";
 import { SeedMarketingButton } from "../SeedMarketingButton";
 import { SyncGhlButton } from "../SyncGhlButton";
 import { AddAppointmentModal } from "@/components/marketing/AddAppointmentModal";
+import { AppointmentsModalButton } from "@/components/marketing/AppointmentsModal";
 import { CallVolumeChart } from "@/components/marketing/CallVolumeChart";
 import { LeaderboardSection } from "@/components/marketing/LeaderboardSection";
 import { AgentRadarChart } from "@/components/marketing/AgentRadarChart";
@@ -49,20 +50,20 @@ export async function BossDashboard({ period = "week", metric = "appts_set" }: {
 
   const top5 = leaderboard.slice(0, 5);
   const top5Ids = top5.map((r) => r.id);
-  const [repCallChartData, repLeadChartData] = await Promise.all([
+  const [repCallChartData, repApptChartData] = await Promise.all([
     getRepDailyCallsForChart(top5Ids, 30),
-    getRepDailyLeadsForChart(top5Ids, 30),
+    getRepDailyApptsForChart(top5Ids, 30),
   ]);
   const repCallMeta = top5.map((r) => ({ id: r.id, name: r.name, callCount: r.callCount }));
-  const repLeadTotals: Record<string, number> = {};
-  for (const row of repLeadChartData) {
+  const repApptTotals: Record<string, number> = {};
+  for (const row of repApptChartData) {
     for (const id of top5Ids) {
-      repLeadTotals[id] = (repLeadTotals[id] ?? 0) + ((row[id] as number) || 0);
+      repApptTotals[id] = (repApptTotals[id] ?? 0) + ((row[id] as number) || 0);
     }
   }
-  const repLeadMeta = top5.map((r) => ({
-    id: r.id, name: r.name, callCount: repLeadTotals[r.id] ?? 0,
-    metricLabel: `${repLeadTotals[r.id] ?? 0} leads`,
+  const repApptMeta = top5.map((r) => ({
+    id: r.id, name: r.name, callCount: repApptTotals[r.id] ?? 0,
+    metricLabel: `${repApptTotals[r.id] ?? 0} appts`,
   }));
 
   const periodLabel = PERIOD_LABELS[period];
@@ -136,6 +137,7 @@ export async function BossDashboard({ period = "week", metric = "appts_set" }: {
         </div>
         <div className="flex flex-col items-end gap-2">
           <div className="flex items-center gap-2">
+            <AppointmentsModalButton canDelete={true} />
             <AddAppointmentModal reps={salesReps} />
             <SyncGhlButton />
             <SeedMarketingButton />
@@ -214,10 +216,10 @@ export async function BossDashboard({ period = "week", metric = "appts_set" }: {
           subtitle="Daily calls — top 5 reps · last 30 days"
         />
         <RepPerformanceChart
-          data={repLeadChartData}
-          reps={repLeadMeta}
-          title="Leads Secured"
-          subtitle="Daily leads saved — top 5 reps · last 30 days"
+          data={repApptChartData}
+          reps={repApptMeta}
+          title="Appointments Set"
+          subtitle="Daily appointments booked — top 5 reps · last 30 days"
         />
       </div>
 

@@ -8,6 +8,7 @@ import { UserDetailModal } from "./UserDetailModal";
 export type UserData = {
   id: string;
   name: string | null;
+  nickname: string | null;
   email: string;
   role: string;
   createdAt: Date;
