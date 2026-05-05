@@ -101,9 +101,9 @@ export async function BossDashboard({ period = "week", metric = "appts_set" }: {
       icon:   "📞",
     },
     {
-      label:  "Avg / Agent",
+      label:  "Avg Calls / Agent",
       value:  avgCallsPerAgent,
-      sub:    periodLabel,
+      sub:    `${periodLabel} average`,
       accent: "bg-amber-500",
       num:    "text-amber-600 dark:text-amber-400",
       icon:   "📊",
