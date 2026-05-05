@@ -31,11 +31,25 @@ export async function POST(req: NextRequest) {
   });
 
   const repNameLower = repName.toLowerCase();
-  const matched = allReps.find((u) =>
-    u.name?.toLowerCase() === repNameLower ||
-    u.name?.toLowerCase().includes(repNameLower) ||
-    repNameLower.includes(u.name?.toLowerCase() ?? "___")
-  );
+
+  function score(userName: string): number {
+    const u = userName.toLowerCase();
+    const parts = u.split(" ");
+    if (u === repNameLower) return 100;                        // exact full name
+    if (parts[0] === repNameLower) return 90;                  // exact first name
+    if (parts[parts.length - 1] === repNameLower) return 80;  // exact last name
+    if (u.startsWith(repNameLower)) return 70;                 // starts with input
+    if (repNameLower.split(" ").every((w) => u.includes(w))) return 60; // all words present
+    if (u.includes(repNameLower)) return 40;                   // substring match
+    return 0;
+  }
+
+  const scored = allReps
+    .map((u) => ({ u, s: score(u.name ?? "") }))
+    .filter((x) => x.s > 0)
+    .sort((a, b) => b.s - a.s);
+
+  const matched = scored[0]?.u ?? null;
 
   if (!matched) {
     // Log unmatched but don't fail — store for manual review
