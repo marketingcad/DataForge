@@ -52,6 +52,18 @@ function buildSections(role: Role): NavSection[] {
     children: scrapingChildren,
   };
 
+  const marketingChildren: NavChild[] = [
+    { href: "/marketing",              label: "Dashboard",     emoji: "📊" },
+    { href: "/marketing/appointments", label: "Appointments",  emoji: "📅" },
+  ];
+
+  const marketingItem: NavItem = {
+    href: "/marketing",
+    label: "Marketing",
+    icon: Megaphone,
+    children: marketingChildren,
+  };
+
   switch (role) {
     case "boss":
       return [
@@ -70,8 +82,7 @@ function buildSections(role: Role): NavSection[] {
         {
           title: "Marketing Department",
           items: [
-            { href: "/marketing",                     label: "Marketing",     icon: Megaphone  },
-            { href: "/marketing/appointments",        label: "Appointments",  icon: CalendarDays },
+            marketingItem,
             { href: "/marketing/manage/badges",       label: "Badges",        icon: Settings   },
             { href: "/marketing/manage/tasks",        label: "Challenges",    icon: Settings   },
             { href: "/marketing/manage/commissions",  label: "Commissions",   icon: UserCog    },
@@ -118,8 +129,7 @@ function buildSections(role: Role): NavSection[] {
         {
           title: "Marketing Department",
           items: [
-            { href: "/marketing",                     label: "Marketing",     icon: Megaphone    },
-            { href: "/marketing/appointments",        label: "Appointments",  icon: CalendarDays },
+            marketingItem,
             { href: "/marketing/manage/badges",       label: "Badges",        icon: Settings     },
             { href: "/marketing/manage/tasks",        label: "Challenges",    icon: Settings     },
             { href: "/marketing/manage/commissions",  label: "Commissions",   icon: UserCog      },
@@ -158,10 +168,9 @@ function buildSections(role: Role): NavSection[] {
         {
           title: "Marketing Department",
           items: [
-            { href: "/marketing",                  label: "Marketing",      icon: Megaphone    },
-            { href: "/marketing/appointments",     label: "Appointments",   icon: CalendarDays },
-            { href: "/marketing/my-leads",         label: "My Leads",       icon: Users        },
-            { href: "/my-commissions",             label: "My Commissions", icon: DollarSign   },
+            marketingItem,
+            { href: "/marketing/my-leads",     label: "My Leads",       icon: Users        },
+            { href: "/my-commissions",         label: "My Commissions", icon: DollarSign   },
           ],
         },
         {
@@ -190,8 +199,7 @@ function buildSections(role: Role): NavSection[] {
         {
           title: "Marketing Department",
           items: [
-            { href: "/marketing",                     label: "Marketing",     icon: Megaphone    },
-            { href: "/marketing/appointments",        label: "Appointments",  icon: CalendarDays },
+            marketingItem,
             { href: "/marketing/manage/badges",       label: "Badges",        icon: Settings     },
             { href: "/marketing/manage/tasks",        label: "Challenges",    icon: Settings     },
             { href: "/marketing/manage/commissions",  label: "Commissions",   icon: UserCog      },
@@ -290,8 +298,12 @@ function NavLinkWithChildren({ href, label, icon: Icon, children }: NavItem) {
       {/* Sub-items — always visible */}
       <div className="ml-4 flex flex-col gap-0.5 border-l border-border pl-2.5">
         {children?.map((child) => {
-          const childTab = new URL(child.href, "http://x").searchParams.get("tab");
-          const childActive = isOnPage && currentTab === childTab;
+          const childUrl = new URL(child.href, "http://x");
+          const childTab = childUrl.searchParams.get("tab");
+          const childPath = childUrl.pathname;
+          const childActive = childTab
+            ? isOnPage && currentTab === childTab
+            : pathname === childPath;
 
           return (
             <Link
