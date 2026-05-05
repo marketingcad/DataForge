@@ -155,8 +155,10 @@ export async function getAgentProfile(userId: string) {
   const startOfMonth  = new Date(now.getFullYear(), now.getMonth(), 1);
   const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const endOfLastMonth   = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
-  const startOfWeek   = new Date(now); startOfWeek.setDate(now.getDate() - 7);
-  const startOfLastWeek = new Date(now); startOfLastWeek.setDate(now.getDate() - 14);
+  const dayOfWeek     = now.getDay();
+  const daysFromMon   = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+  const startOfWeek   = new Date(now); startOfWeek.setDate(now.getDate() - daysFromMon); startOfWeek.setHours(0, 0, 0, 0);
+  const startOfLastWeek = new Date(startOfWeek); startOfLastWeek.setDate(startOfWeek.getDate() - 7);
   const thirtyAgo     = new Date(now); thirtyAgo.setDate(now.getDate() - 29); thirtyAgo.setHours(0, 0, 0, 0);
 
   const [user, totalCalls, callsThisMonth, callsLastMonth, callsThisWeek, callsLastWeek, allBadges, completedTasks, repCommissions] = await Promise.all([
@@ -171,7 +173,7 @@ export async function getAgentProfile(userId: string) {
     prisma.callLog.count({ where: { agentId: userId, calledAt: { gte: startOfMonth } } }),
     prisma.callLog.count({ where: { agentId: userId, calledAt: { gte: startOfLastMonth, lte: endOfLastMonth } } }),
     prisma.callLog.count({ where: { agentId: userId, calledAt: { gte: startOfWeek } } }),
-    prisma.callLog.count({ where: { agentId: userId, calledAt: { gte: startOfLastWeek, lt: startOfWeek } } }),
+    prisma.callLog.count({ where: { agentId: userId, calledAt: { gte: startOfLastWeek, lte: new Date(startOfWeek.getTime() - 1) } } }),
     prisma.badge.findMany({ orderBy: { key: "asc" } }),
     prisma.taskProgress.findMany({
       where: { userId, completed: true },

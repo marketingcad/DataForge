@@ -20,27 +20,28 @@ export default async function MyProfilePage() {
 
   // For sales reps, compute leaderboard rankings
   let rankings: {
-    entries: { id: string; name: string | null; email: string; totalCalls: number; points: number; rank: number }[];
+    entries: { id: string; name: string | null; email: string; appointmentsSet: number; points: number; rank: number }[];
     myRank: number;
     total: number;
+    myEntry: { id: string; name: string | null; email: string; appointmentsSet: number; points: number; rank: number } | null;
   } | null = null;
 
   if (role === "sales_rep") {
-    const [allReps, callCounts] = await Promise.all([
+    const [allReps, apptCounts] = await Promise.all([
       prisma.user.findMany({
         where: { role: "sales_rep" },
         select: { id: true, name: true, email: true, points: true },
       }),
-      prisma.callLog.groupBy({
+      prisma.bookedAppointment.groupBy({
         by: ["agentId"],
         _count: { id: true },
       }),
     ]);
 
-    const callMap = Object.fromEntries(callCounts.map((c) => [c.agentId, c._count.id]));
+    const apptMap = Object.fromEntries(apptCounts.map((c) => [c.agentId, c._count.id]));
     const ranked = allReps
-      .map((r) => ({ ...r, totalCalls: callMap[r.id] ?? 0 }))
-      .sort((a, b) => b.totalCalls - a.totalCalls || b.points - a.points)
+      .map((r) => ({ ...r, appointmentsSet: apptMap[r.id] ?? 0 }))
+      .sort((a, b) => b.appointmentsSet - a.appointmentsSet || b.points - a.points)
       .map((r, i) => ({ ...r, rank: i + 1 }));
 
     const myRankIdx = ranked.findIndex((r) => r.id === userId);
@@ -48,6 +49,7 @@ export default async function MyProfilePage() {
       entries: ranked.slice(0, 5),
       myRank: myRankIdx + 1,
       total: ranked.length,
+      myEntry: ranked[myRankIdx] ?? null,
     };
   }
 

@@ -18,9 +18,9 @@ type ProfileData = Awaited<ReturnType<typeof getAgentProfile>>;
 
 type RankingEntry = {
   id: string; name: string | null; email: string;
-  totalCalls: number; points: number; rank: number;
+  appointmentsSet: number; points: number; rank: number;
 };
-type Rankings = { entries: RankingEntry[]; myRank: number; total: number } | null;
+type Rankings = { entries: RankingEntry[]; myRank: number; total: number; myEntry: RankingEntry | null } | null;
 
 // ── constants ──────────────────────────────────────────────────────────────────
 
@@ -367,7 +367,7 @@ export function ProfileView({
                   <div className="rounded-xl bg-muted/40 px-3 py-2.5 text-center">
                     <p className="text-[11px] text-muted-foreground">Gap to #1</p>
                     <p className="text-sm font-black text-amber-600">
-                      {(rankings.entries[0].totalCalls - (rankings.entries.find((e) => e.id === user.id)?.totalCalls ?? 0)).toLocaleString()} calls
+                      {(rankings.entries[0].appointmentsSet - (rankings.myEntry?.appointmentsSet ?? 0)).toLocaleString()} appts
                     </p>
                     <p className="text-[10px] text-muted-foreground mt-0.5">
                       behind {rankings.entries[0].name ?? rankings.entries[0].email.split("@")[0]}
@@ -377,10 +377,10 @@ export function ProfileView({
 
                 {/* Progress bar to #1 */}
                 {(() => {
-                  const me  = rankings.entries.find((e) => e.id === user.id);
+                  const me  = rankings.myEntry;
                   const top = rankings.entries[0];
-                  if (!me || !top || top.totalCalls === 0) return null;
-                  const pct = Math.min(100, Math.round((me.totalCalls / top.totalCalls) * 100));
+                  if (!me || !top || top.appointmentsSet === 0) return null;
+                  const pct = Math.min(100, Math.round((me.appointmentsSet / top.appointmentsSet) * 100));
                   return (
                     <div className="space-y-1">
                       <div className="flex items-center justify-between text-[10px] text-muted-foreground">
@@ -428,7 +428,7 @@ export function ProfileView({
                           <p className={cn("text-xs font-semibold truncate", isMe && "text-violet-700 dark:text-violet-400")}>
                             {isMe ? "You" : (entry.name ?? entry.email.split("@")[0])}
                           </p>
-                          <p className="text-[10px] text-muted-foreground">{entry.totalCalls.toLocaleString()} calls</p>
+                          <p className="text-[10px] text-muted-foreground">{entry.appointmentsSet.toLocaleString()} appts booked</p>
                         </div>
 
                         <div className="text-right shrink-0">
@@ -440,9 +440,8 @@ export function ProfileView({
                   })}
 
                   {/* Show "your position" if you're outside top 5 */}
-                  {rankings.myRank > 5 && (() => {
-                    const me = rankings.entries.find((e) => e.id === user.id)
-                      ?? { id: user.id, name: user.name, email: user.email, totalCalls: 0, points: user.points, rank: rankings.myRank };
+                  {rankings.myRank > 5 && rankings.myEntry && (() => {
+                    const me = rankings.myEntry;
                     return (
                       <>
                         <div className="flex items-center gap-1 px-3 py-0.5">
@@ -457,10 +456,10 @@ export function ProfileView({
                           <RepAvatar name={me.name} email={me.email} />
                           <div className="flex-1 min-w-0">
                             <p className="text-xs font-semibold truncate text-violet-700 dark:text-violet-400">You</p>
-                            <p className="text-[10px] text-muted-foreground">{stats.totalCalls.toLocaleString()} calls</p>
+                            <p className="text-[10px] text-muted-foreground">{me.appointmentsSet.toLocaleString()} appts booked</p>
                           </div>
                           <div className="text-right shrink-0">
-                            <p className="text-xs font-black tabular-nums">{user.points.toLocaleString()}</p>
+                            <p className="text-xs font-black tabular-nums">{me.points.toLocaleString()}</p>
                             <p className="text-[10px] text-muted-foreground">pts</p>
                           </div>
                         </div>
