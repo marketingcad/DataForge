@@ -13,6 +13,15 @@ export type LeaderboardMetric = "calls" | "leads" | "appts_set" | "deals_won" | 
 /** Roles that participate in the marketing leaderboard / KPIs */
 const MARKETING_ROLES = { in: [UserRole.sales_rep, UserRole.team_lead] };
 
+function startOfCalendarWeek(now: Date): Date {
+  const d = new Date(now);
+  const day = d.getDay(); // 0=Sun, 1=Mon, …
+  const daysFromMonday = day === 0 ? 6 : day - 1;
+  d.setDate(d.getDate() - daysFromMonday);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
 function periodRange(period: LeaderboardPeriod): { gte?: Date; lte?: Date } {
   const now = new Date();
   if (period === "yesterday") {
@@ -21,7 +30,7 @@ function periodRange(period: LeaderboardPeriod): { gte?: Date; lte?: Date } {
     return { gte: start, lte: end };
   }
   if (period === "week") {
-    return { gte: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000) };
+    return { gte: startOfCalendarWeek(now) };
   }
   if (period === "month") {
     return { gte: new Date(now.getFullYear(), now.getMonth(), 1) };
@@ -34,7 +43,7 @@ export const getTeamSummary = unstable_cache(async function getTeamSummary() {
   const now = new Date();
   const startOfDay   = new Date(now); startOfDay.setHours(0, 0, 0, 0);
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const startOfWeek  = new Date(now); startOfWeek.setDate(now.getDate() - 7); startOfWeek.setHours(0, 0, 0, 0);
+  const startOfWeek  = startOfCalendarWeek(now);
   const yesterdayStart = new Date(now); yesterdayStart.setDate(now.getDate() - 1); yesterdayStart.setHours(0, 0, 0, 0);
   const yesterdayEnd   = new Date(now); yesterdayEnd.setDate(now.getDate() - 1);   yesterdayEnd.setHours(23, 59, 59, 999);
 

@@ -21,11 +21,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { deleteIndustryAction, createIndustryAction } from "@/actions/industry.actions";
+import { deleteIndustryAction, createIndustryAction, updateIndustryAction } from "@/actions/industry.actions";
 import {
   Building2,
   FolderOpen,
   MoreVertical,
+  Pencil,
   Trash2,
   Loader2,
   Plus,
@@ -72,6 +73,7 @@ type IndustryData = {
 interface IndustryCardProps {
   industry: IndustryData;
   onClick: () => void;
+  onEdit?: () => void;
   onDelete?: () => void;
   deleting?: boolean;
 }
@@ -85,11 +87,11 @@ function FolderIcon({ color }: { color: string }) {
   );
 }
 
-function IndustryCard({ industry, onClick, onDelete, deleting }: IndustryCardProps) {
+function IndustryCard({ industry, onClick, onEdit, onDelete, deleting }: IndustryCardProps) {
   return (
     <div className="group relative rounded-xl border bg-card hover:shadow-md hover:border-border/80 transition-all duration-150 overflow-hidden cursor-pointer">
       {/* Three-dot menu */}
-      {onDelete && (
+      {(onEdit || onDelete) && (
         <div className="absolute top-2.5 right-2.5 z-10" onClick={(e) => e.stopPropagation()}>
           <DropdownMenu>
             <DropdownMenuTrigger
@@ -100,12 +102,19 @@ function IndustryCard({ industry, onClick, onDelete, deleting }: IndustryCardPro
                 : <MoreVertical className="h-3.5 w-3.5" />}
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" side="bottom" className="min-w-0 w-9 p-1">
-              <DropdownMenuItem
-                className="text-destructive focus:text-destructive cursor-pointer"
-                onClick={onDelete}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </DropdownMenuItem>
+              {onEdit && (
+                <DropdownMenuItem className="cursor-pointer" onClick={onEdit}>
+                  <Pencil className="h-3.5 w-3.5" />
+                </DropdownMenuItem>
+              )}
+              {onDelete && (
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive cursor-pointer"
+                  onClick={onDelete}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -206,6 +215,12 @@ export function IndustryBoard({ industries: initialIndustries, unfiledFolders, f
   const [categoryColor, setCategoryColor] = useState(COLOR_SWATCHES[0]);
   const [savingCategory, startSavingCategory] = useTransition();
 
+  // Edit category dialog
+  const [editingIndustry, setEditingIndustry] = useState<IndustryData | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editColor, setEditColor] = useState(COLOR_SWATCHES[0]);
+  const [savingEdit, startSavingEdit] = useTransition();
+
   // Filter
   const [search, setSearch]       = useState("");
   const [viewMode, setViewMode]   = useState<"grid" | "list">("grid");
@@ -259,6 +274,31 @@ export function IndustryBoard({ industries: initialIndustries, unfiledFolders, f
         router.refresh();
       } catch {
         toast.error("Failed to create category");
+      }
+    });
+  }
+
+  function openEdit(industry: IndustryData) {
+    setEditingIndustry(industry);
+    setEditName(industry.name);
+    setEditColor(industry.color);
+  }
+
+  function handleSaveEdit() {
+    if (!editingIndustry || !editName.trim()) return;
+    startSavingEdit(async () => {
+      try {
+        await updateIndustryAction(editingIndustry.id, editName.trim(), editColor);
+        setIndustries((prev) =>
+          prev.map((i) =>
+            i.id === editingIndustry.id ? { ...i, name: editName.trim(), color: editColor } : i
+          )
+        );
+        toast.success(`Category renamed to "${editName.trim()}"`);
+        setEditingIndustry(null);
+        router.refresh();
+      } catch {
+        toast.error("Failed to update category");
       }
     });
   }
@@ -349,6 +389,7 @@ export function IndustryBoard({ industries: initialIndustries, unfiledFolders, f
               key={industry.id}
               industry={industry}
               onClick={() => setSelected(industry)}
+              onEdit={() => openEdit(industry)}
               onDelete={() => handleDeleteIndustry(industry)}
               deleting={deletingId === industry.id}
             />
@@ -380,6 +421,12 @@ export function IndustryBoard({ industries: initialIndustries, unfiledFolders, f
                 </div>
               </button>
               <button
+                onClick={() => openEdit(industry)}
+                className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+              <button
                 onClick={() => handleDeleteIndustry(industry)}
                 disabled={deletingId === industry.id}
                 className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
@@ -406,6 +453,54 @@ export function IndustryBoard({ industries: initialIndustries, unfiledFolders, f
           )}
         </div>
       )}
+
+      {/* Edit category dialog */}
+      <Dialog open={!!editingIndustry} onOpenChange={(v) => { if (!v) setEditingIndustry(null); }}>
+        <DialogContent showCloseButton className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Edit Category</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-1">
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-cat-name">Name</Label>
+              <Input
+                id="edit-cat-name"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") handleSaveEdit(); }}
+                autoFocus
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Color</Label>
+              <div className="flex flex-wrap gap-2">
+                {COLOR_SWATCHES.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setEditColor(c)}
+                    className={cn(
+                      "h-6 w-6 rounded-full border-2 transition-transform",
+                      editColor === c ? "border-foreground scale-110" : "border-transparent hover:scale-105"
+                    )}
+                    style={{ backgroundColor: c }}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              onClick={handleSaveEdit}
+              disabled={!editName.trim() || savingEdit}
+              className="w-full sm:w-auto"
+            >
+              {savingEdit && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Create category dialog */}
       <Dialog open={createCategoryOpen} onOpenChange={(v) => { if (!v) { setCategoryName(""); setCategoryColor(COLOR_SWATCHES[0]); } setCreateCategoryOpen(v); }}>

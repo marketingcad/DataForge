@@ -1,6 +1,6 @@
 "use server";
 
-import { getIndustries, getFoldersByIndustry, createIndustry, deleteIndustry } from "@/lib/industry/service";
+import { getIndustries, getFoldersByIndustry, createIndustry, updateIndustry, deleteIndustry } from "@/lib/industry/service";
 import { requireDepartment } from "@/lib/rbac/guards";
 import { revalidatePath } from "next/cache";
 import type { Role } from "@/lib/rbac/roles";
@@ -25,6 +25,12 @@ export async function createIndustryAction(name: string, color: string) {
   const industry = await createIndustry(user.id, name, color);
   revalidatePath("/leads");
   return industry;
+}
+
+export async function updateIndustryAction(id: string, name: string, color: string) {
+  const user = await requireDepartment("leads");
+  await updateIndustry(id, name, color, scopedUserId(user));
+  revalidatePath("/leads");
 }
 
 export async function deleteIndustryAction(id: string) {

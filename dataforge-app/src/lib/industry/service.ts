@@ -50,6 +50,13 @@ export async function createIndustry(userId: string, name: string, color: string
   });
 }
 
+export async function updateIndustry(id: string, name: string, color: string, userId?: string) {
+  return prisma.industry.updateMany({
+    where: { id, ...(userId ? { userId } : {}) },
+    data: { name: name.trim(), color },
+  });
+}
+
 export async function deleteIndustry(id: string, userId?: string) {
   return prisma.industry.deleteMany({ where: { id, ...(userId ? { userId } : {}) } });
 }
