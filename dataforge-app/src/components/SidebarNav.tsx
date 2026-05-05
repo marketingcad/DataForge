@@ -70,10 +70,11 @@ function buildSections(role: Role): NavSection[] {
         {
           title: "Marketing Department",
           items: [
-            { href: "/marketing",                    label: "Marketing",   icon: Megaphone },
-            { href: "/marketing/manage/badges",      label: "Badges",      icon: Settings  },
-            { href: "/marketing/manage/tasks",       label: "Challenges",  icon: Settings  },
-            { href: "/marketing/manage/commissions", label: "Commissions", icon: UserCog   },
+            { href: "/marketing",                     label: "Marketing",     icon: Megaphone  },
+            { href: "/marketing/appointments",        label: "Appointments",  icon: CalendarDays },
+            { href: "/marketing/manage/badges",       label: "Badges",        icon: Settings   },
+            { href: "/marketing/manage/tasks",        label: "Challenges",    icon: Settings   },
+            { href: "/marketing/manage/commissions",  label: "Commissions",   icon: UserCog    },
           ],
         },
         {
@@ -117,10 +118,11 @@ function buildSections(role: Role): NavSection[] {
         {
           title: "Marketing Department",
           items: [
-            { href: "/marketing",                    label: "Marketing",   icon: Megaphone },
-            { href: "/marketing/manage/badges",      label: "Badges",      icon: Settings  },
-            { href: "/marketing/manage/tasks",       label: "Challenges",  icon: Settings  },
-            { href: "/marketing/manage/commissions", label: "Commissions", icon: UserCog   },
+            { href: "/marketing",                     label: "Marketing",     icon: Megaphone    },
+            { href: "/marketing/appointments",        label: "Appointments",  icon: CalendarDays },
+            { href: "/marketing/manage/badges",       label: "Badges",        icon: Settings     },
+            { href: "/marketing/manage/tasks",        label: "Challenges",    icon: Settings     },
+            { href: "/marketing/manage/commissions",  label: "Commissions",   icon: UserCog      },
           ],
         },
         {
@@ -156,9 +158,10 @@ function buildSections(role: Role): NavSection[] {
         {
           title: "Marketing Department",
           items: [
-            { href: "/marketing",          label: "Marketing",      icon: Megaphone  },
-            { href: "/marketing/my-leads", label: "My Leads",       icon: Users      },
-            { href: "/my-commissions",     label: "My Commissions", icon: DollarSign },
+            { href: "/marketing",                  label: "Marketing",      icon: Megaphone    },
+            { href: "/marketing/appointments",     label: "Appointments",   icon: CalendarDays },
+            { href: "/marketing/my-leads",         label: "My Leads",       icon: Users        },
+            { href: "/my-commissions",             label: "My Commissions", icon: DollarSign   },
           ],
         },
         {
@@ -187,10 +190,11 @@ function buildSections(role: Role): NavSection[] {
         {
           title: "Marketing Department",
           items: [
-            { href: "/marketing",                    label: "Marketing",   icon: Megaphone },
-            { href: "/marketing/manage/badges",      label: "Badges",      icon: Settings  },
-            { href: "/marketing/manage/tasks",       label: "Challenges",  icon: Settings  },
-            { href: "/marketing/manage/commissions", label: "Commissions", icon: UserCog   },
+            { href: "/marketing",                     label: "Marketing",     icon: Megaphone    },
+            { href: "/marketing/appointments",        label: "Appointments",  icon: CalendarDays },
+            { href: "/marketing/manage/badges",       label: "Badges",        icon: Settings     },
+            { href: "/marketing/manage/tasks",        label: "Challenges",    icon: Settings     },
+            { href: "/marketing/manage/commissions",  label: "Commissions",   icon: UserCog      },
           ],
         },
         {
