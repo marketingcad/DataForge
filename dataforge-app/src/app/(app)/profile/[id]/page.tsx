@@ -4,6 +4,7 @@ import { withDbRetry } from "@/lib/prisma";
 import { getAgentProfile } from "@/lib/marketing/agent.service";
 import { getSettings } from "@/lib/settings/service";
 import { prisma } from "@/lib/prisma";
+import { UserRole } from "@/generated/prisma/enums";
 import { ProfileView } from "../ProfileView";
 
 export default async function UserProfilePage({ params }: { params: Promise<{ id: string }> }) {
@@ -33,10 +34,14 @@ export default async function UserProfilePage({ params }: { params: Promise<{ id
   if (role === "sales_rep") {
     const [allReps, apptCounts] = await Promise.all([
       prisma.user.findMany({
-        where: { role: "sales_rep" },
+        where: { role: UserRole.sales_rep },
         select: { id: true, name: true, email: true, points: true },
       }),
-      prisma.bookedAppointment.groupBy({ by: ["agentId"], _count: { id: true } }),
+      prisma.bookedAppointment.groupBy({
+        by: ["agentId"],
+        where: { agent: { role: UserRole.sales_rep } },
+        _count: { id: true },
+      }),
     ]);
 
     const apptMap = Object.fromEntries(apptCounts.map((c) => [c.agentId, c._count.id]));
