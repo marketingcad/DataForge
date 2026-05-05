@@ -8,13 +8,13 @@ function hdrs(key: string) {
   return { Authorization: `Bearer ${key}`, Version: "2021-07-28", "Content-Type": "application/json" };
 }
 
-async function ghlGet(url: string, key: string) {
+async function ghlGet(url: string, key: string): Promise<{ status: number; body: Record<string, unknown> }> {
   try {
     const res = await fetch(url, { headers: hdrs(key), signal: AbortSignal.timeout(12_000) });
     const body = await res.json().catch(() => ({})) as Record<string, unknown>;
     return { status: res.status, body };
-  } catch (e) {
-    return { status: 0, body: {}, error: String(e) };
+  } catch {
+    return { status: 0, body: {} };
   }
 }
 
