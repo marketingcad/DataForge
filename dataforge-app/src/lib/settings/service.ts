@@ -18,6 +18,7 @@ export async function updateSettings(data: {
   leadQualityMediumThreshold?: number;
   ghlWebhookUrl?: string | null;
   ghlApiKey?: string | null;
+  ghlSubAccountApiKey?: string | null;
   ghlLocationId?: string | null;
   commissionCurrency?: string;
 }) {

@@ -1,5 +1,6 @@
 const GHL_BASE = "https://services.leadconnectorhq.com";
 const GHL_VERSION = "2021-07-28";
+const REQUEST_TIMEOUT_MS = 15_000; // 15 s per request — abort if GHL hangs
 
 function buildHeaders(apiKey: string) {
   return {
@@ -9,12 +10,20 @@ function buildHeaders(apiKey: string) {
   };
 }
 
+function ghlFetch(url: string, init: RequestInit): Promise<Response> {
+  return fetch(url, { ...init, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
+}
+
 export interface GhlContact {
   id: string;
   name: string;
   phone: string;
   email?: string;
   locationId: string;
+  assignedTo?: string;
+  dateAdded?: string;
+  dateUpdated?: string;
+  createdAt?: string;
 }
 
 export interface GhlConversation {
@@ -55,7 +64,7 @@ export async function searchContactByPhone(
   phone: string
 ): Promise<GhlContact | null> {
   const url = `${GHL_BASE}/contacts/search?locationId=${encodeURIComponent(locationId)}&query=${encodeURIComponent(phone)}`;
-  const res = await fetch(url, { headers: buildHeaders(apiKey) });
+  const res = await ghlFetch(url, { headers: buildHeaders(apiKey) });
   if (!res.ok) return null;
   const data = await res.json();
   const contacts: GhlContact[] = data.contacts ?? [];
@@ -67,7 +76,7 @@ export async function getContactById(
   apiKey: string,
   contactId: string
 ): Promise<GhlContact | null> {
-  const res = await fetch(`${GHL_BASE}/contacts/${contactId}`, {
+  const res = await ghlFetch(`${GHL_BASE}/contacts/${contactId}`, {
     headers: buildHeaders(apiKey),
   });
   if (!res.ok) return null;
@@ -82,7 +91,7 @@ export async function getContactConversations(
   contactId: string
 ): Promise<GhlConversation[]> {
   const url = `${GHL_BASE}/conversations/search?locationId=${encodeURIComponent(locationId)}&contactId=${encodeURIComponent(contactId)}`;
-  const res = await fetch(url, { headers: buildHeaders(apiKey) });
+  const res = await ghlFetch(url, { headers: buildHeaders(apiKey) });
   if (!res.ok) return [];
   const data = await res.json();
   return (data.conversations as GhlConversation[]) ?? [];
@@ -99,7 +108,7 @@ export async function getAgentConversations(
   const debug: Record<string, unknown> = {};
 
   // Try assignedTo param (GHL v2 standard)
-  const r1 = await fetch(
+  const r1 = await ghlFetch(
     `${GHL_BASE}/conversations/search?locationId=${encodeURIComponent(locationId)}&assignedTo=${encodeURIComponent(ghlUserId)}&limit=${limit}`,
     { headers }
   );
@@ -112,7 +121,7 @@ export async function getAgentConversations(
   }
 
   // Fallback: userId param
-  const r2 = await fetch(
+  const r2 = await ghlFetch(
     `${GHL_BASE}/conversations/search?locationId=${encodeURIComponent(locationId)}&userId=${encodeURIComponent(ghlUserId)}&limit=${limit}`,
     { headers }
   );
@@ -125,7 +134,7 @@ export async function getAgentConversations(
   }
 
   // Fallback: no user filter — get all location conversations
-  const r3 = await fetch(
+  const r3 = await ghlFetch(
     `${GHL_BASE}/conversations/search?locationId=${encodeURIComponent(locationId)}&limit=${limit}`,
     { headers }
   );
@@ -179,7 +188,7 @@ export async function getLocationCallConversations(
       params.set("startAfterDate", String(startAfterDate));
     }
 
-    const res = await fetch(`${GHL_BASE}/conversations/search?${params}`, { headers });
+    const res = await ghlFetch(`${GHL_BASE}/conversations/search?${params}`, { headers });
     if (!res.ok) break;
 
     const data = await res.json();
@@ -224,7 +233,7 @@ export async function getConversationCalls(
       ? `${GHL_BASE}/conversations/${conversationId}/messages?limit=100&lastMessageId=${lastId}`
       : `${GHL_BASE}/conversations/${conversationId}/messages?limit=100`;
 
-    const res = await fetch(url, { headers: buildHeaders(apiKey) });
+    const res = await ghlFetch(url, { headers: buildHeaders(apiKey) });
     if (!res.ok) break;
     const data = await res.json();
 
@@ -274,7 +283,7 @@ export async function listGhlAgents(
   const debug: Record<string, unknown> = {};
 
   // Try endpoint 1: /users/search?locationId={}
-  const r1 = await fetch(
+  const r1 = await ghlFetch(
     `${GHL_BASE}/users/search?locationId=${encodeURIComponent(locationId)}`,
     { headers }
   );
@@ -287,7 +296,7 @@ export async function listGhlAgents(
   }
 
   // Try endpoint 2: /locations/{locationId}/users
-  const r2 = await fetch(
+  const r2 = await ghlFetch(
     `${GHL_BASE}/locations/${encodeURIComponent(locationId)}/users`,
     { headers }
   );
@@ -300,7 +309,7 @@ export async function listGhlAgents(
   }
 
   // Try endpoint 3: /users/ with locationId filter
-  const r3 = await fetch(
+  const r3 = await ghlFetch(
     `${GHL_BASE}/users/?locationId=${encodeURIComponent(locationId)}`,
     { headers }
   );
@@ -322,6 +331,7 @@ export interface GhlOpportunity {
   source?: string;
   contactId?: string;
   assignedTo?: string;
+  tags?: string[];
   createdAt?: string;
   updatedAt?: string;
   [key: string]: unknown;
@@ -348,7 +358,7 @@ export async function getAgentOpportunities(
       limit: String(limit),
       startAfter: String(startAfter),
     });
-    const res = await fetch(`${GHL_BASE}/opportunities/search?${params}`, { headers });
+    const res = await ghlFetch(`${GHL_BASE}/opportunities/search?${params}`, { headers });
     if (!res.ok) break;
     const data = await res.json();
     const opps: GhlOpportunity[] = data.opportunities ?? [];
@@ -356,6 +366,158 @@ export async function getAgentOpportunities(
     all.push(...opps);
     if (opps.length < limit) break;
     startAfter += limit;
+  }
+
+  return all;
+}
+
+export interface GhlCalendarAppointment {
+  id: string;
+  calendarId?: string;
+  locationId?: string;
+  contactId?: string;
+  title?: string;
+  // GHL has a typo in their API — field appears as both spellings
+  appoinmentStatus?: string;
+  appointmentStatus?: string;
+  status?: string;
+  assignedUserId?: string;
+  startTime?: string;
+  endTime?: string;
+  dateAdded?: string;
+  [key: string]: unknown;
+}
+
+export interface GhlCalendar {
+  id: string;
+  name?: string;
+  locationId?: string;
+  [key: string]: unknown;
+}
+
+/** List all calendars for a GHL location. */
+export async function getLocationCalendars(
+  apiKey: string,
+  locationId: string,
+): Promise<GhlCalendar[]> {
+  const res = await ghlFetch(
+    `${GHL_BASE}/calendars/?locationId=${encodeURIComponent(locationId)}`,
+    { headers: buildHeaders(apiKey) },
+  );
+  if (!res.ok) return [];
+  const data = await res.json();
+  return (data.calendars ?? data.data ?? []) as GhlCalendar[];
+}
+
+/**
+ * Fetch all appointments for a specific calendar within a time window.
+ * startTime/endTime are Unix ms. endTime defaults to 90 days from now to include future bookings.
+ */
+export async function getAppointmentsByCalendar(
+  apiKey: string,
+  calendarId: string,
+  since?: Date,
+  maxDays = 90,
+): Promise<GhlCalendarAppointment[]> {
+  const headers = buildHeaders(apiKey);
+  const now = Date.now();
+  const endTime = now + maxDays * 24 * 60 * 60 * 1000;
+  const startTime = since ? since.getTime() : now - maxDays * 24 * 60 * 60 * 1000;
+
+  const params = new URLSearchParams({
+    calendarId,
+    startTime: String(startTime),
+    endTime: String(endTime),
+  });
+
+  const res = await ghlFetch(`${GHL_BASE}/calendars/events?${params}`, { headers });
+  if (!res.ok) return [];
+  const data = await res.json();
+  return (data.events ?? data.appointments ?? data.data ?? []) as GhlCalendarAppointment[];
+}
+
+/** @deprecated Use getAppointmentsByCalendar instead */
+export async function getAppointmentsByUser(
+  apiKey: string,
+  ghlUserId: string,
+  since?: Date,
+  maxDays = 90
+): Promise<GhlCalendarAppointment[]> {
+  const headers = buildHeaders(apiKey);
+  const now = Date.now();
+  const endTime = now + maxDays * 24 * 60 * 60 * 1000;
+  const startTime = since ? since.getTime() : now - maxDays * 24 * 60 * 60 * 1000;
+
+  const params = new URLSearchParams({
+    userId: ghlUserId,
+    startTime: String(startTime),
+    endTime: String(endTime),
+  });
+
+  const res = await ghlFetch(`${GHL_BASE}/calendars/events?${params}`, { headers });
+  if (!res.ok) return [];
+  const data = await res.json();
+  return (data.events ?? data.appointments ?? data.data ?? []) as GhlCalendarAppointment[];
+}
+
+/**
+ * Batch-fetch contacts by ID to read their assignedTo (contact owner).
+ * Returns a map of contactId → ghlUserId.
+ */
+export async function getContactOwners(
+  apiKey: string,
+  contactIds: string[],
+  concurrency = 10
+): Promise<Map<string, string>> {
+  const result = new Map<string, string>();
+  const unique = [...new Set(contactIds)];
+
+  for (let i = 0; i < unique.length; i += concurrency) {
+    const batch = unique.slice(i, i + concurrency);
+    await Promise.all(
+      batch.map(async (id) => {
+        const contact = await getContactById(apiKey, id);
+        if (contact?.assignedTo) result.set(id, contact.assignedTo);
+      })
+    );
+  }
+
+  return result;
+}
+
+/**
+ * Fetch all contacts for a location that have a specific tag.
+ * GHL requires a POST body with a filters array — GET query params do not work for tag filtering.
+ */
+export async function getContactsByTag(
+  apiKey: string,
+  locationId: string,
+  tag: string,
+  maxPages = 50,
+): Promise<GhlContact[]> {
+  const all: GhlContact[] = [];
+  let page = 1;
+
+  for (let i = 0; i < maxPages; i++) {
+    const res = await ghlFetch(`${GHL_BASE}/contacts/search`, {
+      method: "POST",
+      headers: buildHeaders(apiKey),
+      body: JSON.stringify({
+        locationId,
+        page,
+        pageLimit: 100,
+        filters: [{ field: "tags", operator: "eq", value: tag }],
+      }),
+    });
+
+    if (!res.ok) break;
+
+    const data = await res.json() as Record<string, unknown>;
+    const contacts = (data.contacts ?? data.data ?? []) as GhlContact[];
+    all.push(...contacts);
+
+    if (contacts.length < 100) break;
+    page++;
   }
 
   return all;

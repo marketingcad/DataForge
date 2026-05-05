@@ -45,7 +45,7 @@ export const getTeamSummary = unstable_cache(async function getTeamSummary() {
     prisma.callLog.count({ where: { calledAt: { gte: startOfWeek },                         agent: { role: MARKETING_ROLES } } }),
     prisma.callLog.count({ where: { calledAt: { gte: startOfMonth },                        agent: { role: MARKETING_ROLES } } }),
     prisma.callLog.count({ where: {                                                          agent: { role: MARKETING_ROLES } } }),
-    prisma.ghlOpportunity.count({ where: { agent: { role: MARKETING_ROLES } } }),
+    prisma.ghlBookedContact.count({ where: { agent: { role: MARKETING_ROLES } } }),
     prisma.ghlOpportunity.count({ where: { agent: { role: MARKETING_ROLES }, status: "won" } }),
   ]);
 
@@ -73,9 +73,13 @@ export const getLeaderboard = unstable_cache(async function getLeaderboard(
         orderBy: { earnedAt: "desc" },
         take: 3,
       },
-      ghlOpportunities: {
+      ghlBookedContacts: {
         where: dateFilter ? { createdAt: dateFilter } : undefined,
-        select: { id: true, status: true },
+        select: { id: true },
+      },
+      ghlOpportunities: {
+        where: dateFilter ? { updatedAt: dateFilter, status: "won" } : { status: "won" },
+        select: { id: true },
       },
       savedLeads: {
         where: dateFilter ? { dateCollected: dateFilter } : undefined,
@@ -102,8 +106,8 @@ export const getLeaderboard = unstable_cache(async function getLeaderboard(
       avgCallTime,
       topBadges:         a.userBadges.map((ub) => ub.badge),
       badgesEarned:      a.userBadges.length,
-      appointmentsSet:   a.ghlOpportunities.length,
-      dealsWon:          a.ghlOpportunities.filter((o) => o.status === "won").length,
+      appointmentsSet:   a.ghlBookedContacts.length,
+      dealsWon:          a.ghlOpportunities.length,
       leadsBooked:       a.savedLeads.length,
       commissionsEarned: a.repCommissions.reduce((s, c) => s + c.amount, 0),
     };

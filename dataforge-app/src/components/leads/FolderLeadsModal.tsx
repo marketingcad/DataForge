@@ -166,6 +166,8 @@ export function FolderLeadsModal({
   const [hasEmail, setHasEmail]     = useState(false);
   const [hasWebsite, setHasWebsite] = useState(false);
   const [hasContact, setHasContact] = useState(false);
+  const [hasPhone, setHasPhone]     = useState(false);
+  const [hasBusiness, setHasBusiness] = useState(false);
   const [page, setPage]             = useState(1);
   const [total, setTotal]           = useState(0);
   const [totalPages, setTotalPages] = useState(1);
@@ -191,7 +193,7 @@ export function FolderLeadsModal({
     return () => clearTimeout(t);
   }, [search]);
 
-  useEffect(() => { setPage(1); setSelected(new Set()); }, [debSearch, searchField, sort, minScore, maxScore, status, stateFilter, hasEmail, hasWebsite, hasContact]);
+  useEffect(() => { setPage(1); setSelected(new Set()); }, [debSearch, searchField, sort, minScore, maxScore, status, stateFilter, hasEmail, hasWebsite, hasContact, hasPhone, hasBusiness]);
 
   const fetchLeads = useCallback(async () => {
     if (!open) return;
@@ -210,6 +212,8 @@ export function FolderLeadsModal({
         hasEmail: hasEmail || undefined,
         hasWebsite: hasWebsite || undefined,
         hasContact: hasContact || undefined,
+        hasPhone: hasPhone || undefined,
+        hasBusiness: hasBusiness || undefined,
         savedById: filterUserId,
       });
       setLeads(r.leads as Lead[]);
@@ -218,7 +222,7 @@ export function FolderLeadsModal({
     } finally {
       setLoading(false);
     }
-  }, [open, folder.id, debSearch, searchField, sort, page, minScore, maxScore, status, stateFilter, hasEmail, hasWebsite, hasContact, filterUserId]);
+  }, [open, folder.id, debSearch, searchField, sort, page, minScore, maxScore, status, stateFilter, hasEmail, hasWebsite, hasContact, hasPhone, hasBusiness, filterUserId]);
 
   useEffect(() => { fetchLeads(); }, [fetchLeads]);
 
@@ -229,16 +233,35 @@ export function FolderLeadsModal({
       setMinScore(""); setMaxScore("");
       setStatus(""); setStateFilter("");
       setHasEmail(false); setHasWebsite(false); setHasContact(false);
+      setHasPhone(false); setHasBusiness(false);
     }
   }, [open]);
 
-  const hasActiveFilters = minScore || maxScore || status || stateFilter || hasEmail || hasWebsite || hasContact;
+  const hasActiveFilters = minScore || maxScore || status || stateFilter || hasEmail || hasWebsite || hasContact || hasPhone || hasBusiness;
 
   function clearFilters() {
     setMinScore(""); setMaxScore("");
     setStatus(""); setStateFilter("");
     setHasEmail(false); setHasWebsite(false); setHasContact(false);
+    setHasPhone(false); setHasBusiness(false);
   }
+
+  const activeFilterParams = {
+    folderId: folder.id,
+    search: debSearch,
+    searchField,
+    sort,
+    minScore: minScore !== "" ? Number(minScore) : undefined,
+    maxScore: maxScore !== "" ? Number(maxScore) : undefined,
+    status,
+    state: stateFilter,
+    hasEmail: hasEmail || undefined,
+    hasWebsite: hasWebsite || undefined,
+    hasContact: hasContact || undefined,
+    hasPhone: hasPhone || undefined,
+    hasBusiness: hasBusiness || undefined,
+    savedById: filterUserId,
+  };
 
   const activeField = SEARCH_FIELDS.find((f) => f.value === searchField) ?? SEARCH_FIELDS[0];
 
@@ -266,7 +289,7 @@ export function FolderLeadsModal({
         onOpenChange(false);
         onFolderDeleted?.(folder.id);
       } else if (confirmDelete === "all") {
-        const all = await getAllLeadsForExportAction(folder.id);
+        const all = await getAllLeadsForExportAction({ folderId: folder.id });
         await bulkDeleteLeadsAction((all.leads as Lead[]).map((l) => l.id));
         addNotif({ type: "warning", title: `All leads deleted`, message: `Cleared all leads from "${folder.name}".` });
         setTotal(0); setLeads([]);
@@ -290,7 +313,7 @@ export function FolderLeadsModal({
     try {
       const toExport = scope === "selected"
         ? leads.filter((l) => selected.has(l.id))
-        : (await getAllLeadsForExportAction(folder.id)).leads as Lead[];
+        : (await getAllLeadsForExportAction(activeFilterParams)).leads as Lead[];
       exportToCSV(toExport, `${folder.name.replace(/\s+/g, "_")}_leads.csv`, exportCols);
       addNotif({ type: "success", title: `${toExport.length} lead${toExport.length !== 1 ? "s" : ""} exported`, message: `Saved as CSV from "${folder.name}".` });
     } catch {
@@ -308,7 +331,7 @@ export function FolderLeadsModal({
 
     const allLeads: Lead[] = scope === "selected"
       ? leads.filter((l) => selected.has(l.id))
-      : (await getAllLeadsForExportAction(folder.id)).leads as Lead[];
+      : (await getAllLeadsForExportAction(activeFilterParams)).leads as Lead[];
 
     const toMigrate = allLeads
       .filter((l) => !l.migratedToGhl)
@@ -615,9 +638,11 @@ export function FolderLeadsModal({
                 <Label className="text-[10px] text-muted-foreground">Has data</Label>
                 <div className="flex items-center gap-1.5">
                   {([
-                    { key: "email",   label: "Email",   val: hasEmail,   set: setHasEmail },
-                    { key: "website", label: "Website", val: hasWebsite, set: setHasWebsite },
-                    { key: "contact", label: "Contact", val: hasContact, set: setHasContact },
+                    { key: "phone",    label: "Phone",   val: hasPhone,    set: setHasPhone },
+                    { key: "business", label: "Business", val: hasBusiness, set: setHasBusiness },
+                    { key: "email",    label: "Email",   val: hasEmail,    set: setHasEmail },
+                    { key: "website",  label: "Website", val: hasWebsite,  set: setHasWebsite },
+                    { key: "contact",  label: "Contact", val: hasContact,  set: setHasContact },
                   ] as const).map(({ key, label, val, set }) => (
                     <button
                       key={key}

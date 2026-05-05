@@ -7,11 +7,10 @@ import { insertLead, updateLead, getLeads } from "@/lib/leads/service";
 import { prisma } from "@/lib/prisma";
 import { requireDepartment } from "@/lib/rbac/guards";
 
-export async function getLeadsForFolderAction(params: {
+type LeadFilterParams = {
   folderId: string;
   search?: string;
   sort?: "name_asc" | "name_desc" | "newest" | "oldest";
-  page?: number;
   minScore?: number;
   maxScore?: number;
   status?: string;
@@ -19,9 +18,13 @@ export async function getLeadsForFolderAction(params: {
   hasEmail?: boolean;
   hasWebsite?: boolean;
   hasContact?: boolean;
+  hasPhone?: boolean;
+  hasBusiness?: boolean;
   searchField?: "business" | "contact" | "location" | "phone" | "email" | "website" | "score";
   savedById?: string;
-}) {
+};
+
+export async function getLeadsForFolderAction(params: LeadFilterParams & { page?: number }) {
   await requireDepartment("leads");
   return getLeads({
     folderId: params.folderId,
@@ -36,14 +39,32 @@ export async function getLeadsForFolderAction(params: {
     hasEmail: params.hasEmail,
     hasWebsite: params.hasWebsite,
     hasContact: params.hasContact,
+    hasPhone: params.hasPhone,
+    hasBusiness: params.hasBusiness,
     searchField: params.searchField || "business",
     savedById: params.savedById,
   });
 }
 
-export async function getAllLeadsForExportAction(folderId: string) {
+export async function getAllLeadsForExportAction(params: LeadFilterParams) {
   await requireDepartment("leads");
-  return getLeads({ folderId, pageSize: 5000 });
+  return getLeads({
+    folderId: params.folderId,
+    search: params.search || "",
+    sort: params.sort || "newest",
+    pageSize: 5000,
+    minScore: params.minScore,
+    maxScore: params.maxScore,
+    status: params.status || "",
+    state: params.state || "",
+    hasEmail: params.hasEmail,
+    hasWebsite: params.hasWebsite,
+    hasContact: params.hasContact,
+    hasPhone: params.hasPhone,
+    hasBusiness: params.hasBusiness,
+    searchField: params.searchField || "business",
+    savedById: params.savedById,
+  });
 }
 
 export async function bulkDeleteLeadsAction(ids: string[]) {

@@ -62,6 +62,7 @@ interface Settings {
   leadQualityMediumThreshold: number;
   ghlWebhookUrl: string | null;
   ghlApiKey: string | null;
+  ghlSubAccountApiKey: string | null;
   ghlLocationId: string | null;
   commissionCurrency: string;
 }
@@ -269,7 +270,22 @@ export function SettingsClient({ settings }: { settings: Settings }) {
               autoComplete="off"
             />
             <p className="text-xs text-muted-foreground">
-              Private Integration API key from your GHL sub-account. Used to read call logs and contact data.
+              Agency-level Private Integration API key. Used to sync call logs and opportunities.
+            </p>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="ghlSubAccountApiKey">Sub Account API Key</Label>
+            <Input
+              id="ghlSubAccountApiKey"
+              name="ghlSubAccountApiKey"
+              type="password"
+              defaultValue={settings.ghlSubAccountApiKey ?? ""}
+              placeholder="eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."
+              autoComplete="off"
+            />
+            <p className="text-xs text-muted-foreground">
+              Location-level Private Integration API key. Required for syncing calendar appointments.
             </p>
           </div>
 

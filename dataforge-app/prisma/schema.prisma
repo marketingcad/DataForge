@@ -65,6 +65,7 @@ model Lead {
   ghlContactId      String?
   callLogs          CallLog[]
   ghlOpportunities  GhlOpportunity[]
+  ghlAppointments   GhlAppointment[]
   assignedTo        User?            @relation("AssignedLeads", fields: [assignedToId], references: [id])
   folder            Folder?          @relation(fields: [folderId], references: [id])
   keyword           ScrapingKeyword? @relation(fields: [keywordId], references: [id], onDelete: Cascade)
@@ -116,6 +117,8 @@ model User {
   earnedRepCommissions RepCommission[]     @relation("EarnedRepCommissions")
   repCommissions       RepCommission[]     @relation("RepCommissions")
   ghlOpportunities     GhlOpportunity[]
+  ghlAppointments      GhlAppointment[]
+  ghlBookedContacts    GhlBookedContact[]
   scrapingKeywords     ScrapingKeyword[]
   sessions             Session[]
   taskProgress         TaskProgress[]
@@ -404,9 +407,11 @@ model AppSettings {
   commissionCurrency         String   @default("₱")
   updatedAt                  DateTime @updatedAt
   ghlApiKey                  String?
+  ghlSubAccountApiKey        String?
   ghlLocationId              String?
   ghlCallsLastSyncedAt       DateTime?
   ghlOppsLastSyncedAt        DateTime?
+  ghlAppsLastSyncedAt        DateTime?
 }
 
 model GhlOpportunity {
@@ -426,6 +431,39 @@ model GhlOpportunity {
   @@index([agentId])
   @@index([status])
   @@index([createdAt])
+}
+
+// Contacts in GHL that have the "appointment-booked" tag, attributed to their contact owner
+model GhlBookedContact {
+  id        String   @id @default(uuid())
+  ghlId     String   @unique
+  agentId   String
+  createdAt DateTime @default(now())
+  agent     User     @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([agentId])
+  @@index([createdAt])
+}
+
+model GhlAppointment {
+  id         String   @id @default(uuid())
+  ghlId      String   @unique  // GHL calendar event ID
+  agentId    String            // contact owner → DataForge user
+  contactId  String?           // GHL contact ID
+  leadId     String?           // linked DataForge lead (if any)
+  status     String            // confirmed, showed, no_show, new, etc.
+  title      String?
+  startTime  DateTime
+  endTime    DateTime?
+  calendarId String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  agent      User     @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  lead       Lead?    @relation(fields: [leadId], references: [id], onDelete: SetNull)
+
+  @@index([agentId])
+  @@index([status])
+  @@index([startTime])
 }
 
 model ScrapingKeyword {

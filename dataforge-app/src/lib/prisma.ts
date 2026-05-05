@@ -5,7 +5,7 @@ import { Pool } from "pg";
 
 // Bump this string any time you run prisma migrate (adds/removes models).
 // This forces a new client in dev hot-reload scenarios.
-const CLIENT_VERSION = "v10-team-lead-role";
+const CLIENT_VERSION = "v17-booked-contact-created-at";
 
 function createPrismaClient() {
   const connectionString =

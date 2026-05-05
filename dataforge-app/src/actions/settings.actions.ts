@@ -16,6 +16,7 @@ export async function updateSettingsAction(formData: FormData) {
     const leadQualityMediumThreshold = parseInt(formData.get("leadQualityMediumThreshold") as string, 10);
     const ghlWebhookUrl = (formData.get("ghlWebhookUrl") as string)?.trim() || null;
     const ghlApiKey = (formData.get("ghlApiKey") as string)?.trim() || null;
+    const ghlSubAccountApiKey = (formData.get("ghlSubAccountApiKey") as string)?.trim() || null;
     const ghlLocationId = (formData.get("ghlLocationId") as string)?.trim() || null;
     const commissionCurrency = (formData.get("commissionCurrency") as string)?.trim() || "₱";
 
@@ -28,6 +29,7 @@ export async function updateSettingsAction(formData: FormData) {
       ...(!isNaN(leadQualityMediumThreshold) ? { leadQualityMediumThreshold } : {}),
       ghlWebhookUrl,
       ghlApiKey,
+      ghlSubAccountApiKey,
       ghlLocationId,
       commissionCurrency,
     });

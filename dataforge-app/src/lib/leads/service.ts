@@ -144,6 +144,8 @@ export async function getLeads({
   hasEmail,
   hasWebsite,
   hasContact,
+  hasPhone,
+  hasBusiness,
   searchField = "business",
   savedById,
 }: {
@@ -160,6 +162,8 @@ export async function getLeads({
   hasEmail?: boolean;
   hasWebsite?: boolean;
   hasContact?: boolean;
+  hasPhone?: boolean;
+  hasBusiness?: boolean;
   searchField?: "business" | "contact" | "location" | "phone" | "email" | "website" | "score";
   savedById?: string;
 }) {
@@ -201,6 +205,8 @@ export async function getLeads({
   if (hasEmail) where.email = { not: null };
   if (hasWebsite) where.website = { not: null };
   if (hasContact) where.contactPerson = { not: null };
+  if (hasPhone) where.phone = { not: "" };
+  if (hasBusiness) where.businessName = { not: "" };
   if (savedById) where.savedById = savedById;
 
   const orderBy =

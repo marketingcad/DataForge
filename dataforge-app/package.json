@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "tsx server.ts",
-    "build": "prisma generate && next build",
-    "start": "cross-env NODE_ENV=production tsx server.ts",
+    "dev": "cross-env NODE_OPTIONS=--max-old-space-size=4096 tsx server.ts",
+    "build": "cross-env NODE_OPTIONS=--max-old-space-size=4096 prisma generate && next build",
+    "start": "cross-env NODE_ENV=production NODE_OPTIONS=--max-old-space-size=4096 tsx server.ts",
     "lint": "eslint"
   },
   "dependencies": {
