@@ -14,9 +14,7 @@ export async function POST(req: NextRequest) {
   const clientName  = String(body.name        ?? body.client_name  ?? "").trim();
   const clientPhone = String(body.phone        ?? body.client_phone ?? "").trim();
   const bookedAtRaw = body.booked_at           ?? body.start_time   ?? body.appointment_time ?? null;
-  const repRaw      = String(body.craeted_by   ?? body.created_by   ?? body.booked_by        ?? "").trim();
-  // Strip "How did you hear about us?: " prefix if present
-  const repName     = repRaw.includes(":") ? repRaw.split(":").slice(1).join(":").trim() : repRaw;
+  const repName     = String(body.craeted_by ?? body.created_by ?? body.booked_by ?? "").trim();
   const ghlId       = String(body.id           ?? body.appointment_id ?? "").trim() || null;
 
   if (!clientName) {
