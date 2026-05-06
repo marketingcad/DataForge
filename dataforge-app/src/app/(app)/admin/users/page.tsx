@@ -5,6 +5,7 @@ import { type Role } from "@/lib/rbac/roles";
 import { CreateUserDialog } from "./CreateUserDialog";
 import { ImportGhlDialog } from "./ImportGhlDialog";
 import { UsersClient } from "./UsersClient";
+import { Users, UserPlus, Megaphone, ShieldCheck } from "lucide-react";
 
 export default async function UsersPage() {
   const session = await auth();
@@ -24,10 +25,10 @@ export default async function UsersPage() {
   const admins        = users.filter((u) => u.role === "boss" || u.role === "admin").length;
 
   const stats = [
-    { label: "Total Users",     value: totalUsers,   color: "bg-blue-50 dark:bg-blue-950/30",   icon: "👥", num: "text-blue-600 dark:text-blue-400" },
-    { label: "New This Month",  value: newThisMonth, color: "bg-emerald-50 dark:bg-emerald-950/30", icon: "🆕", num: "text-emerald-600 dark:text-emerald-400" },
-    { label: "Sales Reps",      value: salesReps,    color: "bg-rose-50 dark:bg-rose-950/30",    icon: "📣", num: "text-rose-600 dark:text-rose-400" },
-    { label: "Admins",          value: admins,       color: "bg-violet-50 dark:bg-violet-950/30", icon: "🛡️", num: "text-violet-600 dark:text-violet-400" },
+    { label: "Total Users",    value: totalUsers,   color: "bg-blue-50 dark:bg-blue-950/30",        iconColor: "text-blue-600 dark:text-blue-400",       icon: <Users        className="h-6 w-6" />, num: "text-blue-600 dark:text-blue-400" },
+    { label: "New This Month", value: newThisMonth, color: "bg-emerald-50 dark:bg-emerald-950/30",  iconColor: "text-emerald-600 dark:text-emerald-400", icon: <UserPlus     className="h-6 w-6" />, num: "text-emerald-600 dark:text-emerald-400" },
+    { label: "Sales Reps",     value: salesReps,    color: "bg-rose-50 dark:bg-rose-950/30",        iconColor: "text-rose-600 dark:text-rose-400",       icon: <Megaphone    className="h-6 w-6" />, num: "text-rose-600 dark:text-rose-400" },
+    { label: "Admins",         value: admins,       color: "bg-violet-50 dark:bg-violet-950/30",    iconColor: "text-violet-600 dark:text-violet-400",   icon: <ShieldCheck  className="h-6 w-6" />, num: "text-violet-600 dark:text-violet-400" },
   ];
 
   return (
@@ -51,7 +52,7 @@ export default async function UsersPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {stats.map((s) => (
           <div key={s.label} className={`rounded-2xl ${s.color} px-5 py-4 flex items-center gap-4`}>
-            <span className="text-3xl leading-none">{s.icon}</span>
+            <span className={s.iconColor}>{s.icon}</span>
             <div>
               <p className={`text-3xl font-black tabular-nums leading-none ${s.num}`}>{s.value}</p>
               <p className="text-xs text-muted-foreground mt-1 font-medium">{s.label}</p>

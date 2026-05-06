@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Flame, Trophy, CalendarCheck, Star } from "lucide-react";
 import { METRIC_LABELS, type Metric } from "./MetricToggle";
 
 export interface LeaderboardEntry {
@@ -213,16 +214,16 @@ export function SalesLeaderboard({ leaderboard, metric = "appts_set" }: Props) {
         const byAppts = [...leaderboard].sort((a, b) => (b.appointmentsSet ?? 0) - (a.appointmentsSet ?? 0))[0];
         const byPts   = [...leaderboard].sort((a, b) => b.points - a.points)[0];
         const stats   = [
-          { icon: "🔥", label: "Most Calls", name: leaderboard[0].name?.split(" ")[0] ?? "—", value: leaderboard[0].callCount },
-          { icon: "🏆", label: "Most Won",   name: byWon.name?.split(" ")[0] ?? "—",           value: byWon.dealsWon ?? 0     },
-          { icon: "📅", label: "Appts",      name: byAppts.name?.split(" ")[0] ?? "—",          value: byAppts.appointmentsSet ?? 0 },
-          { icon: "⭐", label: "Top XP",     name: byPts.name?.split(" ")[0] ?? "—",            value: byPts.points            },
+          { icon: <Flame        className="h-4 w-4 text-orange-500" />, label: "Most Calls", name: leaderboard[0].name?.split(" ")[0] ?? "—", value: leaderboard[0].callCount },
+          { icon: <Trophy       className="h-4 w-4 text-rose-500"   />, label: "Most Won",   name: byWon.name?.split(" ")[0] ?? "—",           value: byWon.dealsWon ?? 0     },
+          { icon: <CalendarCheck className="h-4 w-4 text-sky-500"   />, label: "Appts",      name: byAppts.name?.split(" ")[0] ?? "—",          value: byAppts.appointmentsSet ?? 0 },
+          { icon: <Star         className="h-4 w-4 text-amber-500"  />, label: "Top XP",     name: byPts.name?.split(" ")[0] ?? "—",            value: byPts.points            },
         ];
         return (
           <div className="grid grid-cols-2 lg:grid-cols-4 border-t divide-x divide-y lg:divide-y-0 bg-muted/10">
             {stats.map((s) => (
               <div key={s.label} className="flex items-center gap-3 px-5 py-3 hover:bg-muted/20 transition-colors">
-                <span className="text-xl shrink-0">{s.icon}</span>
+                <span className="shrink-0">{s.icon}</span>
                 <div className="min-w-0">
                   <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">{s.label}</p>
                   <p className="text-xs font-bold truncate">{s.name}</p>

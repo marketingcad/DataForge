@@ -165,7 +165,8 @@ export async function getAgentProfile(userId: string) {
     prisma.user.findUniqueOrThrow({
       where: { id: userId },
       select: {
-        id: true, name: true, email: true, points: true, role: true, createdAt: true,
+        id: true, name: true, nickname: true, email: true, points: true, role: true, createdAt: true,
+        isBanned: true, bannedUntil: true, banReason: true,
         userBadges: { include: { badge: true }, orderBy: { earnedAt: "asc" } },
       },
     }),

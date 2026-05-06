@@ -87,7 +87,7 @@ const TABS_SALES_REP = [
   { key: "commissions",  label: "Commissions",           icon: DollarSign  },
 ] as const;
 
-const TABS_OTHER = [
+const TABS_TEAM_LEAD = [
   { key: "overview", label: "Overview",             icon: BarChart2 },
   { key: "badges",   label: "Badges & Achievements", icon: Medal     },
 ] as const;
@@ -104,10 +104,11 @@ export function ProfileView({
 }) {
   const { user, stats, allBadges, completedTasks, callHistory, repCommissions } = data;
 
-  const role       = (user as unknown as { role?: string }).role ?? "lead_specialist";
-  const isSalesRep = role === "sales_rep";
-  const initials   = (user.name ?? user.email).slice(0, 2).toUpperCase();
-  const joinedLabel = user.createdAt.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  const role         = (user as unknown as { role?: string }).role ?? "lead_specialist";
+  const isSalesRep   = role === "sales_rep";
+  const hasAnalytics = role === "sales_rep" || role === "team_lead";
+  const initials     = (user.name ?? user.email).slice(0, 2).toUpperCase();
+  const joinedLabel  = user.createdAt.toLocaleDateString("en-US", { month: "long", year: "numeric" });
 
   const earned = allBadges.filter((b) => b.earned);
   const locked  = allBadges.filter((b) => !b.earned);
@@ -117,7 +118,7 @@ export function ProfileView({
   const totalEarned  = earnedComms.reduce((s, r) => s + r.amount, 0);
   const totalPending = pendingComms.reduce((s, r) => s + r.amount, 0);
 
-  const tabs = isSalesRep ? TABS_SALES_REP : TABS_OTHER;
+  const tabs = isSalesRep ? TABS_SALES_REP : hasAnalytics ? TABS_TEAM_LEAD : [];
   const [activeTab, setActiveTab] = useState<string>("overview");
 
   const monthTrend = calcTrend(stats.callsThisMonth, stats.callsLastMonth);
@@ -137,14 +138,13 @@ export function ProfileView({
         </div>
 
         <div className="px-6 pb-5 relative">
-          <div className="flex flex-col sm:flex-row sm:items-end justify-between -mt-9 mb-4 gap-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between -mt-9 mb-4 gap-3">
             <div className={cn("h-[72px] w-[72px] rounded-full border-4 border-card flex items-center justify-center text-xl font-black shadow-md shrink-0", ROLE_AVATAR[role] ?? ROLE_AVATAR.lead_specialist)}>
               {initials}
             </div>
             {!isOwn && (
               <div className="flex gap-2 sm:pb-1">
-                <button className="rounded-lg bg-foreground text-background text-sm font-bold px-4 py-1.5 hover:opacity-80 transition-opacity">Follow</button>
-                <button className="rounded-lg border border-border text-sm font-semibold px-4 py-1.5 hover:bg-muted/40 transition-colors">Message</button>
+                <button className="rounded-lg border bg-white border-border text-sm font-semibold px-4 py-1.5 hover:bg-muted/40 transition-colors">Message</button>
               </div>
             )}
           </div>
@@ -153,37 +153,43 @@ export function ProfileView({
           <p className="text-sm text-muted-foreground">{ROLE_LABELS[role] ?? role} · DataForge</p>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground mt-1.5">
             <span className="flex items-center gap-1"><CalendarDays className="h-3 w-3" /> Joined {joinedLabel}</span>
-            <span className="flex items-center gap-1"><Star className="h-3 w-3 text-amber-500" /> {user.points.toLocaleString()} points</span>
-            <span className="flex items-center gap-1"><Phone className="h-3 w-3" /> {stats.totalCalls.toLocaleString()} total calls</span>
-            {earned.length > 0 && (
-              <span className="flex items-center gap-1"><Medal className="h-3 w-3 text-violet-500" /> {earned.length} badge{earned.length !== 1 ? "s" : ""}</span>
+            {hasAnalytics && (
+              <>
+                <span className="flex items-center gap-1"><Star className="h-3 w-3 text-amber-500" /> {user.points.toLocaleString()} points</span>
+                <span className="flex items-center gap-1"><Phone className="h-3 w-3" /> {stats.totalCalls.toLocaleString()} total calls</span>
+                {earned.length > 0 && (
+                  <span className="flex items-center gap-1"><Medal className="h-3 w-3 text-violet-500" /> {earned.length} badge{earned.length !== 1 ? "s" : ""}</span>
+                )}
+              </>
             )}
           </div>
         </div>
 
-        {/* Tab bar */}
-        <div className="flex items-center gap-0 border-t border-border/40 px-2">
-          {tabs.map(({ key, label, icon: Icon }) => (
-            <button
-              key={key}
-              onClick={() => setActiveTab(key)}
-              className={cn(
-                "flex items-center gap-1.5 px-4 py-3 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap",
-                activeTab === key
-                  ? "border-violet-500 text-violet-600"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
-              )}
-            >
-              <Icon className="h-3.5 w-3.5" />
-              {label}
-            </button>
-          ))}
-        </div>
+        {/* Tab bar — only for analytics-eligible roles */}
+        {hasAnalytics && (
+          <div className="flex items-center gap-0 border-t border-border/40 px-2">
+            {tabs.map(({ key, label, icon: Icon }) => (
+              <button
+                key={key}
+                onClick={() => setActiveTab(key)}
+                className={cn(
+                  "flex items-center gap-1.5 px-4 py-3 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap",
+                  activeTab === key
+                    ? "border-violet-500 text-violet-600"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* ── OVERVIEW TAB ──────────────────────────────────────────────────── */}
-      {activeTab === "overview" && (
-        <div className={cn("gap-4", isSalesRep && rankings ? "grid grid-cols-1 lg:grid-cols-[1fr_280px]" : "flex flex-col")}>
+      {hasAnalytics && activeTab === "overview" && (
+        <div className={cn("gap-4", isSalesRep && rankings ? "grid grid-cols-1 lg:grid-cols-[1fr_280px]" : "flex flex-col min-w-0")}>
 
           {/* Left / main column */}
           <div className="space-y-4 min-w-0">
@@ -474,7 +480,7 @@ export function ProfileView({
       )}
 
       {/* ── BADGES TAB ────────────────────────────────────────────────────── */}
-      {activeTab === "badges" && (
+      {hasAnalytics && activeTab === "badges" && (
         <div className="space-y-4">
 
           {/* Summary */}
@@ -561,7 +567,7 @@ export function ProfileView({
       )}
 
       {/* ── COMMISSIONS TAB (sales rep only) ─────────────────────────────── */}
-      {activeTab === "commissions" && isSalesRep && (
+      {hasAnalytics && activeTab === "commissions" && isSalesRep && (
         <div className="space-y-4">
 
           {/* Summary cards */}

@@ -139,12 +139,10 @@ export default function LeadsGlobeInner({ points }: Props) {
         circle.events.on("click", function (ev: any) {
           const data = ev.target.dataItem?.dataContext as { long: number; lat: number } | undefined;
           if (!data) return;
-          dotClicked = true;
           rotationAnimation?.stop();
           chart.animate({ key: "rotationX", to: -data.long, duration: 1000, easing: am5.ease.out(am5.ease.cubic) });
           chart.animate({ key: "rotationY", to: -data.lat,  duration: 1000, easing: am5.ease.out(am5.ease.cubic) });
           chart.animate({ key: "zoomLevel", to: 1.8,        duration: 1000, easing: am5.ease.out(am5.ease.cubic) });
-          setTimeout(() => { dotClicked = false; }, 1200);
         });
 
         return am5.Bullet.new(root!, { sprite: circle });
@@ -166,36 +164,51 @@ export default function LeadsGlobeInner({ points }: Props) {
       });
 
       let rotationAnimation = startRotation();
-      let dotClicked = false;
+      let isHovered = false;
 
       const RESET_MS = 1400;
       const resetInactivityTimer = () => {
         if (inactivityTimer) clearTimeout(inactivityTimer);
         inactivityTimer = setTimeout(() => {
-          // Pan back to center, reset zoom, then start rotation once animation settles
+          // Pan back to center, reset zoom, then resume rotation (only if not hovered)
           rotationAnimation?.stop();
           chart.animate({ key: "zoomLevel",  to: 1, duration: RESET_MS, easing: am5.ease.out(am5.ease.cubic) });
           chart.animate({ key: "rotationX",  to: 0, duration: RESET_MS, easing: am5.ease.out(am5.ease.cubic) });
           chart.animate({ key: "rotationY",  to: 0, duration: RESET_MS, easing: am5.ease.out(am5.ease.cubic) });
           setTimeout(() => {
-            rotationAnimation = chart.animate({
-              key: "rotationX",
-              from: 0,
-              to: 360,
-              duration: 60000,
-              loops: Infinity,
-            });
+            if (!isHovered) {
+              rotationAnimation = chart.animate({
+                key: "rotationX",
+                from: 0,
+                to: 360,
+                duration: 60000,
+                loops: Infinity,
+              });
+            }
           }, RESET_MS + 50);
         }, 30000);
       };
 
+      // Hover: pause on enter, resume on leave
+      chartRef.current!.addEventListener("mouseenter", () => {
+        isHovered = true;
+        rotationAnimation?.stop();
+      });
+
+      chartRef.current!.addEventListener("mouseleave", () => {
+        isHovered = false;
+        rotationAnimation = startRotation();
+        resetInactivityTimer();
+      });
+
+      // Drag: stop spin while dragging, resume when released (unless still hovered — already paused)
       chart.chartContainer.events.on("pointerdown", () => {
         rotationAnimation?.stop();
         resetInactivityTimer();
       });
 
       chart.chartContainer.events.on("pointerup", () => {
-        if (dotClicked) return;
+        if (isHovered) return;
         rotationAnimation = startRotation();
         resetInactivityTimer();
       });

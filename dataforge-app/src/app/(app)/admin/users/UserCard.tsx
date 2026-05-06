@@ -1,9 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { Phone, Settings, MoreHorizontal } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { MoreHorizontal } from "lucide-react";
 import { ROLE_LABELS, type Role } from "@/lib/rbac/roles";
-import { UserDetailModal } from "./UserDetailModal";
 
 export type UserData = {
   id: string;
@@ -48,32 +47,25 @@ interface Props {
 }
 
 export function UserCard({ user: u, actorRole, currentUserId }: Props) {
-  const [modalOpen, setModalOpen] = useState(false);
-
-  const isMe      = u.id === currentUserId;
+  const router = useRouter();
+  const isMe   = u.id === currentUserId;
   const initial   = (u.name ?? u.email)[0].toUpperCase();
   const shortId   = `Emp-${u.id.slice(0, 6).toUpperCase()}`;
   const colors    = ROLE_COLORS[u.role] ?? ROLE_COLORS["lead_specialist"];
   const roleLabel = ROLE_LABELS[u.role as Role] ?? u.role;
 
   return (
-    <>
-      <div
-        className="rounded-2xl bg-white dark:bg-card border border-border/60 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden cursor-pointer group"
-        onClick={() => setModalOpen(true)}
-      >
-        {/* Top row: "you" badge + three-dot */}
-        <div className="flex items-center justify-between px-3 pt-3 min-h-[28px]">
-          {isMe ? (
-            <span className="text-[10px] font-bold text-primary bg-primary/10 rounded-full px-2 py-0.5">You</span>
-          ) : <span />}
-          <button
-            onClick={(e) => { e.stopPropagation(); setModalOpen(true); }}
-            className="h-6 w-6 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted/60 transition-colors opacity-0 group-hover:opacity-100"
-          >
-            <MoreHorizontal className="h-3.5 w-3.5" />
-          </button>
-        </div>
+    <div
+      className="rounded-2xl bg-white dark:bg-card border border-border/60 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden cursor-pointer group"
+      onClick={() => router.push(`/admin/users/${u.id}`)}
+    >
+      {/* Top row: "you" badge + arrow hint */}
+      <div className="flex items-center justify-between px-3 pt-3 min-h-[28px]">
+        {isMe ? (
+          <span className="text-[10px] font-bold text-primary bg-primary/10 rounded-full px-2 py-0.5">You</span>
+        ) : <span />}
+        <MoreHorizontal className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+      </div>
 
         {/* Avatar */}
         <div className="flex flex-col items-center px-4 pb-5 gap-3">
@@ -108,7 +100,7 @@ export function UserCard({ user: u, actorRole, currentUserId }: Props) {
                   <p className="text-[11px] font-semibold tabular-nums">{u._count.savedLeads}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] text-muted-foreground">Calls</p>
+                  <p className="text-[10px] text-muted-foreground">Calls / Mo</p>
                   <p className="text-[11px] font-semibold tabular-nums">{u._count.callLogs}</p>
                 </div>
                 <div>
@@ -119,24 +111,6 @@ export function UserCard({ user: u, actorRole, currentUserId }: Props) {
             )}
           </div>
         </div>
-      </div>
-
-      {modalOpen && (
-        <UserDetailModal
-          user={u}
-          actorRole={actorRole}
-          isCurrentUser={isMe}
-          sectionStyle={{
-            title: roleLabel,
-            tag: roleLabel,
-            tagClass: `${colors.bg} ${colors.text}`,
-            avatarClass: `${colors.bg} ${colors.text}`,
-            pill1: `${colors.bg} ${colors.text}`,
-            pill2: `${colors.bg} ${colors.text}`,
-          }}
-          onClose={() => setModalOpen(false)}
-        />
-      )}
-    </>
+    </div>
   );
 }

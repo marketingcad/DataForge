@@ -1,3 +1,4 @@
+import { Users, Phone, BarChart2, CalendarCheck, Trophy } from "lucide-react";
 import { withDbRetry } from "@/lib/prisma";
 import {
   getTeamSummary,
@@ -90,7 +91,7 @@ export async function BossDashboard({ period = "week", metric = "appts_set" }: {
       sub:    "Sales reps",
       accent: "bg-violet-500",
       num:    "text-violet-600 dark:text-violet-400",
-      icon:   "👥",
+      icon:   <Users className="h-5 w-5 text-violet-500" />,
     },
     {
       label:  `Calls ${periodLabel}`,
@@ -98,7 +99,7 @@ export async function BossDashboard({ period = "week", metric = "appts_set" }: {
       sub:    "Team total",
       accent: "bg-blue-500",
       num:    "text-blue-600 dark:text-blue-400",
-      icon:   "📞",
+      icon:   <Phone className="h-5 w-5 text-blue-500" />,
     },
     {
       label:  "Avg Calls / Agent",
@@ -106,7 +107,7 @@ export async function BossDashboard({ period = "week", metric = "appts_set" }: {
       sub:    `${periodLabel} average`,
       accent: "bg-amber-500",
       num:    "text-amber-600 dark:text-amber-400",
-      icon:   "📊",
+      icon:   <BarChart2 className="h-5 w-5 text-amber-500" />,
     },
     {
       label:  "Appts Set",
@@ -114,7 +115,7 @@ export async function BossDashboard({ period = "week", metric = "appts_set" }: {
       sub:    "GHL opportunities",
       accent: "bg-sky-500",
       num:    "text-sky-600 dark:text-sky-400",
-      icon:   "📅",
+      icon:   <CalendarCheck className="h-5 w-5 text-sky-500" />,
     },
     {
       label:  "Deals Won",
@@ -122,7 +123,7 @@ export async function BossDashboard({ period = "week", metric = "appts_set" }: {
       sub:    "All time total",
       accent: "bg-rose-500",
       num:    "text-rose-600 dark:text-rose-400",
-      icon:   "🏆",
+      icon:   <Trophy className="h-5 w-5 text-rose-500" />,
     },
   ];
 
@@ -150,11 +151,11 @@ export async function BossDashboard({ period = "week", metric = "appts_set" }: {
       </div>
 
       {/* ── KPI tiles — 3 cols on md, 6 cols on xl ── */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
         {kpis.map((k) => (
           <div key={k.label} className="rounded-2xl bg-card shadow-sm border border-border/40 p-4 space-y-3 hover:border-border/80 transition-colors">
             <div className="flex items-center justify-between">
-              <p className="text-lg leading-none">{k.icon}</p>
+              {k.icon}
               <div className={`h-1.5 w-8 rounded-full ${k.accent} opacity-70`} />
             </div>
             <p className={`text-3xl font-black tabular-nums leading-none ${k.num}`}>

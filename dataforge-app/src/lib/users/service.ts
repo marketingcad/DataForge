@@ -11,6 +11,9 @@ export async function getUserById(id: string) {
 }
 
 export async function getUsers() {
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
   return prisma.user.findMany({
     orderBy: { createdAt: "asc" },
     select: {
@@ -23,7 +26,7 @@ export async function getUsers() {
       createdAt: true,
       _count: {
         select: {
-          callLogs:   true,
+          callLogs:   { where: { calledAt: { gte: startOfMonth } } },
           userBadges: true,
           savedLeads: true,
         },

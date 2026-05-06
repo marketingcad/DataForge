@@ -147,6 +147,46 @@ export async function deleteUserAction(targetUserId: string) {
   revalidatePath("/admin/users");
 }
 
+export async function banUserAction(targetUserId: string, reason: string) {
+  const actor = await requireRole("boss", "admin");
+  if (actor.id === targetUserId) throw new Error("You cannot ban yourself.");
+  const target = await prisma.user.findUnique({ where: { id: targetUserId }, select: { role: true } });
+  if (!target) throw new Error("User not found.");
+  if (!canCreateRole(actor.role as Role, target.role as Role)) throw new Error("You do not have permission to ban this user.");
+  await prisma.user.update({
+    where: { id: targetUserId },
+    data: { isBanned: true, bannedUntil: null, banReason: reason.trim() || null },
+  });
+  revalidatePath(`/admin/users/${targetUserId}`);
+  revalidatePath("/admin/users");
+}
+
+export async function suspendUserAction(targetUserId: string, until: Date, reason: string) {
+  const actor = await requireRole("boss", "admin");
+  if (actor.id === targetUserId) throw new Error("You cannot suspend yourself.");
+  const target = await prisma.user.findUnique({ where: { id: targetUserId }, select: { role: true } });
+  if (!target) throw new Error("User not found.");
+  if (!canCreateRole(actor.role as Role, target.role as Role)) throw new Error("You do not have permission to suspend this user.");
+  if (until <= new Date()) throw new Error("Suspension end date must be in the future.");
+  await prisma.user.update({
+    where: { id: targetUserId },
+    data: { isBanned: true, bannedUntil: until, banReason: reason.trim() || null },
+  });
+  revalidatePath(`/admin/users/${targetUserId}`);
+  revalidatePath("/admin/users");
+}
+
+export async function unbanUserAction(targetUserId: string) {
+  const actor = await requireRole("boss", "admin");
+  if (actor.id === targetUserId) throw new Error("You cannot unban yourself.");
+  await prisma.user.update({
+    where: { id: targetUserId },
+    data: { isBanned: false, bannedUntil: null, banReason: null },
+  });
+  revalidatePath(`/admin/users/${targetUserId}`);
+  revalidatePath("/admin/users");
+}
+
 export async function getUserDetailAction(userId: string) {
   await requireRole("boss", "admin");
   return withDbRetry(async () => {

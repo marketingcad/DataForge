@@ -47,16 +47,33 @@ export const getTeamSummary = unstable_cache(async function getTeamSummary() {
   const yesterdayStart = new Date(now); yesterdayStart.setDate(now.getDate() - 1); yesterdayStart.setHours(0, 0, 0, 0);
   const yesterdayEnd   = new Date(now); yesterdayEnd.setDate(now.getDate() - 1);   yesterdayEnd.setHours(23, 59, 59, 999);
 
-  const [agentCount, callsToday, callsYesterday, callsThisWeek, callsThisMonth, callsAllTime, teamApptsSet, teamWon] = await Promise.all([
-    prisma.user.count({ where: { role: MARKETING_ROLES } }),
-    prisma.callLog.count({ where: { calledAt: { gte: startOfDay },                          agent: { role: MARKETING_ROLES } } }),
-    prisma.callLog.count({ where: { calledAt: { gte: yesterdayStart, lte: yesterdayEnd },   agent: { role: MARKETING_ROLES } } }),
-    prisma.callLog.count({ where: { calledAt: { gte: startOfWeek },                         agent: { role: MARKETING_ROLES } } }),
-    prisma.callLog.count({ where: { calledAt: { gte: startOfMonth },                        agent: { role: MARKETING_ROLES } } }),
-    prisma.callLog.count({ where: {                                                          agent: { role: MARKETING_ROLES } } }),
-    prisma.bookedAppointment.count({ where: { agent: { role: MARKETING_ROLES } } }),
-    prisma.ghlOpportunity.count({ where: { agent: { role: MARKETING_ROLES }, status: "won" } }),
+  // Single raw query for all call counts — avoids firing 5 parallel callLog queries
+  // that previously exhausted the connection pool and caused ETIMEDOUT.
+  type CallCounts = { today: bigint; yesterday: bigint; week: bigint; month: bigint; all_time: bigint };
+  const [[callCounts], [agentCount, teamApptsSet, teamWon]] = await Promise.all([
+    prisma.$queryRaw<CallCounts[]>`
+      SELECT
+        COUNT(*) FILTER (WHERE cl."calledAt" >= ${startOfDay})                                              AS today,
+        COUNT(*) FILTER (WHERE cl."calledAt" >= ${yesterdayStart} AND cl."calledAt" <= ${yesterdayEnd})     AS yesterday,
+        COUNT(*) FILTER (WHERE cl."calledAt" >= ${startOfWeek})                                             AS week,
+        COUNT(*) FILTER (WHERE cl."calledAt" >= ${startOfMonth})                                            AS month,
+        COUNT(*)                                                                                             AS all_time
+      FROM "CallLog" cl
+      JOIN "User"    u  ON cl."agentId" = u."id"
+      WHERE u."role" IN ('sales_rep', 'team_lead')
+    `,
+    Promise.all([
+      prisma.user.count({ where: { role: MARKETING_ROLES } }),
+      prisma.bookedAppointment.count({ where: { agent: { role: MARKETING_ROLES } } }),
+      prisma.ghlOpportunity.count({ where: { agent: { role: MARKETING_ROLES }, status: "won" } }),
+    ]),
   ]);
+
+  const callsToday     = Number(callCounts.today);
+  const callsYesterday = Number(callCounts.yesterday);
+  const callsThisWeek  = Number(callCounts.week);
+  const callsThisMonth = Number(callCounts.month);
+  const callsAllTime   = Number(callCounts.all_time);
 
   return { agentCount, callsToday, callsYesterday, callsThisWeek, callsThisMonth, callsAllTime, teamApptsSet, teamWon };
 }, ["team-summary"], { revalidate: 120, tags: ["marketing"] });
