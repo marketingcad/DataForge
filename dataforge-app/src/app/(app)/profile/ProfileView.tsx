@@ -151,6 +151,7 @@ export function ProfileView({
 
           <h1 className="text-xl font-black tracking-tight">{user.name ?? user.email}</h1>
           <p className="text-sm text-muted-foreground">{ROLE_LABELS[role] ?? role} · DataForge</p>
+          <p className="text-xs text-muted-foreground/70 mt-0.5">{user.email}</p>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground mt-1.5">
             <span className="flex items-center gap-1"><CalendarDays className="h-3 w-3" /> Joined {joinedLabel}</span>
             {hasAnalytics && (
