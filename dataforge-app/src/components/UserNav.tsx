@@ -36,7 +36,7 @@ export function UserNav({ name, email }: UserNavProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        render={<Button variant="ghost" className="flex items-center gap-2 px-2 py-1.5 h-auto hover:bg-accent rounded-lg" />}
+        render={<Button variant="ghost" className="flex items-center gap-2 px-2 py-1.5 h-auto hover:bg-accent rounded-lg" suppressHydrationWarning />}
       >
         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-semibold">
           {initials}
