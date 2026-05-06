@@ -17,6 +17,7 @@ import {
 import { TaskCard } from "../TaskCard";
 import { Phone, Clock, Flame, ArrowRight, BookmarkCheck, Users } from "lucide-react";
 import Link from "next/link";
+import { Suspense } from "react";
 import { AppointmentsModalButton } from "@/components/marketing/AppointmentsModal";
 import { AgentRadarChart } from "@/components/marketing/AgentRadarChart";
 import { RepPerformanceChart } from "@/components/marketing/RepPerformanceChart";
@@ -388,11 +389,13 @@ export async function AgentDashboard({ userId }: Props) {
           <p className="text-sm font-bold">Team Leaderboard</p>
           <span className="text-xs text-muted-foreground">This week · appointments set</span>
         </div>
-        <LeaderboardClientWrapper
-          initialLeaderboard={leaderboard}
-          initialPeriod="week"
-          initialMetric="appts_set"
-        />
+        <Suspense fallback={<div className="rounded-3xl border bg-card h-40 flex items-center justify-center text-sm text-muted-foreground">Loading leaderboard…</div>}>
+          <LeaderboardClientWrapper
+            initialLeaderboard={leaderboard}
+            initialPeriod="week"
+            initialMetric="appts_set"
+          />
+        </Suspense>
       </div>
 
       {/* ── Balloon Pop Feed ── */}
