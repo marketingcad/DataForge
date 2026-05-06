@@ -149,6 +149,7 @@ function buildSections(role: Role): NavSection[] {
         },
       ];
 
+    case "team_lead":
     case "sales_rep":
       return [
         {
@@ -163,39 +164,6 @@ function buildSections(role: Role): NavSection[] {
             { href: "/marketing/my-leads",     label: "My Leads",       icon: Users        },
             { href: "/my-commissions",         label: "My Commissions", icon: DollarSign   },
             { href: "/balloons",               label: "Balloon Pop",    icon: Sparkles     },
-          ],
-        },
-        {
-          title: "Workspace",
-          items: [
-            { href: "/kanban",   label: "Kanban",      icon: LayoutGrid   },
-            { href: "/calendar", label: "Calendar",    icon: CalendarDays },
-            { href: "/feedback", label: "Bug Reports", icon: Bug          },
-          ],
-        },
-        {
-          title: "Account",
-          items: [
-            { href: "/profile", label: "My Profile", icon: UserCircle },
-          ],
-        },
-      ];
-
-    case "team_lead":
-      return [
-        {
-          items: [
-            { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-          ],
-        },
-        {
-          title: "Marketing Department",
-          items: [
-            { href: "/marketing",                     label: "Marketing",     icon: Megaphone    },
-            { href: "/marketing/manage/badges",       label: "Badges",        icon: Settings     },
-            { href: "/marketing/manage/tasks",        label: "Challenges",    icon: Settings     },
-            { href: "/marketing/manage/commissions",  label: "Commissions",   icon: UserCog      },
-            { href: "/balloons",                      label: "Balloon Pop",   icon: Sparkles     },
           ],
         },
         {

@@ -37,11 +37,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
-    jwt({ token, user }) {
+    async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
-        // Carry role into the JWT so middleware can read it without a DB call
-        token.role = (user as unknown as Record<string, unknown>).role as string ?? "lead_specialist";
+      }
+      // Always refresh role from DB so changes take effect without re-login
+      if (token.id) {
+        const fresh = await prisma.user.findUnique({
+          where: { id: token.id as string },
+          select: { role: true },
+        });
+        token.role = fresh?.role ?? "lead_specialist";
       }
       return token;
     },

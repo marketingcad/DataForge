@@ -25,6 +25,7 @@ import {
   DollarSign,
   Globe,
   Wand2,
+  Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Role } from "@/lib/rbac/roles";
@@ -97,41 +98,17 @@ function buildSections(role: Role): Section[] {
         },
       ];
 
+    case "team_lead":
     case "sales_rep":
       return [
         { items: [{ label: "Dashboard", href: "/dashboard", icon: LayoutDashboard }] },
         {
           title: "Marketing",
           items: [
-            { label: "Marketing",      icon: Megaphone, sub: marketingSub                 },
-            { label: "My Leads",       href: "/marketing/my-leads", icon: Bookmark        },
-          ],
-        },
-        {
-          title: "Workspace",
-          items: [
-            { label: "Kanban",      href: "/kanban",   icon: LayoutGrid   },
-            { label: "Calendar",    href: "/calendar", icon: CalendarDays },
-            { label: "Reports",     href: "/reports",  icon: BarChart2    },
-            { label: "Bug Reports", href: "/feedback", icon: Bug          },
-          ],
-        },
-        {
-          title: "Account",
-          items: [
-            { label: "My Profile", href: "/profile", icon: UserCircle },
-          ],
-        },
-      ];
-
-    case "team_lead":
-      return [
-        { items: [{ label: "Dashboard", href: "/dashboard", icon: LayoutDashboard }] },
-        {
-          title: "Leads",
-          items: [
-            { label: "Leads",    href: "/leads",   icon: Users      },
-            { label: "Scraping", icon: ScanSearch, sub: scrapingSub },
+            { label: "Marketing",      icon: Megaphone,  sub: marketingSub                      },
+            { label: "My Leads",       href: "/marketing/my-leads",    icon: Bookmark            },
+            { label: "My Commissions", href: "/my-commissions",        icon: DollarSign          },
+            { label: "Balloon Pop",    href: "/balloons",              icon: Sparkles            },
           ],
         },
         {
