@@ -7,7 +7,9 @@ import { prisma } from "@/lib/prisma";
 import type { Role } from "@/lib/rbac/roles";
 
 export async function getUserById(id: string) {
-  return prisma.user.findUniqueOrThrow({ where: { id } });
+  const user = await prisma.user.findUnique({ where: { id } });
+  if (!user) throw new Error("Unauthenticated");
+  return user;
 }
 
 export async function getUsers() {
