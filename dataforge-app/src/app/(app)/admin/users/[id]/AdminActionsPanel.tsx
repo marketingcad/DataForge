@@ -26,6 +26,7 @@ type ActiveModal =
 interface Props {
   userId: string;
   userName: string | null;
+  userEmail: string;
   userRole: string;
   userNickname: string | null;
   actorRole: Role;

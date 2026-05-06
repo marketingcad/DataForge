@@ -70,6 +70,7 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
       <AdminActionsPanel
         userId={id}
         userName={user.name}
+        userEmail={user.email}
         userRole={userRole}
         userNickname={user.nickname}
         actorRole={actorRole}
