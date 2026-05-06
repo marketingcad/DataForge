@@ -14,6 +14,7 @@ import {
   Bug,
   Settings,
   DollarSign,
+  Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { type Role } from "@/lib/rbac/roles";
@@ -88,8 +89,9 @@ function buildSections(role: Role): NavSection[] {
         {
           title: "Administration",
           items: [
-            { href: "/admin/users", label: "Manage Users", icon: UserCog },
-            { href: "/settings",    label: "Settings",     icon: Settings },
+            { href: "/admin/users",    label: "Manage Users",   icon: UserCog  },
+            { href: "/admin/balloons", label: "Balloon Pop",    icon: Sparkles },
+            { href: "/settings",       label: "Settings",       icon: Settings },
           ],
         },
         {
@@ -135,7 +137,8 @@ function buildSections(role: Role): NavSection[] {
         {
           title: "Administration",
           items: [
-            { href: "/admin/users", label: "Manage Users", icon: UserCog },
+            { href: "/admin/users",    label: "Manage Users", icon: UserCog  },
+            { href: "/admin/balloons", label: "Balloon Pop",  icon: Sparkles },
           ],
         },
         {
@@ -159,6 +162,7 @@ function buildSections(role: Role): NavSection[] {
             { href: "/marketing",              label: "Marketing",      icon: Megaphone    },
             { href: "/marketing/my-leads",     label: "My Leads",       icon: Users        },
             { href: "/my-commissions",         label: "My Commissions", icon: DollarSign   },
+            { href: "/balloons",               label: "Balloon Pop",    icon: Sparkles     },
           ],
         },
         {
@@ -191,6 +195,7 @@ function buildSections(role: Role): NavSection[] {
             { href: "/marketing/manage/badges",       label: "Badges",        icon: Settings     },
             { href: "/marketing/manage/tasks",        label: "Challenges",    icon: Settings     },
             { href: "/marketing/manage/commissions",  label: "Commissions",   icon: UserCog      },
+            { href: "/balloons",                      label: "Balloon Pop",   icon: Sparkles     },
           ],
         },
         {

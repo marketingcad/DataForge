@@ -16,6 +16,14 @@ export async function addManualAppointment(data: {
     throw new Error("Unauthorized");
   }
 
+  const existing = await prisma.bookedAppointment.findFirst({
+    where: {
+      clientPhone: data.clientPhone?.trim() || "",
+      bookedAt: new Date(data.bookedAt),
+    },
+    select: { id: true },
+  });
+
   await prisma.bookedAppointment.upsert({
     where: {
       clientPhone_bookedAt: {
@@ -39,6 +47,14 @@ export async function addManualAppointment(data: {
       createdById: user.id,
     },
   });
+
+  // Award 1 balloon point to the agent on new appointment only
+  if (!existing) {
+    const agent = await prisma.user.findUnique({ where: { id: data.agentId }, select: { role: true } });
+    if (agent && ["sales_rep", "team_lead"].includes(agent.role)) {
+      await prisma.user.update({ where: { id: data.agentId }, data: { balloonPoints: { increment: 1 } } });
+    }
+  }
 
   revalidatePath("/marketing");
 }

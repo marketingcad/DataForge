@@ -129,6 +129,24 @@ model User {
   sessions             Session[]
   taskProgress         TaskProgress[]
   userBadges           UserBadge[]
+  balloonPoints         Int       @default(0)
+  balloonSuspendedUntil DateTime?
+  balloons              Balloon[]
+}
+
+model Balloon {
+  id         String    @id @default(uuid())
+  position   Int       @unique
+  prize      String    @default("")
+  isPopped   Boolean   @default(false)
+  poppedById String?
+  poppedAt   DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  poppedBy   User?     @relation(fields: [poppedById], references: [id], onDelete: SetNull)
+
+  @@index([position])
+  @@index([poppedById])
 }
 
 model CallLog {

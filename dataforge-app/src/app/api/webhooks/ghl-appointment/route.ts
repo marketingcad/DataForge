@@ -82,16 +82,23 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, skipped: true, reason: "Duplicate — already recorded", agent: matched.name });
   }
 
-  await prisma.bookedAppointment.create({
-    data: {
-      agentId:     matched.id,
-      clientName,
-      clientPhone,
-      bookedAt,
-      source:      "webhook",
-      ghlId,
-    },
-  });
+  const agent = await prisma.user.findUnique({ where: { id: matched.id }, select: { role: true } });
+
+  await prisma.$transaction([
+    prisma.bookedAppointment.create({
+      data: {
+        agentId:     matched.id,
+        clientName,
+        clientPhone,
+        bookedAt,
+        source:      "webhook",
+        ghlId,
+      },
+    }),
+    ...(agent && ["sales_rep", "team_lead"].includes(agent.role)
+      ? [prisma.user.update({ where: { id: matched.id }, data: { balloonPoints: { increment: 1 } } })]
+      : []),
+  ]);
 
     revalidatePath("/marketing");
     return NextResponse.json({ ok: true, agent: matched.name, clientName, bookedAt });

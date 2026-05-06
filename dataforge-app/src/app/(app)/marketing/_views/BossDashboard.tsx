@@ -22,6 +22,7 @@ import { AgentRadarChart } from "@/components/marketing/AgentRadarChart";
 import { RepPerformanceChart } from "@/components/marketing/RepPerformanceChart";
 import { PeriodToggle, type Period } from "@/components/marketing/PeriodToggle";
 import { MetricToggle, type Metric, METRIC_LABELS } from "@/components/marketing/MetricToggle";
+import { BalloonPopFeed } from "@/components/marketing/BalloonPopFeed";
 
 const PERIOD_LABELS: Record<Period, string> = {
   yesterday: "Yesterday",
@@ -176,8 +177,8 @@ export async function BossDashboard({ period = "week", metric = "appts_set" }: {
         initialMetric={metric}
       />
 
-      {/* ── Chart + Active challenges ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+      {/* ── Chart + Active challenges + Balloon feed ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-5">
         <div className="lg:col-span-2">
           <CallVolumeChart
             data={volumeData}
@@ -210,6 +211,8 @@ export async function BossDashboard({ period = "week", metric = "appts_set" }: {
             }
           </div>
         </div>
+
+        <BalloonPopFeed />
       </div>
 
       {/* ── Rep performance line charts ── */}
