@@ -1,0 +1,25 @@
+[    1478ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3000/_next/static/chunks/ddd51_next_dist_c882c940._.js:2297
+[    1573ms] [LOG] [HMR] connected @ http://localhost:3000/_next/static/chunks/ddd51_next_dist_c882c940._.js:2297
+[  377493ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/ddd51_next_dist_c882c940._.js:2297
+[  377642ms] [LOG] [Fast Refresh] done in 258ms @ http://localhost:3000/_next/static/chunks/ddd51_next_dist_c882c940._.js:2297
+[  797771ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=ZfPg3EudTEJelcbykk2ka' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/ddd51_next_dist_client_004b7a95._.js:10878
+[  799789ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=ZfPg3EudTEJelcbykk2ka' failed: Connection closed before receiving a handshake response @ http://localhost:3000/_next/static/chunks/ddd51_next_dist_client_004b7a95._.js:10878
+[  801814ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=ZfPg3EudTEJelcbykk2ka' failed: Connection closed before receiving a handshake response @ http://localhost:3000/_next/static/chunks/ddd51_next_dist_client_004b7a95._.js:10878
+[  804113ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=ZfPg3EudTEJelcbykk2ka' failed: Connection closed before receiving a handshake response @ http://localhost:3000/_next/static/chunks/ddd51_next_dist_client_004b7a95._.js:10878
+[  805131ms] [LOG] [HMR] connected @ http://localhost:3000/_next/static/chunks/ddd51_next_dist_c882c940._.js:2297
+[  805958ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3000/_next/static/chunks/ddd51_next_dist_c882c940._.js:2297
+[  805983ms] [LOG] [HMR] connected @ http://localhost:3000/_next/static/chunks/ddd51_next_dist_c882c940._.js:2297
+[  881384ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/ddd51_next_dist_c882c940._.js:2297
+[  881721ms] [LOG] [Fast Refresh] done in 450ms @ http://localhost:3000/_next/static/chunks/ddd51_next_dist_c882c940._.js:2297
+[  883969ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/ddd51_next_dist_c882c940._.js:2297
+[  884251ms] [LOG] [Fast Refresh] done in 397ms @ http://localhost:3000/_next/static/chunks/ddd51_next_dist_c882c940._.js:2297
+[  896811ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/ddd51_next_dist_c882c940._.js:2297
+[  896961ms] [LOG] [Fast Refresh] done in 259ms @ http://localhost:3000/_next/static/chunks/ddd51_next_dist_c882c940._.js:2297
+[  911007ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/ddd51_next_dist_c882c940._.js:2297
+[  911111ms] [LOG] [Fast Refresh] done in 211ms @ http://localhost:3000/_next/static/chunks/ddd51_next_dist_c882c940._.js:2297
+[  969636ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/ddd51_next_dist_c882c940._.js:2297
+[  970066ms] [LOG] [Fast Refresh] done in 539ms @ http://localhost:3000/_next/static/chunks/ddd51_next_dist_c882c940._.js:2297
+[ 1088070ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/ddd51_next_dist_c882c940._.js:2297
+[ 1088377ms] [LOG] [Fast Refresh] done in 342ms @ http://localhost:3000/_next/static/chunks/ddd51_next_dist_c882c940._.js:2297
+[ 1088482ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/ddd51_next_dist_c882c940._.js:2297
+[ 1088647ms] [LOG] [Fast Refresh] done in 266ms @ http://localhost:3000/_next/static/chunks/ddd51_next_dist_c882c940._.js:2297

@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 
-export async function BalloonPopFeed() {
+export async function BalloonPopFeed({ manageHref = "/admin/balloons" }: { manageHref?: string }) {
   const recentPops = await prisma.balloon.findMany({
     where: { isPopped: true },
     orderBy: { poppedAt: "desc" },
@@ -32,10 +32,10 @@ export async function BalloonPopFeed() {
           <p className="text-xs text-muted-foreground mt-0.5">Latest prizes won by the team</p>
         </div>
         <Link
-          href="/admin/balloons"
+          href={manageHref}
           className="text-xs text-primary hover:underline font-medium shrink-0"
         >
-          Manage →
+          {manageHref === "/balloons" ? "Pop →" : "Manage →"}
         </Link>
       </div>
 

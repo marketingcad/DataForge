@@ -1,0 +1,46 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic:
+      - img
+    - generic [ref=e3]:
+      - generic [ref=e4]:
+        - generic [ref=e5]:
+          - img [ref=e7]
+          - generic [ref=e11]: DataForge
+        - generic [ref=e12]:
+          - generic [ref=e13]: Sign in to DataForge
+          - generic [ref=e14]: Enter your credentials to access your workspace.
+      - generic [ref=e15]:
+        - separator [ref=e16]
+        - generic [ref=e17]:
+          - generic [ref=e18]:
+            - generic [ref=e19]: Email address
+            - textbox "Email address" [ref=e20]:
+              - /placeholder: Enter your email address
+              - text: admin@dataforge.com
+          - generic [ref=e21]:
+            - generic [ref=e22]: Password
+            - generic [ref=e23]:
+              - textbox "Password" [ref=e24]:
+                - /placeholder: ••••••••••••••••
+                - text: admin@dataforge.com
+              - button "Show password" [ref=e25]:
+                - img
+                - generic [ref=e26]: Show password
+          - generic [ref=e27]:
+            - generic [ref=e28]:
+              - checkbox "Remember me" [ref=e29]
+              - checkbox
+              - generic [ref=e30]: Remember me
+            - link "Forgot password?" [ref=e31] [cursor=pointer]:
+              - /url: "#"
+          - button "Sign in to DataForge" [ref=e32]
+        - separator [ref=e33]
+        - generic [ref=e34]:
+          - link "← Back to home" [ref=e35] [cursor=pointer]:
+            - /url: /
+          - paragraph [ref=e36]: © 2026 DataForge. All rights reserved.
+  - region "Notifications alt+T"
+  - button "Open Next.js Dev Tools" [ref=e42] [cursor=pointer]:
+    - img [ref=e43]
+  - alert [ref=e46]

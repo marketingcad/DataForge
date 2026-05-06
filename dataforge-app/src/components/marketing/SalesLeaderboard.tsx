@@ -122,7 +122,7 @@ export function SalesLeaderboard({ leaderboard, metric = "appts_set" }: Props) {
           {podiumSlots.map((slot) => {
             if (!slot.entry) return <div key={slot.rank} className="flex-1" />;
             return (
-              <div key={slot.rank} className="flex-1 flex flex-col items-center">
+              <Link key={slot.rank} href={`/marketing/profile/${slot.entry.id}`} className="flex-1 flex flex-col items-center group">
                 {/* Score pill above avatar */}
                 <div className="flex flex-col items-center gap-1 mb-2">
                   <span className="text-[30px] font-black tabular-nums">{formatMetricValue(slot.entry, metric)}</span>
@@ -147,8 +147,8 @@ export function SalesLeaderboard({ leaderboard, metric = "appts_set" }: Props) {
                     {slot.entry.name?.split(" ")[0] ?? "—"}
                   </p>
                 </div>
-              </div>
-            );
+            </Link>
+          );
           })}
         </div>
       </div>

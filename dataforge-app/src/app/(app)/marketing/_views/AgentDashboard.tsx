@@ -20,6 +20,8 @@ import Link from "next/link";
 import { AppointmentsModalButton } from "@/components/marketing/AppointmentsModal";
 import { AgentRadarChart } from "@/components/marketing/AgentRadarChart";
 import { RepPerformanceChart } from "@/components/marketing/RepPerformanceChart";
+import { LeaderboardClientWrapper } from "@/components/marketing/LeaderboardClientWrapper";
+import { BalloonPopFeed } from "@/components/marketing/BalloonPopFeed";
 
 interface Props {
   userId: string;
@@ -379,6 +381,25 @@ export async function AgentDashboard({ userId }: Props) {
           <Link href="/marketing/profile" className="ml-auto text-xs text-primary hover:underline shrink-0 font-medium">View profile →</Link>
         </div>
       )}
+
+      {/* ── Team Leaderboard ── */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-sm font-bold">Team Leaderboard</p>
+          <span className="text-xs text-muted-foreground">This week · appointments set</span>
+        </div>
+        <LeaderboardClientWrapper
+          initialLeaderboard={leaderboard}
+          initialPeriod="week"
+          initialMetric="appts_set"
+        />
+      </div>
+
+      {/* ── Balloon Pop Feed ── */}
+      <div className="h-80">
+        <BalloonPopFeed manageHref="/balloons" />
+      </div>
+
     </div>
   );
 }
