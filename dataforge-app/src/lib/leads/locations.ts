@@ -197,10 +197,13 @@ export async function getLeadLocations(): Promise<GlobePoint[]> {
       lat = row.latitude;
       lng = row.longitude;
     } else {
-      // Fallback for leads not yet geocoded
+      // Fallback for leads not yet geocoded.
+      // Prefer parsing the raw address string — it contains the full postal address
+      // including the state code, which is more reliable than structured fields that
+      // may be null or incomplete. Only fall back to resolveCoords if address parsing fails.
       const fallback =
-        resolveCoords(row.city, row.state, row.country) ??
-        (row.address ? parseCoordsFromAddress(row.address) : null);
+        (row.address ? parseCoordsFromAddress(row.address) : null) ??
+        resolveCoords(row.city, row.state, row.country);
       if (!fallback) continue;
       [lat, lng] = fallback;
     }
@@ -208,7 +211,8 @@ export async function getLeadLocations(): Promise<GlobePoint[]> {
     const industry = row.folder?.industry ?? null;
     const cat = industry?.name ?? null;
     const color = industry?.color ?? "#ffffff";
-    const label = [row.address, row.city, row.state, row.country].filter(Boolean).join(", ");
+    // Use the address field as-is for the label — it already contains city/state/country.
+    const label = row.address ?? [row.city, row.state, row.country].filter(Boolean).join(", ");
     const key = `${lat.toFixed(4)},${lng.toFixed(4)}:${cat ?? "none"}`;
 
     if (map.has(key)) {
