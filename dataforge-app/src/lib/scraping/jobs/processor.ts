@@ -15,37 +15,64 @@ import { createNotification, createNotificationsForRole } from "@/lib/notificati
 
 const MAX_KEYWORD_FAILURES = 5;
 
-// Words that appear in almost every US location string — not useful for matching.
-const GENERIC_LOCATION_WORDS = new Set(["usa", "us", "united states", "canada", "united kingdom", "uk"]);
+// Generic country labels that appear in almost every US location string and aren't useful for matching.
+const GENERIC_LOCATION_WORDS = new Set(["usa", "us", "united states"]);
+
+// All valid US state + territory abbreviations.
+const US_STATE_ABBRS = new Set([
+  "AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA",
+  "ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK",
+  "OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY","DC","PR","GU","VI",
+]);
 
 /**
  * Returns true if the scraped lead belongs to the keyword's configured location.
- * Prevents leads from other states/countries slipping through Google Maps results.
  *
- * Uses kw.location (the original configured value, e.g. "IL, USA") rather than
- * runLocation (a rotated city like "Chicago, IL, USA") so that a state-wide
- * keyword accepts any city in that state, not just the rotated one.
+ * Uses kw.location (the original configured value, e.g. "IL, USA") not runLocation
+ * (the rotated city) so state-wide keywords accept any city in that state.
+ *
+ * Three tiers:
+ *  1. US state abbreviation → exact match on lead.state; rejects international leads (no state)
+ *  2. City name            → substring match on lead.city
+ *  3. Country / region     → whole-word match on lead.address (avoids "il" matching "manila")
  */
 function leadMatchesLocation(
   lead: { city?: string; state?: string; address?: string },
   kwLocation: string,
 ): boolean {
-  const parts = kwLocation.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
-  // Keep only the meaningful parts — drop generic country labels
-  const significant = parts.filter((p) => p.length > 1 && !GENERIC_LOCATION_WORDS.has(p));
-  if (significant.length === 0) return true;
+  const parts = kwLocation.split(",").map((s) => s.trim()).filter(Boolean);
+  if (parts.length === 0) return true;
 
-  const leadState   = (lead.state   ?? "").toLowerCase().trim();
-  const leadCity    = (lead.city    ?? "").toLowerCase().trim();
-  const leadAddress = (lead.address ?? "").toLowerCase();
+  const leadStateUpper = (lead.state ?? "").toUpperCase().trim();
+  const leadCity       = (lead.city  ?? "").toLowerCase().trim();
+  const leadAddress    = (lead.address ?? "").toLowerCase();
 
-  // Every significant part must appear somewhere in the lead's location fields.
-  for (const part of significant) {
-    const inState   = !!leadState   && (leadState === part   || leadState.includes(part)   || part.includes(leadState));
-    const inCity    = !!leadCity    && (leadCity  === part   || leadCity.includes(part)    || part.includes(leadCity));
-    const inAddress = leadAddress.includes(part);
-    if (!inState && !inCity && !inAddress) return false;
+  for (const part of parts) {
+    const upper = part.toUpperCase().trim();
+    const lower = part.toLowerCase().trim();
+
+    if (!lower) continue;
+    if (GENERIC_LOCATION_WORDS.has(lower)) continue; // skip "usa", "us", etc.
+
+    // Tier 1 — US state abbreviation: must match lead.state exactly.
+    // A lead with no state (international address) is rejected here.
+    if (US_STATE_ABBRS.has(upper)) {
+      if (leadStateUpper !== upper) return false;
+      continue;
+    }
+
+    // Tier 2 — city name: substring match on lead.city
+    if (leadCity && (leadCity.includes(lower) || lower.includes(leadCity))) continue;
+
+    // Tier 3 — country / region / full city in address: whole-word match only.
+    // Using word boundaries prevents "il" from matching "manila" or "until".
+    const escaped = lower.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    if (new RegExp(`\\b${escaped}\\b`).test(leadAddress)) continue;
+
+    // This part didn't match anything — reject the lead.
+    return false;
   }
+
   return true;
 }
 
