@@ -433,7 +433,7 @@ function SingleLeadGeocoder() {
   }
 
   const addressLine = selected
-    ? (selected.address ?? [selected.city, selected.state, selected.country].filter(Boolean).join(", ") || "No address")
+    ? (selected.address ?? ([selected.city, selected.state, selected.country].filter(Boolean).join(", ") || "No address"))
     : null;
 
   return (
