@@ -77,7 +77,7 @@ function playPop() {
 // ── SVG props shared across all balloon frames ────────────────────────────────
 
 const S = {
-  viewBox: "0 0 100 100",
+  viewBox: "-3 8 58 90",
   className: "absolute inset-0 w-full h-full",
   style: { overflow: "visible" as const },
   strokeWidth: 0.3,
