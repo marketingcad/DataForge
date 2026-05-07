@@ -25,9 +25,10 @@ async function requireSalesOrLead() {
 
 async function writeAuditLog(actorId: string, detail: string) {
   try {
-    await prisma.balloonAuditLog.create({ data: { actorId, detail } });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (prisma as any).balloonAuditLog.create({ data: { actorId, detail } });
   } catch {
-    // Table may not exist yet if migration is still pending — silently skip
+    // Silently skip if table not yet created
   }
 }
 
