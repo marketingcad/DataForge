@@ -347,6 +347,58 @@ export function SettingsClient({ settings }: { settings: Settings }) {
         </div>
       </CardContent>
     </Card>
+
+    {/* Maintenance */}
+    <GeocodeBackfillCard />
     </div>
+  );
+}
+
+function GeocodeBackfillCard() {
+  const [running, setRunning] = useState(false);
+  const [result, setResult] = useState<{ updated: number; skipped: number; total: number } | null>(null);
+
+  async function handleRun() {
+    setRunning(true);
+    setResult(null);
+    try {
+      const res = await fetch("/api/leads/geocode-backfill", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed");
+      setResult(data);
+      toast.success(`Geocoded ${data.updated} of ${data.total} leads`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Geocoding failed");
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base">Maintenance</CardTitle>
+        <CardDescription>One-time tools for data repair.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium">Geocode All Leads</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Converts every lead address to exact coordinates so the globe map is accurate.
+              Runs at 1 lead/sec — may take several minutes.
+            </p>
+            {result && (
+              <p className="text-xs text-green-500 mt-1">
+                Done — {result.updated} geocoded, {result.skipped} skipped (no address match), {result.total} total.
+              </p>
+            )}
+          </div>
+          <Button size="sm" variant="outline" onClick={handleRun} disabled={running}>
+            {running ? "Running…" : "Run"}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
