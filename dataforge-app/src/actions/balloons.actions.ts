@@ -48,23 +48,34 @@ export async function getMyBalloonPointsAction() {
 
 export async function getBalloonAdminDataAction() {
   await requireBossAdmin();
-  const [balloons, reps, rules] = await Promise.all([
+  const [balloons, reps] = await Promise.all([
     prisma.balloon.findMany({ orderBy: { position: "asc" }, include: { poppedBy: { select: { id: true, name: true, nickname: true } } } }),
     prisma.user.findMany({
       where: { role: { in: ["sales_rep", "team_lead"] } },
       select: { id: true, name: true, nickname: true, email: true, role: true, balloonPoints: true, balloonSuspendedUntil: true },
       orderBy: { name: "asc" },
     }),
-    prisma.appSettings.findUnique({
-      where: { id: "singleton" },
-      select: { balloonEnabled: true, balloonPointsPerAppointment: true },
-    }),
   ]);
 
-  // Graceful fallback while migration is pending on first deploy
+  // Graceful fallback while new columns are pending migration
+  let rules = { enabled: true, pointsPerAppointment: 1 };
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const settings = await (prisma as any).appSettings.findUnique({
+      where: { id: "singleton" },
+      select: { balloonEnabled: true, balloonPointsPerAppointment: true },
+    });
+    if (settings) {
+      rules = { enabled: settings.balloonEnabled ?? true, pointsPerAppointment: settings.balloonPointsPerAppointment ?? 1 };
+    }
+  } catch {
+    // Columns not yet migrated — use defaults
+  }
+
   let auditLogs: { id: string; detail: string; createdAt: Date; actor: { name: string | null; email: string } }[] = [];
   try {
-    auditLogs = await prisma.balloonAuditLog.findMany({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    auditLogs = await (prisma as any).balloonAuditLog.findMany({
       orderBy: { createdAt: "desc" },
       take: 100,
       include: { actor: { select: { name: true, email: true } } },
@@ -73,12 +84,7 @@ export async function getBalloonAdminDataAction() {
     // Table not yet created — return empty log
   }
 
-  return {
-    balloons,
-    reps,
-    rules: { enabled: rules?.balloonEnabled ?? true, pointsPerAppointment: rules?.balloonPointsPerAppointment ?? 1 },
-    auditLogs,
-  };
+  return { balloons, reps, rules, auditLogs };
 }
 
 export async function getRecentPopsAction(limit = 10) {
@@ -100,8 +106,13 @@ export async function popBalloonAction(balloonId: string) {
     return { error: "Only sales reps and team leads can pop balloons." };
   }
 
-  const settings = await prisma.appSettings.findUnique({ where: { id: "singleton" }, select: { balloonEnabled: true } });
-  if (settings?.balloonEnabled === false) return { error: "Balloon Pop is currently disabled." };
+  let balloonEnabled = true;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const settings = await (prisma as any).appSettings.findUnique({ where: { id: "singleton" }, select: { balloonEnabled: true } });
+    if (settings?.balloonEnabled === false) balloonEnabled = false;
+  } catch { /* columns not yet migrated */ }
+  if (!balloonEnabled) return { error: "Balloon Pop is currently disabled." };
 
   const dbUser = await prisma.user.findUnique({
     where: { id: user.id },
@@ -155,8 +166,11 @@ export async function updateBalloonRuleAction(field: "enabled" | "pointsPerAppoi
   const actor = await requireBossAdmin();
   const actorLabel = actor.name ?? actor.email ?? actor.id;
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = prisma as any;
+
   if (field === "enabled") {
-    await prisma.appSettings.upsert({
+    await db.appSettings.upsert({
       where: { id: "singleton" },
       create: { id: "singleton", balloonEnabled: value as boolean },
       update: { balloonEnabled: value as boolean },
@@ -164,7 +178,7 @@ export async function updateBalloonRuleAction(field: "enabled" | "pointsPerAppoi
     await writeAuditLog(actor.id, `${actorLabel} ${value ? "enabled" : "disabled"} balloon pop`);
   } else {
     const pts = Math.max(1, Math.round(value as number));
-    await prisma.appSettings.upsert({
+    await db.appSettings.upsert({
       where: { id: "singleton" },
       create: { id: "singleton", balloonPointsPerAppointment: pts },
       update: { balloonPointsPerAppointment: pts },
@@ -291,10 +305,15 @@ export async function setBalloonSuspensionAction(userId: string, until: Date | n
 // ── AWARD POINT (called internally when appointment booked) ───────────────────
 
 export async function awardBalloonPointAction(agentId: string) {
-  const settings = await prisma.appSettings.findUnique({
-    where: { id: "singleton" },
-    select: { balloonPointsPerAppointment: true, balloonEnabled: true },
-  });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let settings: { balloonEnabled?: boolean; balloonPointsPerAppointment?: number } | null = null;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    settings = await (prisma as any).appSettings.findUnique({
+      where: { id: "singleton" },
+      select: { balloonPointsPerAppointment: true, balloonEnabled: true },
+    });
+  } catch { /* columns not yet migrated */ }
   if (settings?.balloonEnabled === false) return;
   const pts = settings?.balloonPointsPerAppointment ?? 1;
   await prisma.user.update({
