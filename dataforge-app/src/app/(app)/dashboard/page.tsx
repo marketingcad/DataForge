@@ -144,7 +144,7 @@ export default async function DashboardPage({
 
   if (role === "boss" || role === "admin") return <BossDashboard />;
 
-  if (role === "sales_rep") {
+  if (role === "sales_rep" || role === "team_lead") {
     const { period: raw } = await searchParams;
     const period: Period = (["yesterday", "week", "month", "all_time"] as const).includes(raw as Period)
       ? (raw as Period)
