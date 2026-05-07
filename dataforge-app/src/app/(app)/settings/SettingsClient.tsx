@@ -444,9 +444,7 @@ function GeocodeBackfillCard() {
             {(running || done) && progress && (
               <div className="mt-3 space-y-1.5">
                 <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>
-                    {done ? "Done" : `Processing ${progress.current} of ${progress.total}…`}
-                  </span>
+                  <span>{done ? "Done" : `Processing ${progress.current} of ${progress.total}…`}</span>
                   <span>{pct}%</span>
                 </div>
                 <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
@@ -455,11 +453,9 @@ function GeocodeBackfillCard() {
                     style={{ width: `${pct}%` }}
                   />
                 </div>
-                {done && (
-                  <p className="text-xs text-green-500">
-                    {progress.updated} geocoded · {progress.skipped} skipped (no address match)
-                  </p>
-                )}
+                <p className={`text-xs ${done ? "text-green-500" : "text-muted-foreground"}`}>
+                  {progress.updated} geocoded · {progress.skipped} skipped · {progress.current} of {progress.total} processed
+                </p>
               </div>
             )}
           </div>
