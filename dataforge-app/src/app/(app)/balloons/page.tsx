@@ -21,7 +21,7 @@ export default async function BalloonsPage() {
     }),
     prisma.user.findUnique({
       where: { id: userId },
-      select: { balloonPoints: true, balloonSuspendedUntil: true, name: true },
+      select: { balloonPoints: true, balloonSuspendedUntil: true, name: true, nickname: true },
     }),
   ]);
 
@@ -49,6 +49,7 @@ export default async function BalloonsPage() {
         initialBalloons={balloons as Parameters<typeof BalloonGrid>[0]["initialBalloons"]}
         myPoints={dbUser?.balloonPoints ?? 0}
         myId={userId}
+        myName={dbUser?.nickname ?? dbUser?.name ?? null}
       />
     </div>
   );

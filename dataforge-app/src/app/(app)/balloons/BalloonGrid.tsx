@@ -232,12 +232,12 @@ function BalloonCell({
       >
         {isPopped ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center gap-1 from-primary/10 to-primary/5 p-2">
-            <span className="text-2xl">🎉</span>
-            <p className="text-[10px] sm:text-xs font-black text-primary leading-snug line-clamp-4 drop-shadow-sm">
+            <span className="text-[30px]">🎉</span>
+            <p className="text-[20px] font-black text-primary leading-snug line-clamp-4 drop-shadow-sm">
               {balloon.prize}
             </p>
             {displayName && (
-              <p className="text-[9px] sm:text-[10px] text-muted-foreground font-medium leading-tight">
+              <p className="text-[15px] text-muted-foreground font-medium leading-tight">
                 {displayName}
               </p>
             )}
@@ -265,10 +265,12 @@ export function BalloonGrid({
   initialBalloons,
   myPoints: initialPoints,
   myId,
+  myName,
 }: {
   initialBalloons: BalloonData[];
   myPoints: number;
   myId: string;
+  myName: string | null;
 }) {
   const [balloons, setBalloons] = useState(initialBalloons);
   const [myPoints, setMyPoints] = useState(initialPoints);
@@ -276,7 +278,7 @@ export function BalloonGrid({
 
   function handlePopped(id: string, prize: string) {
     setBalloons((prev) =>
-      prev.map((b) => b.id === id ? { ...b, isPopped: true, poppedAt: new Date(), poppedBy: null } : b)
+      prev.map((b) => b.id === id ? { ...b, isPopped: true, poppedAt: new Date(), poppedBy: { id: myId, name: myName, nickname: null } } : b)
     );
     setMyPoints((p) => Math.max(0, p - 1));
     setPops((prev) => [{ prize, at: new Date() }, ...prev].slice(0, 5));
