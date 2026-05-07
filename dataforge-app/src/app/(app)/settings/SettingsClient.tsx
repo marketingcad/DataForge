@@ -513,7 +513,7 @@ function SingleLeadGeocoder() {
             <p className="text-xs text-green-500">
               📍 {geocoded.latitude.toFixed(5)}, {geocoded.longitude.toFixed(5)}
             </p>
-          ) : selected.latitude != null ? (
+          ) : selected.latitude != null && selected.longitude != null ? (
             <p className="text-xs text-green-500">
               📍 Already geocoded — {selected.latitude.toFixed(5)}, {selected.longitude.toFixed(5)}
             </p>
