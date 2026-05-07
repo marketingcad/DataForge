@@ -15,40 +15,6 @@ import { createNotification, createNotificationsForRole } from "@/lib/notificati
 
 const MAX_KEYWORD_FAILURES = 5;
 
-// Words that appear in almost every US location string — not useful for matching.
-const GENERIC_LOCATION_WORDS = new Set(["usa", "us", "united states", "canada", "united kingdom", "uk"]);
-
-/**
- * Returns true if the scraped lead belongs to the keyword's configured location.
- * Prevents leads from other states/countries slipping through Google Maps results.
- *
- * Uses kw.location (the original configured value, e.g. "IL, USA") rather than
- * runLocation (a rotated city like "Chicago, IL, USA") so that a state-wide
- * keyword accepts any city in that state, not just the rotated one.
- */
-function leadMatchesLocation(
-  lead: { city?: string; state?: string; address?: string },
-  kwLocation: string,
-): boolean {
-  const parts = kwLocation.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
-  // Keep only the meaningful parts — drop generic country labels
-  const significant = parts.filter((p) => p.length > 1 && !GENERIC_LOCATION_WORDS.has(p));
-  if (significant.length === 0) return true;
-
-  const leadState   = (lead.state   ?? "").toLowerCase().trim();
-  const leadCity    = (lead.city    ?? "").toLowerCase().trim();
-  const leadAddress = (lead.address ?? "").toLowerCase();
-
-  // Every significant part must appear somewhere in the lead's location fields.
-  for (const part of significant) {
-    const inState   = !!leadState   && (leadState === part   || leadState.includes(part)   || part.includes(leadState));
-    const inCity    = !!leadCity    && (leadCity  === part   || leadCity.includes(part)    || part.includes(leadCity));
-    const inAddress = leadAddress.includes(part);
-    if (!inState && !inCity && !inAddress) return false;
-  }
-  return true;
-}
-
 // ─── Keyword job: browser-based Google Maps scraping ──────────────────────────
 
 export async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
@@ -139,9 +105,6 @@ export async function processKeywordJob(job: Awaited<ReturnType<typeof getJobByI
         async (lead: import("@/lib/scraping/google/maps-scraper").SerpLead, count: number) => {
           await insertChain;
           if (cancelledFlag) throw new Error("__CANCELLED__");
-
-          // Skip leads whose location doesn't match the keyword's configured location
-          if (kw && !leadMatchesLocation(lead, kw.location)) return;
 
           collectedLeads.push(lead);
           insertChain = insertChain.then(async () => {
