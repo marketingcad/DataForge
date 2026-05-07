@@ -27,20 +27,30 @@ export async function createNotificationsForRole(
     select: { id: true },
   });
   if (users.length === 0) return;
+  const createdAt = new Date();
   await prisma.dbNotification.createMany({
-    data: users.map((u) => ({ userId: u.id, type: "info" as NotifType, ...data })),
+    data: users.map((u) => ({ userId: u.id, type: "info" as NotifType, ...data, createdAt })),
   });
-  // Emit to all affected users — best-effort, no id available from createMany
-  const userIds = users.map((u) => u.id);
-  emitNotificationToMany(userIds, {
-    id: "",
+  // Fetch back the created records so each socket emit carries the real DB id
+  const created = await prisma.dbNotification.findMany({
+    where: {
+      userId: { in: users.map((u) => u.id) },
+      title: data.title,
+      createdAt,
+    },
+    select: { id: true, userId: true },
+  });
+  const payload = {
     type: data.type ?? "info",
     title: data.title,
     message: data.message ?? null,
     link: data.link ?? null,
     read: false,
-    createdAt: new Date(),
-  });
+    createdAt,
+  };
+  for (const row of created) {
+    emitNotification(row.userId, { ...payload, id: row.id });
+  }
 }
 
 export async function getUserNotifications(userId: string) {

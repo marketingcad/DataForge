@@ -376,7 +376,7 @@ function BalloonCell({
             myPoints < 1 ? "Need 1 balloon point" : ""
           }
           className={[
-            "relative select-none w-20 h-28 sm:w-24 sm:h-32 md:w-28 md:h-36",
+            "relative select-none w-24 h-32 sm:w-28 sm:h-36 md:w-32 md:h-40",
             canPop ? "cursor-[url('/cursor-pin.svg'),_crosshair] hover:scale-105 active:scale-95" : "cursor-default",
           ].join(" ")}
           style={{
@@ -385,20 +385,32 @@ function BalloonCell({
           }}
         >
           {isPopped ? (
-            <div className="absolute inset-0 rounded-2xl flex flex-col items-center justify-center text-center gap-1 p-1.5"
+            <div
+              className="absolute inset-0 rounded-2xl flex flex-col items-center justify-center text-center gap-2 px-2 py-3 overflow-hidden"
               style={{
-                background: "linear-gradient(145deg, rgba(var(--primary)/0.12), rgba(var(--primary)/0.04))",
-                border: "1px dashed rgba(var(--primary)/0.25)",
+                background: "linear-gradient(160deg, #fffbeb 0%, #fef3c7 55%, #fde68a 100%)",
+                border: "1.5px solid #fbbf24",
+                boxShadow: "inset 0 1px 0 #ffffffcc, 0 2px 8px #f59e0b33",
               }}
             >
               <span className="text-2xl leading-none">🎁</span>
-              <p className="text-[15px] font-black text-primary leading-tight line-clamp-3 break-words w-full">
-                {balloon.prize}
-              </p>
-              {displayName && (
-                <p className="text-[15px] text-muted-foreground leading-tight font-medium">
-                  {displayName}
+
+              <div className="flex flex-col items-center gap-0.5 w-full px-1">
+                <p className="text-[11px] font-bold uppercase tracking-widest leading-none" style={{ color: "#d97706" }}>
+                  Prize
                 </p>
+                <p className="text-2xl font-black leading-none break-words w-full" style={{ color: "#92400e" }}>
+                  ₱{balloon.prize}
+                </p>
+              </div>
+
+              {displayName && (
+                <div
+                  className="rounded-full px-2.5 py-0.5 text-[10px] font-semibold leading-none w-full truncate"
+                  style={{ background: "#f59e0b33", color: "#78350f" }}
+                >
+                  {displayName}
+                </div>
               )}
             </div>
           ) : (
@@ -420,21 +432,37 @@ function BalloonCell({
 
 // ── Grid ──────────────────────────────────────────────────────────────────────
 
+type MyPop = {
+  id: string;
+  position: number;
+  prize: string;
+  poppedAt: Date | null;
+  isPaid: boolean;
+  paidAt: Date | null;
+  paymentNote: string | null;
+  paidBy: { name: string | null; nickname: string | null } | null;
+};
+
 export function BalloonGrid({
   initialBalloons,
   myPoints: initialPoints,
   myId,
   myName,
+  readOnly = false,
+  myPops = [],
 }: {
   initialBalloons: BalloonData[];
   myPoints: number;
   myId: string;
   myName: string | null;
+  readOnly?: boolean;
+  myPops?: MyPop[];
 }) {
   const [balloons, setBalloons] = useState(initialBalloons);
   const [myPoints, setMyPoints] = useState(initialPoints);
   const [pops, setPops]         = useState<{ prize: string; at: Date }[]>([]);
   const [winner, setWinner]     = useState<string | null>(null);
+  const [tab, setTab]           = useState<"pop" | "prizes">("pop");
 
   function handlePopped(id: string, prize: string) {
     setBalloons(prev =>
@@ -448,7 +476,9 @@ export function BalloonGrid({
     setWinner(prize);
   }
 
-  const totalPopped = balloons.filter(b => b.isPopped).length;
+  const totalPopped  = balloons.filter(b => b.isPopped).length;
+  const paidCount    = myPops.filter(p => p.isPaid).length;
+  const pendingCount = myPops.filter(p => !p.isPaid).length;
 
   return (
     <div className="space-y-5">
@@ -456,62 +486,199 @@ export function BalloonGrid({
 
       {winner && <PrizeModal prize={winner} onClose={() => setWinner(null)} />}
 
-      {/* Points bar */}
-      <div className="flex items-center justify-between rounded-2xl bg-card border border-border/40 shadow-sm px-5 py-3.5">
-        <div className="flex items-center gap-3">
-          <span className="text-2xl">🎈</span>
-          <div>
-            <p className="text-sm font-black">{myPoints} balloon point{myPoints !== 1 ? "s" : ""}</p>
-            <p className="text-[11px] text-muted-foreground">Earned by booking appointments</p>
-          </div>
-        </div>
-        <div className="text-right">
-          <p className="text-sm font-bold text-muted-foreground">{totalPopped}/16 popped</p>
-          <p className="text-[11px] text-muted-foreground">{16 - totalPopped} remaining</p>
-        </div>
-      </div>
-
-      {myPoints < 1 && (
-        <div className="rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-700/40 px-5 py-3 text-sm text-amber-700 dark:text-amber-400 font-medium">
-          📅 Book an appointment to earn balloon points and pop a balloon!
+      {/* Tab bar — only for reps/team leads */}
+      {!readOnly && (
+        <div className="flex gap-1 rounded-xl bg-muted/50 p-1 border border-border/40">
+          {([
+            { id: "pop",    label: "Pop Balloons", icon: "🎈" },
+            { id: "prizes", label: "My Prizes",    icon: "🏆" },
+          ] as const).map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={[
+                "flex-1 flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-all",
+                tab === t.id
+                  ? "bg-card shadow-sm text-foreground border border-border/40"
+                  : "text-muted-foreground hover:text-foreground",
+              ].join(" ")}
+            >
+              <span>{t.icon}</span>
+              <span>{t.label}</span>
+              {t.id === "prizes" && myPops.length > 0 && (
+                <span className={`rounded-full text-[9px] font-bold px-1.5 py-0.5 leading-none ${
+                  pendingCount > 0
+                    ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400"
+                    : "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400"
+                }`}>
+                  {myPops.length}
+                </span>
+              )}
+            </button>
+          ))}
         </div>
       )}
 
-      {/* 4×4 grid */}
-      <div className="grid grid-cols-4 gap-3 sm:gap-4 md:gap-5 justify-items-center">
-        {balloons.map(balloon => (
-          <BalloonCell
-            key={balloon.id}
-            balloon={balloon}
-            myPoints={myPoints}
-            onPopped={handlePopped}
-          />
-        ))}
-        {Array.from({ length: Math.max(0, 16 - balloons.length) }).map((_, i) => (
-          <div
-            key={`empty-${i}`}
-            className="w-20 h-28 sm:w-24 sm:h-32 md:w-28 md:h-36 rounded-2xl bg-muted/20 border border-dashed border-border/40 flex items-center justify-center"
-          >
-            <span className="text-muted-foreground/40 text-3xl">🎈</span>
-          </div>
-        ))}
-      </div>
-
-      {/* Recent pops this session */}
-      {pops.length > 0 && (
+      {/* ── readOnly overview (boss/admin) ── */}
+      {readOnly && (
         <div className="rounded-2xl bg-card border border-border/40 shadow-sm overflow-hidden">
-          <div className="px-5 py-3 border-b border-border/40">
-            <p className="text-sm font-bold">Your recent pops 🎉</p>
-          </div>
-          <div className="divide-y divide-border/30">
-            {pops.map((p, i) => (
-              <div key={i} className="flex items-center gap-3 px-5 py-3">
-                <span className="text-lg">🎉</span>
-                <p className="text-sm font-semibold flex-1">{p.prize}</p>
-                <p className="text-xs text-muted-foreground">{p.at.toLocaleTimeString()}</p>
+          <div className="grid grid-cols-3 divide-x divide-border/40">
+            {[
+              { icon: "🎈", value: 16,                 label: "Total"     },
+              { icon: "🎉", value: totalPopped,         label: "Popped"    },
+              { icon: "✨", value: 16 - totalPopped,    label: "Remaining" },
+            ].map((s) => (
+              <div key={s.label} className="flex flex-col items-center justify-center py-4 gap-0.5">
+                <span className="text-xl">{s.icon}</span>
+                <p className="text-2xl font-black tabular-nums leading-none mt-1">{s.value}</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mt-0.5">{s.label}</p>
               </div>
             ))}
           </div>
+          <div className="px-5 pb-4 pt-1">
+            <div className="flex items-center justify-between mb-1.5">
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Progress</p>
+              <p className="text-[10px] font-bold text-muted-foreground">{Math.round((totalPopped / 16) * 100)}%</p>
+            </div>
+            <div className="h-2 rounded-full bg-muted overflow-hidden">
+              <div className="h-full rounded-full bg-primary transition-all duration-500" style={{ width: `${(totalPopped / 16) * 100}%` }} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Pop tab ── */}
+      {!readOnly && tab === "pop" && (
+        <div className="space-y-5">
+          {/* Points bar */}
+          <div className="flex items-center justify-between rounded-2xl bg-card border border-border/40 shadow-sm px-5 py-3.5">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">🎈</span>
+              <div>
+                <p className="text-sm font-black">{myPoints} balloon point{myPoints !== 1 ? "s" : ""}</p>
+                <p className="text-[11px] text-muted-foreground">Earned by booking appointments</p>
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="text-sm font-bold text-muted-foreground">{totalPopped}/16 popped</p>
+              <p className="text-[11px] text-muted-foreground">{16 - totalPopped} remaining</p>
+            </div>
+          </div>
+
+          {myPoints < 1 && (
+            <div className="rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-700/40 px-5 py-3 text-sm text-amber-700 dark:text-amber-400 font-medium">
+              📅 Book an appointment to earn balloon points and pop a balloon!
+            </div>
+          )}
+
+          {/* 4×4 grid */}
+          <div className="grid grid-cols-4 gap-3 sm:gap-4 md:gap-5 justify-items-center">
+            {balloons.map(balloon => (
+              <BalloonCell key={balloon.id} balloon={balloon} myPoints={myPoints} onPopped={handlePopped} />
+            ))}
+            {Array.from({ length: Math.max(0, 16 - balloons.length) }).map((_, i) => (
+              <div key={`empty-${i}`} className="w-24 h-32 sm:w-28 sm:h-36 md:w-32 md:h-40 rounded-2xl bg-muted/20 border border-dashed border-border/40 flex items-center justify-center">
+                <span className="text-muted-foreground/40 text-3xl">🎈</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Recent pops this session */}
+          {pops.length > 0 && (
+            <div className="rounded-2xl bg-card border border-border/40 shadow-sm overflow-hidden">
+              <div className="px-5 py-3 border-b border-border/40">
+                <p className="text-sm font-bold">Your recent pops 🎉</p>
+              </div>
+              <div className="divide-y divide-border/30">
+                {pops.map((p, i) => (
+                  <div key={i} className="flex items-center gap-3 px-5 py-3">
+                    <span className="text-lg">🎉</span>
+                    <p className="text-sm font-semibold flex-1">{p.prize}</p>
+                    <p className="text-xs text-muted-foreground">{p.at.toLocaleTimeString()}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* readOnly grid */}
+      {readOnly && (
+        <div className="grid grid-cols-4 gap-3 sm:gap-4 md:gap-5 justify-items-center">
+          {balloons.map(balloon => (
+            <BalloonCell key={balloon.id} balloon={balloon} myPoints={0} onPopped={handlePopped} />
+          ))}
+          {Array.from({ length: Math.max(0, 16 - balloons.length) }).map((_, i) => (
+            <div key={`empty-${i}`} className="w-24 h-32 sm:w-28 sm:h-36 md:w-32 md:h-40 rounded-2xl bg-muted/20 border border-dashed border-border/40 flex items-center justify-center">
+              <span className="text-muted-foreground/40 text-3xl">🎈</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── My Prizes tab ── */}
+      {!readOnly && tab === "prizes" && (
+        <div className="space-y-4">
+          {/* Summary */}
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { icon: "🎁", value: myPops.length,  label: "Total Won"  },
+              { icon: "✅", value: paidCount,       label: "Paid"       },
+              { icon: "⏳", value: pendingCount,    label: "Pending"    },
+            ].map((s) => (
+              <div key={s.label} className="rounded-2xl bg-card border border-border/40 shadow-sm p-4 text-center">
+                <p className="text-xl mb-1">{s.icon}</p>
+                <p className="text-2xl font-black">{s.value}</p>
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mt-0.5">{s.label}</p>
+              </div>
+            ))}
+          </div>
+
+          {myPops.length === 0 ? (
+            <div className="rounded-2xl bg-card border border-border/40 shadow-sm px-5 py-12 text-center">
+              <p className="text-2xl mb-2">🎈</p>
+              <p className="text-sm font-semibold">No prizes yet</p>
+              <p className="text-xs text-muted-foreground mt-1">Pop a balloon to earn your first prize!</p>
+            </div>
+          ) : (
+            <div className="rounded-2xl bg-card border border-border/40 shadow-sm overflow-hidden">
+              <div className="px-5 py-4 border-b border-border/40">
+                <p className="text-sm font-bold">🏆 My Prize Ledger</p>
+                <p className="text-xs text-muted-foreground mt-0.5">All balloons you've popped and their payment status</p>
+              </div>
+              <div className="divide-y divide-border/30">
+                {myPops.map((p) => (
+                  <div key={p.id} className="flex items-center gap-3 px-5 py-3.5">
+                    <span className="text-xl">🎁</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-black" style={{ color: "#92400e" }}>₱{p.prize}</p>
+                      <p className="text-[10px] text-muted-foreground">
+                        Balloon #{p.position} · {p.poppedAt ? new Date(p.poppedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—"}
+                      </p>
+                      {p.paymentNote && (
+                        <p className="text-[10px] text-muted-foreground italic mt-0.5">📝 {p.paymentNote}</p>
+                      )}
+                    </div>
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        p.isPaid
+                          ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400"
+                          : "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400"
+                      }`}>
+                        {p.isPaid ? "✓ PAID" : "PENDING"}
+                      </span>
+                      {p.isPaid && p.paidAt && (
+                        <p className="text-[9px] text-muted-foreground">
+                          {new Date(p.paidAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

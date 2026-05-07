@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Database,
   ChevronRight,
@@ -44,6 +44,7 @@ function buildSections(role: Role): Section[] {
     { label: "Badges",       href: "/marketing/manage/badges"      },
     { label: "Challenges",   href: "/marketing/manage/tasks"       },
     { label: "Commissions",  href: "/marketing/manage/commissions" },
+    { label: "Balloon Pop",  href: "/balloons"                     },
   ];
   const scrapingSub: SubItem[] = [
     { label: "Scrape a Website", href: "/scraping?tab=domain"   },
@@ -183,6 +184,7 @@ const SUB_ICONS: Record<string, React.ElementType> = {
   "Badges":           Medal,
   "Challenges":       Trophy,
   "Commissions":      DollarSign,
+  "Balloon Pop":      Sparkles,
   "Scrape a Website": Globe,
   "Search by Google": ScanSearch,
   "Auto Keywords":    Wand2,
@@ -259,6 +261,11 @@ export function AppSidebar({ role }: { role: Role }) {
   const search       = searchParams.toString();
   const sections     = buildSections(role);
   const [collapsed, setCollapsed] = useState(false);
+  const [mounted, setMounted]     = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  const activePath   = mounted ? pathname : "";
+  const activeSearch = mounted ? search   : "";
 
   return (
     <aside
@@ -298,8 +305,8 @@ export function AppSidebar({ role }: { role: Role }) {
                   <CollapsibleItem
                     key={item.label}
                     item={item}
-                    pathname={pathname}
-                    search={search}
+                    pathname={activePath}
+                    search={activeSearch}
                     collapsed={collapsed}
                     defaultOpen={true}
                   />
@@ -311,7 +318,7 @@ export function AppSidebar({ role }: { role: Role }) {
                       className={cn(
                         "flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
                         collapsed && "justify-center px-0",
-                        isActive(pathname, search, item.href!)
+                        isActive(activePath, activeSearch, item.href!)
                           ? "bg-sidebar-accent text-foreground font-semibold"
                           : "text-foreground hover:bg-sidebar-accent"
                       )}

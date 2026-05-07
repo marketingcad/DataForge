@@ -135,23 +135,30 @@ model User {
   balloonSuspendedUntil    DateTime?
   balloonDailyApptCount    Int               @default(0)
   balloonDailyWindowStart  DateTime?
-  balloons              Balloon[]
+  balloons              Balloon[]         @relation("BalloonPoppedBy")
+  balloonPayments       Balloon[]         @relation("BalloonPaidBy")
   balloonAuditLogs      BalloonAuditLog[]
 }
 
 model Balloon {
-  id         String    @id @default(uuid())
-  position   Int       @unique
-  prize      String    @default("")
-  isPopped   Boolean   @default(false)
-  poppedById String?
-  poppedAt   DateTime?
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-  poppedBy   User?     @relation(fields: [poppedById], references: [id], onDelete: SetNull)
+  id          String    @id @default(uuid())
+  position    Int       @unique
+  prize       String    @default("")
+  isPopped    Boolean   @default(false)
+  poppedById  String?
+  poppedAt    DateTime?
+  isPaid      Boolean   @default(false)
+  paidAt      DateTime?
+  paidById    String?
+  paymentNote String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  poppedBy    User?     @relation("BalloonPoppedBy", fields: [poppedById], references: [id], onDelete: SetNull)
+  paidBy      User?     @relation("BalloonPaidBy",   fields: [paidById],   references: [id], onDelete: SetNull)
 
   @@index([position])
   @@index([poppedById])
+  @@index([paidById])
 }
 
 model CallLog {

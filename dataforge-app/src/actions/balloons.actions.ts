@@ -137,7 +137,7 @@ export async function popBalloonAction(balloonId: string) {
     prisma.user.update({ where: { id: user.id }, data: { balloonPoints: { decrement: 1 } } }),
     prisma.balloon.update({
       where: { id: balloonId },
-      data: { isPopped: true, poppedById: user.id, poppedAt: new Date() },
+      data: { isPopped: true, poppedById: user.id, poppedAt: new Date(), isPaid: false, paidAt: null, paidById: null, paymentNote: null },
     }),
   ]);
 
@@ -259,7 +259,7 @@ export async function resetAllBalloonsAction() {
 
 // ── ADMIN: MANAGE REP POINTS ──────────────────────────────────────────────────
 
-export async function adjustBalloonPointsAction(userId: string, delta: number) {
+export async function adjustBalloonPointsAction(userId: string, delta: number, reason?: string) {
   const actor = await requireBossAdmin();
   const actorLabel = actor.name ?? actor.email ?? actor.id;
 
@@ -274,7 +274,8 @@ export async function adjustBalloonPointsAction(userId: string, delta: number) {
 
   const targetLabel = before?.nickname ?? before?.name ?? before?.email ?? userId;
   const sign = delta >= 0 ? `+${delta}` : `${delta}`;
-  await writeAuditLog(actor.id, `${actorLabel} adjusted points for ${targetLabel}: ${sign} (${beforePts} → ${updated.balloonPoints})`);
+  const reasonSuffix = reason?.trim() ? ` — Reason: ${reason.trim()}` : "";
+  await writeAuditLog(actor.id, `${actorLabel} adjusted points for ${targetLabel}: ${sign} (${beforePts} → ${updated.balloonPoints})${reasonSuffix}`);
 
   revalidatePath("/admin/balloons");
   return { success: true, newPoints: updated.balloonPoints };
@@ -301,6 +302,77 @@ export async function setBalloonSuspensionAction(userId: string, until: Date | n
   await writeAuditLog(actor.id, detail);
   revalidatePath("/admin/balloons");
   return { success: true };
+}
+
+// ── ADMIN: PAYMENT TRACKING ───────────────────────────────────────────────────
+
+export async function markBalloonPaymentAction(balloonId: string, isPaid: boolean, note?: string) {
+  const actor = await requireBossAdmin();
+  const actorLabel = actor.name ?? actor.email ?? actor.id;
+
+  const balloon = await prisma.balloon.findUnique({
+    where: { id: balloonId },
+    include: { poppedBy: { select: { name: true, nickname: true } } },
+  });
+  if (!balloon || !balloon.isPopped) throw new Error("Balloon not found or not popped");
+
+  await prisma.balloon.update({
+    where: { id: balloonId },
+    data: {
+      isPaid,
+      paidAt:      isPaid ? new Date() : null,
+      paidById:    isPaid ? actor.id   : null,
+      paymentNote: note?.trim() ?? balloon.paymentNote,
+    },
+  });
+
+  const repName = balloon.poppedBy?.nickname ?? balloon.poppedBy?.name ?? "unknown";
+  const detail = isPaid
+    ? `${actorLabel} marked prize for ${repName} (balloon #${balloon.position} — ${balloon.prize}) as PAID${note?.trim() ? ` — Note: ${note.trim()}` : ""}`
+    : `${actorLabel} marked prize for ${repName} (balloon #${balloon.position} — ${balloon.prize}) as UNPAID`;
+
+  await writeAuditLog(actor.id, detail);
+  revalidatePath("/admin/balloons");
+  return { success: true };
+}
+
+export async function setBalloonPaymentNoteAction(balloonId: string, note: string) {
+  const actor = await requireBossAdmin();
+  const actorLabel = actor.name ?? actor.email ?? actor.id;
+
+  const balloon = await prisma.balloon.findUnique({ where: { id: balloonId }, select: { position: true, prize: true } });
+  await prisma.balloon.update({ where: { id: balloonId }, data: { paymentNote: note.trim() || null } });
+
+  await writeAuditLog(actor.id, `${actorLabel} updated note on balloon #${balloon?.position} — "${note.trim()}"`);
+  revalidatePath("/admin/balloons");
+  return { success: true };
+}
+
+export async function getPayoutsAction() {
+  await requireBossAdmin();
+  return prisma.balloon.findMany({
+    where: { isPopped: true },
+    orderBy: { poppedAt: "desc" },
+    include: {
+      poppedBy: { select: { id: true, name: true, nickname: true, email: true } },
+      paidBy:   { select: { id: true, name: true, nickname: true } },
+    },
+  });
+}
+
+export async function getMyPopsAction() {
+  const session = await auth();
+  const user = session?.user as { id?: string; role?: string } | undefined;
+  if (!user?.id || !["sales_rep", "team_lead"].includes(user.role ?? "")) return [];
+  return prisma.balloon.findMany({
+    where: { poppedById: user.id, isPopped: true },
+    orderBy: { poppedAt: "desc" },
+    select: {
+      id: true, position: true, prize: true,
+      poppedAt: true, isPaid: true, paidAt: true, paymentNote: true,
+      paidBy: { select: { name: true, nickname: true } },
+    },
+  });
 }
 
 // ── AWARD POINT (called internally when appointment booked) ───────────────────

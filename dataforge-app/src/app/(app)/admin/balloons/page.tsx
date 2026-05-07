@@ -1,6 +1,6 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { getBalloonAdminDataAction } from "@/actions/balloons.actions";
+import { getBalloonAdminDataAction, getPayoutsAction } from "@/actions/balloons.actions";
 import { AdminBalloonsClient } from "./AdminBalloonsClient";
 
 export const dynamic = "force-dynamic";
@@ -21,7 +21,10 @@ export default async function AdminBalloonsPage() {
     await prisma.balloon.createMany({ data: missing.map((position) => ({ position, prize: "" })) });
   }
 
-  const { balloons, reps, rules, auditLogs } = await getBalloonAdminDataAction();
+  const [{ balloons, reps, rules, auditLogs }, payouts] = await Promise.all([
+    getBalloonAdminDataAction(),
+    getPayoutsAction(),
+  ]);
 
   return (
     <div className="max-w-5xl mx-auto space-y-4">
@@ -36,6 +39,7 @@ export default async function AdminBalloonsPage() {
         initialReps={reps as Parameters<typeof AdminBalloonsClient>[0]["initialReps"]}
         initialRules={rules}
         initialAuditLogs={auditLogs as Parameters<typeof AdminBalloonsClient>[0]["initialAuditLogs"]}
+        initialPayouts={payouts as Parameters<typeof AdminBalloonsClient>[0]["initialPayouts"]}
       />
     </div>
   );
