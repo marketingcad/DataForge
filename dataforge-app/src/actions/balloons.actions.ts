@@ -24,7 +24,11 @@ async function requireSalesOrLead() {
 }
 
 async function writeAuditLog(actorId: string, detail: string) {
-  await prisma.balloonAuditLog.create({ data: { actorId, detail } });
+  try {
+    await prisma.balloonAuditLog.create({ data: { actorId, detail } });
+  } catch {
+    // Table may not exist yet if migration is still pending — silently skip
+  }
 }
 
 // ── READ ──────────────────────────────────────────────────────────────────────
@@ -44,7 +48,7 @@ export async function getMyBalloonPointsAction() {
 
 export async function getBalloonAdminDataAction() {
   await requireBossAdmin();
-  const [balloons, reps, rules, auditLogs] = await Promise.all([
+  const [balloons, reps, rules] = await Promise.all([
     prisma.balloon.findMany({ orderBy: { position: "asc" }, include: { poppedBy: { select: { id: true, name: true, nickname: true } } } }),
     prisma.user.findMany({
       where: { role: { in: ["sales_rep", "team_lead"] } },
@@ -55,12 +59,20 @@ export async function getBalloonAdminDataAction() {
       where: { id: "singleton" },
       select: { balloonEnabled: true, balloonPointsPerAppointment: true },
     }),
-    prisma.balloonAuditLog.findMany({
+  ]);
+
+  // Graceful fallback while migration is pending on first deploy
+  let auditLogs: { id: string; detail: string; createdAt: Date; actor: { name: string | null; email: string } }[] = [];
+  try {
+    auditLogs = await prisma.balloonAuditLog.findMany({
       orderBy: { createdAt: "desc" },
       take: 100,
       include: { actor: { select: { name: true, email: true } } },
-    }),
-  ]);
+    });
+  } catch {
+    // Table not yet created — return empty log
+  }
+
   return {
     balloons,
     reps,
