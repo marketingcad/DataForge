@@ -385,18 +385,18 @@ function BalloonCell({
           }}
         >
           {isPopped ? (
-            <div className="absolute inset-0 rounded-2xl flex flex-col items-center justify-center text-center gap-1 p-2"
+            <div className="absolute inset-0 rounded-2xl flex flex-col items-center justify-center text-center gap-1 p-1.5"
               style={{
                 background: "linear-gradient(145deg, rgba(var(--primary)/0.12), rgba(var(--primary)/0.04))",
                 border: "1px dashed rgba(var(--primary)/0.25)",
               }}
             >
-              <span className="text-xl">🎁</span>
-              <p className="text-[9px] sm:text-[10px] font-black text-primary leading-tight line-clamp-3">
+              <span className="text-2xl leading-none">🎁</span>
+              <p className="text-[11px] sm:text-xs font-black text-primary leading-tight line-clamp-3 break-words w-full">
                 {balloon.prize}
               </p>
               {displayName && (
-                <p className="text-[8px] sm:text-[9px] text-muted-foreground leading-tight">
+                <p className="text-[10px] sm:text-[11px] text-muted-foreground leading-tight font-medium">
                   {displayName}
                 </p>
               )}
