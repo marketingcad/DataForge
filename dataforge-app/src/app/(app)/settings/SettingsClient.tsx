@@ -1,9 +1,9 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Check } from "lucide-react";
-import { updateSettingsAction } from "@/actions/settings.actions";
+import { Check, Loader2 } from "lucide-react";
+import { updateSettingFieldAction } from "@/actions/settings.actions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,6 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { ACCENT_LS_KEY } from "@/components/providers";
+
+// ─── Accent colour ────────────────────────────────────────────────────────────
 
 const ACCENT_SCHEMES = [
   { id: "neutral", label: "Neutral",  swatch: "oklch(0.40 0 0)" },
@@ -31,14 +33,7 @@ function getStoredAccent(): AccentId {
   } catch { return "neutral"; }
 }
 
-function ApplyAccent({ accent }: { accent: AccentId }) {
-  if (accent === "neutral") {
-    document.documentElement.removeAttribute("data-accent");
-  } else {
-    document.documentElement.setAttribute("data-accent", accent);
-  }
-  try { localStorage.setItem(ACCENT_LS_KEY, accent); } catch { /* ignore */ }
-}
+// ─── Currencies ───────────────────────────────────────────────────────────────
 
 const CURRENCIES = [
   { symbol: "₱", label: "₱ — Philippine Peso (PHP)" },
@@ -52,6 +47,8 @@ const CURRENCIES = [
   { symbol: "C$", label: "C$ — Canadian Dollar (CAD)" },
   { symbol: "R", label: "R — South African Rand (ZAR)" },
 ];
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Settings {
   companyName: string;
@@ -67,10 +64,141 @@ interface Settings {
   commissionCurrency: string;
 }
 
-export function SettingsClient({ settings }: { settings: Settings }) {
-  const formRef = useRef<HTMLFormElement>(null);
-  const [globalPause, setGlobalPause] = useState(settings.scrapingGlobalPause);
+type SettingKey = Parameters<typeof updateSettingFieldAction>[0];
+
+// ─── Shared auto-save hook ────────────────────────────────────────────────────
+
+function useSaveField(key: SettingKey) {
   const [isPending, startTransition] = useTransition();
+  const [saved, setSaved] = useState(false);
+
+  function save(value: string | number | boolean | null) {
+    startTransition(async () => {
+      const result = await updateSettingFieldAction(key, value);
+      if (result?.error) {
+        toast.error(`Failed to save`, { description: result.error });
+      } else {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2000);
+      }
+    });
+  }
+
+  return { save, isPending, saved };
+}
+
+// ─── Reusable field status indicator ─────────────────────────────────────────
+
+function SaveIndicator({ isPending, saved }: { isPending: boolean; saved: boolean }) {
+  if (isPending) return <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />;
+  if (saved) return <Check className="h-3.5 w-3.5 text-green-500" />;
+  return null;
+}
+
+// ─── Auto-save text / number input ───────────────────────────────────────────
+
+function AutoInput({
+  id, name, label, description, defaultValue, type = "text",
+  min, max, placeholder, password,
+}: {
+  id: string; name: SettingKey; label: string; description?: string;
+  defaultValue: string | number; type?: string;
+  min?: number; max?: number; placeholder?: string; password?: boolean;
+}) {
+  const { save, isPending, saved } = useSaveField(name);
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center gap-2">
+        <Label htmlFor={id}>{label}</Label>
+        <SaveIndicator isPending={isPending} saved={saved} />
+      </div>
+      <Input
+        id={id}
+        type={password ? "password" : type}
+        defaultValue={defaultValue}
+        min={min}
+        max={max}
+        placeholder={placeholder}
+        autoComplete={password ? "off" : undefined}
+        onBlur={(e) => {
+          const v = e.target.value;
+          if (type === "number") {
+            const n = parseFloat(v);
+            if (!isNaN(n)) save(n);
+          } else {
+            save(v || null);
+          }
+        }}
+      />
+      {description && <p className="text-xs text-muted-foreground">{description}</p>}
+    </div>
+  );
+}
+
+// ─── Auto-save toggle row ─────────────────────────────────────────────────────
+
+function AutoSwitch({
+  name, label, description, defaultChecked,
+}: {
+  name: SettingKey; label: string; description?: string; defaultChecked: boolean;
+}) {
+  const { save, isPending, saved } = useSaveField(name);
+  const [checked, setChecked] = useState(defaultChecked);
+
+  return (
+    <div className="flex items-center justify-between">
+      <div>
+        <div className="flex items-center gap-2">
+          <p className="text-sm font-medium">{label}</p>
+          <SaveIndicator isPending={isPending} saved={saved} />
+        </div>
+        {description && <p className="text-xs text-muted-foreground mt-0.5">{description}</p>}
+      </div>
+      <Switch
+        checked={checked}
+        onCheckedChange={(v) => { setChecked(v); save(v); }}
+        disabled={isPending}
+      />
+    </div>
+  );
+}
+
+// ─── Auto-save select ─────────────────────────────────────────────────────────
+
+function AutoSelect({
+  id, name, label, description, defaultValue, options,
+}: {
+  id: string; name: SettingKey; label: string; description?: string;
+  defaultValue: string; options: { value: string; label: string }[];
+}) {
+  const { save, isPending, saved } = useSaveField(name);
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center gap-2">
+        <Label htmlFor={id}>{label}</Label>
+        <SaveIndicator isPending={isPending} saved={saved} />
+      </div>
+      <select
+        id={id}
+        defaultValue={defaultValue}
+        disabled={isPending}
+        onChange={(e) => save(e.target.value)}
+        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+      >
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>{o.label}</option>
+        ))}
+      </select>
+      {description && <p className="text-xs text-muted-foreground">{description}</p>}
+    </div>
+  );
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
+
+export function SettingsClient({ settings }: { settings: Settings }) {
   const [accent, setAccent] = useState<AccentId>(() => {
     if (typeof window === "undefined") return "neutral";
     return getStoredAccent();
@@ -78,48 +206,73 @@ export function SettingsClient({ settings }: { settings: Settings }) {
 
   function handleAccentChange(id: AccentId) {
     setAccent(id);
-    ApplyAccent({ accent: id });
-  }
-
-  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    formData.set("scrapingGlobalPause", String(globalPause));
-
-    startTransition(async () => {
-      const result = await updateSettingsAction(formData);
-      if (result?.error) {
-        toast.error("Failed to save settings", { description: result.error });
-      } else {
-        toast.success("Settings saved");
-      }
-    });
+    if (id === "neutral") {
+      document.documentElement.removeAttribute("data-accent");
+    } else {
+      document.documentElement.setAttribute("data-accent", id);
+    }
+    try { localStorage.setItem(ACCENT_LS_KEY, id); } catch { /* ignore */ }
   }
 
   return (
     <div className="space-y-6">
-    <form ref={formRef} onSubmit={handleSubmit} className="space-y-6">
-      {/* General */}
+
+      {/* ── General ── */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base">General</CardTitle>
-          <CardDescription>Basic application settings.</CardDescription>
+          <CardDescription>Basic application configuration.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="companyName">Company Name</Label>
-            <Input
-              id="companyName"
-              name="companyName"
-              defaultValue={settings.companyName}
-              maxLength={80}
-              placeholder="DataForge"
-            />
+          <AutoInput
+            id="companyName" name="companyName" label="Company Name"
+            defaultValue={settings.companyName} placeholder="DataForge"
+          />
+          <Separator />
+          <AutoSelect
+            id="commissionCurrency" name="commissionCurrency" label="Currency"
+            defaultValue={settings.commissionCurrency}
+            description="Symbol shown on all commission amounts across the app."
+            options={CURRENCIES.map((c) => ({ value: c.symbol, label: c.label }))}
+          />
+        </CardContent>
+      </Card>
+
+      {/* ── Appearance ── */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Appearance</CardTitle>
+          <CardDescription>Choose an accent colour scheme. Applies instantly, saved to your browser.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap gap-3">
+            {ACCENT_SCHEMES.map((scheme) => {
+              const active = accent === scheme.id;
+              return (
+                <button
+                  key={scheme.id}
+                  type="button"
+                  onClick={() => handleAccentChange(scheme.id)}
+                  className={`flex flex-col items-center gap-1.5 rounded-lg border-2 p-2 transition-colors ${
+                    active ? "border-foreground" : "border-transparent hover:border-border"
+                  }`}
+                  title={scheme.label}
+                >
+                  <span
+                    className="relative flex h-8 w-8 items-center justify-center rounded-full shadow-sm"
+                    style={{ backgroundColor: scheme.swatch }}
+                  >
+                    {active && <Check className="h-4 w-4 text-white drop-shadow" strokeWidth={3} />}
+                  </span>
+                  <span className="text-[11px] text-muted-foreground font-medium">{scheme.label}</span>
+                </button>
+              );
+            })}
           </div>
         </CardContent>
       </Card>
 
-      {/* Scraping */}
+      {/* ── Scraping ── */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Scraping</CardTitle>
@@ -127,232 +280,100 @@ export function SettingsClient({ settings }: { settings: Settings }) {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="scrapingDefaultMaxLeads">Default Max Leads per Run</Label>
-              <Input
-                id="scrapingDefaultMaxLeads"
-                name="scrapingDefaultMaxLeads"
-                type="number"
-                min={1}
-                max={500}
-                defaultValue={settings.scrapingDefaultMaxLeads}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="scrapingDefaultInterval">Default Interval (minutes)</Label>
-              <Input
-                id="scrapingDefaultInterval"
-                name="scrapingDefaultInterval"
-                type="number"
-                min={60}
-                defaultValue={settings.scrapingDefaultInterval}
-              />
-              <p className="text-xs text-muted-foreground">
-                {settings.scrapingDefaultInterval >= 1440
+            <AutoInput
+              id="scrapingDefaultMaxLeads" name="scrapingDefaultMaxLeads"
+              label="Default Max Leads per Run" type="number"
+              defaultValue={settings.scrapingDefaultMaxLeads} min={1} max={500}
+            />
+            <AutoInput
+              id="scrapingDefaultInterval" name="scrapingDefaultInterval"
+              label="Default Interval (minutes)" type="number"
+              defaultValue={settings.scrapingDefaultInterval} min={60}
+              description={
+                settings.scrapingDefaultInterval >= 1440
                   ? `${Math.round(settings.scrapingDefaultInterval / 1440)} day(s)`
-                  : `${settings.scrapingDefaultInterval} minutes`}
-              </p>
-            </div>
-          </div>
-
-          <Separator />
-
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium">Global Scraping Pause</p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Pauses all scheduled keyword scraping runs across the app.
-              </p>
-            </div>
-            <Switch
-              checked={globalPause}
-              onCheckedChange={setGlobalPause}
+                  : `${settings.scrapingDefaultInterval} minutes`
+              }
             />
           </div>
+          <Separator />
+          <AutoSwitch
+            name="scrapingGlobalPause" label="Global Scraping Pause"
+            defaultChecked={settings.scrapingGlobalPause}
+            description="Pauses all scheduled keyword scraping runs across the app."
+          />
         </CardContent>
       </Card>
 
-      {/* Lead Quality */}
+      {/* ── Lead Quality ── */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Lead Quality Thresholds</CardTitle>
-          <CardDescription>
-            Score thresholds used to classify leads as Good, Medium, or Low quality.
-          </CardDescription>
+          <CardDescription>Score thresholds used to classify leads as Good, Medium, or Low quality.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent>
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="leadQualityGoodThreshold">Good threshold (≥)</Label>
-              <Input
-                id="leadQualityGoodThreshold"
-                name="leadQualityGoodThreshold"
-                type="number"
-                min={1}
-                max={100}
-                defaultValue={settings.leadQualityGoodThreshold}
-              />
-              <p className="text-xs text-muted-foreground">Scores ≥ this value are "Good"</p>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="leadQualityMediumThreshold">Medium threshold (≥)</Label>
-              <Input
-                id="leadQualityMediumThreshold"
-                name="leadQualityMediumThreshold"
-                type="number"
-                min={1}
-                max={100}
-                defaultValue={settings.leadQualityMediumThreshold}
-              />
-              <p className="text-xs text-muted-foreground">Scores ≥ this value are "Medium"</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Commissions */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Commissions</CardTitle>
-          <CardDescription>Configure how commission amounts are displayed across the app.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="commissionCurrency">Currency</Label>
-            <select
-              id="commissionCurrency"
-              name="commissionCurrency"
-              defaultValue={settings.commissionCurrency}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-            >
-              {CURRENCIES.map((c) => (
-                <option key={c.symbol} value={c.symbol}>{c.label}</option>
-              ))}
-            </select>
-            <p className="text-xs text-muted-foreground">
-              This symbol is shown on all commission amounts in the app.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Integrations */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Integrations</CardTitle>
-          <CardDescription>Connect DataForge with external platforms.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="ghlWebhookUrl">Webhook URL</Label>
-            <Input
-              id="ghlWebhookUrl"
-              name="ghlWebhookUrl"
-              type="url"
-              defaultValue={settings.ghlWebhookUrl ?? ""}
-              placeholder="https://services.leadconnectorhq.com/hooks/..."
+            <AutoInput
+              id="leadQualityGoodThreshold" name="leadQualityGoodThreshold"
+              label="Good threshold (≥)" type="number"
+              defaultValue={settings.leadQualityGoodThreshold} min={1} max={100}
+              description='Scores ≥ this value are "Good"'
             />
-            <p className="text-xs text-muted-foreground">
-              Leads will be pushed to this webhook when uploaded to GHL.
-            </p>
+            <AutoInput
+              id="leadQualityMediumThreshold" name="leadQualityMediumThreshold"
+              label="Medium threshold (≥)" type="number"
+              defaultValue={settings.leadQualityMediumThreshold} min={1} max={100}
+              description='Scores ≥ this value are "Medium"'
+            />
           </div>
+        </CardContent>
+      </Card>
 
+      {/* ── GHL Integration ── */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">GoHighLevel Integration</CardTitle>
+          <CardDescription>Connect DataForge with your GHL account.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <AutoInput
+            id="ghlWebhookUrl" name="ghlWebhookUrl" label="Webhook URL"
+            defaultValue={settings.ghlWebhookUrl ?? ""}
+            placeholder="https://services.leadconnectorhq.com/hooks/..."
+            description="Leads will be pushed to this webhook when uploaded to GHL."
+          />
           <Separator />
-
-          <div className="space-y-1.5">
-            <Label htmlFor="ghlApiKey">API Key</Label>
-            <Input
-              id="ghlApiKey"
-              name="ghlApiKey"
-              type="password"
-              defaultValue={settings.ghlApiKey ?? ""}
-              placeholder="eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."
-              autoComplete="off"
-            />
-            <p className="text-xs text-muted-foreground">
-              Agency-level Private Integration API key. Used to sync call logs and opportunities.
-            </p>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="ghlSubAccountApiKey">Sub Account API Key</Label>
-            <Input
-              id="ghlSubAccountApiKey"
-              name="ghlSubAccountApiKey"
-              type="password"
-              defaultValue={settings.ghlSubAccountApiKey ?? ""}
-              placeholder="eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."
-              autoComplete="off"
-            />
-            <p className="text-xs text-muted-foreground">
-              Location-level Private Integration API key. Required for syncing calendar appointments.
-            </p>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="ghlLocationId">Location ID</Label>
-            <Input
-              id="ghlLocationId"
-              name="ghlLocationId"
-              defaultValue={settings.ghlLocationId ?? ""}
-              placeholder="abc123XYZ..."
-              autoComplete="off"
-            />
-            <p className="text-xs text-muted-foreground">
-              The sub-account Location ID from GHL. Found under Settings → Business Info in your GHL account.
-            </p>
-          </div>
+          <AutoInput
+            id="ghlApiKey" name="ghlApiKey" label="Agency API Key"
+            defaultValue={settings.ghlApiKey ?? ""}
+            placeholder="eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."
+            password
+            description="Agency-level Private Integration API key. Used to sync call logs and opportunities."
+          />
+          <AutoInput
+            id="ghlSubAccountApiKey" name="ghlSubAccountApiKey" label="Sub Account API Key"
+            defaultValue={settings.ghlSubAccountApiKey ?? ""}
+            placeholder="eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."
+            password
+            description="Location-level Private Integration API key. Required for syncing calendar appointments."
+          />
+          <AutoInput
+            id="ghlLocationId" name="ghlLocationId" label="Location ID"
+            defaultValue={settings.ghlLocationId ?? ""}
+            placeholder="abc123XYZ..."
+            description="The sub-account Location ID from GHL. Found under Settings → Business Info in your GHL account."
+          />
         </CardContent>
       </Card>
 
-      <div className="flex justify-end">
-        <Button type="submit" disabled={isPending}>
-          {isPending ? "Saving…" : "Save Settings"}
-        </Button>
-      </div>
-    </form>
+      {/* ── Maintenance ── */}
+      <GeocodeBackfillCard />
 
-    {/* Appearance — localStorage only, outside the server-action form */}
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base">Appearance</CardTitle>
-        <CardDescription>Choose an accent colour scheme for the app.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="flex flex-wrap gap-3">
-          {ACCENT_SCHEMES.map((scheme) => {
-            const active = accent === scheme.id;
-            return (
-              <button
-                key={scheme.id}
-                type="button"
-                onClick={() => handleAccentChange(scheme.id)}
-                className={`flex flex-col items-center gap-1.5 rounded-lg border-2 p-2 transition-colors ${
-                  active
-                    ? "border-foreground"
-                    : "border-transparent hover:border-border"
-                }`}
-                title={scheme.label}
-              >
-                <span
-                  className="relative flex h-8 w-8 items-center justify-center rounded-full shadow-sm"
-                  style={{ backgroundColor: scheme.swatch }}
-                >
-                  {active && <Check className="h-4 w-4 text-white drop-shadow" strokeWidth={3} />}
-                </span>
-                <span className="text-[11px] text-muted-foreground font-medium">{scheme.label}</span>
-              </button>
-            );
-          })}
-        </div>
-      </CardContent>
-    </Card>
-
-    {/* Maintenance */}
-    <GeocodeBackfillCard />
     </div>
   );
 }
+
+// ─── Geocode backfill card ────────────────────────────────────────────────────
 
 function GeocodeBackfillCard() {
   const [running, setRunning] = useState(false);
@@ -390,12 +411,12 @@ function GeocodeBackfillCard() {
             </p>
             {result && (
               <p className="text-xs text-green-500 mt-1">
-                Done — {result.updated} geocoded, {result.skipped} skipped (no address match), {result.total} total.
+                Done — {result.updated} geocoded, {result.skipped} skipped, {result.total} total.
               </p>
             )}
           </div>
           <Button size="sm" variant="outline" onClick={handleRun} disabled={running}>
-            {running ? "Running…" : "Run"}
+            {running ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Running…</> : "Run"}
           </Button>
         </div>
       </CardContent>
