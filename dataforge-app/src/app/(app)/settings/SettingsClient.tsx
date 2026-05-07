@@ -447,13 +447,11 @@ function SingleLeadGeocoder() {
 
       <div className="flex gap-2 items-start">
         <Popover open={open} onOpenChange={setOpen}>
-          <PopoverTrigger asChild>
-            <Button variant="outline" role="combobox" aria-expanded={open} className="flex-1 justify-between font-normal truncate">
-              <span className="truncate">
-                {selected ? selected.businessName : "Search lead by name…"}
-              </span>
-              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-            </Button>
+          <PopoverTrigger render={<Button variant="outline" role="combobox" aria-expanded={open} className="flex-1 justify-between font-normal truncate" />}>
+            <span className="truncate">
+              {selected ? selected.businessName : "Search lead by name…"}
+            </span>
+            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </PopoverTrigger>
           <PopoverContent className="w-[400px] p-0" align="start">
             <Command shouldFilter={false}>
