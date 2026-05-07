@@ -28,7 +28,7 @@ export default async function BalloonsPage() {
   const isSuspended = dbUser?.balloonSuspendedUntil && dbUser.balloonSuspendedUntil > new Date();
 
   return (
-    <div className="max-w-2xl mx-auto space-y-4">
+    <div className="max-w-6xl mx-auto space-y-4">
       <div>
         <h1 className="text-xl font-black tracking-tight">🎈 Balloon Pop</h1>
         <p className="text-sm text-muted-foreground mt-0.5">

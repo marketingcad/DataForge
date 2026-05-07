@@ -222,20 +222,26 @@ function BalloonCell({
           myPoints < 1    ? "Need 1 balloon point" : ""
         }
         className={[
-          "relative select-none",
-          "w-28 h-36 sm:w-32 sm:h-40 md:w-36 md:h-44",
-          canPop   ? "cursor-[url('/cursor-pin.svg'),_crosshair] hover:scale-105 active:scale-95" : "cursor-default",
+          "relative select-none w-full",
+          canPop ? "cursor-[url('/cursor-pin.svg'),_crosshair] hover:scale-105 active:scale-95" : "cursor-default",
         ].join(" ")}
         style={{
+          aspectRatio: "3 / 5",
           transition: fading ? "opacity 0.18s ease-out" : "opacity 0s, transform 0.15s",
           opacity: fading ? 0 : 1,
         }}
       >
         {isPopped ? (
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-center gap-1 bg-muted/30 rounded-2xl border border-dashed border-border/50 p-2">
-            <span className="text-2xl">🎉</span>
-            <p className="text-[10px] font-bold text-primary leading-tight line-clamp-3">{balloon.prize}</p>
-            {displayName && <p className="text-[9px] text-muted-foreground leading-tight">{displayName}</p>}
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-center gap-1.5 rounded-2xl border-2 border-dashed border-primary/30 bg-gradient-to-b from-primary/10 to-primary/5 p-3">
+            <span className="text-3xl">🎉</span>
+            <p className="text-xs sm:text-sm font-black text-primary leading-snug line-clamp-4 drop-shadow-sm">
+              {balloon.prize}
+            </p>
+            {displayName && (
+              <p className="text-[10px] sm:text-xs text-muted-foreground font-medium leading-tight">
+                {displayName}
+              </p>
+            )}
           </div>
         ) : (
           <>
@@ -285,7 +291,7 @@ export function BalloonGrid({
   const totalPopped = balloons.filter((b) => b.isPopped).length;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Points bar */}
       <div className="flex items-center justify-between rounded-2xl bg-card border border-border/40 shadow-sm px-5 py-3.5">
         <div className="flex items-center gap-3">
@@ -308,7 +314,7 @@ export function BalloonGrid({
       )}
 
       {/* 4×4 grid */}
-      <div className="grid grid-cols-4 gap-3 sm:gap-5 justify-items-center">
+      <div className="grid grid-cols-4 gap-3 sm:gap-4 md:gap-5">
         {balloons.map((balloon) => (
           <BalloonCell
             key={balloon.id}
@@ -320,7 +326,8 @@ export function BalloonGrid({
         {Array.from({ length: Math.max(0, 16 - balloons.length) }).map((_, i) => (
           <div
             key={`empty-${i}`}
-            className="w-28 h-36 sm:w-32 sm:h-40 md:w-36 md:h-44 rounded-2xl bg-muted/20 border border-dashed border-border/40 flex items-center justify-center"
+            className="w-full rounded-2xl bg-muted/20 border border-dashed border-border/40 flex items-center justify-center"
+            style={{ aspectRatio: "3 / 5" }}
           >
             <span className="text-muted-foreground/40 text-3xl">🎈</span>
           </div>
