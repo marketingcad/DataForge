@@ -182,11 +182,7 @@ export async function getLeadLocations(): Promise<GlobePoint[]> {
       },
     },
     where: {
-      OR: [
-        { latitude: { not: null } },
-        { address: { not: null } },
-        { city: { not: null } },
-      ],
+      address: { not: null },
     },
   });
 
