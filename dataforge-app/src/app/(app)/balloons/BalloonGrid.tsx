@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useMemo } from "react";
 import { popBalloonAction } from "@/actions/balloons.actions";
 
 type BalloonData = {
@@ -12,7 +12,7 @@ type BalloonData = {
   poppedBy: { id: string; name: string | null; nickname: string | null } | null;
 };
 
-// ── Colour themes (one per balloon position, cycles) ──────────────────────────
+// ── Colour themes ─────────────────────────────────────────────────────────────
 
 const THEMES = [
   { main: "#d83940", hi: "#de5d63", lo: "#e17980", dk: "#be252c", shine: "#f1d4d6" },
@@ -31,50 +31,68 @@ function theme(position: number): Theme {
   return THEMES[(position - 1) % THEMES.length];
 }
 
-// ── Synthetic pop sound (Web Audio API — no network requests) ─────────────────
+// ── CSS keyframes (injected once via BalloonGrid) ─────────────────────────────
+
+const KEYFRAMES = `
+@keyframes balloon-float {
+  0%,100% { transform: translateY(0px) rotate(-1.5deg); }
+  50%      { transform: translateY(-8px) rotate(1.5deg); }
+}
+@keyframes prize-in {
+  0%   { transform: scale(0.1) rotate(-12deg); opacity: 0; }
+  60%  { transform: scale(1.08) rotate(3deg);  opacity: 1; }
+  80%  { transform: scale(0.97) rotate(-1deg); }
+  100% { transform: scale(1) rotate(0deg);     opacity: 1; }
+}
+@keyframes confetti-fall {
+  0%   { transform: translateY(0)    rotate(0deg);   opacity: 1; }
+  100% { transform: translateY(520px) rotate(820deg); opacity: 0; }
+}
+@keyframes twinkle {
+  0%,100% { transform: scale(1)   rotate(0deg);  opacity: 0.5; }
+  50%      { transform: scale(1.4) rotate(25deg); opacity: 1;   }
+}
+@keyframes gold-pulse {
+  0%,100% { box-shadow: 0 4px 18px rgba(245,158,11,0.4); }
+  50%      { box-shadow: 0 4px 38px rgba(245,158,11,0.85); }
+}
+@keyframes badge-bob {
+  0%,100% { transform: translateY(0)   scale(1);    }
+  40%      { transform: translateY(-6px) scale(1.06); }
+}
+`;
+
+// ── Synthetic pop sound ───────────────────────────────────────────────────────
 
 function playPop() {
   try {
     const AC = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     const ctx = new AC();
-
     function fire() {
       const duration = 0.22;
       const rate = ctx.sampleRate;
       const buf = ctx.createBuffer(1, Math.ceil(rate * duration), rate);
       const data = buf.getChannelData(0);
       for (let i = 0; i < data.length; i++) {
-        // Sharp transient at the start fading to silence
         data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / data.length, 2);
       }
       const src = ctx.createBufferSource();
       src.buffer = buf;
-
-      // High-pass filter to cut low rumble — makes it sound crispier
       const hp = ctx.createBiquadFilter();
       hp.type = "highpass";
       hp.frequency.value = 180;
-
       const gain = ctx.createGain();
       gain.gain.setValueAtTime(1.2, ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
-
-      src.connect(hp);
-      hp.connect(gain);
-      gain.connect(ctx.destination);
+      src.connect(hp); hp.connect(gain); gain.connect(ctx.destination);
       src.start();
       setTimeout(() => ctx.close(), 600);
     }
-
-    if (ctx.state === "suspended") {
-      ctx.resume().then(fire);
-    } else {
-      fire();
-    }
+    if (ctx.state === "suspended") ctx.resume().then(fire); else fire();
   } catch { /* audio unavailable */ }
 }
 
-// ── SVG props shared across all balloon frames ────────────────────────────────
+// ── SVG shared props ──────────────────────────────────────────────────────────
 
 const S = {
   viewBox: "-3 8 58 90",
@@ -108,7 +126,7 @@ function IntactBalloon({ t }: { t: Theme }) {
   );
 }
 
-// ── Frame 2: burst (solid) ────────────────────────────────────────────────────
+// ── Frame 2: burst ────────────────────────────────────────────────────────────
 
 function BurstBalloon({ t }: { t: Theme }) {
   return (
@@ -135,7 +153,7 @@ function BurstBalloon({ t }: { t: Theme }) {
   );
 }
 
-// ── Frame 3: ghost (semi-transparent, slightly offset for spreading debris) ───
+// ── Frame 3: ghost ────────────────────────────────────────────────────────────
 
 function GhostBalloon({ t }: { t: Theme }) {
   return (
@@ -159,6 +177,144 @@ function GhostBalloon({ t }: { t: Theme }) {
   );
 }
 
+// ── Prize modal ───────────────────────────────────────────────────────────────
+
+const CONFETTI_COLORS = ["#f59e0b","#ef4444","#10b981","#3b82f6","#8b5cf6","#ec4899","#f97316","#06b6d4","#a3e635","#fff"];
+
+const SPARKLE_POSITIONS = [
+  "top-4 left-5", "top-4 right-5", "top-14 left-3", "top-14 right-3",
+  "bottom-24 left-5", "bottom-24 right-5",
+];
+
+function PrizeModal({ prize, onClose }: { prize: string; onClose: () => void }) {
+  const confetti = useMemo(() =>
+    Array.from({ length: 65 }, (_, i) => ({
+      id: i,
+      color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+      left: 2 + Math.random() * 96,
+      delay: Math.random() * 0.9,
+      dur: 1.4 + Math.random() * 1.8,
+      w: 4 + Math.random() * 9,
+      tall: 7 + Math.random() * 11,
+      circle: Math.random() > 0.45,
+      rot: Math.random() * 360,
+    })),
+  []);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-5"
+      style={{ background: "rgba(0,0,0,0.82)", backdropFilter: "blur(7px)" }}
+      onClick={onClose}
+    >
+      <div
+        className="relative w-full max-w-[300px]"
+        style={{ animation: "prize-in 0.52s cubic-bezier(0.22, 1.5, 0.36, 1) both" }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Confetti burst (clipped to card area) */}
+        <div className="absolute inset-0 overflow-hidden rounded-3xl pointer-events-none" style={{ zIndex: 0 }}>
+          {confetti.map(p => (
+            <div
+              key={p.id}
+              style={{
+                position: "absolute",
+                top: -14,
+                left: `${p.left}%`,
+                width: p.w,
+                height: p.circle ? p.w : p.tall,
+                borderRadius: p.circle ? "50%" : 2,
+                background: p.color,
+                transform: `rotate(${p.rot}deg)`,
+                animation: `confetti-fall ${p.dur}s ${p.delay}s ease-in both`,
+              }}
+            />
+          ))}
+        </div>
+
+        {/* Card */}
+        <div
+          className="relative z-10 rounded-3xl px-7 pt-9 pb-7 flex flex-col items-center gap-3 text-center"
+          style={{
+            background: "linear-gradient(160deg, #0c1829 0%, #162543 55%, #091220 100%)",
+            border: "1.5px solid rgba(251,191,36,0.35)",
+            boxShadow: "0 0 90px rgba(251,191,36,0.18), 0 30px 70px rgba(0,0,0,0.65), inset 0 1px 0 rgba(255,255,255,0.04)",
+          }}
+        >
+          {/* Corner sparkles */}
+          {SPARKLE_POSITIONS.map((pos, i) => (
+            <span
+              key={i}
+              className={`absolute text-yellow-400 ${pos}`}
+              style={{
+                fontSize: 16,
+                animation: `twinkle 2s ${(i * 0.18).toFixed(2)}s ease-in-out infinite`,
+              }}
+            >
+              ✦
+            </span>
+          ))}
+
+          {/* Trophy */}
+          <div
+            style={{
+              fontSize: 76,
+              lineHeight: 1,
+              filter: "drop-shadow(0 0 24px rgba(251,191,36,0.65))",
+              animation: "badge-bob 2.2s 0.4s ease-in-out infinite",
+            }}
+          >
+            🏆
+          </div>
+
+          {/* YOU WON */}
+          <p style={{
+            color: "#fbbf24",
+            fontSize: 10,
+            fontWeight: 900,
+            letterSpacing: "0.35em",
+            textTransform: "uppercase",
+            textShadow: "0 0 18px rgba(251,191,36,0.8)",
+          }}>
+            YOU WON
+          </p>
+
+          {/* Gold line */}
+          <div style={{
+            width: 56,
+            height: 1.5,
+            background: "linear-gradient(90deg, transparent, rgba(251,191,36,0.7), transparent)",
+          }} />
+
+          {/* Prize name */}
+          <p className="font-black text-white leading-snug" style={{
+            fontSize: "clamp(19px, 5.5vw, 27px)",
+            textShadow: "0 2px 18px rgba(255,255,255,0.12)",
+          }}>
+            {prize}
+          </p>
+
+          {/* Button */}
+          <button
+            onClick={onClose}
+            className="mt-2 w-full rounded-2xl py-3.5 font-black text-sm active:scale-95 transition-transform"
+            style={{
+              background: "linear-gradient(135deg, #fbbf24 0%, #d97706 100%)",
+              color: "#1c0a00",
+              letterSpacing: "0.1em",
+              animation: "gold-pulse 2s 0.6s ease-in-out infinite",
+            }}
+          >
+            🎉 AWESOME!
+          </button>
+
+          <p className="text-[10px] text-white/25 mt-1">tap anywhere to dismiss</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Balloon cell ──────────────────────────────────────────────────────────────
 
 type AnimState = "idle" | "burst" | "fading" | "done";
@@ -170,10 +326,10 @@ function BalloonCell({
   myPoints: number;
   onPopped: (id: string, prize: string) => void;
 }) {
-  const [anim, setAnim]       = useState<AnimState>("idle");
-  const [fading, setFading]   = useState(false);
-  const [isPending, startT]   = useTransition();
-  const [error, setError]     = useState<string | null>(null);
+  const [anim, setAnim]     = useState<AnimState>("idle");
+  const [fading, setFading] = useState(false);
+  const [isPending, startT] = useTransition();
+  const [error, setError]   = useState<string | null>(null);
   const t = theme(balloon.position);
 
   const isPopped = balloon.isPopped || anim === "done";
@@ -182,18 +338,10 @@ function BalloonCell({
   function handleClick() {
     if (!canPop) return;
     setError(null);
-
-    // t=0: burst frame + sound
     playPop();
     setAnim("burst");
-
-    // t=20ms: ghost frame appears
     setTimeout(() => setAnim("fading"), 20);
-
-    // t=120ms: start opacity fade via CSS transition
     setTimeout(() => setFading(true), 120);
-
-    // t=300ms: call server action
     setTimeout(() => {
       startT(async () => {
         const res = await popBalloonAction(balloon.id);
@@ -211,49 +359,60 @@ function BalloonCell({
   }
 
   const displayName = balloon.poppedBy?.nickname ?? balloon.poppedBy?.name ?? null;
+  const floatDelay = `${((balloon.position - 1) % 7) * 0.18}s`;
+  const floatDur   = `${2.6 + (balloon.position % 5) * 0.22}s`;
 
   return (
     <div className="flex flex-col items-center gap-2">
-      <div
-        onClick={handleClick}
-        title={
-          canPop          ? "Click to pop!" :
-          isPopped        ? `Won by ${displayName ?? "someone"}` :
-          myPoints < 1    ? "Need 1 balloon point" : ""
-        }
-        className={[
-          "relative select-none w-20 h-28 sm:w-24 sm:h-32 md:w-28 md:h-36",
-          canPop ? "cursor-[url('/cursor-pin.svg'),_crosshair] hover:scale-105 active:scale-95" : "cursor-default",
-        ].join(" ")}
-        style={{
-          transition: fading ? "opacity 0.18s ease-out" : "opacity 0s, transform 0.15s",
-          opacity: fading ? 0 : 1,
-        }}
-      >
-        {isPopped ? (
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-center gap-1 from-primary/10 to-primary/5 p-2">
-            <span className="text-[30px]">🎉</span>
-            <p className="text-[20px] font-black text-primary leading-snug line-clamp-4 drop-shadow-sm">
-              {balloon.prize}
-            </p>
-            {displayName && (
-              <p className="text-[15px] text-muted-foreground font-medium leading-tight">
-                {displayName}
+      {/* Float wrapper — only on idle intact balloons */}
+      <div style={anim === "idle" && !isPopped ? {
+        animation: `balloon-float ${floatDur} ${floatDelay} ease-in-out infinite`,
+      } : {}}>
+        <div
+          onClick={handleClick}
+          title={
+            canPop       ? "Click to pop!" :
+            isPopped     ? `Won by ${displayName ?? "someone"}` :
+            myPoints < 1 ? "Need 1 balloon point" : ""
+          }
+          className={[
+            "relative select-none w-20 h-28 sm:w-24 sm:h-32 md:w-28 md:h-36",
+            canPop ? "cursor-[url('/cursor-pin.svg'),_crosshair] hover:scale-105 active:scale-95" : "cursor-default",
+          ].join(" ")}
+          style={{
+            transition: fading ? "opacity 0.18s ease-out" : "opacity 0s, transform 0.15s",
+            opacity: fading ? 0 : 1,
+          }}
+        >
+          {isPopped ? (
+            <div className="absolute inset-0 rounded-2xl flex flex-col items-center justify-center text-center gap-1 p-2"
+              style={{
+                background: "linear-gradient(145deg, rgba(var(--primary)/0.12), rgba(var(--primary)/0.04))",
+                border: "1px dashed rgba(var(--primary)/0.25)",
+              }}
+            >
+              <span className="text-xl">🎁</span>
+              <p className="text-[9px] sm:text-[10px] font-black text-primary leading-tight line-clamp-3">
+                {balloon.prize}
               </p>
-            )}
-          </div>
-        ) : (
-          <>
-            {(anim === "idle") && <IntactBalloon t={t} />}
-            {(anim === "burst" || anim === "fading") && <BurstBalloon t={t} />}
-            {(anim === "fading") && <GhostBalloon t={t} />}
-          </>
-        )}
-
+              {displayName && (
+                <p className="text-[8px] sm:text-[9px] text-muted-foreground leading-tight">
+                  {displayName}
+                </p>
+              )}
+            </div>
+          ) : (
+            <>
+              {anim === "idle"                       && <IntactBalloon t={t} />}
+              {(anim === "burst" || anim === "fading") && <BurstBalloon t={t} />}
+              {anim === "fading"                     && <GhostBalloon t={t} />}
+            </>
+          )}
+        </div>
       </div>
 
       {error && (
-        <p className="text-[9px] text-destructive text-center max-w-[100px] leading-tight">{error}</p>
+        <p className="text-[9px] text-destructive text-center max-w-[90px] leading-tight">{error}</p>
       )}
     </div>
   );
@@ -275,19 +434,28 @@ export function BalloonGrid({
   const [balloons, setBalloons] = useState(initialBalloons);
   const [myPoints, setMyPoints] = useState(initialPoints);
   const [pops, setPops]         = useState<{ prize: string; at: Date }[]>([]);
+  const [winner, setWinner]     = useState<string | null>(null);
 
   function handlePopped(id: string, prize: string) {
-    setBalloons((prev) =>
-      prev.map((b) => b.id === id ? { ...b, isPopped: true, poppedAt: new Date(), poppedBy: { id: myId, name: myName, nickname: null } } : b)
+    setBalloons(prev =>
+      prev.map(b => b.id === id
+        ? { ...b, isPopped: true, poppedAt: new Date(), poppedBy: { id: myId, name: myName, nickname: null } }
+        : b
+      )
     );
-    setMyPoints((p) => Math.max(0, p - 1));
-    setPops((prev) => [{ prize, at: new Date() }, ...prev].slice(0, 5));
+    setMyPoints(p => Math.max(0, p - 1));
+    setPops(prev => [{ prize, at: new Date() }, ...prev].slice(0, 5));
+    setWinner(prize);
   }
 
-  const totalPopped = balloons.filter((b) => b.isPopped).length;
+  const totalPopped = balloons.filter(b => b.isPopped).length;
 
   return (
     <div className="space-y-5">
+      <style>{KEYFRAMES}</style>
+
+      {winner && <PrizeModal prize={winner} onClose={() => setWinner(null)} />}
+
       {/* Points bar */}
       <div className="flex items-center justify-between rounded-2xl bg-card border border-border/40 shadow-sm px-5 py-3.5">
         <div className="flex items-center gap-3">
@@ -311,7 +479,7 @@ export function BalloonGrid({
 
       {/* 4×4 grid */}
       <div className="grid grid-cols-4 gap-3 sm:gap-4 md:gap-5 justify-items-center">
-        {balloons.map((balloon) => (
+        {balloons.map(balloon => (
           <BalloonCell
             key={balloon.id}
             balloon={balloon}
