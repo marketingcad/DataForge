@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { geocodeAddress } from "@/lib/leads/geocode";
 import { auth } from "@/lib/auth";
 
-const DELAY_MS = 1500;
+const DELAY_MS = 1100;
 
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
