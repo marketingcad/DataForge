@@ -7,8 +7,9 @@ import {
   resetAllBalloonsAction,
   adjustBalloonPointsAction,
   setBalloonSuspensionAction,
+  updateBalloonRuleAction,
 } from "@/actions/balloons.actions";
-import { RotateCcw, Trophy, Plus, Minus, Ban, CheckCircle } from "lucide-react";
+import { RotateCcw, Trophy, Plus, Minus, Ban, CheckCircle, Settings2, History } from "lucide-react";
 
 type Balloon = {
   id: string;
@@ -29,7 +30,21 @@ type Rep = {
   balloonSuspendedUntil: Date | null;
 };
 
-function BalloonAdminCard({ balloon, onUpdate }: { balloon: Balloon; onUpdate: () => void }) {
+type Rules = {
+  enabled: boolean;
+  pointsPerAppointment: number;
+};
+
+type AuditLog = {
+  id: string;
+  detail: string;
+  createdAt: Date;
+  actor: { name: string | null; email: string };
+};
+
+// ── Balloon admin card ────────────────────────────────────────────────────────
+
+function BalloonAdminCard({ balloon, onReset }: { balloon: Balloon; onReset: () => void }) {
   const [prize, setPrize] = useState(balloon.prize);
   const [isPending, startTransition] = useTransition();
   const [saved, setSaved] = useState(false);
@@ -39,14 +54,13 @@ function BalloonAdminCard({ balloon, onUpdate }: { balloon: Balloon; onUpdate: (
       await setBalloonPrizeAction(balloon.position, prize);
       setSaved(true);
       setTimeout(() => setSaved(false), 1500);
-      onUpdate();
     });
   }
 
   function handleReset() {
     startTransition(async () => {
       await resetBalloonAction(balloon.id);
-      onUpdate();
+      onReset();
     });
   }
 
@@ -69,7 +83,7 @@ function BalloonAdminCard({ balloon, onUpdate }: { balloon: Balloon; onUpdate: (
             </button>
           </div>
         ) : (
-          <span className="text-[10px] bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 px-1.5 py-0.5 rounded-full font-semibold">READY</span>
+          <span className="text-[10px] bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded-full font-semibold">READY</span>
         )}
       </div>
 
@@ -81,15 +95,13 @@ function BalloonAdminCard({ balloon, onUpdate }: { balloon: Balloon; onUpdate: (
         disabled={isPending}
       />
 
-      <div className="flex items-center gap-1.5">
-        <button
-          onClick={handleSave}
-          disabled={isPending || !prize.trim()}
-          className="flex-1 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-[10px] font-bold py-1 transition-colors disabled:opacity-40"
-        >
-          {saved ? "Saved ✓" : "Save Prize"}
-        </button>
-      </div>
+      <button
+        onClick={handleSave}
+        disabled={isPending || !prize.trim()}
+        className="w-full rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-[10px] font-bold py-1 transition-colors disabled:opacity-40"
+      >
+        {saved ? "Saved ✓" : "Save Prize"}
+      </button>
 
       {balloon.isPopped && displayName && (
         <p className="text-[10px] text-muted-foreground">
@@ -101,22 +113,23 @@ function BalloonAdminCard({ balloon, onUpdate }: { balloon: Balloon; onUpdate: (
   );
 }
 
-function RepRow({ rep, onUpdate }: { rep: Rep; onUpdate: () => void }) {
+// ── Rep row ───────────────────────────────────────────────────────────────────
+
+function RepRow({ rep, onUpdate }: { rep: Rep; onUpdate: (id: string, newPoints: number) => void }) {
   const [isPending, startTransition] = useTransition();
   const isSuspended = rep.balloonSuspendedUntil && new Date(rep.balloonSuspendedUntil) > new Date();
 
   function adjust(delta: number) {
     startTransition(async () => {
-      await adjustBalloonPointsAction(rep.id, delta);
-      onUpdate();
+      const result = await adjustBalloonPointsAction(rep.id, delta);
+      if (result.success) onUpdate(rep.id, result.newPoints);
     });
   }
 
   function toggleSuspend() {
     startTransition(async () => {
-      const until = isSuspended ? null : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+      const until = isSuspended ? null : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
       await setBalloonSuspensionAction(rep.id, until);
-      onUpdate();
     });
   }
 
@@ -173,21 +186,162 @@ function RepRow({ rep, onUpdate }: { rep: Rep; onUpdate: () => void }) {
   );
 }
 
+// ── Rules card ────────────────────────────────────────────────────────────────
+
+function RulesCard({ rules }: { rules: Rules }) {
+  const [enabled, setEnabled] = useState(rules.enabled);
+  const [pts, setPts] = useState(String(rules.pointsPerAppointment));
+  const [ptsPending, startPts] = useTransition();
+  const [togglePending, startToggle] = useTransition();
+  const [ptsSaved, setPtsSaved] = useState(false);
+
+  function handleToggle() {
+    const next = !enabled;
+    setEnabled(next);
+    startToggle(async () => {
+      await updateBalloonRuleAction("enabled", next);
+    });
+  }
+
+  function handleSavePts() {
+    const n = Math.max(1, parseInt(pts) || 1);
+    setPts(String(n));
+    startPts(async () => {
+      await updateBalloonRuleAction("pointsPerAppointment", n);
+      setPtsSaved(true);
+      setTimeout(() => setPtsSaved(false), 1500);
+    });
+  }
+
+  return (
+    <div className="rounded-2xl bg-card border border-border/40 shadow-sm overflow-hidden">
+      <div className="px-5 py-4 border-b border-border/40">
+        <p className="font-bold text-sm flex items-center gap-2">
+          <Settings2 className="h-4 w-4 text-primary" /> Rules & Settings
+        </p>
+        <p className="text-xs text-muted-foreground mt-0.5">Configure how the balloon pop game works</p>
+      </div>
+
+      <div className="p-5 space-y-5">
+        {/* Enable / disable toggle */}
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold">Balloon Pop enabled</p>
+            <p className="text-xs text-muted-foreground mt-0.5">When disabled, reps cannot pop balloons and no points are awarded</p>
+          </div>
+          <button
+            onClick={handleToggle}
+            disabled={togglePending}
+            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none disabled:opacity-50 ${enabled ? "bg-primary" : "bg-muted"}`}
+          >
+            <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition-transform ${enabled ? "translate-x-5" : "translate-x-0"}`} />
+          </button>
+        </div>
+
+        {/* Points per appointment */}
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold">Points per booked appointment</p>
+            <p className="text-xs text-muted-foreground mt-0.5">How many balloon points a rep earns each time they book an appointment</p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <input
+              type="number"
+              min={1}
+              max={10}
+              value={pts}
+              onChange={(e) => setPts(e.target.value)}
+              disabled={ptsPending}
+              className="w-16 rounded-lg border bg-background px-2.5 py-1.5 text-sm text-center font-bold focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+            />
+            <button
+              onClick={handleSavePts}
+              disabled={ptsPending}
+              className="rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold px-3 py-1.5 transition-colors disabled:opacity-40 whitespace-nowrap"
+            >
+              {ptsSaved ? "Saved ✓" : "Save"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Activity log ──────────────────────────────────────────────────────────────
+
+function ActivityLog({ logs }: { logs: AuditLog[] }) {
+  const [expanded, setExpanded] = useState(false);
+  const visible = expanded ? logs : logs.slice(0, 20);
+
+  function formatTime(d: Date) {
+    return new Date(d).toLocaleString("en-US", {
+      month: "short", day: "numeric", year: "numeric",
+      hour: "numeric", minute: "2-digit",
+    });
+  }
+
+  return (
+    <div className="rounded-2xl bg-card border border-border/40 shadow-sm overflow-hidden">
+      <div className="px-5 py-4 border-b border-border/40 flex items-center justify-between">
+        <div>
+          <p className="font-bold text-sm flex items-center gap-2">
+            <History className="h-4 w-4 text-muted-foreground" /> Activity Log
+          </p>
+          <p className="text-xs text-muted-foreground mt-0.5">Complete record of all admin actions on balloon pop</p>
+        </div>
+        <span className="text-xs text-muted-foreground">{logs.length} entries</span>
+      </div>
+
+      {logs.length === 0 ? (
+        <p className="text-sm text-muted-foreground text-center py-10">No activity recorded yet.</p>
+      ) : (
+        <>
+          <div className="divide-y divide-border/30">
+            {visible.map((log) => (
+              <div key={log.id} className="px-5 py-3 flex items-start gap-3 hover:bg-muted/20 transition-colors">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm">{log.detail}</p>
+                </div>
+                <p className="text-[10px] text-muted-foreground whitespace-nowrap shrink-0 mt-0.5">
+                  {formatTime(log.createdAt)}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          {logs.length > 20 && (
+            <div className="px-5 py-3 border-t border-border/30">
+              <button
+                onClick={() => setExpanded((v) => !v)}
+                className="text-xs text-primary hover:underline"
+              >
+                {expanded ? "Show less" : `Show all ${logs.length} entries`}
+              </button>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Main client ───────────────────────────────────────────────────────────────
+
 export function AdminBalloonsClient({
   initialBalloons,
   initialReps,
+  initialRules,
+  initialAuditLogs,
 }: {
   initialBalloons: Balloon[];
   initialReps: Rep[];
+  initialRules: Rules;
+  initialAuditLogs: AuditLog[];
 }) {
   const [balloons, setBalloons] = useState(initialBalloons);
   const [reps, setReps] = useState(initialReps);
   const [isPending, startTransition] = useTransition();
-
-  function refreshData() {
-    // Trigger server revalidation — components will re-render on next navigate
-    // For real-time updates we rely on router.refresh() from parent or optimistic updates
-  }
 
   function handleResetAll() {
     if (!confirm("Reset all 16 balloons? This cannot be undone.")) return;
@@ -197,16 +351,25 @@ export function AdminBalloonsClient({
     });
   }
 
+  function handleBalloonReset() {
+    // Re-fetching would require router.refresh(); optimistic clear is fine
+    setBalloons((prev) => prev.map((b) => ({ ...b })));
+  }
+
+  function handlePointsUpdate(userId: string, newPoints: number) {
+    setReps((prev) => prev.map((r) => r.id === userId ? { ...r, balloonPoints: newPoints } : r));
+  }
+
   const poppedCount = balloons.filter((b) => b.isPopped).length;
 
   return (
     <div className="space-y-6">
-      {/* Header stats */}
+      {/* Stats */}
       <div className="grid grid-cols-3 gap-3">
         {[
-          { label: "Total Balloons", value: 16, icon: "🎈" },
-          { label: "Popped", value: poppedCount, icon: "🎉" },
-          { label: "Remaining", value: 16 - poppedCount, icon: "✨" },
+          { label: "Total Balloons", value: 16,               icon: "🎈" },
+          { label: "Popped",         value: poppedCount,      icon: "🎉" },
+          { label: "Remaining",      value: 16 - poppedCount, icon: "✨" },
         ].map((s) => (
           <div key={s.label} className="rounded-2xl bg-card border border-border/40 shadow-sm p-4 text-center">
             <p className="text-2xl mb-1">{s.icon}</p>
@@ -216,8 +379,11 @@ export function AdminBalloonsClient({
         ))}
       </div>
 
+      {/* Rules */}
+      <RulesCard rules={initialRules} />
+
+      {/* Balloon prizes + Rep management */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Balloon grid management */}
         <div className="rounded-2xl bg-card border border-border/40 shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-border/40 flex items-center justify-between">
             <div>
@@ -235,18 +401,9 @@ export function AdminBalloonsClient({
             </button>
           </div>
           <div className="p-4 grid grid-cols-4 gap-2">
-            {/* Ensure 16 slots */}
             {Array.from({ length: 16 }, (_, i) => {
               const b = balloons.find((x) => x.position === i + 1);
-              if (b) {
-                return (
-                  <BalloonAdminCard
-                    key={b.id}
-                    balloon={b}
-                    onUpdate={refreshData}
-                  />
-                );
-              }
+              if (b) return <BalloonAdminCard key={b.id} balloon={b} onReset={handleBalloonReset} />;
               return (
                 <div key={i} className="rounded-xl border border-dashed border-border/40 p-3 flex items-center justify-center min-h-[100px]">
                   <span className="text-muted-foreground/30 text-xs text-center">#{i + 1}<br />No record</span>
@@ -256,7 +413,6 @@ export function AdminBalloonsClient({
           </div>
         </div>
 
-        {/* Rep management */}
         <div className="rounded-2xl bg-card border border-border/40 shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-border/40">
             <p className="font-bold text-sm">Rep Points & Access</p>
@@ -267,11 +423,14 @@ export function AdminBalloonsClient({
               <p className="text-sm text-muted-foreground text-center py-10">No sales reps found.</p>
             )}
             {reps.map((rep) => (
-              <RepRow key={rep.id} rep={rep} onUpdate={refreshData} />
+              <RepRow key={rep.id} rep={rep} onUpdate={handlePointsUpdate} />
             ))}
           </div>
         </div>
       </div>
+
+      {/* Activity log */}
+      <ActivityLog logs={initialAuditLogs} />
     </div>
   );
 }

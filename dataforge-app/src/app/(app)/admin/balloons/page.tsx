@@ -21,19 +21,21 @@ export default async function AdminBalloonsPage() {
     await prisma.balloon.createMany({ data: missing.map((position) => ({ position, prize: "" })) });
   }
 
-  const { balloons, reps } = await getBalloonAdminDataAction();
+  const { balloons, reps, rules, auditLogs } = await getBalloonAdminDataAction();
 
   return (
     <div className="max-w-5xl mx-auto space-y-4">
       <div>
         <h1 className="text-xl font-black tracking-tight">🎈 Balloon Pop — Admin</h1>
         <p className="text-sm text-muted-foreground mt-0.5">
-          Manage prizes, reset balloons, and control rep access.
+          Manage prizes, reset balloons, configure rules, and control rep access.
         </p>
       </div>
       <AdminBalloonsClient
         initialBalloons={balloons as Parameters<typeof AdminBalloonsClient>[0]["initialBalloons"]}
         initialReps={reps as Parameters<typeof AdminBalloonsClient>[0]["initialReps"]}
+        initialRules={rules}
+        initialAuditLogs={auditLogs as Parameters<typeof AdminBalloonsClient>[0]["initialAuditLogs"]}
       />
     </div>
   );

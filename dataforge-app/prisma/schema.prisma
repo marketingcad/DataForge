@@ -131,9 +131,10 @@ model User {
   sessions             Session[]
   taskProgress         TaskProgress[]
   userBadges           UserBadge[]
-  balloonPoints         Int       @default(0)
+  balloonPoints         Int               @default(0)
   balloonSuspendedUntil DateTime?
   balloons              Balloon[]
+  balloonAuditLogs      BalloonAuditLog[]
 }
 
 model Balloon {
@@ -422,22 +423,35 @@ model ScrapingJob {
 }
 
 model AppSettings {
-  id                         String   @id @default("singleton")
-  companyName                String   @default("DataForge")
-  scrapingDefaultMaxLeads    Int      @default(50)
-  scrapingDefaultInterval    Int      @default(1440)
-  scrapingGlobalPause        Boolean  @default(false)
-  leadQualityGoodThreshold   Int      @default(70)
-  leadQualityMediumThreshold Int      @default(40)
-  ghlWebhookUrl              String?
-  commissionCurrency         String   @default("₱")
-  updatedAt                  DateTime @updatedAt
-  ghlApiKey                  String?
-  ghlSubAccountApiKey        String?
-  ghlLocationId              String?
-  ghlCallsLastSyncedAt       DateTime?
-  ghlOppsLastSyncedAt        DateTime?
-  ghlAppsLastSyncedAt        DateTime?
+  id                          String   @id @default("singleton")
+  companyName                 String   @default("DataForge")
+  scrapingDefaultMaxLeads     Int      @default(50)
+  scrapingDefaultInterval     Int      @default(1440)
+  scrapingGlobalPause         Boolean  @default(false)
+  leadQualityGoodThreshold    Int      @default(70)
+  leadQualityMediumThreshold  Int      @default(40)
+  ghlWebhookUrl               String?
+  commissionCurrency          String   @default("₱")
+  updatedAt                   DateTime @updatedAt
+  ghlApiKey                   String?
+  ghlSubAccountApiKey         String?
+  ghlLocationId               String?
+  ghlCallsLastSyncedAt        DateTime?
+  ghlOppsLastSyncedAt         DateTime?
+  ghlAppsLastSyncedAt         DateTime?
+  balloonEnabled              Boolean  @default(true)
+  balloonPointsPerAppointment Int      @default(1)
+}
+
+model BalloonAuditLog {
+  id        String   @id @default(uuid())
+  actorId   String
+  detail    String
+  createdAt DateTime @default(now())
+  actor     User     @relation(fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@index([actorId])
+  @@index([createdAt])
 }
 
 model GhlOpportunity {

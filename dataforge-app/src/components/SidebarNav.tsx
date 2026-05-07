@@ -75,6 +75,7 @@ function buildSections(role: Role): NavSection[] {
             { href: "/marketing/manage/badges",      label: "Badges",      icon: Settings  },
             { href: "/marketing/manage/tasks",       label: "Challenges",  icon: Settings  },
             { href: "/marketing/manage/commissions", label: "Commissions", icon: UserCog   },
+            { href: "/admin/balloons",               label: "Balloon Pop", icon: Sparkles  },
           ],
         },
         {
@@ -89,9 +90,8 @@ function buildSections(role: Role): NavSection[] {
         {
           title: "Administration",
           items: [
-            { href: "/admin/users",    label: "Manage Users",   icon: UserCog  },
-            { href: "/admin/balloons", label: "Balloon Pop",    icon: Sparkles },
-            { href: "/settings",       label: "Settings",       icon: Settings },
+            { href: "/admin/users", label: "Manage Users", icon: UserCog  },
+            { href: "/settings",    label: "Settings",     icon: Settings },
           ],
         },
         {
@@ -123,6 +123,7 @@ function buildSections(role: Role): NavSection[] {
             { href: "/marketing/manage/badges",       label: "Badges",        icon: Settings     },
             { href: "/marketing/manage/tasks",        label: "Challenges",    icon: Settings     },
             { href: "/marketing/manage/commissions",  label: "Commissions",   icon: UserCog      },
+            { href: "/admin/balloons",                label: "Balloon Pop",   icon: Sparkles     },
           ],
         },
         {
@@ -137,8 +138,7 @@ function buildSections(role: Role): NavSection[] {
         {
           title: "Administration",
           items: [
-            { href: "/admin/users",    label: "Manage Users", icon: UserCog  },
-            { href: "/admin/balloons", label: "Balloon Pop",  icon: Sparkles },
+            { href: "/admin/users", label: "Manage Users", icon: UserCog },
           ],
         },
         {

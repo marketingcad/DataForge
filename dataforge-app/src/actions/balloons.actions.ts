@@ -7,11 +7,11 @@ import { createNotificationsForRole } from "@/lib/notifications/service";
 
 async function requireBossAdmin() {
   const session = await auth();
-  const user = session?.user as { id?: string; role?: string } | undefined;
+  const user = session?.user as { id?: string; role?: string; name?: string; email?: string } | undefined;
   if (!user?.id || !["boss", "admin"].includes(user.role ?? "")) {
     throw new Error("Unauthorized");
   }
-  return user as { id: string; role: string };
+  return user as { id: string; role: string; name?: string; email?: string };
 }
 
 async function requireSalesOrLead() {
@@ -21,6 +21,10 @@ async function requireSalesOrLead() {
     throw new Error("Unauthorized");
   }
   return user as { id: string; role: string };
+}
+
+async function writeAuditLog(actorId: string, detail: string) {
+  await prisma.balloonAuditLog.create({ data: { actorId, detail } });
 }
 
 // ── READ ──────────────────────────────────────────────────────────────────────
@@ -40,15 +44,29 @@ export async function getMyBalloonPointsAction() {
 
 export async function getBalloonAdminDataAction() {
   await requireBossAdmin();
-  const [balloons, reps] = await Promise.all([
+  const [balloons, reps, rules, auditLogs] = await Promise.all([
     prisma.balloon.findMany({ orderBy: { position: "asc" }, include: { poppedBy: { select: { id: true, name: true, nickname: true } } } }),
     prisma.user.findMany({
       where: { role: { in: ["sales_rep", "team_lead"] } },
       select: { id: true, name: true, nickname: true, email: true, role: true, balloonPoints: true, balloonSuspendedUntil: true },
       orderBy: { name: "asc" },
     }),
+    prisma.appSettings.findUnique({
+      where: { id: "singleton" },
+      select: { balloonEnabled: true, balloonPointsPerAppointment: true },
+    }),
+    prisma.balloonAuditLog.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 100,
+      include: { actor: { select: { name: true, email: true } } },
+    }),
   ]);
-  return { balloons, reps };
+  return {
+    balloons,
+    reps,
+    rules: { enabled: rules?.balloonEnabled ?? true, pointsPerAppointment: rules?.balloonPointsPerAppointment ?? 1 },
+    auditLogs,
+  };
 }
 
 export async function getRecentPopsAction(limit = 10) {
@@ -70,6 +88,9 @@ export async function popBalloonAction(balloonId: string) {
     return { error: "Only sales reps and team leads can pop balloons." };
   }
 
+  const settings = await prisma.appSettings.findUnique({ where: { id: "singleton" }, select: { balloonEnabled: true } });
+  if (settings?.balloonEnabled === false) return { error: "Balloon Pop is currently disabled." };
+
   const dbUser = await prisma.user.findUnique({
     where: { id: user.id },
     select: { balloonPoints: true, balloonSuspendedUntil: true, name: true, nickname: true },
@@ -88,7 +109,6 @@ export async function popBalloonAction(balloonId: string) {
   if (balloon.isPopped) return { error: "This balloon has already been popped." };
   if (!balloon.prize) return { error: "This balloon has no prize set yet." };
 
-  // Atomic: deduct point + mark popped
   await prisma.$transaction([
     prisma.user.update({ where: { id: user.id }, data: { balloonPoints: { decrement: 1 } } }),
     prisma.balloon.update({
@@ -99,7 +119,6 @@ export async function popBalloonAction(balloonId: string) {
 
   const displayName = dbUser.nickname ?? dbUser.name ?? "Someone";
 
-  // Notify everyone
   await createNotificationsForRole(
     ["boss", "admin", "sales_rep", "team_lead"],
     {
@@ -118,10 +137,39 @@ export async function popBalloonAction(balloonId: string) {
   return { success: true, prize: balloon.prize };
 }
 
+// ── ADMIN: RULES ──────────────────────────────────────────────────────────────
+
+export async function updateBalloonRuleAction(field: "enabled" | "pointsPerAppointment", value: boolean | number) {
+  const actor = await requireBossAdmin();
+  const actorLabel = actor.name ?? actor.email ?? actor.id;
+
+  if (field === "enabled") {
+    await prisma.appSettings.upsert({
+      where: { id: "singleton" },
+      create: { id: "singleton", balloonEnabled: value as boolean },
+      update: { balloonEnabled: value as boolean },
+    });
+    await writeAuditLog(actor.id, `${actorLabel} ${value ? "enabled" : "disabled"} balloon pop`);
+  } else {
+    const pts = Math.max(1, Math.round(value as number));
+    await prisma.appSettings.upsert({
+      where: { id: "singleton" },
+      create: { id: "singleton", balloonPointsPerAppointment: pts },
+      update: { balloonPointsPerAppointment: pts },
+    });
+    await writeAuditLog(actor.id, `${actorLabel} set points per appointment to ${pts}`);
+  }
+
+  revalidatePath("/admin/balloons");
+}
+
 // ── ADMIN: SET PRIZE ──────────────────────────────────────────────────────────
 
 export async function setBalloonPrizeAction(position: number, prize: string) {
-  await requireBossAdmin();
+  const actor = await requireBossAdmin();
+  const actorLabel = actor.name ?? actor.email ?? actor.id;
+
+  const existing = await prisma.balloon.findUnique({ where: { position }, select: { prize: true } });
 
   await prisma.balloon.upsert({
     where: { position },
@@ -129,6 +177,13 @@ export async function setBalloonPrizeAction(position: number, prize: string) {
     update: { prize },
   });
 
+  const oldPrize = existing?.prize?.trim();
+  const newPrize = prize.trim();
+  const detail = oldPrize
+    ? `${actorLabel} changed prize on #${position} from "${oldPrize}" to "${newPrize}"`
+    : `${actorLabel} set prize on #${position} to "${newPrize}"`;
+
+  await writeAuditLog(actor.id, detail);
   revalidatePath("/admin/balloons");
   revalidatePath("/balloons");
   return { success: true };
@@ -137,21 +192,39 @@ export async function setBalloonPrizeAction(position: number, prize: string) {
 // ── ADMIN: RESET BALLOONS ─────────────────────────────────────────────────────
 
 export async function resetBalloonAction(balloonId: string) {
-  await requireBossAdmin();
+  const actor = await requireBossAdmin();
+  const actorLabel = actor.name ?? actor.email ?? actor.id;
+
+  const balloon = await prisma.balloon.findUnique({
+    where: { id: balloonId },
+    include: { poppedBy: { select: { name: true, nickname: true } } },
+  });
+
   await prisma.balloon.update({
     where: { id: balloonId },
     data: { isPopped: false, poppedById: null, poppedAt: null },
   });
+
+  const winner = balloon?.poppedBy?.nickname ?? balloon?.poppedBy?.name;
+  const detail = winner
+    ? `${actorLabel} reset balloon #${balloon?.position ?? "?"} (was won by ${winner})`
+    : `${actorLabel} reset balloon #${balloon?.position ?? "?"}`;
+
+  await writeAuditLog(actor.id, detail);
   revalidatePath("/admin/balloons");
   revalidatePath("/balloons");
   return { success: true };
 }
 
 export async function resetAllBalloonsAction() {
-  await requireBossAdmin();
+  const actor = await requireBossAdmin();
+  const actorLabel = actor.name ?? actor.email ?? actor.id;
+
   await prisma.balloon.updateMany({
     data: { isPopped: false, poppedById: null, poppedAt: null },
   });
+
+  await writeAuditLog(actor.id, `${actorLabel} reset all 16 balloons`);
   revalidatePath("/admin/balloons");
   revalidatePath("/balloons");
   return { success: true };
@@ -160,12 +233,22 @@ export async function resetAllBalloonsAction() {
 // ── ADMIN: MANAGE REP POINTS ──────────────────────────────────────────────────
 
 export async function adjustBalloonPointsAction(userId: string, delta: number) {
-  await requireBossAdmin();
+  const actor = await requireBossAdmin();
+  const actorLabel = actor.name ?? actor.email ?? actor.id;
+
+  const before = await prisma.user.findUnique({ where: { id: userId }, select: { balloonPoints: true, name: true, nickname: true, email: true } });
+  const beforePts = before?.balloonPoints ?? 0;
+
   const updated = await prisma.user.update({
     where: { id: userId },
     data: { balloonPoints: { increment: delta } },
     select: { balloonPoints: true },
   });
+
+  const targetLabel = before?.nickname ?? before?.name ?? before?.email ?? userId;
+  const sign = delta >= 0 ? `+${delta}` : `${delta}`;
+  await writeAuditLog(actor.id, `${actorLabel} adjusted points for ${targetLabel}: ${sign} (${beforePts} → ${updated.balloonPoints})`);
+
   revalidatePath("/admin/balloons");
   return { success: true, newPoints: updated.balloonPoints };
 }
@@ -173,11 +256,22 @@ export async function adjustBalloonPointsAction(userId: string, delta: number) {
 // ── ADMIN: SUSPEND REP FROM POPPING ───────────────────────────────────────────
 
 export async function setBalloonSuspensionAction(userId: string, until: Date | null) {
-  await requireBossAdmin();
+  const actor = await requireBossAdmin();
+  const actorLabel = actor.name ?? actor.email ?? actor.id;
+
+  const target = await prisma.user.findUnique({ where: { id: userId }, select: { name: true, nickname: true, email: true } });
+  const targetLabel = target?.nickname ?? target?.name ?? target?.email ?? userId;
+
   await prisma.user.update({
     where: { id: userId },
     data: { balloonSuspendedUntil: until },
   });
+
+  const detail = until
+    ? `${actorLabel} suspended ${targetLabel} from popping until ${until.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
+    : `${actorLabel} lifted suspension for ${targetLabel}`;
+
+  await writeAuditLog(actor.id, detail);
   revalidatePath("/admin/balloons");
   return { success: true };
 }
@@ -185,8 +279,14 @@ export async function setBalloonSuspensionAction(userId: string, until: Date | n
 // ── AWARD POINT (called internally when appointment booked) ───────────────────
 
 export async function awardBalloonPointAction(agentId: string) {
+  const settings = await prisma.appSettings.findUnique({
+    where: { id: "singleton" },
+    select: { balloonPointsPerAppointment: true, balloonEnabled: true },
+  });
+  if (settings?.balloonEnabled === false) return;
+  const pts = settings?.balloonPointsPerAppointment ?? 1;
   await prisma.user.update({
     where: { id: agentId },
-    data: { balloonPoints: { increment: 1 } },
+    data: { balloonPoints: { increment: pts } },
   });
 }
