@@ -392,11 +392,11 @@ function BalloonCell({
               }}
             >
               <span className="text-2xl leading-none">🎁</span>
-              <p className="text-[11px] sm:text-xs font-black text-primary leading-tight line-clamp-3 break-words w-full">
+              <p className="text-[15px] font-black text-primary leading-tight line-clamp-3 break-words w-full">
                 {balloon.prize}
               </p>
               {displayName && (
-                <p className="text-[10px] sm:text-[11px] text-muted-foreground leading-tight font-medium">
+                <p className="text-[15px] text-muted-foreground leading-tight font-medium">
                   {displayName}
                 </p>
               )}
@@ -462,7 +462,7 @@ export function BalloonGrid({
           <span className="text-2xl">🎈</span>
           <div>
             <p className="text-sm font-black">{myPoints} balloon point{myPoints !== 1 ? "s" : ""}</p>
-            <p className="text-[11px] text-muted-foreground">1 point per appointment booked</p>
+            <p className="text-[11px] text-muted-foreground">Earned by booking appointments</p>
           </div>
         </div>
         <div className="text-right">

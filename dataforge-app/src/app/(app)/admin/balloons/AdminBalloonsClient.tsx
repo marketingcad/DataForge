@@ -32,7 +32,7 @@ type Rep = {
 
 type Rules = {
   enabled: boolean;
-  pointsPerAppointment: number;
+  apptsPerPoint: number;
 };
 
 type AuditLog = {
@@ -190,7 +190,7 @@ function RepRow({ rep, onUpdate }: { rep: Rep; onUpdate: (id: string, newPoints:
 
 function RulesCard({ rules }: { rules: Rules }) {
   const [enabled, setEnabled] = useState(rules.enabled);
-  const [pts, setPts] = useState(String(rules.pointsPerAppointment));
+  const [pts, setPts] = useState(String(rules.apptsPerPoint));
   const [ptsPending, startPts] = useTransition();
   const [togglePending, startToggle] = useTransition();
   const [ptsSaved, setPtsSaved] = useState(false);
@@ -207,7 +207,7 @@ function RulesCard({ rules }: { rules: Rules }) {
     const n = Math.max(1, parseInt(pts) || 1);
     setPts(String(n));
     startPts(async () => {
-      await updateBalloonRuleAction("pointsPerAppointment", n);
+      await updateBalloonRuleAction("apptsPerPoint", n);
       setPtsSaved(true);
       setTimeout(() => setPtsSaved(false), 1500);
     });
@@ -238,11 +238,11 @@ function RulesCard({ rules }: { rules: Rules }) {
           </button>
         </div>
 
-        {/* Points per appointment */}
+        {/* Appointments per point */}
         <div className="flex items-center justify-between gap-4">
           <div>
-            <p className="text-sm font-semibold">Points per booked appointment</p>
-            <p className="text-xs text-muted-foreground mt-0.5">How many balloon points a rep earns each time they book an appointment</p>
+            <p className="text-sm font-semibold">Appointments needed to get 1 balloon point</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Reps earn 1 point for every N appointments booked within the same 24-hour window. Pairs must happen on the same day.</p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <input

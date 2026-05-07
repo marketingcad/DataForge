@@ -59,15 +59,15 @@ export async function getBalloonAdminDataAction() {
   ]);
 
   // Graceful fallback while new columns are pending migration
-  let rules = { enabled: true, pointsPerAppointment: 1 };
+  let rules = { enabled: true, apptsPerPoint: 1 };
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const settings = await (prisma as any).appSettings.findUnique({
       where: { id: "singleton" },
-      select: { balloonEnabled: true, balloonPointsPerAppointment: true },
+      select: { balloonEnabled: true, balloonApptsPerPoint: true },
     });
     if (settings) {
-      rules = { enabled: settings.balloonEnabled ?? true, pointsPerAppointment: settings.balloonPointsPerAppointment ?? 1 };
+      rules = { enabled: settings.balloonEnabled ?? true, apptsPerPoint: settings.balloonApptsPerPoint ?? 1 };
     }
   } catch {
     // Columns not yet migrated — use defaults
@@ -163,7 +163,7 @@ export async function popBalloonAction(balloonId: string) {
 
 // ── ADMIN: RULES ──────────────────────────────────────────────────────────────
 
-export async function updateBalloonRuleAction(field: "enabled" | "pointsPerAppointment", value: boolean | number) {
+export async function updateBalloonRuleAction(field: "enabled" | "apptsPerPoint", value: boolean | number) {
   const actor = await requireBossAdmin();
   const actorLabel = actor.name ?? actor.email ?? actor.id;
 
@@ -178,13 +178,13 @@ export async function updateBalloonRuleAction(field: "enabled" | "pointsPerAppoi
     });
     await writeAuditLog(actor.id, `${actorLabel} ${value ? "enabled" : "disabled"} balloon pop`);
   } else {
-    const pts = Math.max(1, Math.round(value as number));
+    const n = Math.max(1, Math.round(value as number));
     await db.appSettings.upsert({
       where: { id: "singleton" },
-      create: { id: "singleton", balloonPointsPerAppointment: pts },
-      update: { balloonPointsPerAppointment: pts },
+      create: { id: "singleton", balloonApptsPerPoint: n },
+      update: { balloonApptsPerPoint: n },
     });
-    await writeAuditLog(actor.id, `${actorLabel} set points per appointment to ${pts}`);
+    await writeAuditLog(actor.id, `${actorLabel} set appointments per balloon point to ${n}`);
   }
 
   revalidatePath("/admin/balloons");
@@ -307,18 +307,48 @@ export async function setBalloonSuspensionAction(userId: string, until: Date | n
 
 export async function awardBalloonPointAction(agentId: string) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let settings: { balloonEnabled?: boolean; balloonPointsPerAppointment?: number } | null = null;
+  const db = prisma as any;
+
+  let settings: { balloonEnabled?: boolean; balloonApptsPerPoint?: number } | null = null;
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    settings = await (prisma as any).appSettings.findUnique({
+    settings = await db.appSettings.findUnique({
       where: { id: "singleton" },
-      select: { balloonPointsPerAppointment: true, balloonEnabled: true },
+      select: { balloonApptsPerPoint: true, balloonEnabled: true },
     });
   } catch { /* columns not yet migrated */ }
   if (settings?.balloonEnabled === false) return;
-  const pts = settings?.balloonPointsPerAppointment ?? 1;
-  await prisma.user.update({
-    where: { id: agentId },
-    data: { balloonPoints: { increment: pts } },
-  });
+  const apptsPerPoint = settings?.balloonApptsPerPoint ?? 1;
+
+  // Read daily tracking fields
+  let prevCount = 0;
+  let windowStart: Date | null = null;
+  try {
+    const u = await db.user.findUnique({
+      where: { id: agentId },
+      select: { balloonDailyApptCount: true, balloonDailyWindowStart: true },
+    });
+    if (u) {
+      prevCount = u.balloonDailyApptCount ?? 0;
+      windowStart = u.balloonDailyWindowStart ?? null;
+    }
+  } catch { /* columns not yet migrated */ }
+
+  const now = new Date();
+  const windowAlive = windowStart !== null && (now.getTime() - new Date(windowStart).getTime()) < 24 * 60 * 60 * 1000;
+  const baseCount = windowAlive ? prevCount : 0;
+  const newCount  = baseCount + 1;
+
+  // Every Nth appointment in the window earns 1 point (floor division trick)
+  const pointsToAward = Math.floor(newCount / apptsPerPoint) - Math.floor(baseCount / apptsPerPoint);
+
+  const updateData: Record<string, unknown> = { balloonDailyApptCount: newCount };
+  if (!windowAlive) updateData.balloonDailyWindowStart = now;
+  if (pointsToAward > 0) updateData.balloonPoints = { increment: pointsToAward };
+
+  try {
+    await db.user.update({ where: { id: agentId }, data: updateData });
+  } catch {
+    // Fallback: new tracking columns not yet in DB — award 1 point per appointment
+    await prisma.user.update({ where: { id: agentId }, data: { balloonPoints: { increment: 1 } } });
+  }
 }

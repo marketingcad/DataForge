@@ -32,7 +32,7 @@ export default async function BalloonsPage() {
       <div>
         <h1 className="text-xl font-black tracking-tight">🎈 Balloon Pop</h1>
         <p className="text-sm text-muted-foreground mt-0.5">
-          Each appointment you book earns 1 balloon point. Spend points to pop balloons and win prizes!
+          Book appointments to earn balloon points. Spend points to pop balloons and win prizes!
         </p>
       </div>
 
