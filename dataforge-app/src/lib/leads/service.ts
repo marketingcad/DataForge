@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { normalizePhone, normalizeEmail, normalizeWebsite } from "@/lib/utils/normalize";
 import { calculateDataQualityScore } from "@/lib/utils/scoring";
 import { checkDuplicate } from "@/lib/utils/dedup";
+import { geocodeAddress } from "@/lib/leads/geocode";
 import { LeadInput, InsertResult } from "@/types/lead";
 
 /**
@@ -57,6 +58,13 @@ export async function insertLead(raw: LeadInput & { folderId?: string; savedById
     industries.length
   );
 
+  const coords = await geocodeAddress({
+    address: raw.address,
+    city: raw.city,
+    state: raw.state,
+    country: raw.country,
+  });
+
   const lead = await prisma.lead.create({
     data: {
       businessName: raw.businessName,
@@ -75,6 +83,8 @@ export async function insertLead(raw: LeadInput & { folderId?: string; savedById
       folderId: raw.folderId || null,
       savedById: raw.savedById || null,
       keywordId: raw.keywordId || null,
+      latitude: coords?.latitude ?? null,
+      longitude: coords?.longitude ?? null,
     },
   });
 
@@ -111,6 +121,19 @@ export async function updateLead(id: string, raw: Partial<LeadInput>) {
 
   const newScore = calculateDataQualityScore(merged, existing.industriesFoundIn.length);
 
+  const locationChanged =
+    raw.address !== undefined || raw.city !== undefined ||
+    raw.state !== undefined || raw.country !== undefined;
+
+  const coords = locationChanged
+    ? await geocodeAddress({
+        address: raw.address ?? existing.address,
+        city: merged.city,
+        state: merged.state,
+        country: merged.country,
+      })
+    : null;
+
   return prisma.lead.update({
     where: { id },
     data: {
@@ -123,6 +146,7 @@ export async function updateLead(id: string, raw: Partial<LeadInput>) {
       country: merged.country || null,
       category: merged.category || null,
       dataQualityScore: Math.max(existing.dataQualityScore, newScore),
+      ...(coords ? { latitude: coords.latitude, longitude: coords.longitude } : {}),
     },
   });
 }

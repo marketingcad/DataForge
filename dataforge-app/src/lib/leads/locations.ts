@@ -126,38 +126,41 @@ function resolveCoords(city?: string | null, state?: string | null, country?: st
   }
   if (country) {
     const key = country.toLowerCase().trim();
-    const match = Object.keys(COUNTRIES).find((k) => key.includes(k) || k.includes(key));
+    // Exact match first, then check if the stored value starts with a known key (e.g. "Philippines (PH)")
+    const match = Object.keys(COUNTRIES).find((k) => key === k || key.startsWith(k + " ") || key.startsWith(k + ","));
     if (match) return COUNTRIES[match];
   }
   return null;
 }
 
 function parseCoordsFromAddress(address: string): [number, number] | null {
-  const parts = address.split(",").map((s) => s.trim());
+  const parts = address.split(",").map((s) => s.trim()).filter(Boolean);
 
   // Scan for a US state abbreviation (e.g. "FL" or "FL 32801")
-  // State takes full priority — never let a city name override the state code
   for (let i = 0; i < parts.length; i++) {
     const m = parts[i].match(/^([A-Z]{2})(?:\s+\d{5}(?:-\d{4})?)?$/);
-    if (m) {
-      const state = m[1];
-      if (US_STATES[state]) return US_STATES[state];
+    if (m && US_STATES[m[1]]) return US_STATES[m[1]];
+  }
+
+  // Country lookup — only check the LAST part of the address.
+  // Country always appears at the end; scanning earlier parts causes town names
+  // like "Mexico, Pampanga" to falsely match the country Mexico.
+  // Use exact match only (no substring) to avoid partial-name collisions.
+  if (parts.length > 0) {
+    const lastPart = parts[parts.length - 1]
+      .replace(/\d{5}(-\d{4})?/, "")
+      .trim()
+      .toLowerCase();
+    if (lastPart.length >= 2) {
+      const match = Object.keys(COUNTRIES).find((k) => lastPart === k);
+      if (match) return COUNTRIES[match];
     }
   }
 
-  // No state found — try country lookup
+  // City lookup — scan all parts with exact match
   for (let i = parts.length - 1; i >= 0; i--) {
     const part = parts[i].replace(/\d{5}(-\d{4})?/, "").trim().toLowerCase();
-    if (part.length < 2) continue;
-    const match = Object.keys(COUNTRIES).find((k) => part.includes(k) || k.includes(part));
-    if (match) return COUNTRIES[match];
-  }
-
-  // Last resort — try city name lookup
-  for (let i = parts.length - 1; i >= 0; i--) {
-    const part = parts[i].replace(/\d{5}(-\d{4})?/, "").trim().toLowerCase();
-    if (part.length < 2) continue;
-    if (CITIES[part]) return CITIES[part];
+    if (part.length >= 2 && CITIES[part]) return CITIES[part];
   }
 
   return null;
@@ -167,31 +170,55 @@ export async function getLeadLocations(): Promise<GlobePoint[]> {
   const rows = await prisma.lead.findMany({
     select: {
       address: true,
+      city: true,
+      state: true,
+      country: true,
+      latitude: true,
+      longitude: true,
       folder: {
         select: {
           industry: { select: { name: true, color: true } },
         },
       },
     },
-    where: { address: { not: null } },
+    where: {
+      OR: [
+        { latitude: { not: null } },
+        { address: { not: null } },
+        { city: { not: null } },
+      ],
+    },
   });
 
   const map = new Map<string, GlobePoint>();
 
   for (const row of rows) {
-    if (!row.address) continue;
-    const coords = parseCoordsFromAddress(row.address);
-    if (!coords) continue;
+    let lat: number;
+    let lng: number;
+
+    if (row.latitude != null && row.longitude != null) {
+      // Use exact geocoded coordinates stored on the lead
+      lat = row.latitude;
+      lng = row.longitude;
+    } else {
+      // Fallback for leads not yet geocoded
+      const fallback =
+        resolveCoords(row.city, row.state, row.country) ??
+        (row.address ? parseCoordsFromAddress(row.address) : null);
+      if (!fallback) continue;
+      [lat, lng] = fallback;
+    }
 
     const industry = row.folder?.industry ?? null;
     const cat = industry?.name ?? null;
     const color = industry?.color ?? "#ffffff";
-    const key = `${coords[0].toFixed(2)},${coords[1].toFixed(2)}:${cat ?? "none"}`;
+    const label = [row.address, row.city, row.state, row.country].filter(Boolean).join(", ");
+    const key = `${lat.toFixed(4)},${lng.toFixed(4)}:${cat ?? "none"}`;
 
     if (map.has(key)) {
       map.get(key)!.count += 1;
     } else {
-      map.set(key, { lat: coords[0], long: coords[1], name: row.address, count: 1, color, category: cat });
+      map.set(key, { lat, long: lng, name: label, count: 1, color, category: cat });
     }
   }
 

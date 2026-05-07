@@ -60,6 +60,8 @@ model Lead {
   keywordId         String?
   assignedToId      String?
   assignedAt        DateTime?
+  latitude          Float?
+  longitude         Float?
   migratedToGhl     Boolean          @default(false)
   migratedToGhlAt   DateTime?
   ghlContactId      String?
