@@ -251,11 +251,6 @@ function BalloonCell({
           </>
         )}
 
-        {!isPopped && (
-          <span className="absolute bottom-1 right-1.5 text-[9px] font-bold text-white/60 pointer-events-none">
-            #{balloon.position}
-          </span>
-        )}
       </div>
 
       {error && (
