@@ -26,6 +26,8 @@ import {
   Globe,
   Wand2,
   Sparkles,
+  NotebookPen,
+  ScrollText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Role } from "@/lib/rbac/roles";
@@ -36,9 +38,16 @@ type Section = { title?: string; items: NavItem[] };
 
 function buildSections(role: Role): Section[] {
   const marketingSub: SubItem[] = [
-    { label: "Yesterday",  href: "/marketing?period=yesterday" },
-    { label: "This Week",  href: "/marketing?period=week"      },
-    { label: "This Month", href: "/marketing?period=month"     },
+    { label: "Yesterday",  href: "/marketing?period=yesterday"  },
+    { label: "This Week",  href: "/marketing?period=week"       },
+    { label: "This Month", href: "/marketing?period=month"      },
+    { label: "Notes",      href: "/marketing/notes"             },
+    { label: "Scripts",    href: "/marketing/scripts"           },
+  ];
+  const marketingAdminSub: SubItem[] = [
+    { label: "Overview",   href: "/marketing"                   },
+    { label: "Notes",      href: "/marketing/notes"             },
+    { label: "Scripts",    href: "/marketing/scripts"           },
   ];
   const achievementsSub: SubItem[] = [
     { label: "Badges",       href: "/marketing/manage/badges"      },
@@ -72,8 +81,7 @@ function buildSections(role: Role): Section[] {
         {
           title: "Marketing",
           items: [
-            // { label: "Marketing",    icon: Megaphone, sub: marketingSub    },
-            { label: "Marketing",      href: "/marketing",   icon: Megaphone   },
+            { label: "Marketing", icon: Megaphone, sub: marketingAdminSub },
             { label: "Achievements", icon: Trophy,    sub: achievementsSub },
           ],
         },
@@ -181,6 +189,9 @@ const SUB_ICONS: Record<string, React.ElementType> = {
   "Yesterday":        CalendarDays,
   "This Week":        CalendarDays,
   "This Month":       CalendarDays,
+  "Overview":         Megaphone,
+  "Notes":            NotebookPen,
+  "Scripts":          ScrollText,
   "Badges":           Medal,
   "Challenges":       Trophy,
   "Commissions":      DollarSign,
