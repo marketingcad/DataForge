@@ -35,23 +35,42 @@ function theme(position: number): Theme {
 
 function playPop() {
   try {
-    const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
-    const duration = 0.18;
-    const rate = ctx.sampleRate;
-    const buf = ctx.createBuffer(1, Math.ceil(rate * duration), rate);
-    const data = buf.getChannelData(0);
-    for (let i = 0; i < data.length; i++) {
-      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / data.length, 1.5);
+    const AC = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    const ctx = new AC();
+
+    function fire() {
+      const duration = 0.22;
+      const rate = ctx.sampleRate;
+      const buf = ctx.createBuffer(1, Math.ceil(rate * duration), rate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < data.length; i++) {
+        // Sharp transient at the start fading to silence
+        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / data.length, 2);
+      }
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+
+      // High-pass filter to cut low rumble — makes it sound crispier
+      const hp = ctx.createBiquadFilter();
+      hp.type = "highpass";
+      hp.frequency.value = 180;
+
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(1.2, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+
+      src.connect(hp);
+      hp.connect(gain);
+      gain.connect(ctx.destination);
+      src.start();
+      setTimeout(() => ctx.close(), 600);
     }
-    const src = ctx.createBufferSource();
-    src.buffer = buf;
-    const gain = ctx.createGain();
-    gain.gain.setValueAtTime(0.45, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
-    src.connect(gain);
-    gain.connect(ctx.destination);
-    src.start();
-    setTimeout(() => ctx.close(), 500);
+
+    if (ctx.state === "suspended") {
+      ctx.resume().then(fire);
+    } else {
+      fire();
+    }
   } catch { /* audio unavailable */ }
 }
 
