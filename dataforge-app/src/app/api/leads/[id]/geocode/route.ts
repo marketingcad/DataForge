@@ -3,7 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { geocodeAddress } from "@/lib/leads/geocode";
 import { auth } from "@/lib/auth";
 
-export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const session = await auth();
   const role = (session?.user as unknown as Record<string, unknown>)?.role as string | undefined;
   if (!session?.user || !["boss", "admin", "dev"].includes(role ?? "")) {
@@ -11,7 +12,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
   }
 
   const lead = await prisma.lead.findUnique({
-    where: { id: params.id },
+    where: { id },
     select: { id: true, address: true, city: true, state: true, country: true },
   });
 
@@ -27,7 +28,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
   if (!coords) return NextResponse.json({ error: "Could not geocode this address" }, { status: 422 });
 
   await prisma.lead.update({
-    where: { id: lead.id },
+    where: { id },
     data: { latitude: coords.latitude, longitude: coords.longitude },
   });
 
