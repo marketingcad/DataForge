@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft, Shield, Tag, Trash2, AlertTriangle,
-  Ban, Clock, ShieldOff, X,
+  Ban, Clock, ShieldOff, X, KeyRound, Eye, EyeOff,
 } from "lucide-react";
 import { ROLE_LABELS, ROLE_ORDER, ROLE_CAN_CREATE, type Role } from "@/lib/rbac/roles";
 import {
@@ -14,11 +14,12 @@ import {
   banUserAction,
   suspendUserAction,
   unbanUserAction,
+  changeUserPasswordAction,
 } from "@/actions/users.actions";
 import { useNotifications } from "@/lib/notifications";
 
 type ActiveModal =
-  | "role" | "nickname"
+  | "role" | "nickname" | "password"
   | "ban" | "suspend" | "waive"
   | "delete"
   | null;
@@ -102,6 +103,7 @@ export function AdminActionsPanel({
             {showNickname && (
               <ToolbarBtn icon={<Tag    className="h-3.5 w-3.5" />} label="Edit Nickname" onClick={() => setActiveModal("nickname")} />
             )}
+            <ToolbarBtn icon={<KeyRound className="h-3.5 w-3.5" />} label="Change Password" onClick={() => setActiveModal("password")} />
             <ToolbarBtn icon={<Clock className="h-3.5 w-3.5" />} label="Suspend" onClick={() => setActiveModal("suspend")} warning />
             <ToolbarBtn icon={<Ban   className="h-3.5 w-3.5" />} label="Ban"     onClick={() => setActiveModal("ban")}     danger />
             {isEffectivelyBanned && (
@@ -127,6 +129,13 @@ export function AdminActionsPanel({
             <NicknamePanel
               userId={userId} userNickname={userNickname}
               onDone={() => { setActiveModal(null); router.refresh(); }}
+              onError={(e) => add({ title: "Error", message: e, type: "error" })}
+            />
+          )}
+          {activeModal === "password" && (
+            <PasswordPanel
+              userId={userId} displayName={displayName}
+              onDone={() => { setActiveModal(null); add({ title: "Password updated", type: "success" }); }}
               onError={(e) => add({ title: "Error", message: e, type: "error" })}
             />
           )}
@@ -176,6 +185,7 @@ export function AdminActionsPanel({
 const MODAL_TITLES: Record<NonNullable<ActiveModal>, string> = {
   role:     "Change Role",
   nickname: "Edit Nickname",
+  password: "Change Password",
   suspend:  "Suspend User",
   ban:      "Ban User",
   waive:    "Waive Restriction",
@@ -522,6 +532,80 @@ function WaivePanel({ userId, displayName, isSuspended, bannedUntil, banReason, 
         <button onClick={save} disabled={pending}
           className="rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors">
           {pending ? "Waiving…" : isSuspended ? "Waive Suspension" : "Waive Ban"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Password panel ──────────────────────────────────────────────────────────────
+
+function PasswordPanel({ userId, displayName, onDone, onError }: {
+  userId: string; displayName: string; onDone: () => void; onError: (e: string) => void;
+}) {
+  const [password, setPassword]   = useState("");
+  const [confirm,  setConfirm]    = useState("");
+  const [showPw,   setShowPw]     = useState(false);
+  const [showConf, setShowConf]   = useState(false);
+  const [pending,  start]         = useTransition();
+
+  function save() {
+    if (password.length < 8) { onError("Password must be at least 8 characters."); return; }
+    if (password !== confirm) { onError("Passwords do not match."); return; }
+    start(async () => {
+      try { await changeUserPasswordAction(userId, password); onDone(); }
+      catch (e) { onError((e as Error).message); }
+    });
+  }
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        Set a new password for <strong>{displayName}</strong>. They will need to use it on their next login.
+      </p>
+
+      <div className="space-y-3">
+        <div>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">New Password</p>
+          <div className="relative">
+            <input
+              type={showPw ? "text" : "password"}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              disabled={pending}
+              placeholder="Min. 8 characters"
+              className="w-full rounded-lg border bg-background px-3 py-2 pr-9 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+            />
+            <button type="button" onClick={() => setShowPw((v) => !v)}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
+              {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Confirm Password</p>
+          <div className="relative">
+            <input
+              type={showConf ? "text" : "password"}
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              disabled={pending}
+              placeholder="Repeat password"
+              className="w-full rounded-lg border bg-background px-3 py-2 pr-9 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+            />
+            <button type="button" onClick={() => setShowConf((v) => !v)}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
+              {showConf ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex justify-end">
+        <button onClick={save} disabled={pending || !password || !confirm}
+          className="rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors">
+          {pending ? "Saving…" : "Set Password"}
         </button>
       </div>
     </div>

@@ -187,6 +187,22 @@ export async function unbanUserAction(targetUserId: string) {
   revalidatePath("/admin/users");
 }
 
+export async function changeUserPasswordAction(targetUserId: string, newPassword: string) {
+  const actor = await requireRole("boss", "admin");
+  if (actor.id === targetUserId) throw new Error("Use your account settings to change your own password.");
+  if (!newPassword || newPassword.length < 8) throw new Error("Password must be at least 8 characters.");
+
+  const target = await prisma.user.findUnique({ where: { id: targetUserId }, select: { role: true } });
+  if (!target) throw new Error("User not found.");
+  if (!canCreateRole(actor.role as Role, target.role as Role)) {
+    throw new Error("You do not have permission to change this user's password.");
+  }
+
+  const hashed = await bcrypt.hash(newPassword, 12);
+  await prisma.user.update({ where: { id: targetUserId }, data: { password: hashed } });
+  revalidatePath(`/admin/users/${targetUserId}`);
+}
+
 export async function getUserDetailAction(userId: string) {
   await requireRole("boss", "admin");
   return withDbRetry(async () => {
