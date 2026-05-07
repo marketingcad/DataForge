@@ -377,23 +377,54 @@ export function SettingsClient({ settings }: { settings: Settings }) {
 
 function GeocodeBackfillCard() {
   const [running, setRunning] = useState(false);
-  const [result, setResult] = useState<{ updated: number; skipped: number; total: number } | null>(null);
+  const [progress, setProgress] = useState<{ current: number; total: number; updated: number; skipped: number } | null>(null);
+  const [done, setDone] = useState(false);
 
   async function handleRun() {
     setRunning(true);
-    setResult(null);
+    setDone(false);
+    setProgress(null);
+
     try {
       const res = await fetch("/api/leads/geocode-backfill", { method: "POST" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Failed");
-      setResult(data);
-      toast.success(`Geocoded ${data.updated} of ${data.total} leads`);
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error ?? "Failed");
+      }
+
+      const reader = res.body!.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done: streamDone, value } = await reader.read();
+        if (streamDone) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n\n");
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          const dataLine = line.replace(/^data: /, "").trim();
+          if (!dataLine) continue;
+          try {
+            const msg = JSON.parse(dataLine);
+            setProgress({ current: msg.current, total: msg.total, updated: msg.updated, skipped: msg.skipped });
+            if (msg.done) {
+              setDone(true);
+              toast.success(`Geocoded ${msg.updated} of ${msg.total} leads`);
+            }
+          } catch { /* ignore malformed lines */ }
+        }
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Geocoding failed");
     } finally {
       setRunning(false);
     }
   }
+
+  const pct = progress && progress.total > 0 ? Math.round((progress.current / progress.total) * 100) : 0;
 
   return (
     <Card>
@@ -402,20 +433,38 @@ function GeocodeBackfillCard() {
         <CardDescription>One-time tools for data repair.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
-        <div className="flex items-center justify-between">
-          <div>
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1 min-w-0">
             <p className="text-sm font-medium">Geocode All Leads</p>
             <p className="text-xs text-muted-foreground mt-0.5">
               Converts every lead address to exact coordinates so the globe map is accurate.
               Runs at 1 lead/sec — may take several minutes.
             </p>
-            {result && (
-              <p className="text-xs text-green-500 mt-1">
-                Done — {result.updated} geocoded, {result.skipped} skipped, {result.total} total.
-              </p>
+
+            {(running || done) && progress && (
+              <div className="mt-3 space-y-1.5">
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>
+                    {done ? "Done" : `Processing ${progress.current} of ${progress.total}…`}
+                  </span>
+                  <span>{pct}%</span>
+                </div>
+                <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-500 ${done ? "bg-green-500" : "bg-primary"}`}
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+                {done && (
+                  <p className="text-xs text-green-500">
+                    {progress.updated} geocoded · {progress.skipped} skipped (no address match)
+                  </p>
+                )}
+              </div>
             )}
           </div>
-          <Button size="sm" variant="outline" onClick={handleRun} disabled={running}>
+
+          <Button size="sm" variant="outline" onClick={handleRun} disabled={running} className="shrink-0 mt-0.5">
             {running ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Running…</> : "Run"}
           </Button>
         </div>
