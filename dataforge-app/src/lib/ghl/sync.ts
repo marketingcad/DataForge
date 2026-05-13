@@ -39,89 +39,100 @@ async function fetchDurations(
   return map;
 }
 
-export async function autoSyncGhlCalls(): Promise<void> {
-  try {
-    const settings = await prisma.appSettings.findUnique({ where: { id: "singleton" } });
-    if (!settings?.ghlApiKey || !settings?.ghlLocationId) return;
+export async function autoSyncGhlCalls(
+  full = false,
+): Promise<{ synced: number; skipped: number; unmatched: number; total: number; noAgents?: boolean }> {
+  const settings = await prisma.appSettings.findUnique({ where: { id: "singleton" } });
+  if (!settings?.ghlApiKey || !settings?.ghlLocationId) {
+    throw new Error("GHL API key and Location ID must be configured in Settings.");
+  }
 
-    // Stamp before fetching so parallel renders don't double-sync
-    await prisma.appSettings.update({
-      where: { id: "singleton" },
-      data: { ghlCallsLastSyncedAt: new Date() },
-    });
+  const dfAgents = await prisma.user.findMany({
+    where: { ghlUserId: { not: null } },
+    select: { id: true, ghlUserId: true },
+  });
+  if (dfAgents.length === 0) {
+    return { synced: 0, skipped: 0, unmatched: 0, total: 0, noAgents: true };
+  }
 
-    const dfAgents = await prisma.user.findMany({
-      where: { ghlUserId: { not: null } },
-      select: { id: true, ghlUserId: true },
-    });
-    if (dfAgents.length === 0) return;
+  const agentByGhlId = new Map(dfAgents.map((a) => [a.ghlUserId!, a.id]));
 
-    const agentByGhlId = new Map(dfAgents.map((a) => [a.ghlUserId!, a.id]));
+  const linkedLeads = await prisma.lead.findMany({
+    where: { ghlContactId: { not: null } },
+    select: { id: true, ghlContactId: true },
+  });
+  const contactToLeadId = new Map(linkedLeads.map((l) => [l.ghlContactId!, l.id]));
 
-    const linkedLeads = await prisma.lead.findMany({
-      where: { ghlContactId: { not: null } },
-      select: { id: true, ghlContactId: true },
-    });
-    const contactToLeadId = new Map(linkedLeads.map((l) => [l.ghlContactId!, l.id]));
+  // Full sync: no since-filter, fetch all pages. Incremental: use last-synced stamp, 5 pages.
+  const since = full ? undefined : (settings.ghlCallsLastSyncedAt ?? undefined);
+  const maxPages = full ? 600 : 5;
 
-    const since = settings.ghlCallsLastSyncedAt ?? undefined;
-    // Cap at 5 pages (500 conversations) per sync — runs fast, incremental syncs catch the rest
-    const callConvs = await getLocationCallConversations(
-      settings.ghlApiKey,
-      settings.ghlLocationId,
-      since,
-      5,
-    );
+  // Stamp after resolving `since` so the value used this run is the old stamp
+  await prisma.appSettings.update({
+    where: { id: "singleton" },
+    data: { ghlCallsLastSyncedAt: new Date() },
+  });
 
-    if (callConvs.length === 0) return;
+  const callConvs = await getLocationCallConversations(
+    settings.ghlApiKey,
+    settings.ghlLocationId,
+    since,
+    maxPages,
+  );
 
-    const convIds = callConvs.map((c) => c.id);
-    const existing = await prisma.callLog.findMany({
-      where: { ghlMessageId: { in: convIds } },
-      select: { ghlMessageId: true, durationSecs: true },
-    });
-    const existingMap = new Map(existing.map((e) => [e.ghlMessageId, e.durationSecs]));
+  if (callConvs.length === 0) {
+    return { synced: 0, skipped: 0, unmatched: 0, total: 0 };
+  }
 
-    const newConvIds = convIds.filter((id) => !existingMap.has(id)).slice(0, 50);
-    const durations = await fetchDurations(settings.ghlApiKey, newConvIds);
+  const convIds = callConvs.map((c) => c.id);
+  const existing = await prisma.callLog.findMany({
+    where: { ghlMessageId: { in: convIds } },
+    select: { ghlMessageId: true, durationSecs: true },
+  });
+  const existingMap = new Map(existing.map((e) => [e.ghlMessageId, e.durationSecs]));
 
-    // Upsert in batches of 25 to keep DB connection count low
-    await runBatched(callConvs, 25, (conv) => {
-      const dfAgentId = conv.assignedTo ? agentByGhlId.get(conv.assignedTo) : undefined;
-      if (!dfAgentId) return Promise.resolve();
+  const newConvIds = convIds.filter((id) => !existingMap.has(id)).slice(0, 50);
+  const durations = await fetchDurations(settings.ghlApiKey, newConvIds);
 
-      const ghlMessageId = conv.id;
-      const rawDate = conv.sort?.[0] ?? conv.lastMessageDate ?? conv.dateUpdated ?? conv.dateAdded;
-      const calledAt = rawDate != null
-        ? (typeof rawDate === "number" ? new Date(rawDate) : new Date(rawDate))
-        : new Date();
-      const leadId = conv.contactId ? (contactToLeadId.get(conv.contactId) ?? null) : null;
-      const durationSecs = existingMap.has(ghlMessageId)
-        ? (existingMap.get(ghlMessageId) ?? 0)
-        : (durations.get(ghlMessageId) ?? 0);
+  let synced = 0;
+  let skipped = 0;
+  let unmatched = 0;
 
-      const record = {
+  await runBatched(callConvs, 25, async (conv) => {
+    const dfAgentId = conv.assignedTo ? agentByGhlId.get(conv.assignedTo) : undefined;
+    if (!dfAgentId) { unmatched++; return; }
+
+    const ghlMessageId = conv.id;
+
+    if (existingMap.has(ghlMessageId)) { skipped++; return; }
+
+    const rawDate = conv.sort?.[0] ?? conv.lastMessageDate ?? conv.dateUpdated ?? conv.dateAdded;
+    const calledAt = rawDate != null
+      ? (typeof rawDate === "number" ? new Date(rawDate) : new Date(rawDate))
+      : new Date();
+    const leadId = conv.contactId ? (contactToLeadId.get(conv.contactId) ?? null) : null;
+    const durationSecs = durations.get(ghlMessageId) ?? 0;
+
+    await prisma.callLog.upsert({
+      where: { ghlMessageId },
+      create: {
         agentId: dfAgentId,
         leadId,
         contactName: conv.contactName ?? null,
         contactPhone: conv.phone ?? null,
-        direction: "outbound" as const,
+        direction: "outbound",
         durationSecs,
         status: mapGhlCallStatus(String(conv.lastMessageType ?? conv.type ?? "")),
         calledAt,
         ghlMessageId,
         notes: "Synced from GHL",
-      };
-
-      return prisma.callLog.upsert({
-        where: { ghlMessageId },
-        create: record,
-        update: { calledAt, agentId: dfAgentId, leadId, status: record.status },
-      });
+      },
+      update: { calledAt, agentId: dfAgentId, leadId, status: mapGhlCallStatus(String(conv.lastMessageType ?? conv.type ?? "")) },
     });
-  } catch (err) {
-    console.error("[autoSyncGhlCalls]", err);
-  }
+    synced++;
+  });
+
+  return { synced, skipped, unmatched, total: callConvs.length };
 }
 
 const CANCELLED_STATUSES = new Set(["cancelled", "canceled", "deleted"]);
