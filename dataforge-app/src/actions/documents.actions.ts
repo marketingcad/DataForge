@@ -43,21 +43,26 @@ export async function createNoteAction() {
 }
 
 export async function updateNoteAction(id: string, data: { title?: string; content?: object }) {
-  const session = await auth();
-  if (!session) return { error: "Unauthorized" };
-  const role = (session.user as { role?: string }).role ?? "";
-  const isBossAdmin = ["boss", "admin"].includes(role);
+  try {
+    const session = await auth();
+    if (!session) return { error: "Unauthorized" };
+    const role = (session.user as { role?: string }).role ?? "";
+    const isBossAdmin = ["boss", "admin"].includes(role);
 
-  const existing = await prisma.note.findUnique({ where: { id } });
-  if (!existing) return { error: "Not found" };
-  if (!isBossAdmin && existing.userId !== session.user.id) return { error: "Forbidden" };
+    const existing = await prisma.note.findUnique({ where: { id } });
+    if (!existing) return { error: "Not found" };
+    if (!isBossAdmin && existing.userId !== session.user.id) return { error: "Forbidden" };
 
-  const note = await prisma.note.update({
-    where: { id },
-    data: { ...data, updatedAt: new Date() },
-    include: { files: true, user: { select: { name: true, nickname: true } } },
-  });
-  return { note };
+    const note = await prisma.note.update({
+      where: { id },
+      data: { ...data, updatedAt: new Date() },
+      include: { files: true, user: { select: { name: true, nickname: true } } },
+    });
+    return { note };
+  } catch (err) {
+    console.error("[updateNoteAction]", err);
+    return { error: "Failed to save note. Please try again." };
+  }
 }
 
 export async function deleteNoteAction(id: string) {
@@ -99,17 +104,22 @@ export async function deleteNoteFileAction(fileId: string) {
 // ── Scripts ───────────────────────────────────────────────────────────────────
 
 export async function getScriptsAction() {
-  const session = await auth();
-  if (!session) return { error: "Unauthorized" };
+  try {
+    const session = await auth();
+    if (!session) return { error: "Unauthorized" };
 
-  const scripts = await prisma.script.findMany({
-    orderBy: { updatedAt: "desc" },
-    include: {
-      files: { orderBy: { createdAt: "asc" } },
-      createdBy: { select: { name: true, nickname: true } },
-    },
-  });
-  return { scripts };
+    const scripts = await prisma.script.findMany({
+      orderBy: { updatedAt: "desc" },
+      include: {
+        files: { orderBy: { createdAt: "asc" } },
+        createdBy: { select: { name: true, nickname: true } },
+      },
+    });
+    return { scripts };
+  } catch (err) {
+    console.error("[getScriptsAction]", err);
+    return { scripts: [] };
+  }
 }
 
 export async function createScriptAction() {
@@ -123,21 +133,26 @@ export async function createScriptAction() {
 }
 
 export async function updateScriptAction(id: string, data: { title?: string; content?: object }) {
-  const session = await auth();
-  if (!session) return { error: "Unauthorized" };
-  const role = (session.user as { role?: string }).role ?? "";
-  const isBossAdmin = ["boss", "admin"].includes(role);
+  try {
+    const session = await auth();
+    if (!session) return { error: "Unauthorized" };
+    const role = (session.user as { role?: string }).role ?? "";
+    const isBossAdmin = ["boss", "admin"].includes(role);
 
-  const existing = await prisma.script.findUnique({ where: { id } });
-  if (!existing) return { error: "Not found" };
-  if (!isBossAdmin && existing.createdById !== session.user.id) return { error: "Forbidden" };
+    const existing = await prisma.script.findUnique({ where: { id } });
+    if (!existing) return { error: "Not found" };
+    if (!isBossAdmin && existing.createdById !== session.user.id) return { error: "Forbidden" };
 
-  const script = await prisma.script.update({
-    where: { id },
-    data: { ...data, updatedAt: new Date() },
-    include: { files: true, createdBy: { select: { name: true, nickname: true } } },
-  });
-  return { script };
+    const script = await prisma.script.update({
+      where: { id },
+      data: { ...data, updatedAt: new Date() },
+      include: { files: true, createdBy: { select: { name: true, nickname: true } } },
+    });
+    return { script };
+  } catch (err) {
+    console.error("[updateScriptAction]", err);
+    return { error: "Failed to save script. Please try again." };
+  }
 }
 
 export async function deleteScriptAction(id: string) {
