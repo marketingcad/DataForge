@@ -194,6 +194,10 @@ export function DocumentsClient({
   const [titleValue, setTitleValue]   = useState(selected?.title ?? "");
   const fileInputRef                  = useRef<HTMLInputElement>(null);
   const saveTimerRef                  = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const selectedRef                   = useRef(selected);
+  const titleValueRef                 = useRef(titleValue);
+  selectedRef.current                 = selected;
+  titleValueRef.current               = titleValue;
 
   const isOwner = useCallback((doc: DocItem) => {
     if (isBossAdmin) return true;
@@ -216,8 +220,8 @@ export function DocumentsClient({
     ],
     content: selected?.content ?? {},
     onUpdate: ({ editor }) => {
-      if (!selected) return;
-      scheduleSave(selected.id, titleValue, editor.getJSON());
+      if (!selectedRef.current) return;
+      scheduleSave(selectedRef.current.id, titleValueRef.current, editor.getJSON());
     },
     editorProps: {
       attributes: {
