@@ -42,7 +42,7 @@ export async function createNoteAction() {
   return { note };
 }
 
-export async function updateNoteAction(id: string, data: { title?: string; content?: object }) {
+export async function updateNoteAction(id: string, data: { title?: string; contentJson?: string }) {
   try {
     const session = await auth();
     if (!session) return { error: "Unauthorized" };
@@ -53,9 +53,10 @@ export async function updateNoteAction(id: string, data: { title?: string; conte
     if (!existing) return { error: "Not found" };
     if (!isBossAdmin && existing.userId !== session.user.id) return { error: "Forbidden" };
 
+    const content = data.contentJson !== undefined ? JSON.parse(data.contentJson) : undefined;
     const note = await prisma.note.update({
       where: { id },
-      data,
+      data: { title: data.title, ...(content !== undefined && { content }) },
       include: { files: true, user: { select: { name: true, nickname: true } } },
     });
     return { note };
@@ -133,7 +134,7 @@ export async function createScriptAction() {
   return { script };
 }
 
-export async function updateScriptAction(id: string, data: { title?: string; content?: object }) {
+export async function updateScriptAction(id: string, data: { title?: string; contentJson?: string }) {
   try {
     const session = await auth();
     if (!session) return { error: "Unauthorized" };
@@ -144,9 +145,10 @@ export async function updateScriptAction(id: string, data: { title?: string; con
     if (!existing) return { error: "Not found" };
     if (!isBossAdmin && existing.createdById !== session.user.id) return { error: "Forbidden" };
 
+    const content = data.contentJson !== undefined ? JSON.parse(data.contentJson) : undefined;
     const script = await prisma.script.update({
       where: { id },
-      data,
+      data: { title: data.title, ...(content !== undefined && { content }) },
       include: { files: true, createdBy: { select: { name: true, nickname: true } } },
     });
     return { script };

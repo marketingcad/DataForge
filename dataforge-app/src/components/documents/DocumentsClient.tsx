@@ -249,7 +249,7 @@ export function DocumentsClient({
   async function persist(id: string, t: string, content: object) {
     setSaving(true);
     const fn = type === "note" ? updateNoteAction : updateScriptAction;
-    const res = await fn(id, { title: t, content });
+    const res = await fn(id, { title: t, contentJson: JSON.stringify(content) });
     setSaving(false);
     if ("error" in res && res.error) { toast.error(res.error); return; }
     const updated = "note" in res ? res.note : "script" in res ? res.script : null;
