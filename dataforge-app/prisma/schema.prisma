@@ -725,14 +725,15 @@ enum ChatRoomType {
 }
 
 model Note {
-  id        String     @id @default(uuid())
-  title     String     @default("Untitled")
-  content   Json       @default("{}")
-  userId    String
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
-  user      User       @relation("UserNotes", fields: [userId], references: [id], onDelete: Cascade)
-  files     NoteFile[]
+  id         String     @id @default(uuid())
+  title      String     @default("Untitled")
+  content    Json       @default("{}")
+  userId     String
+  shareToken String?    @unique
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  user       User       @relation("UserNotes", fields: [userId], references: [id], onDelete: Cascade)
+  files      NoteFile[]
 
   @@index([userId])
 }
@@ -756,6 +757,7 @@ model Script {
   title       String       @default("Untitled Script")
   content     Json         @default("{}")
   createdById String
+  shareToken  String?      @unique
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   createdBy   User         @relation("UserScripts", fields: [createdById], references: [id], onDelete: Cascade)

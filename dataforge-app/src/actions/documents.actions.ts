@@ -3,6 +3,7 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createClient } from "@supabase/supabase-js";
+import { randomUUID } from "crypto";
 
 function supabaseAdmin() {
   return createClient(
@@ -11,6 +12,16 @@ function supabaseAdmin() {
     { auth: { persistSession: false } }
   );
 }
+
+const NOTE_INCLUDE = {
+  files: { orderBy: { createdAt: "asc" as const } },
+  user: { select: { name: true, nickname: true } },
+};
+
+const SCRIPT_INCLUDE = {
+  files: { orderBy: { createdAt: "asc" as const } },
+  createdBy: { select: { name: true, nickname: true } },
+};
 
 // ── Notes ─────────────────────────────────────────────────────────────────────
 
@@ -24,10 +35,7 @@ export async function getNotesAction() {
   const notes = await prisma.note.findMany({
     where: isBossAdmin ? {} : { userId },
     orderBy: { updatedAt: "desc" },
-    include: {
-      files: { orderBy: { createdAt: "asc" } },
-      user: { select: { name: true, nickname: true } },
-    },
+    include: NOTE_INCLUDE,
   });
   return { notes };
 }
@@ -37,7 +45,7 @@ export async function createNoteAction() {
   if (!session) return { error: "Unauthorized" };
   const note = await prisma.note.create({
     data: { userId: session.user.id!, title: "Untitled", content: {} },
-    include: { files: true, user: { select: { name: true, nickname: true } } },
+    include: NOTE_INCLUDE,
   });
   return { note };
 }
@@ -57,7 +65,7 @@ export async function updateNoteAction(id: string, data: { title?: string; conte
     const note = await prisma.note.update({
       where: { id },
       data: { title: data.title, ...(content !== undefined && { content }) },
-      include: { files: true, user: { select: { name: true, nickname: true } } },
+      include: NOTE_INCLUDE,
     });
     return { note };
   } catch (err) {
@@ -77,7 +85,6 @@ export async function deleteNoteAction(id: string) {
   if (!existing) return { error: "Not found" };
   if (!isBossAdmin && existing.userId !== session.user.id) return { error: "Forbidden" };
 
-  // Delete storage files
   if (existing.files.length > 0) {
     const sb = supabaseAdmin();
     await sb.storage.from("documents").remove(existing.files.map((f) => f.storagePath));
@@ -112,10 +119,7 @@ export async function getScriptsAction() {
 
     const scripts = await prisma.script.findMany({
       orderBy: { updatedAt: "desc" },
-      include: {
-        files: { orderBy: { createdAt: "asc" } },
-        createdBy: { select: { name: true, nickname: true } },
-      },
+      include: SCRIPT_INCLUDE,
     });
     return { scripts };
   } catch (err) {
@@ -129,7 +133,7 @@ export async function createScriptAction() {
   if (!session) return { error: "Unauthorized" };
   const script = await prisma.script.create({
     data: { createdById: session.user.id!, title: "Untitled Script", content: {} },
-    include: { files: true, createdBy: { select: { name: true, nickname: true } } },
+    include: SCRIPT_INCLUDE,
   });
   return { script };
 }
@@ -149,7 +153,7 @@ export async function updateScriptAction(id: string, data: { title?: string; con
     const script = await prisma.script.update({
       where: { id },
       data: { title: data.title, ...(content !== undefined && { content }) },
-      include: { files: true, createdBy: { select: { name: true, nickname: true } } },
+      include: SCRIPT_INCLUDE,
     });
     return { script };
   } catch (err) {
@@ -192,4 +196,61 @@ export async function deleteScriptFileAction(fileId: string) {
   await sb.storage.from("documents").remove([file.storagePath]);
   await prisma.scriptFile.delete({ where: { id: fileId } });
   return { ok: true };
+}
+
+// ── Share tokens ──────────────────────────────────────────────────────────────
+
+export async function generateShareTokenAction(type: "note" | "script", id: string) {
+  const session = await auth();
+  if (!session) return { error: "Unauthorized" };
+  const role = (session.user as { role?: string }).role ?? "";
+  if (!["boss", "admin"].includes(role)) return { error: "Forbidden" };
+
+  const token = randomUUID();
+
+  if (type === "note") {
+    await prisma.note.update({ where: { id }, data: { shareToken: token } });
+  } else {
+    await prisma.script.update({ where: { id }, data: { shareToken: token } });
+  }
+
+  return { token };
+}
+
+export async function revokeShareTokenAction(type: "note" | "script", id: string) {
+  const session = await auth();
+  if (!session) return { error: "Unauthorized" };
+  const role = (session.user as { role?: string }).role ?? "";
+  if (!["boss", "admin"].includes(role)) return { error: "Forbidden" };
+
+  if (type === "note") {
+    await prisma.note.update({ where: { id }, data: { shareToken: null } });
+  } else {
+    await prisma.script.update({ where: { id }, data: { shareToken: null } });
+  }
+
+  return { ok: true };
+}
+
+// Public — no auth required
+export async function getSharedDocAction(token: string) {
+  const note = await prisma.note.findUnique({
+    where: { shareToken: token },
+    include: {
+      files: { orderBy: { createdAt: "asc" } },
+      user: { select: { name: true, nickname: true } },
+    },
+  });
+  if (note) return { type: "note" as const, doc: note };
+
+  const script = await prisma.script.findUnique({
+    where: { shareToken: token },
+    include: {
+      files: { orderBy: { createdAt: "asc" } },
+      createdBy: { select: { name: true, nickname: true } },
+    },
+  });
+  if (script) return { type: "script" as const, doc: script };
+
+  return { error: "Not found" };
 }

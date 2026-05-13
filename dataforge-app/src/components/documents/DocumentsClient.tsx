@@ -9,6 +9,7 @@ import Placeholder from "@tiptap/extension-placeholder";
 import {
   createNoteAction, updateNoteAction, deleteNoteAction, deleteNoteFileAction,
   createScriptAction, updateScriptAction, deleteScriptAction, deleteScriptFileAction,
+  generateShareTokenAction, revokeShareTokenAction,
 } from "@/actions/documents.actions";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -30,6 +31,7 @@ export type DocItem = {
   createdAt: Date;
   updatedAt: Date;
   files: DocFile[];
+  shareToken?: string | null;
   user?: { name: string | null; nickname: string | null } | null;
   createdBy?: { name: string | null; nickname: string | null } | null;
 };
@@ -314,6 +316,34 @@ export function DocumentsClient({
     toast.success("File uploaded");
   }
 
+  async function handleShare() {
+    if (!selected) return;
+    if (selected.shareToken) {
+      const url = `${window.location.origin}/share/${selected.shareToken}`;
+      await navigator.clipboard.writeText(url);
+      toast.success("Link copied to clipboard!");
+      return;
+    }
+    const res = await generateShareTokenAction(type, selected.id);
+    if ("error" in res && res.error) { toast.error(res.error); return; }
+    const token = (res as { token: string }).token;
+    const url = `${window.location.origin}/share/${token}`;
+    setDocs(prev => prev.map(d => d.id === selected.id ? { ...d, shareToken: token } : d));
+    setSelected(prev => prev ? { ...prev, shareToken: token } : prev);
+    await navigator.clipboard.writeText(url);
+    toast.success("Share link created and copied!");
+  }
+
+  async function handleRevokeShare() {
+    if (!selected?.shareToken) return;
+    if (!confirm("Revoke the share link? Anyone with the old link will no longer have access.")) return;
+    const res = await revokeShareTokenAction(type, selected.id);
+    if ("error" in res && res.error) { toast.error(res.error); return; }
+    setDocs(prev => prev.map(d => d.id === selected.id ? { ...d, shareToken: null } : d));
+    setSelected(prev => prev ? { ...prev, shareToken: null } : prev);
+    toast.success("Share link revoked");
+  }
+
   async function handleDeleteFile(fileId: string) {
     if (!confirm("Remove this file?")) return;
     const fn = type === "note" ? deleteNoteFileAction : deleteScriptFileAction;
@@ -409,6 +439,31 @@ export function DocumentsClient({
             />
             <div className="flex items-center gap-2 shrink-0">
               {saving && <span className="text-[10px] text-muted-foreground">Saving…</span>}
+              {isBossAdmin && (
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={handleShare}
+                    title={selected.shareToken ? "Copy share link" : "Generate share link"}
+                    className={cn(
+                      "text-[10px] font-semibold px-2 py-1 rounded transition-colors",
+                      selected.shareToken
+                        ? "text-emerald-600 hover:text-emerald-700 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-400"
+                        : "text-muted-foreground hover:text-primary"
+                    )}
+                  >
+                    {selected.shareToken ? "🔗 Copy link" : "🔗 Share"}
+                  </button>
+                  {selected.shareToken && (
+                    <button
+                      onClick={handleRevokeShare}
+                      title="Revoke share link"
+                      className="text-[10px] text-muted-foreground hover:text-destructive transition-colors px-1.5 py-1 rounded"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              )}
               <button
                 onClick={() => handleDelete(selected.id)}
                 className="text-[10px] text-muted-foreground hover:text-destructive transition-colors px-2 py-1 rounded"
