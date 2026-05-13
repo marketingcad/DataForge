@@ -13,8 +13,6 @@ import {
   clearAllNotificationsAction,
 } from "@/actions/notifications.actions";
 import Link from "next/link";
-import { io, type Socket } from "socket.io-client";
-import type { NotifPayload } from "@/lib/socket/emit";
 
 type DbNotif = {
   id: string;
@@ -46,13 +44,11 @@ export function NotificationBell({ userId }: { userId: string }) {
   const [selected, setSelected] = useState<DbNotif | null>(null);
   const [, startTransition] = useTransition();
   const ref = useRef<HTMLDivElement>(null);
-  const socketRef = useRef<Socket | null>(null);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
-  // Coerce dates (socket payloads arrive as strings)
-  function coerce(n: DbNotif | NotifPayload): DbNotif {
-    return { ...n, createdAt: new Date(n.createdAt) } as DbNotif;
+  function coerce(n: DbNotif): DbNotif {
+    return { ...n, createdAt: new Date(n.createdAt) };
   }
 
   // Load existing notifications once on mount (no polling)
@@ -70,46 +66,6 @@ export function NotificationBell({ userId }: { userId: string }) {
     return () => { cancelled = true; };
   }, []);
 
-  // Connect to Socket.IO and listen for push events
-  useEffect(() => {
-    if (!userId) return;
-
-    const socket = io({ path: "/api/socket", addTrailingSlash: false });
-    socketRef.current = socket;
-
-    socket.on("connect", () => {
-      socket.emit("join", userId);
-    });
-
-    socket.on("notification", (notif: NotifPayload) => {
-      const n = coerce(notif as unknown as DbNotif);
-
-      // Only add if not already in list (e.g. refreshed earlier)
-      setNotifications((prev) => {
-        if (n.id && prev.some((p) => p.id === n.id)) return prev;
-        return [n, ...prev];
-      });
-
-      // Show toast
-      const fn =
-        n.type === "error"   ? toast.error   :
-        n.type === "warning" ? toast.warning  :
-        n.type === "success" ? toast.success  :
-        toast.info;
-      fn(n.title, {
-        description: n.message ?? undefined,
-        duration: 8000,
-        action: n.link
-          ? { label: "View", onClick: () => { window.location.href = n.link!; } }
-          : undefined,
-      });
-    });
-
-    return () => {
-      socket.disconnect();
-      socketRef.current = null;
-    };
-  }, [userId]);
 
   // Close on outside click
   useEffect(() => {
