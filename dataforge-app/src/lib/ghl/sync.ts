@@ -92,7 +92,9 @@ export async function autoSyncGhlCalls(): Promise<void> {
 
       const ghlMessageId = conv.id;
       const rawDate = conv.sort?.[0] ?? conv.lastMessageDate ?? conv.dateUpdated ?? conv.dateAdded;
-      const calledAt = rawDate ? new Date(Number(rawDate)) : new Date();
+      const calledAt = rawDate != null
+        ? (typeof rawDate === "number" ? new Date(rawDate) : new Date(rawDate))
+        : new Date();
       const leadId = conv.contactId ? (contactToLeadId.get(conv.contactId) ?? null) : null;
       const durationSecs = existingMap.has(ghlMessageId)
         ? (existingMap.get(ghlMessageId) ?? 0)

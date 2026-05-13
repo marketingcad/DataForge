@@ -142,12 +142,14 @@ export async function getLeaderboard(
 
   return mapped.sort((a, b) => {
     switch (metric) {
-      case "calls":       return b.callCount - a.callCount;
-      case "deals_won":   return b.dealsWon - a.dealsWon;
-      case "commissions": return b.commissionsEarned - a.commissionsEarned;
-      case "badges":      return b.badgesEarned - a.badgesEarned;
+      case "calls":         return b.callCount - a.callCount;
+      case "deals_won":     return b.dealsWon - a.dealsWon;
+      case "commissions":   return b.commissionsEarned - a.commissionsEarned;
+      case "badges":        return b.badgesEarned - a.badgesEarned;
+      case "avg_call_time": return b.avgCallTime - a.avgCallTime;
+      case "leads":         return b.leadsBooked - a.leadsBooked;
       case "appts_set":
-      default:            return b.appointmentsSet - a.appointmentsSet;
+      default:              return b.appointmentsSet - a.appointmentsSet;
     }
   });
 }

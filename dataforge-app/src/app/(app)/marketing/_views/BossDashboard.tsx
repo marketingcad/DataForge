@@ -14,6 +14,7 @@ import { getSalesReps } from "@/actions/appointments.actions";
 import { TaskCard } from "../TaskCard";
 import { SeedMarketingButton } from "../SeedMarketingButton";
 import { SyncGhlButton } from "../SyncGhlButton";
+import { SyncGhlCallsButton } from "../SyncGhlCallsButton";
 import { AddAppointmentModal } from "@/components/marketing/AddAppointmentModal";
 import { AppointmentsModalButton } from "@/components/marketing/AppointmentsModal";
 import { CallVolumeChart } from "@/components/marketing/CallVolumeChart";
@@ -141,6 +142,7 @@ export async function BossDashboard({ period = "week", metric = "appts_set" }: {
           <div className="flex items-center gap-2">
             <AppointmentsModalButton canDelete={true} />
             <AddAppointmentModal reps={salesReps} />
+            <SyncGhlCallsButton />
             <SyncGhlButton />
             <SeedMarketingButton />
           </div>
