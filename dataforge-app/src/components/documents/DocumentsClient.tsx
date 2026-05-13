@@ -209,6 +209,7 @@ export function DocumentsClient({
 
   // ── TipTap editor ──
   const editor = useEditor({
+    immediatelyRender: false,
     extensions: [
       StarterKit,
       Underline,
