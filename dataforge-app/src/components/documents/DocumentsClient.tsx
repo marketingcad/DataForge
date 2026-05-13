@@ -419,7 +419,7 @@ export function DocumentsClient({
           </div>
 
           {/* Toolbar */}
-          <EditorToolbar editor={editor} />
+          {editor && <EditorToolbar editor={editor} />}
 
           {/* Editor body */}
           <div className="flex-1 overflow-y-auto">
