@@ -55,13 +55,14 @@ export async function updateNoteAction(id: string, data: { title?: string; conte
 
     const note = await prisma.note.update({
       where: { id },
-      data: { ...data, updatedAt: new Date() },
+      data,
       include: { files: true, user: { select: { name: true, nickname: true } } },
     });
     return { note };
   } catch (err) {
-    console.error("[updateNoteAction]", err);
-    return { error: "Failed to save note. Please try again." };
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[updateNoteAction]", msg);
+    return { error: msg };
   }
 }
 
@@ -145,13 +146,14 @@ export async function updateScriptAction(id: string, data: { title?: string; con
 
     const script = await prisma.script.update({
       where: { id },
-      data: { ...data, updatedAt: new Date() },
+      data,
       include: { files: true, createdBy: { select: { name: true, nickname: true } } },
     });
     return { script };
   } catch (err) {
-    console.error("[updateScriptAction]", err);
-    return { error: "Failed to save script. Please try again." };
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[updateScriptAction]", msg);
+    return { error: msg };
   }
 }
 
