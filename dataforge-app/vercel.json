@@ -1,3 +1,9 @@
 {
-  "buildCommand": "prisma generate && prisma db push --accept-data-loss && next build"
+  "buildCommand": "prisma generate && prisma db push --accept-data-loss && next build",
+  "crons": [
+    {
+      "path": "/api/ghl/cron",
+      "schedule": "*/15 * * * *"
+    }
+  ]
 }

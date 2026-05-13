@@ -23,6 +23,7 @@ import { RepPerformanceChart } from "@/components/marketing/RepPerformanceChart"
 import { PeriodToggle, type Period } from "@/components/marketing/PeriodToggle";
 import { MetricToggle, type Metric, METRIC_LABELS } from "@/components/marketing/MetricToggle";
 import { BalloonPopFeed } from "@/components/marketing/BalloonPopFeed";
+import { AutoRefresh } from "@/components/marketing/AutoRefresh";
 
 const PERIOD_LABELS: Record<Period, string> = {
   yesterday: "Yesterday",
@@ -130,6 +131,7 @@ export async function BossDashboard({ period = "week", metric = "appts_set" }: {
 
   return (
     <div className="space-y-7">
+      <AutoRefresh intervalMs={5 * 60 * 1000} />
 
       {/* ── Page header ── */}
       <div className="flex items-center justify-between flex-wrap gap-3">

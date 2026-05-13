@@ -23,6 +23,7 @@ import { AgentRadarChart } from "@/components/marketing/AgentRadarChart";
 import { RepPerformanceChart } from "@/components/marketing/RepPerformanceChart";
 import { LeaderboardClientWrapper } from "@/components/marketing/LeaderboardClientWrapper";
 import { BalloonPopFeed } from "@/components/marketing/BalloonPopFeed";
+import { AutoRefresh } from "@/components/marketing/AutoRefresh";
 
 interface Props {
   userId: string;
@@ -115,6 +116,7 @@ export async function AgentDashboard({ userId }: Props) {
 
   return (
     <div className="space-y-7">
+      <AutoRefresh intervalMs={5 * 60 * 1000} />
 
       {/* ── Hero header: rank card + greeting ── */}
       <div className={`rounded-2xl border p-5 ${tier.bg} ${tier.glow} flex items-center justify-between gap-4 flex-wrap`}>
