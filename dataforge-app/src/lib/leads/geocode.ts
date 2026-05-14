@@ -53,7 +53,12 @@ export async function geocodeAddress(params: {
       if (isNaN(latitude) || isNaN(longitude)) return null;
       return { latitude, longitude };
     } catch (err) {
-      console.error(`[geocode] Fetch failed for: ${q}`, err);
+      // DNS / network failures are expected when running on Vercel (Nominatim blocks cloud IPs).
+      // Treat as non-fatal — lead is still saved without coordinates.
+      const isNetworkErr = err instanceof TypeError ||
+        (err instanceof Error && "code" in err && (err as NodeJS.ErrnoException).code === "ENOTFOUND");
+      if (isNetworkErr) return null;
+      console.warn(`[geocode] Fetch failed for: ${q}`, err);
       return null;
     }
   }

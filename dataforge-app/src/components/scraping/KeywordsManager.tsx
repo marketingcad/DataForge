@@ -274,6 +274,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
   const [runningId, setRunningId] = useState<string | null>(null);
   const [runningJobId, setRunningJobId] = useState<string | null>(null);
   const [runningLabel, setRunningLabel] = useState<string>("Starting…");
+  const [forceStopConfirm, setForceStopConfirm] = useState<{ kwId: string; jobId: string } | null>(null);
 
   // Track job IDs that have already had their completion toast shown
   const completedToastRef = useRef<Set<string>>(new Set());
@@ -423,12 +424,16 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
   }
 
   async function handleStop(kwId: string, jobId: string) {
-    // Also stop auto-run loop for this keyword if active
+    setForceStopConfirm({ kwId, jobId });
+  }
+
+  async function doStop(kwId: string, jobId: string) {
     if (autoRunRef.current === kwId) {
       autoRunRef.current = null;
       setAutoRunId(null);
     }
     setRunningId(null); setRunningJobId(null);
+    setForceStopConfirm(null);
     await fetch(`/api/scraping/jobs/${jobId}/cancel`, { method: "POST" }).catch(() => null);
   }
 
@@ -935,6 +940,36 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
         />
       )}
 
+
+      {/* ── Force stop confirmation dialog ── */}
+      <Dialog open={!!forceStopConfirm} onOpenChange={(o) => { if (!o) setForceStopConfirm(null); }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              Stop the scraper?
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            {runningLabel.startsWith("Grabbing emails")
+              ? "The scraper is currently visiting lead websites to collect email addresses. Force stopping now will leave the remaining leads in this batch without emails."
+              : runningLabel.startsWith("Starting") || runningLabel === "Reconnecting…"
+              ? "The scraper is starting up. Force stopping now will cancel this run."
+              : "The scraper is actively collecting leads. Force stopping now will save what has already been collected and cancel the rest of this run."}
+          </p>
+          <p className="text-xs text-muted-foreground">Leads already saved will not be lost.</p>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="ghost" onClick={() => setForceStopConfirm(null)}>
+              Keep running
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => forceStopConfirm && doStop(forceStopConfirm.kwId, forceStopConfirm.jobId)}
+            >
+              Force stop
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Create category dialog ── */}
       <Dialog open={createCatOpen} onOpenChange={(v) => { if (!v) setCreateCatName(""); setCreateCatOpen(v); }}>

@@ -364,8 +364,9 @@ export function KeywordCategoryModal({
                 const job = kw.jobs[0] ?? null;
                 const hasFailed = kw.failedAttempts > 0;
                 const isDisabledByFailure = !kw.enabled && kw.failedAttempts >= 5;
-                const isRunning = runningId === kw.id;
+                const isRunning = runningId === kw.id || (job?.status === "running" || job?.status === "pending");
                 const isAutoRunning = autoRunId === kw.id;
+                const stopJobId = runningJobId ?? job?.id ?? "";
 
                 return (
                   <div key={kw.id} className="rounded-lg border bg-card p-4 flex flex-col gap-3">
@@ -493,7 +494,7 @@ export function KeywordCategoryModal({
                           size="sm"
                           variant="outline"
                           className="gap-1.5 h-8 flex-1 text-rose-600 border-rose-300 hover:bg-rose-50"
-                          onClick={() => onStop(kw.id, runningJobId ?? "")}
+                          onClick={() => onStop(kw.id, stopJobId)}
                         >
                           <Square className="h-3.5 w-3.5" />Stop Auto
                         </Button>
@@ -502,7 +503,7 @@ export function KeywordCategoryModal({
                           size="sm"
                           variant="outline"
                           className="gap-1.5 h-8 flex-1 text-rose-600 border-rose-300 hover:bg-rose-50"
-                          onClick={() => runningJobId && onStop(kw.id, runningJobId)}
+                          onClick={() => onStop(kw.id, stopJobId)}
                         >
                           <Square className="h-3.5 w-3.5" />Stop
                         </Button>
@@ -609,8 +610,9 @@ export function KeywordCategoryModal({
                 const job = kw.jobs[0] ?? null;
                 const hasFailed = kw.failedAttempts > 0;
                 const isDisabledByFailure = !kw.enabled && kw.failedAttempts >= 5;
-                const isRunning = runningId === kw.id;
+                const isRunning = runningId === kw.id || (job?.status === "running" || job?.status === "pending");
                 const isAutoRunning = autoRunId === kw.id;
+                const stopJobId = runningJobId ?? job?.id ?? "";
 
                 return (
                   <div key={kw.id} className="px-5 py-4 flex items-start gap-4">
@@ -725,11 +727,11 @@ export function KeywordCategoryModal({
                     {/* Action buttons */}
                     <div className="flex items-center gap-1 shrink-0">
                       {isAutoRunning ? (
-                        <Button size="sm" variant="outline" className="gap-1.5 h-8 text-rose-600 border-rose-300 hover:bg-rose-50" onClick={() => onStop(kw.id, runningJobId ?? "")}>
+                        <Button size="sm" variant="outline" className="gap-1.5 h-8 text-rose-600 border-rose-300 hover:bg-rose-50" onClick={() => onStop(kw.id, stopJobId)}>
                           <Square className="h-3.5 w-3.5" />Stop Auto
                         </Button>
                       ) : isRunning ? (
-                        <Button size="sm" variant="outline" className="gap-1.5 h-8 text-rose-600 border-rose-300 hover:bg-rose-50" onClick={() => runningJobId && onStop(kw.id, runningJobId)}>
+                        <Button size="sm" variant="outline" className="gap-1.5 h-8 text-rose-600 border-rose-300 hover:bg-rose-50" onClick={() => onStop(kw.id, stopJobId)}>
                           <Square className="h-3.5 w-3.5" />Stop
                         </Button>
                       ) : (

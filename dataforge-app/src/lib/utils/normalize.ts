@@ -29,7 +29,7 @@ export function formatPhone(digits: string): string {
  * Normalize an email address to lowercase trimmed string.
  */
 export function normalizeEmail(raw: string): string {
-  return raw.trim().toLowerCase();
+  return raw.trim().toLowerCase().replace(/^mailto:/i, "");
 }
 
 /**

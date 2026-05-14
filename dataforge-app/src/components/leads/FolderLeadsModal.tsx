@@ -12,7 +12,6 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -27,10 +26,11 @@ import {
 import {
   Folder, Search, Phone, Globe, Mail, Loader2,
   ChevronLeft, ChevronRight, Trash2, Download,
-  MoreVertical, Tags, AlertTriangle, Check, ChevronDown, CheckCircle2,
+  MoreVertical, Tags, AlertTriangle, Check, ChevronDown,
   Copy, SlidersHorizontal,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
 import { useNotifications } from "@/lib/notifications";
 import { formatPhone } from "@/lib/utils/normalize";
@@ -53,6 +53,7 @@ type Lead = {
 
 type SortOption = "name_asc" | "name_desc" | "newest" | "oldest";
 type SearchField = "business" | "contact" | "location" | "phone" | "email" | "website" | "score";
+type FilterValue = "has" | "no" | null;
 
 const SORT_LABELS: Record<SortOption, string> = {
   name_asc:  "Name A→Z",
@@ -161,14 +162,17 @@ export function FolderLeadsModal({
   const [sort, setSort]             = useState<SortOption>("newest");
   const [minScore, setMinScore]     = useState<string>("");
   const [maxScore, setMaxScore]     = useState<string>("");
+  const [scoreSlider, setScoreSlider] = useState<[number, number]>([0, 100]);
   const [status, setStatus]         = useState<string>("");
   const [stateFilter, setStateFilter] = useState<string>("");
-  const [hasEmail, setHasEmail]     = useState(false);
-  const [hasWebsite, setHasWebsite] = useState(false);
-  const [hasContact, setHasContact] = useState(false);
-  const [hasPhone, setHasPhone]     = useState(false);
-  const [hasBusiness, setHasBusiness] = useState(false);
+  const [filterEmail,    setFilterEmail]    = useState<FilterValue>(null);
+  const [filterWebsite,  setFilterWebsite]  = useState<FilterValue>(null);
+  const [filterContact,  setFilterContact]  = useState<FilterValue>(null);
+  const [filterPhone,    setFilterPhone]    = useState<FilterValue>(null);
+  const [filterBusiness, setFilterBusiness] = useState<FilterValue>(null);
+  const [filterScore,    setFilterScore]    = useState<FilterValue>(null);
   const [page, setPage]             = useState(1);
+  const [pageSize, setPageSize]     = useState(20);
   const [total, setTotal]           = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading]       = useState(false);
@@ -193,7 +197,7 @@ export function FolderLeadsModal({
     return () => clearTimeout(t);
   }, [search]);
 
-  useEffect(() => { setPage(1); setSelected(new Set()); }, [debSearch, searchField, sort, minScore, maxScore, status, stateFilter, hasEmail, hasWebsite, hasContact, hasPhone, hasBusiness]);
+  useEffect(() => { setPage(1); setSelected(new Set()); }, [debSearch, searchField, sort, minScore, maxScore, status, stateFilter, filterEmail, filterWebsite, filterContact, filterPhone, filterBusiness, filterScore, pageSize]);
 
   const fetchLeads = useCallback(async () => {
     if (!open) return;
@@ -205,15 +209,23 @@ export function FolderLeadsModal({
         searchField,
         sort,
         page,
+        pageSize,
         minScore: minScore !== "" ? Number(minScore) : undefined,
         maxScore: maxScore !== "" ? Number(maxScore) : undefined,
         status,
         state: stateFilter,
-        hasEmail: hasEmail || undefined,
-        hasWebsite: hasWebsite || undefined,
-        hasContact: hasContact || undefined,
-        hasPhone: hasPhone || undefined,
-        hasBusiness: hasBusiness || undefined,
+        hasEmail:    filterEmail    === "has" || undefined,
+        hasWebsite:  filterWebsite  === "has" || undefined,
+        hasContact:  filterContact  === "has" || undefined,
+        hasPhone:    filterPhone    === "has" || undefined,
+        hasBusiness: filterBusiness === "has" || undefined,
+        hasScore:    filterScore    === "has" || undefined,
+        noEmail:     filterEmail    === "no"  || undefined,
+        noWebsite:   filterWebsite  === "no"  || undefined,
+        noContact:   filterContact  === "no"  || undefined,
+        noPhone:     filterPhone    === "no"  || undefined,
+        noBusiness:  filterBusiness === "no"  || undefined,
+        noScore:     filterScore    === "no"  || undefined,
         savedById: filterUserId,
       });
       setLeads(r.leads as Lead[]);
@@ -222,7 +234,7 @@ export function FolderLeadsModal({
     } finally {
       setLoading(false);
     }
-  }, [open, folder.id, debSearch, searchField, sort, page, minScore, maxScore, status, stateFilter, hasEmail, hasWebsite, hasContact, hasPhone, hasBusiness, filterUserId]);
+  }, [open, folder.id, debSearch, searchField, sort, page, pageSize, minScore, maxScore, status, stateFilter, filterEmail, filterWebsite, filterContact, filterPhone, filterBusiness, filterScore, filterUserId]);
 
   useEffect(() => { fetchLeads(); }, [fetchLeads]);
 
@@ -230,20 +242,20 @@ export function FolderLeadsModal({
     if (!open) {
       setSearch(""); setDebSearch(""); setSearchField("business"); setPage(1);
       setSelected(new Set()); setConfirmDelete(null);
-      setMinScore(""); setMaxScore("");
-      setStatus(""); setStateFilter("");
-      setHasEmail(false); setHasWebsite(false); setHasContact(false);
-      setHasPhone(false); setHasBusiness(false);
+      setMinScore(""); setMaxScore(""); setScoreSlider([0, 100]);
+      setStatus(""); setStateFilter(""); setPageSize(20);
+      setFilterEmail(null); setFilterWebsite(null); setFilterContact(null);
+      setFilterPhone(null); setFilterBusiness(null); setFilterScore(null);
     }
   }, [open]);
 
-  const hasActiveFilters = minScore || maxScore || status || stateFilter || hasEmail || hasWebsite || hasContact || hasPhone || hasBusiness;
+  const hasActiveFilters = minScore || maxScore || status || stateFilter || filterEmail || filterWebsite || filterContact || filterPhone || filterBusiness || filterScore;
 
   function clearFilters() {
-    setMinScore(""); setMaxScore("");
+    setMinScore(""); setMaxScore(""); setScoreSlider([0, 100]);
     setStatus(""); setStateFilter("");
-    setHasEmail(false); setHasWebsite(false); setHasContact(false);
-    setHasPhone(false); setHasBusiness(false);
+    setFilterEmail(null); setFilterWebsite(null); setFilterContact(null);
+    setFilterPhone(null); setFilterBusiness(null); setFilterScore(null);
   }
 
   const activeFilterParams = {
@@ -255,11 +267,18 @@ export function FolderLeadsModal({
     maxScore: maxScore !== "" ? Number(maxScore) : undefined,
     status,
     state: stateFilter,
-    hasEmail: hasEmail || undefined,
-    hasWebsite: hasWebsite || undefined,
-    hasContact: hasContact || undefined,
-    hasPhone: hasPhone || undefined,
-    hasBusiness: hasBusiness || undefined,
+    hasEmail:    filterEmail    === "has" || undefined,
+    hasWebsite:  filterWebsite  === "has" || undefined,
+    hasContact:  filterContact  === "has" || undefined,
+    hasPhone:    filterPhone    === "has" || undefined,
+    hasBusiness: filterBusiness === "has" || undefined,
+    hasScore:    filterScore    === "has" || undefined,
+    noEmail:     filterEmail    === "no"  || undefined,
+    noWebsite:   filterWebsite  === "no"  || undefined,
+    noContact:   filterContact  === "no"  || undefined,
+    noPhone:     filterPhone    === "no"  || undefined,
+    noBusiness:  filterBusiness === "no"  || undefined,
+    noScore:     filterScore    === "no"  || undefined,
     savedById: filterUserId,
   };
 
@@ -578,27 +597,20 @@ export function FolderLeadsModal({
             {/* Row 2 — filters */}
             <div className="flex flex-wrap items-end gap-2.5">
 
-              {/* Score range */}
+              {/* State */}
               <div className="space-y-1">
-                <Label className="text-[10px] text-muted-foreground">Score range</Label>
-                <div className="flex items-center gap-1">
-                  <Input
-                    type="number" min={0} max={100} placeholder="0"
-                    value={minScore} onChange={(e) => setMinScore(e.target.value)}
-                    className="h-7 w-12 text-xs text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                  />
-                  <span className="text-[10px] text-muted-foreground">–</span>
-                  <Input
-                    type="number" min={0} max={100} placeholder="100"
-                    value={maxScore} onChange={(e) => setMaxScore(e.target.value)}
-                    className="h-7 w-12 text-xs text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                  />
-                </div>
+                <span className="text-[10px] text-muted-foreground block">State</span>
+                <Input
+                  placeholder="e.g. TX, CA…"
+                  value={stateFilter}
+                  onChange={(e) => setStateFilter(e.target.value)}
+                  className="h-7 w-24 text-xs"
+                />
               </div>
 
               {/* Status */}
               <div className="space-y-1">
-                <Label className="text-[10px] text-muted-foreground">Status</Label>
+                <span className="text-[10px] text-muted-foreground block">Status</span>
                 <DropdownMenu>
                   <DropdownMenuTrigger
                     render={<Button variant="outline" size="sm" className="h-7 gap-1 text-xs w-28 justify-between" />}
@@ -622,44 +634,112 @@ export function FolderLeadsModal({
                 </DropdownMenu>
               </div>
 
-              {/* State */}
-              <div className="space-y-1">
-                <Label className="text-[10px] text-muted-foreground">State</Label>
-                <Input
-                  placeholder="e.g. TX, CA…"
-                  value={stateFilter}
-                  onChange={(e) => setStateFilter(e.target.value)}
-                  className="h-7 w-24 text-xs"
-                />
-              </div>
-
-              {/* Has data toggles — pill chips */}
-              <div className="space-y-1">
-                <Label className="text-[10px] text-muted-foreground">Has data</Label>
-                <div className="flex items-center gap-1.5">
-                  {([
-                    { key: "phone",    label: "Phone",   val: hasPhone,    set: setHasPhone },
-                    { key: "business", label: "Business", val: hasBusiness, set: setHasBusiness },
-                    { key: "email",    label: "Email",   val: hasEmail,    set: setHasEmail },
-                    { key: "website",  label: "Website", val: hasWebsite,  set: setHasWebsite },
-                    { key: "contact",  label: "Contact", val: hasContact,  set: setHasContact },
-                  ] as const).map(({ key, label, val, set }) => (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => set(!val)}
+              {/* Has data dropdown */}
+              {(() => {
+                const active = [
+                  filterEmail    === "has" ? "Email"    : null,
+                  filterWebsite  === "has" ? "Website"  : null,
+                  filterContact  === "has" ? "Contact"  : null,
+                  filterPhone    === "has" ? "Phone"    : null,
+                  filterBusiness === "has" ? "Business" : null,
+                  filterScore    === "has" ? "Score"    : null,
+                ].filter(Boolean);
+                return (
+                  <Popover>
+                    <PopoverTrigger
                       className={cn(
-                        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium transition-all select-none",
-                        val
-                          ? "border-foreground/20 bg-foreground text-background"
-                          : "border-border bg-background text-muted-foreground hover:border-foreground/30 hover:text-foreground"
+                        "inline-flex items-center gap-1.5 h-7 rounded-md border border-input bg-background px-2.5 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground",
+                        active.length > 0 && "border-primary text-primary bg-primary/5"
                       )}
                     >
-                      {val && <CheckCircle2 className="h-3 w-3 shrink-0" />}
-                      {label}
-                    </button>
-                  ))}
+                      Has data
+                      {active.length > 0 && <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">{active.length}</span>}
+                      <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                    </PopoverTrigger>
+                    <PopoverContent align="start" side="bottom" className="w-44 p-1.5">
+                      {([
+                        ["Email",    filterEmail,    setFilterEmail],
+                        ["Website",  filterWebsite,  setFilterWebsite],
+                        ["Contact",  filterContact,  setFilterContact],
+                        ["Phone",    filterPhone,    setFilterPhone],
+                        ["Business", filterBusiness, setFilterBusiness],
+                        ["Score",    filterScore,    setFilterScore],
+                      ] as [string, FilterValue, (v: FilterValue) => void][]).map(([label, val, setter]) => (
+                        <label key={label} className="flex items-center gap-2.5 px-2 py-1.5 rounded-md cursor-pointer hover:bg-accent text-xs">
+                          <Checkbox checked={val === "has"} onCheckedChange={(c) => setter(c ? "has" : null)} />
+                          {label}
+                        </label>
+                      ))}
+                    </PopoverContent>
+                  </Popover>
+                );
+              })()}
+
+              {/* Has no data dropdown */}
+              {(() => {
+                const active = [
+                  filterEmail    === "no" ? "Email"    : null,
+                  filterWebsite  === "no" ? "Website"  : null,
+                  filterContact  === "no" ? "Contact"  : null,
+                  filterPhone    === "no" ? "Phone"    : null,
+                  filterBusiness === "no" ? "Business" : null,
+                  filterScore    === "no" ? "Score"    : null,
+                ].filter(Boolean);
+                return (
+                  <Popover>
+                    <PopoverTrigger
+                      className={cn(
+                        "inline-flex items-center gap-1.5 h-7 rounded-md border border-input bg-background px-2.5 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground",
+                        active.length > 0 && "border-primary text-primary bg-primary/5"
+                      )}
+                    >
+                      Has no data
+                      {active.length > 0 && <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">{active.length}</span>}
+                      <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                    </PopoverTrigger>
+                    <PopoverContent align="start" side="bottom" className="w-44 p-1.5">
+                      {([
+                        ["Email",    filterEmail,    setFilterEmail],
+                        ["Website",  filterWebsite,  setFilterWebsite],
+                        ["Contact",  filterContact,  setFilterContact],
+                        ["Phone",    filterPhone,    setFilterPhone],
+                        ["Business", filterBusiness, setFilterBusiness],
+                        ["Score",    filterScore,    setFilterScore],
+                      ] as [string, FilterValue, (v: FilterValue) => void][]).map(([label, val, setter]) => (
+                        <label key={label} className="flex items-center gap-2.5 px-2 py-1.5 rounded-md cursor-pointer hover:bg-accent text-xs">
+                          <Checkbox checked={val === "no"} onCheckedChange={(c) => setter(c ? "no" : null)} />
+                          {label}
+                        </label>
+                      ))}
+                    </PopoverContent>
+                  </Popover>
+                );
+              })()}
+
+              {/* Score range slider */}
+              <div className="space-y-1.5 w-40">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-muted-foreground">Score range</span>
+                  <span className="text-[10px] font-medium tabular-nums">
+                    {scoreSlider[0]} – {scoreSlider[1]}
+                  </span>
                 </div>
+                <Slider
+                  min={0}
+                  max={100}
+                  value={scoreSlider}
+                  onValueChange={(val) => {
+                    const arr = Array.isArray(val) ? val : [val as number];
+                    setScoreSlider([arr[0] ?? 0, arr[1] ?? 100]);
+                  }}
+                  onValueCommitted={(val) => {
+                    const arr = Array.isArray(val) ? val : [val as number];
+                    const min = arr[0] ?? 0;
+                    const max = arr[1] ?? 100;
+                    setMinScore(min > 0 ? String(min) : "");
+                    setMaxScore(max < 100 ? String(max) : "");
+                  }}
+                />
               </div>
 
               {/* Clear filters */}
@@ -791,7 +871,7 @@ export function FolderLeadsModal({
                         <Checkbox checked={selected.has(lead.id)} onCheckedChange={() => toggleOne(lead.id)} />
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground font-mono text-center">
-                        {(page - 1) * 20 + idx + 1}
+                        {(page - 1) * pageSize + idx + 1}
                       </TableCell>
                       <TableCell className="font-medium max-w-[200px]">
                         <div className="flex justify-between gap-1.5 min-w-0">
@@ -851,24 +931,42 @@ export function FolderLeadsModal({
           </div>
 
           {/* ── Pagination ── */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between px-6 py-3 border-t shrink-0 bg-background">
-              <p className="text-xs text-muted-foreground">
-                {(page - 1) * 20 + 1}–{Math.min(page * 20, total)} of {total}
-              </p>
+          <div className="flex items-center justify-between px-4 py-2.5 border-t shrink-0 bg-background">
+            <p className="text-xs text-muted-foreground tabular-nums">
+              {total === 0 ? "0 leads" : `${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, total)} of ${total}`}
+            </p>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">Rows</span>
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={<button type="button" className="inline-flex items-center gap-1 h-7 rounded-md border border-input bg-background px-2 text-xs font-medium hover:bg-accent transition-colors" />}
+                >
+                  {pageSize}
+                  <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-20">
+                  {[10, 20, 50, 100].map((n) => (
+                    <DropdownMenuItem key={n} className="text-xs cursor-pointer justify-between"
+                      onClick={() => setPageSize(n)}>
+                      {n}
+                      {pageSize === n && <Check className="h-3 w-3" />}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
               <div className="flex items-center gap-1">
                 <Button variant="outline" size="icon" className="h-7 w-7"
                   disabled={page === 1} onClick={() => setPage((p) => p - 1)}>
                   <ChevronLeft className="h-3.5 w-3.5" />
                 </Button>
-                <span className="text-xs px-2 tabular-nums">{page} / {totalPages}</span>
+                <span className="text-xs px-2 tabular-nums">{page} / {Math.max(1, totalPages)}</span>
                 <Button variant="outline" size="icon" className="h-7 w-7"
-                  disabled={page === totalPages} onClick={() => setPage((p) => p + 1)}>
+                  disabled={page === totalPages || totalPages <= 1} onClick={() => setPage((p) => p + 1)}>
                   <ChevronRight className="h-3.5 w-3.5" />
                 </Button>
               </div>
             </div>
-          )}
+          </div>
         </DialogContent>
       </Dialog>
 

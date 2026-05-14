@@ -14,11 +14,18 @@ export async function GET(
   const search      = sp.get("search")?.trim() ?? "";
   const searchField = sp.get("searchField") ?? "business";
   const sort        = sp.get("sort") ?? "newest";
-  const hasEmail    = sp.get("hasEmail") === "1";
-  const hasWebsite  = sp.get("hasWebsite") === "1";
   const state       = sp.get("state")?.trim() ?? "";
 
-  // Only show leads that have NOT been moved to a folder yet — once moved, they live in Leads
+  // Per-field has/no filters
+  const fEmail   = sp.get("email");    // "has" | "no" | null
+  const fWebsite = sp.get("website");  // "has" | "no" | null
+  const fAddress = sp.get("address");  // "has" | "no" | null
+  const fPhone   = sp.get("phone");    // "has" | "no" | null
+  const fScore   = sp.get("score");    // "has" | "no" | null
+  const fName    = sp.get("name");     // "has" | "no" | null
+  const scoreMin = sp.get("scoreMin"); // numeric string | null
+  const scoreMax = sp.get("scoreMax"); // numeric string | null
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const base: any = { source: { startsWith: `GoogleMaps:keyword_${id}` }, folderId: null };
 
@@ -34,9 +41,35 @@ export async function GET(
     }
   }
 
-  if (hasEmail)   base.email   = { not: null };
-  if (hasWebsite) base.website = { not: null };
-  if (state)      base.state   = { contains: state, mode: "insensitive" };
+  if (fEmail === "has") base.email = { not: null, notIn: [""] };
+  if (fEmail === "no")  base.AND = [...(base.AND ?? []), { OR: [{ email: null }, { email: "" }] }];
+
+  if (fWebsite === "has") base.website = { not: null, notIn: [""] };
+  if (fWebsite === "no")  base.AND = [...(base.AND ?? []), { OR: [{ website: null }, { website: "" }] }];
+
+  if (fAddress === "has") base.address = { not: null, notIn: [""] };
+  if (fAddress === "no")  base.AND = [...(base.AND ?? []), { OR: [{ address: null }, { address: "" }] }];
+
+  if (fPhone === "has") base.phone = { not: null, notIn: ["", "N/A"] };
+  if (fPhone === "no")  base.AND = [...(base.AND ?? []), { OR: [{ phone: null }, { phone: "" }, { phone: "N/A" }] }];
+
+  if (fScore === "has") base.dataQualityScore = { gt: 0 };
+  if (fScore === "no")  base.dataQualityScore = { equals: 0 };
+
+  const minVal = scoreMin !== null ? parseInt(scoreMin) : NaN;
+  const maxVal = scoreMax !== null ? parseInt(scoreMax) : NaN;
+  if (!isNaN(minVal) && !isNaN(maxVal)) {
+    base.dataQualityScore = { gte: minVal, lte: maxVal };
+  } else if (!isNaN(minVal)) {
+    base.dataQualityScore = { gte: minVal };
+  } else if (!isNaN(maxVal)) {
+    base.dataQualityScore = { lte: maxVal };
+  }
+
+  if (fName === "has") base.businessName = { not: null, notIn: [""] };
+  if (fName === "no")  base.AND = [...(base.AND ?? []), { OR: [{ businessName: null }, { businessName: "" }] }];
+
+  if (state) base.state = { contains: state, mode: "insensitive" };
 
   const orderBy =
     sort === "name_asc"  ? { businessName: "asc" as const }  :

@@ -20,8 +20,16 @@ type LeadFilterParams = {
   hasContact?: boolean;
   hasPhone?: boolean;
   hasBusiness?: boolean;
+  noEmail?: boolean;
+  noWebsite?: boolean;
+  noContact?: boolean;
+  noPhone?: boolean;
+  noBusiness?: boolean;
+  hasScore?: boolean;
+  noScore?: boolean;
   searchField?: "business" | "contact" | "location" | "phone" | "email" | "website" | "score";
   savedById?: string;
+  pageSize?: number;
 };
 
 export async function getLeadsForFolderAction(params: LeadFilterParams & { page?: number }) {
@@ -31,7 +39,7 @@ export async function getLeadsForFolderAction(params: LeadFilterParams & { page?
     search: params.search || "",
     sort: params.sort || "newest",
     page: params.page || 1,
-    pageSize: 20,
+    pageSize: params.pageSize ?? 20,
     minScore: params.minScore,
     maxScore: params.maxScore,
     status: params.status || "",
@@ -41,6 +49,13 @@ export async function getLeadsForFolderAction(params: LeadFilterParams & { page?
     hasContact: params.hasContact,
     hasPhone: params.hasPhone,
     hasBusiness: params.hasBusiness,
+    noEmail: params.noEmail,
+    noWebsite: params.noWebsite,
+    noContact: params.noContact,
+    noPhone: params.noPhone,
+    noBusiness: params.noBusiness,
+    hasScore: params.hasScore,
+    noScore: params.noScore,
     searchField: params.searchField || "business",
     savedById: params.savedById,
   });
@@ -62,6 +77,13 @@ export async function getAllLeadsForExportAction(params: LeadFilterParams) {
     hasContact: params.hasContact,
     hasPhone: params.hasPhone,
     hasBusiness: params.hasBusiness,
+    noEmail: params.noEmail,
+    noWebsite: params.noWebsite,
+    noContact: params.noContact,
+    noPhone: params.noPhone,
+    noBusiness: params.noBusiness,
+    hasScore: params.hasScore,
+    noScore: params.noScore,
     searchField: params.searchField || "business",
     savedById: params.savedById,
   });

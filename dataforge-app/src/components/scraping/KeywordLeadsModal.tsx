@@ -26,11 +26,12 @@ import {
 import {
   Search, Phone, Globe, Loader2,
   ChevronLeft, ChevronRight, Trash2, Download,
-  AlertTriangle, Check, ChevronDown, CheckCircle2,
+  AlertTriangle, Check, ChevronDown,
   Copy, MapPin, MoreHorizontal, ExternalLink, FolderOpen, SlidersHorizontal,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { Slider } from "@/components/ui/slider";
 import { useNotifications } from "@/lib/notifications";
 import { formatPhone } from "@/lib/utils/normalize";
 import { toast } from "sonner";
@@ -51,6 +52,7 @@ type Lead = {
 
 type SortOption = "name_asc" | "name_desc" | "newest" | "oldest";
 type SearchField = "business" | "contact" | "location" | "phone" | "email" | "website";
+type FilterValue = "has" | "no" | null;
 
 const SORT_LABELS: Record<SortOption, string> = {
   name_asc:  "Name A→Z",
@@ -147,9 +149,17 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
   const [searchField, setSearchField] = useState<SearchField>("business");
   const [sort, setSort]             = useState<SortOption>("newest");
   const [stateFilter, setStateFilter] = useState("");
-  const [hasEmail, setHasEmail]     = useState(false);
-  const [hasWebsite, setHasWebsite] = useState(false);
-  const [page, setPage]             = useState(1);
+  const [filterEmail,   setFilterEmail]   = useState<FilterValue>(null);
+  const [filterWebsite, setFilterWebsite] = useState<FilterValue>(null);
+  const [filterAddress, setFilterAddress] = useState<FilterValue>(null);
+  const [filterPhone,   setFilterPhone]   = useState<FilterValue>(null);
+  const [filterScore,   setFilterScore]   = useState<FilterValue>(null);
+  const [filterName,    setFilterName]    = useState<FilterValue>(null);
+  const [scoreMin,  setScoreMin]  = useState("");
+  const [scoreMax,  setScoreMax]  = useState("");
+  const [scoreSlider, setScoreSlider] = useState<[number, number]>([0, 100]);
+  const [page, setPage]                   = useState(1);
+  const [pageSize, setPageSize]           = useState(20);
   const [total, setTotal]           = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading]       = useState(false);
@@ -175,7 +185,7 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
     return () => clearTimeout(t);
   }, [search]);
 
-  useEffect(() => { setPage(1); setSelected(new Set()); }, [debSearch, searchField, sort, stateFilter, hasEmail, hasWebsite]);
+  useEffect(() => { setPage(1); setSelected(new Set()); }, [debSearch, searchField, sort, stateFilter, filterEmail, filterWebsite, filterAddress, filterPhone, filterScore, filterName, scoreMin, scoreMax, pageSize]);
 
   const fetchLeads = useCallback(async () => {
     if (!open || !kwId) return;
@@ -183,12 +193,19 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
     try {
       const params = new URLSearchParams({
         page: String(page),
+        pageSize: String(pageSize),
         search: debSearch,
         searchField,
         sort,
         state: stateFilter,
-        ...(hasEmail   ? { hasEmail: "1" }   : {}),
-        ...(hasWebsite ? { hasWebsite: "1" } : {}),
+        ...(filterEmail   ? { email:   filterEmail }   : {}),
+        ...(filterWebsite ? { website: filterWebsite } : {}),
+        ...(filterAddress ? { address: filterAddress } : {}),
+        ...(filterPhone   ? { phone:   filterPhone }   : {}),
+        ...(filterScore   ? { score:   filterScore }   : {}),
+        ...(filterName    ? { name:    filterName }    : {}),
+        ...(scoreMin !== "" ? { scoreMin } : {}),
+        ...(scoreMax !== "" ? { scoreMax } : {}),
       });
       const res = await fetch(`/api/keywords/${kwId}/leads?${params}`);
       if (!res.ok) return;
@@ -199,7 +216,7 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
     } finally {
       setLoading(false);
     }
-  }, [open, kwId, debSearch, searchField, sort, page, stateFilter, hasEmail, hasWebsite]);
+  }, [open, kwId, debSearch, searchField, sort, page, pageSize, stateFilter, filterEmail, filterWebsite, filterAddress, filterPhone, filterScore, filterName, scoreMin, scoreMax]);
 
   useEffect(() => { fetchLeads(); }, [fetchLeads]);
 
@@ -207,7 +224,10 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
     if (!open) {
       setSearch(""); setDebSearch(""); setSearchField("business"); setPage(1);
       setSelected(new Set()); setConfirmDelete(null); setConfirmDeleteId(null);
-      setStateFilter(""); setHasEmail(false); setHasWebsite(false);
+      setStateFilter(""); setPageSize(20);
+      setFilterEmail(null); setFilterWebsite(null); setFilterAddress(null);
+      setFilterPhone(null); setFilterScore(null); setFilterName(null);
+      setScoreMin(""); setScoreMax(""); setScoreSlider([0, 100]);
       setFolderModalOpen(false);
     }
   }, [open]);
@@ -451,7 +471,7 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
             </div>
 
             {/* Filters row */}
-            <div className="flex flex-wrap items-end gap-2.5">
+            <div className="flex items-end gap-2.5">
               <div className="space-y-1">
                 <span className="text-[10px] text-muted-foreground block">State</span>
                 <Input
@@ -461,33 +481,123 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
                   className="h-7 w-24 text-xs"
                 />
               </div>
-              <div className="space-y-1">
-                <span className="text-[10px] text-muted-foreground block">Has data</span>
-                <div className="flex items-center gap-1.5">
-                  {([
-                    { key: "email",   label: "Email",   val: hasEmail,   set: setHasEmail },
-                    { key: "website", label: "Website", val: hasWebsite, set: setHasWebsite },
-                  ] as const).map(({ key, label, val, set }) => (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => set(!val)}
+
+              {/* Has data dropdown */}
+              {(() => {
+                const active = [
+                  filterEmail === "has" ? "Email" : null,
+                  filterWebsite === "has" ? "Website" : null,
+                  filterAddress === "has" ? "Address" : null,
+                  filterPhone === "has" ? "Phone" : null,
+                  filterScore === "has" ? "Score" : null,
+                  filterName === "has" ? "Name" : null,
+                ].filter(Boolean);
+                return (
+                  <Popover>
+                    <PopoverTrigger
                       className={cn(
-                        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium transition-all select-none",
-                        val
-                          ? "border-foreground/20 bg-foreground text-background"
-                          : "border-border bg-background text-muted-foreground hover:border-foreground/30 hover:text-foreground"
+                        "inline-flex items-center gap-1.5 h-7 rounded-md border border-input bg-background px-2.5 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground",
+                        active.length > 0 && "border-primary text-primary bg-primary/5"
                       )}
                     >
-                      {val && <CheckCircle2 className="h-3 w-3 shrink-0" />}
-                      {label}
-                    </button>
-                  ))}
+                      Has data
+                      {active.length > 0 && <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">{active.length}</span>}
+                      <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                    </PopoverTrigger>
+                    <PopoverContent align="start" side="bottom" className="w-44 p-1.5">
+                      {([
+                        ["Email",   filterEmail,   setFilterEmail],
+                        ["Website", filterWebsite, setFilterWebsite],
+                        ["Address", filterAddress, setFilterAddress],
+                        ["Phone",   filterPhone,   setFilterPhone],
+                        ["Score",   filterScore,   setFilterScore],
+                        ["Name",    filterName,    setFilterName],
+                      ] as [string, FilterValue, (v: FilterValue) => void][]).map(([label, val, setter]) => (
+                        <label key={label} className="flex items-center gap-2.5 px-2 py-1.5 rounded-md cursor-pointer hover:bg-accent text-xs">
+                          <Checkbox checked={val === "has"} onCheckedChange={(c) => setter(c ? "has" : null)} />
+                          {label}
+                        </label>
+                      ))}
+                    </PopoverContent>
+                  </Popover>
+                );
+              })()}
+
+              {/* Has no data dropdown */}
+              {(() => {
+                const active = [
+                  filterEmail === "no" ? "Email" : null,
+                  filterWebsite === "no" ? "Website" : null,
+                  filterAddress === "no" ? "Address" : null,
+                  filterPhone === "no" ? "Phone" : null,
+                  filterScore === "no" ? "Score" : null,
+                  filterName === "no" ? "Name" : null,
+                ].filter(Boolean);
+                return (
+                  <Popover>
+                    <PopoverTrigger
+                      className={cn(
+                        "inline-flex items-center gap-1.5 h-7 rounded-md border border-input bg-background px-2.5 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground",
+                        active.length > 0 && "border-primary text-primary bg-primary/5"
+                      )}
+                    >
+                      Has no data
+                      {active.length > 0 && <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">{active.length}</span>}
+                      <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                    </PopoverTrigger>
+                    <PopoverContent align="start" side="bottom" className="w-44 p-1.5">
+                      {([
+                        ["Email",   filterEmail,   setFilterEmail],
+                        ["Website", filterWebsite, setFilterWebsite],
+                        ["Address", filterAddress, setFilterAddress],
+                        ["Phone",   filterPhone,   setFilterPhone],
+                        ["Score",   filterScore,   setFilterScore],
+                        ["Name",    filterName,    setFilterName],
+                      ] as [string, FilterValue, (v: FilterValue) => void][]).map(([label, val, setter]) => (
+                        <label key={label} className="flex items-center gap-2.5 px-2 py-1.5 rounded-md cursor-pointer hover:bg-accent text-xs">
+                          <Checkbox checked={val === "no"} onCheckedChange={(c) => setter(c ? "no" : null)} />
+                          {label}
+                        </label>
+                      ))}
+                    </PopoverContent>
+                  </Popover>
+                );
+              })()}
+
+              {/* Score range */}
+              <div className="space-y-1.5 w-40 ml-[5px] mb-[5px]">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-muted-foreground">Score range</span>
+                  <span className="text-[10px] font-medium tabular-nums">
+                    {scoreSlider[0]} – {scoreSlider[1]}
+                  </span>
                 </div>
+                <Slider
+                  min={0}
+                  max={100}
+                  value={scoreSlider}
+                  onValueChange={(val) => {
+                    const arr = Array.isArray(val) ? val : [val as number];
+                    setScoreSlider([arr[0] ?? 0, arr[1] ?? 100]);
+                  }}
+                  onValueCommitted={(val) => {
+                    const arr = Array.isArray(val) ? val : [val as number];
+                    const min = arr[0] ?? 0;
+                    const max = arr[1] ?? 100;
+                    setScoreMin(min > 0 ? String(min) : "");
+                    setScoreMax(max < 100 ? String(max) : "");
+                  }}
+                />
               </div>
-              {(stateFilter || hasEmail || hasWebsite) && (
+
+              {(stateFilter || filterEmail || filterWebsite || filterAddress || filterPhone || filterScore || filterName || scoreMin || scoreMax) && (
                 <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground hover:text-foreground self-end"
-                  onClick={() => { setStateFilter(""); setHasEmail(false); setHasWebsite(false); }}>
+                  onClick={() => {
+                    setStateFilter("");
+                    setFilterEmail(null); setFilterWebsite(null); setFilterAddress(null);
+                    setFilterPhone(null); setFilterScore(null); setFilterName(null);
+                    setScoreMin(""); setScoreMax(""); setScoreSlider([0, 100]);
+                  }}>
                   Clear filters
                 </Button>
               )}
@@ -579,7 +689,7 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
             {!loading && leads.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2">
                 <MapPin className="h-10 w-10 text-muted-foreground/20" />
-                <p className="text-sm">{debSearch || stateFilter || hasEmail || hasWebsite ? "No leads match your filters" : "No leads scraped yet for this keyword"}</p>
+                <p className="text-sm">{debSearch || stateFilter || filterEmail || filterWebsite || filterAddress || filterPhone || filterScore || filterName || scoreMin || scoreMax ? "No leads match your filters" : "No leads scraped yet for this keyword"}</p>
               </div>
             ) : (
               <Table>
@@ -592,6 +702,7 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
                     <TableHead className="sticky top-0 bg-background">Business</TableHead>
                     <TableHead className="sticky top-0 bg-background w-36">Address</TableHead>
                     <TableHead className="sticky top-0 bg-background">Phone</TableHead>
+                    <TableHead className="sticky top-0 bg-background">Email</TableHead>
                     <TableHead className="sticky top-0 bg-background">Website</TableHead>
                     <TableHead className="sticky top-0 bg-background text-center w-20">Score</TableHead>
                     <TableHead className="sticky top-0 bg-background w-12 text-center">Action</TableHead>
@@ -609,7 +720,7 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
                         <Checkbox checked={selected.has(lead.id)} onCheckedChange={() => toggleOne(lead.id)} />
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground font-mono text-center">
-                        {(page - 1) * 20 + idx + 1}
+                        {(page - 1) * pageSize + idx + 1}
                       </TableCell>
                       <TableCell className="font-medium max-w-[180px]">
                         <CopyCell value={lead.businessName} />
@@ -623,6 +734,22 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
                             <Phone className="h-3 w-3 text-muted-foreground shrink-0" />{formatPhone(lead.phone)}
                           </span>
                         </CopyCell>
+                      </TableCell>
+                      <TableCell className="text-sm max-w-[160px]" onClick={(e) => e.stopPropagation()}>
+                        {(() => {
+                          const cleanEmail = lead.email?.replace(/^mailto:/i, "").trim() || null;
+                          return (
+                            <CopyCell value={cleanEmail}>
+                              <a
+                                href={`mailto:${cleanEmail}`}
+                                className="inline-flex items-center gap-1 text-blue-500 hover:underline whitespace-nowrap"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                ✉ {cleanEmail}
+                              </a>
+                            </CopyCell>
+                          );
+                        })()}
                       </TableCell>
                       <TableCell className="text-sm max-w-[140px]" onClick={(e) => e.stopPropagation()}>
                         <CopyCell value={lead.website}>
@@ -686,24 +813,42 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
           </div>
 
           {/* ── Pagination ── */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between px-6 py-3 border-t shrink-0 bg-background">
-              <p className="text-xs text-muted-foreground">
-                {(page - 1) * 20 + 1}–{Math.min(page * 20, total)} of {total}
-              </p>
+          <div className="flex items-center justify-between px-4 py-2.5 border-t shrink-0 bg-background">
+            <p className="text-xs text-muted-foreground tabular-nums">
+              {total === 0 ? "0 leads" : `${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, total)} of ${total}`}
+            </p>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">Rows</span>
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={<button type="button" className="inline-flex items-center gap-1 h-7 rounded-md border border-input bg-background px-2 text-xs font-medium hover:bg-accent transition-colors" />}
+                >
+                  {pageSize}
+                  <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-20">
+                  {[10, 20, 50, 100].map((n) => (
+                    <DropdownMenuItem key={n} className="text-xs cursor-pointer justify-between"
+                      onClick={() => setPageSize(n)}>
+                      {n}
+                      {pageSize === n && <Check className="h-3 w-3" />}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
               <div className="flex items-center gap-1">
                 <Button variant="outline" size="icon" className="h-7 w-7"
                   disabled={page === 1} onClick={() => setPage((p) => p - 1)}>
                   <ChevronLeft className="h-3.5 w-3.5" />
                 </Button>
-                <span className="text-xs px-2 tabular-nums">{page} / {totalPages}</span>
+                <span className="text-xs px-2 tabular-nums">{page} / {Math.max(1, totalPages)}</span>
                 <Button variant="outline" size="icon" className="h-7 w-7"
-                  disabled={page === totalPages} onClick={() => setPage((p) => p + 1)}>
+                  disabled={page === totalPages || totalPages <= 1} onClick={() => setPage((p) => p + 1)}>
                   <ChevronRight className="h-3.5 w-3.5" />
                 </Button>
               </div>
             </div>
-          )}
+          </div>
         </DialogContent>
       </Dialog>
 

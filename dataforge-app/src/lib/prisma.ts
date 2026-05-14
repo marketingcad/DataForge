@@ -5,7 +5,7 @@ import { Pool } from "pg";
 
 // Bump this string any time you run prisma migrate (adds/removes models).
 // This forces a new client in dev hot-reload scenarios.
-const CLIENT_VERSION = "v23-notes-scripts";
+const CLIENT_VERSION = "v24-grab-email";
 
 function createPrismaClient() {
   const connectionString =

@@ -170,6 +170,13 @@ export async function getLeads({
   hasContact,
   hasPhone,
   hasBusiness,
+  noEmail,
+  noWebsite,
+  noContact,
+  noPhone,
+  noBusiness,
+  hasScore,
+  noScore,
   searchField = "business",
   savedById,
 }: {
@@ -188,6 +195,13 @@ export async function getLeads({
   hasContact?: boolean;
   hasPhone?: boolean;
   hasBusiness?: boolean;
+  noEmail?: boolean;
+  noWebsite?: boolean;
+  noContact?: boolean;
+  noPhone?: boolean;
+  noBusiness?: boolean;
+  hasScore?: boolean;
+  noScore?: boolean;
   searchField?: "business" | "contact" | "location" | "phone" | "email" | "website" | "score";
   savedById?: string;
 }) {
@@ -226,11 +240,23 @@ export async function getLeads({
       ...(maxScore !== undefined ? { lte: maxScore } : {}),
     };
   }
-  if (hasEmail) where.email = { not: null };
-  if (hasWebsite) where.website = { not: null };
-  if (hasContact) where.contactPerson = { not: null };
-  if (hasPhone) where.phone = { not: "" };
-  if (hasBusiness) where.businessName = { not: "" };
+  if (hasEmail)    where.email         = { not: null, notIn: [""] };
+  if (hasWebsite)  where.website       = { not: null, notIn: [""] };
+  if (hasContact)  where.contactPerson = { not: null, notIn: [""] };
+  if (hasPhone)    where.phone         = { not: null, notIn: ["", "N/A"] };
+  if (hasBusiness) where.businessName  = { not: null, notIn: [""] };
+  if (hasScore)    where.dataQualityScore = { gt: 0 };
+  if (noScore)     where.dataQualityScore = { equals: 0 };
+
+  type AndClause = Record<string, unknown>;
+  const and: AndClause[] = (where.AND as AndClause[] | undefined) ?? [];
+  if (noEmail)    and.push({ OR: [{ email: null }, { email: "" }] });
+  if (noWebsite)  and.push({ OR: [{ website: null }, { website: "" }] });
+  if (noContact)  and.push({ OR: [{ contactPerson: null }, { contactPerson: "" }] });
+  if (noPhone)    and.push({ OR: [{ phone: null }, { phone: "" }, { phone: "N/A" }] });
+  if (noBusiness) and.push({ OR: [{ businessName: null }, { businessName: "" }] });
+  if (and.length) where.AND = and;
+
   if (savedById) where.savedById = savedById;
 
   const orderBy =

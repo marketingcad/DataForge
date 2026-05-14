@@ -15,7 +15,7 @@ export async function POST(
   // keeps running and picks up the real final status once the scraper
   // detects the change, flushes pending DB inserts, and writes "completed"/"failed".
   await prisma.scrapingJob.updateMany({
-    where: { id, status: "running" },
+    where: { id, status: { in: ["running", "pending"] } },
     data: { status: "paused" },
   });
 

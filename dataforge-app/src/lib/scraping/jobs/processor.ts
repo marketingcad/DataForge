@@ -10,6 +10,7 @@ import { getJobById, updateJobStatus } from "@/lib/scraping/jobs/service";
 import { scrapeGoogleMapsHeadless } from "@/lib/scraping/google/maps-scraper";
 import { insertLead } from "@/lib/leads/service";
 import { normalizePhone } from "@/lib/utils/normalize";
+import { calculateDataQualityScore } from "@/lib/utils/scoring";
 import { onKeywordJobSuccess, onKeywordJobFailure, getKeywordById, pickSearchTerm, resolveRunLocation } from "@/lib/keywords/service";
 import { createNotification, createNotificationsForRole } from "@/lib/notifications/service";
 import { grabEmailFromWebsite } from "@/lib/scraping/crawler/email-grabber";
@@ -54,6 +55,9 @@ export async function processKeywordJob(job: Awaited<ReturnType<typeof getJobByI
   let insertFailures  = 0;
   let firstInsertError: string | null = null;
   let insertChain: Promise<void> = Promise.resolve();
+
+  // Collect (leadId, website) pairs for email grabbing after the main loop
+  const pendingEmailGrabs: { leadId: string; website: string }[] = [];
 
   // Fetch the keyword once so we can re-roll extra keywords on retries.
   let kw: Awaited<ReturnType<typeof getKeywordById>> | null = null;
@@ -133,14 +137,9 @@ export async function processKeywordJob(job: Awaited<ReturnType<typeof getJobByI
                   const p = normalizePhone(lead.phone);
                   if (p) knownPhones.add(p);
                 }
-                // If grabEmail is enabled and the lead has a website but no email, fetch it
+                // Queue email grab — run as a batch after the main loop completes
                 if (kw?.grabEmail && lead.website && !lead.email && result.status === "created") {
-                  const leadId = result.id;
-                  grabEmailFromWebsite(lead.website).then((email) => {
-                    if (email) {
-                      prisma.lead.update({ where: { id: leadId }, data: { email } }).catch(() => {});
-                    }
-                  }).catch(() => {});
+                  pendingEmailGrabs.push({ leadId: result.id, website: lead.website });
                 }
               }
             } catch (insertErr) {
@@ -193,6 +192,51 @@ export async function processKeywordJob(job: Awaited<ReturnType<typeof getJobByI
 
   clearInterval(cancelPoll);
   await insertChain;
+
+  // Run email grabs sequentially now that the main loop is done.
+  let emailsGrabbed = 0;
+  if (pendingEmailGrabs.length > 0) {
+    prisma.scrapingJob.updateMany({
+      where: { id, status: "running" },
+      data: { errorMessage: `Grabbing emails — 0 / ${pendingEmailGrabs.length} done…` },
+    }).catch(() => {});
+
+    for (let gi = 0; gi < pendingEmailGrabs.length; gi++) {
+      // Check if the user force-stopped during the email grab phase
+      const cur = await prisma.scrapingJob.findUnique({ where: { id }, select: { status: true } });
+      if (cur && cur.status !== "running") { wasCancelled = true; break; }
+
+      const { leadId, website } = pendingEmailGrabs[gi];
+      try {
+        const email = await grabEmailFromWebsite(website);
+        if (email) {
+          // Recalculate score with the newly found email so it reflects the improved completeness
+          const existing = await prisma.lead.findUnique({
+            where: { id: leadId },
+            select: { businessName: true, phone: true, website: true, contactPerson: true, city: true, state: true, category: true, dataQualityScore: true, industriesFoundIn: true },
+          });
+          if (existing) {
+            const newScore = calculateDataQualityScore(
+              { ...existing, email },
+              existing.industriesFoundIn?.length ?? 0
+            );
+            await prisma.lead.update({
+              where: { id: leadId },
+              data: { email, dataQualityScore: Math.max(existing.dataQualityScore, newScore) },
+            });
+          } else {
+            await prisma.lead.update({ where: { id: leadId }, data: { email } });
+          }
+          emailsGrabbed++;
+        }
+      } catch { /* ignore per-lead failures */ }
+
+      prisma.scrapingJob.updateMany({
+        where: { id, status: "running" },
+        data: { errorMessage: `Grabbing emails — ${gi + 1} / ${pendingEmailGrabs.length} done…` },
+      }).catch(() => {});
+    }
+  }
 
   if (wasCancelled || cancelledFlag) {
     const currentStatus = await prisma.scrapingJob.findUnique({ where: { id }, select: { status: true } });
