@@ -34,7 +34,14 @@ import {
   Users,
   Search,
   Activity,
+  MoreVertical,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { KeywordLeadsModal } from "@/components/scraping/KeywordLeadsModal";
 import { KeywordHistoryModal } from "@/components/scraping/KeywordHistoryModal";
 import { KeywordCategoryModal } from "@/components/scraping/KeywordCategoryModal";
@@ -180,6 +187,34 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
     setCreateCatOpen(false);
     setCreateCatName("");
     setCreateCatColor(CAT_COLORS[0]);
+  }
+
+  async function handleDeleteCategory(cat: string) {
+    const kwsInCat = keywords.filter((k) => (k.category || "Uncategorized") === cat);
+    const msg = kwsInCat.length > 0
+      ? `Delete folder "${cat}"? Its ${kwsInCat.length} keyword${kwsInCat.length !== 1 ? "s" : ""} will be moved to Uncategorized.`
+      : `Delete empty folder "${cat}"?`;
+    if (!confirm(msg)) return;
+
+    // Move keywords to Uncategorized
+    await Promise.all(
+      kwsInCat.map((k) =>
+        fetch(`/api/keywords/${k.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ category: "Uncategorized" }),
+        })
+      )
+    );
+
+    // Update local state
+    setKeywords((prev) =>
+      prev.map((k) =>
+        (k.category || "Uncategorized") === cat ? { ...k, category: "Uncategorized" } : k
+      )
+    );
+    saveManualCategories(manualCategories.filter((c) => c.name !== cat));
+    toast.success(`Folder "${cat}" deleted`);
   }
 
   // Derived: sorted unique categories (from keywords + manual empty ones)
@@ -791,6 +826,30 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
                 key={cat}
                 className="relative w-64 shrink-0 rounded-xl border bg-card hover:border-border hover:shadow-md transition-all duration-150 overflow-hidden group"
               >
+                {/* 3-dot menu — only for non-Uncategorized folders */}
+                {!isUncategorized && (
+                  <div className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          onClick={(e) => e.stopPropagation()}
+                          className="h-7 w-7 flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-44">
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive gap-2"
+                          onClick={(e) => { e.stopPropagation(); handleDeleteCategory(cat); }}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          Delete folder
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                )}
                 {/* Card body — clickable */}
                 <button
                   onClick={() => setSelectedCategory(cat)}
