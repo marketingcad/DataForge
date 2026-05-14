@@ -826,36 +826,15 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
                 key={cat}
                 className="relative w-64 shrink-0 rounded-xl border bg-card hover:border-border hover:shadow-md transition-all duration-150 overflow-hidden group"
               >
-                {/* 3-dot menu — only for non-Uncategorized folders */}
-                {!isUncategorized && (
-                  <div className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <button
-                          onClick={(e) => e.stopPropagation()}
-                          className="h-7 w-7 flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
-                        >
-                          <MoreVertical className="h-4 w-4" />
-                        </button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-44">
-                        <DropdownMenuItem
-                          className="text-destructive focus:text-destructive gap-2"
-                          onClick={(e) => { e.stopPropagation(); handleDeleteCategory(cat); }}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                          Delete folder
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                )}
-                {/* Card body — clickable */}
-                <button
+                {/* Card body — clickable div (avoids nested button issues) */}
+                <div
+                  role="button"
+                  tabIndex={0}
                   onClick={() => setSelectedCategory(cat)}
-                  className="w-full text-left p-4 space-y-4 focus:outline-none"
+                  onKeyDown={(e) => e.key === "Enter" && setSelectedCategory(cat)}
+                  className="w-full text-left p-4 space-y-4 cursor-pointer focus:outline-none"
                 >
-                  {/* Icon + name + count */}
+                  {/* Icon + name + badge + 3-dot */}
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2.5 min-w-0">
                       <div className="flex h-9 w-9 items-center justify-center rounded-lg shrink-0 bg-muted">
@@ -863,16 +842,39 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
                           ? <Inbox className="h-4 w-4 text-muted-foreground" />
                           : <Folder className="h-4 w-4 text-muted-foreground" />}
                       </div>
-                      <div className="min-w-0 pr-6">
+                      <div className="min-w-0">
                         <p className="text-sm font-semibold truncate leading-tight">{cat}</p>
                         <p className="text-[11px] text-muted-foreground truncate mt-0.5">
                           {activeCount} active · {kwsInCat.length - activeCount} paused
                         </p>
                       </div>
                     </div>
-                    <Badge variant="secondary" className="shrink-0 text-xs tabular-nums font-semibold">
-                      {kwsInCat.length}
-                    </Badge>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Badge variant="secondary" className="text-xs tabular-nums font-semibold">
+                        {kwsInCat.length}
+                      </Badge>
+                      {!isUncategorized && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              onClick={(e) => e.stopPropagation()}
+                              className="h-6 w-6 flex items-center justify-center rounded-md text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-accent hover:text-foreground transition-all"
+                            >
+                              <MoreVertical className="h-3.5 w-3.5" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-44">
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive gap-2"
+                              onClick={(e) => { e.stopPropagation(); handleDeleteCategory(cat); }}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                              Delete folder
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
+                    </div>
                   </div>
 
                   {/* Meta info */}
@@ -902,7 +904,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
                   <p className="text-[11px] font-medium text-muted-foreground">
                     Click to manage keywords →
                   </p>
-                </button>
+                </div>
               </div>
             );
           })}
