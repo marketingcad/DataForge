@@ -33,7 +33,7 @@ export async function PATCH(
 
   const { id } = await params;
   const body = await req.json();
-  const { keyword, location, maxLeads, intervalMinutes, enabled, extraKeywords, extraKeywordsMode, extraKeywordsMin, extraKeywordsMax, extraKeywordsOrder, category, cityRotationEnabled } = body;
+  const { keyword, location, maxLeads, intervalMinutes, enabled, extraKeywords, extraKeywordsMode, extraKeywordsMin, extraKeywordsMax, extraKeywordsOrder, category, cityRotationEnabled, grabEmail } = body;
 
   const existing = await getKeywordById(id).catch(() => null);
 
@@ -58,6 +58,7 @@ export async function PATCH(
     extraKeywordsOrder,
     ...(category !== undefined ? { category: category?.trim() || "Uncategorized" } : {}),
     ...(cityRotationEnabled !== undefined ? { cityRotationEnabled } : {}),
+    ...(grabEmail !== undefined ? { grabEmail } : {}),
     ...(resetNextRun ? { nextRunAt: new Date() } : {}),
     ...(locationChanged ? { cityIndex: 0 } : {}),
   });

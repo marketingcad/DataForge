@@ -12,6 +12,7 @@ import { insertLead } from "@/lib/leads/service";
 import { normalizePhone } from "@/lib/utils/normalize";
 import { onKeywordJobSuccess, onKeywordJobFailure, getKeywordById, pickSearchTerm, resolveRunLocation } from "@/lib/keywords/service";
 import { createNotification, createNotificationsForRole } from "@/lib/notifications/service";
+import { grabEmailFromWebsite } from "@/lib/scraping/crawler/email-grabber";
 
 const MAX_KEYWORD_FAILURES = 5;
 
@@ -131,6 +132,15 @@ export async function processKeywordJob(job: Awaited<ReturnType<typeof getJobByI
                 if (lead.phone) {
                   const p = normalizePhone(lead.phone);
                   if (p) knownPhones.add(p);
+                }
+                // If grabEmail is enabled and the lead has a website but no email, fetch it
+                if (kw?.grabEmail && lead.website && !lead.email && result.status === "created") {
+                  const leadId = result.id;
+                  grabEmailFromWebsite(lead.website).then((email) => {
+                    if (email) {
+                      prisma.lead.update({ where: { id: leadId }, data: { email } }).catch(() => {});
+                    }
+                  }).catch(() => {});
                 }
               }
             } catch (insertErr) {

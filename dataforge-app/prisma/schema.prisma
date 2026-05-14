@@ -561,6 +561,7 @@ model ScrapingKeyword {
   updatedAt           DateTime      @updatedAt
   cityIndex           Int           @default(0)
   cityRotationEnabled Boolean       @default(true)
+  grabEmail           Boolean       @default(false)
   leads               Lead[]
   jobs                ScrapingJob[]
   createdBy           User?         @relation(fields: [createdById], references: [id])

@@ -88,6 +88,7 @@ export async function updateKeyword(
     category: string;
     cityIndex: number;
     cityRotationEnabled: boolean;
+    grabEmail: boolean;
   }>
 ) {
   return prisma.scrapingKeyword.update({ where: { id }, data });

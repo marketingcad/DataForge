@@ -64,6 +64,7 @@ interface KeywordRow {
   extraKeywordsMax: number;
   extraKeywordsOrder: string[];
   cityRotationEnabled: boolean;
+  grabEmail: boolean;
   _count: { jobs: number; leads: number };
   jobs: {
     id: string;
@@ -533,15 +534,27 @@ export function KeywordCategoryModal({
                             </PopoverTrigger>
                             <PopoverContent className="w-64 p-3" align="end">
                               <p className="text-xs font-semibold mb-2.5 text-foreground">Advanced options</p>
-                              <div className="flex items-center justify-between gap-3">
-                                <div>
-                                  <p className="text-xs font-medium">Cycle cities per run</p>
-                                  <p className="text-[11px] text-muted-foreground">Alternate through cities in the state each run</p>
+                              <div className="space-y-3">
+                                <div className="flex items-center justify-between gap-3">
+                                  <div>
+                                    <p className="text-xs font-medium">Cycle cities per run</p>
+                                    <p className="text-[11px] text-muted-foreground">Alternate through cities in the state each run</p>
+                                  </div>
+                                  <Switch
+                                    checked={kw.cityRotationEnabled ?? true}
+                                    onCheckedChange={(v) => onUpdateSetting(kw.id, { cityRotationEnabled: v })}
+                                  />
                                 </div>
-                                <Switch
-                                  checked={kw.cityRotationEnabled ?? true}
-                                  onCheckedChange={(v) => onUpdateSetting(kw.id, { cityRotationEnabled: v })}
-                                />
+                                <div className="flex items-center justify-between gap-3">
+                                  <div>
+                                    <p className="text-xs font-medium">Grab email from website</p>
+                                    <p className="text-[11px] text-muted-foreground">Visit each lead&apos;s website to find a contact email</p>
+                                  </div>
+                                  <Switch
+                                    checked={kw.grabEmail ?? false}
+                                    onCheckedChange={(v) => onUpdateSetting(kw.id, { grabEmail: v })}
+                                  />
+                                </div>
                               </div>
                             </PopoverContent>
                           </Popover>
@@ -741,15 +754,27 @@ export function KeywordCategoryModal({
                             </PopoverTrigger>
                             <PopoverContent className="w-64 p-3" align="end">
                               <p className="text-xs font-semibold mb-2.5 text-foreground">Advanced options</p>
-                              <div className="flex items-center justify-between gap-3">
-                                <div>
-                                  <p className="text-xs font-medium">Cycle cities per run</p>
-                                  <p className="text-[11px] text-muted-foreground">Alternate through cities in the state each run</p>
+                              <div className="space-y-3">
+                                <div className="flex items-center justify-between gap-3">
+                                  <div>
+                                    <p className="text-xs font-medium">Cycle cities per run</p>
+                                    <p className="text-[11px] text-muted-foreground">Alternate through cities in the state each run</p>
+                                  </div>
+                                  <Switch
+                                    checked={kw.cityRotationEnabled ?? true}
+                                    onCheckedChange={(v) => onUpdateSetting(kw.id, { cityRotationEnabled: v })}
+                                  />
                                 </div>
-                                <Switch
-                                  checked={kw.cityRotationEnabled ?? true}
-                                  onCheckedChange={(v) => onUpdateSetting(kw.id, { cityRotationEnabled: v })}
-                                />
+                                <div className="flex items-center justify-between gap-3">
+                                  <div>
+                                    <p className="text-xs font-medium">Grab email from website</p>
+                                    <p className="text-[11px] text-muted-foreground">Visit each lead&apos;s website to find a contact email</p>
+                                  </div>
+                                  <Switch
+                                    checked={kw.grabEmail ?? false}
+                                    onCheckedChange={(v) => onUpdateSetting(kw.id, { grabEmail: v })}
+                                  />
+                                </div>
                               </div>
                             </PopoverContent>
                           </Popover>

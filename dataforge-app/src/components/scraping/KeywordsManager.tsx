@@ -67,6 +67,7 @@ interface KeywordRow {
   extraKeywordsMax: number;
   extraKeywordsOrder: string[];
   cityRotationEnabled: boolean;
+  grabEmail: boolean;
   _count: { jobs: number; leads: number };
   jobs: {
     id: string;
