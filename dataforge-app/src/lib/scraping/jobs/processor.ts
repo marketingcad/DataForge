@@ -217,7 +217,15 @@ export async function processKeywordJob(job: Awaited<ReturnType<typeof getJobByI
           });
           if (existing) {
             const newScore = calculateDataQualityScore(
-              { ...existing, email },
+              {
+                ...existing,
+                email,
+                website:       existing.website       ?? undefined,
+                contactPerson: existing.contactPerson ?? undefined,
+                city:          existing.city          ?? undefined,
+                state:         existing.state         ?? undefined,
+                category:      existing.category      ?? undefined,
+              },
               existing.industriesFoundIn?.length ?? 0
             );
             await prisma.lead.update({
