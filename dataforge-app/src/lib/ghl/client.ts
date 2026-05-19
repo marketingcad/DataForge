@@ -523,6 +523,39 @@ export async function getContactsByTag(
   return all;
 }
 
+/**
+ * Create or upsert a contact in GHL via the direct Contacts API.
+ * Returns the created/updated contact ID, or null on failure.
+ */
+export async function createOrUpdateContact(
+  apiKey: string,
+  locationId: string,
+  payload: Record<string, unknown>,
+): Promise<{ id: string } | null> {
+  // Try upsert first (idempotent — won't create duplicates on retry)
+  const upsertRes = await ghlFetch(`${GHL_BASE}/contacts/upsert`, {
+    method: "POST",
+    headers: buildHeaders(apiKey),
+    body: JSON.stringify({ ...payload, locationId }),
+  });
+  if (upsertRes.ok) {
+    const data = await upsertRes.json() as Record<string, unknown>;
+    const contact = (data.contact ?? data) as Record<string, unknown>;
+    if (typeof contact.id === "string") return { id: contact.id };
+  }
+
+  // Fall back to plain create
+  const createRes = await ghlFetch(`${GHL_BASE}/contacts/`, {
+    method: "POST",
+    headers: buildHeaders(apiKey),
+    body: JSON.stringify({ ...payload, locationId }),
+  });
+  if (!createRes.ok) return null;
+  const data = await createRes.json() as Record<string, unknown>;
+  const contact = (data.contact ?? data) as Record<string, unknown>;
+  return typeof contact.id === "string" ? { id: contact.id } : null;
+}
+
 /** Map GHL call status to DataForge CallStatus enum values. */
 export function mapGhlCallStatus(status: string): "completed" | "missed" | "voicemail" | "no_answer" {
   const s = status?.toLowerCase() ?? "";
