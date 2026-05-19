@@ -6,6 +6,8 @@ import { LeadInputSchema } from "@/types/lead";
 import { insertLead, updateLead, getLeads } from "@/lib/leads/service";
 import { prisma } from "@/lib/prisma";
 import { requireDepartment } from "@/lib/rbac/guards";
+import { normalizePhone, normalizeEmail, normalizeWebsite } from "@/lib/utils/normalize";
+import { calculateDataQualityScore } from "@/lib/utils/scoring";
 
 type LeadFilterParams = {
   folderId: string;
@@ -231,30 +233,116 @@ export async function importLeadsFromCsvAction(
 
   const resolvedFolderId = folderId || await getOrCreateDefaultCsvFolder(savedById);
 
-  let created = 0, duplicates = 0, errors = 0;
-
+  // Normalize all rows upfront — no per-row DB calls yet
+  type NormalizedRow = CsvLeadRow & { phone: string; email: string; website: string; category: string | null };
+  let errors = 0;
+  const normalized: NormalizedRow[] = [];
   for (const row of rows) {
     try {
-      const result = await insertLead({
-        businessName: row.businessName,
-        phone: row.phone,
-        email: row.email,
-        website: row.website,
-        contactPerson: row.contactPerson,
-        address: row.address,
-        city: row.city,
-        state: row.state,
-        country: row.country,
-        category: categoryOverride ?? row.category,
-        source: "CSV Import",
-        folderId: resolvedFolderId,
-        savedById,
+      normalized.push({
+        ...row,
+        businessName: row.businessName?.trim() ?? "",
+        phone: normalizePhone(row.phone ?? ""),
+        email: row.email ? normalizeEmail(row.email) : "",
+        website: row.website ? normalizeWebsite(row.website) : "",
+        category: categoryOverride ?? row.category ?? null,
       });
-      if (result.status === "created") created++;
-      else duplicates++;
     } catch {
       errors++;
     }
+  }
+
+  // ── Bulk dedup: one query for phone + website exact matches ──────────────
+  const phones   = [...new Set(normalized.map(r => r.phone).filter(Boolean))];
+  const websites = [...new Set(normalized.map(r => r.website).filter(Boolean))];
+
+  const phoneWebsiteMatches = (phones.length || websites.length)
+    ? await prisma.lead.findMany({
+        where: {
+          OR: [
+            ...(phones.length   ? [{ phone:   { in: phones   } }] : []),
+            ...(websites.length ? [{ website: { in: websites } }] : []),
+          ],
+        },
+        select: { phone: true, website: true, businessName: true },
+      })
+    : [];
+
+  const existingPhones   = new Set(phoneWebsiteMatches.map(e => e.phone).filter(Boolean) as string[]);
+  const existingWebsites = new Set(phoneWebsiteMatches.map(e => e.website).filter(Boolean) as string[]);
+  const existingNamesLower = new Set(phoneWebsiteMatches.map(e => e.businessName.toLowerCase()));
+
+  // ── Business name dedup for rows not caught above ──────────────────────
+  const unmatchedNames = [
+    ...new Set(
+      normalized
+        .filter(r =>
+          !(r.phone   && existingPhones.has(r.phone)) &&
+          !(r.website && existingWebsites.has(r.website))
+        )
+        .map(r => r.businessName)
+        .filter(Boolean)
+    ),
+  ];
+
+  // Query in chunks of 100 to keep OR conditions manageable
+  for (let i = 0; i < unmatchedNames.length; i += 100) {
+    const chunk = unmatchedNames.slice(i, i + 100);
+    const matches = await prisma.lead.findMany({
+      where: { OR: chunk.map(n => ({ businessName: { equals: n, mode: "insensitive" as const } })) },
+      select: { businessName: true },
+    });
+    matches.forEach(e => existingNamesLower.add(e.businessName.toLowerCase()));
+  }
+
+  // ── Build insert list ──────────────────────────────────────────────────
+  let duplicates = 0;
+  const toCreate: {
+    businessName: string; phone: string; email: string | null; website: string | null;
+    contactPerson: string | null; address: string | null; city: string | null;
+    state: string | null; country: string | null; category: string | null;
+    source: string; industriesFoundIn: string[]; dataQualityScore: number;
+    folderId: string; savedById: string;
+  }[] = [];
+
+  for (const row of normalized) {
+    const isDuplicate =
+      (row.phone   && existingPhones.has(row.phone)) ||
+      (row.website && existingWebsites.has(row.website)) ||
+      (row.businessName && existingNamesLower.has(row.businessName.toLowerCase()));
+
+    if (isDuplicate) { duplicates++; continue; }
+
+    const industries = row.category ? [row.category] : [];
+    const score = calculateDataQualityScore(
+      { ...row, phone: row.phone, email: row.email || undefined, website: row.website || undefined },
+      industries.length,
+    );
+
+    toCreate.push({
+      businessName: row.businessName,
+      phone:        row.phone,
+      email:        row.email        || null,
+      website:      row.website      || null,
+      contactPerson: row.contactPerson || null,
+      address:      row.address      || null,
+      city:         row.city         || null,
+      state:        row.state        || null,
+      country:      row.country      || null,
+      category:     row.category     ?? null,
+      source:       "CSV Import",
+      industriesFoundIn: industries,
+      dataQualityScore:  score,
+      folderId:    resolvedFolderId,
+      savedById,
+    });
+  }
+
+  // ── Bulk insert in batches of 500 ──────────────────────────────────────
+  let created = 0;
+  for (let i = 0; i < toCreate.length; i += 500) {
+    const result = await prisma.lead.createMany({ data: toCreate.slice(i, i + 500) });
+    created += result.count;
   }
 
   revalidatePath("/leads");
