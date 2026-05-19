@@ -186,9 +186,13 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
   const [regrabbingIds, setRegrabbingIds] = useState<Set<string>>(new Set());
 
   // Bulk regrab state
-  const [bulkRegrabbing, setBulkRegrabbing] = useState(false);
-  const [bulkRegrabbingDone, setBulkRegrabbingDone] = useState(0);
+  const [bulkRegrabbing, setBulkRegrabbing]           = useState(false);
+  const [bulkRegrabbingDone, setBulkRegrabbingDone]   = useState(0);
   const [bulkRegrabbingTotal, setBulkRegrabbingTotal] = useState(0);
+  const [bulkRegrabbingFound, setBulkRegrabbingFound] = useState(0);
+  const [bulkRegrabbingNone, setBulkRegrabbingNone]   = useState(0);
+  const [bulkRegrabbingDoneState, setBulkRegrabbingDoneState] = useState(false);
+  const bulkRegrabbingStop = React.useRef(false);
 
   // Edit lead state
   const [editLead, setEditLead] = useState<Lead | null>(null);
@@ -507,23 +511,33 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
       toast.info("No selected leads have a website to scrape");
       return;
     }
+    bulkRegrabbingStop.current = false;
     setBulkRegrabbing(true);
+    setBulkRegrabbingDoneState(false);
     setBulkRegrabbingTotal(eligible.length);
     setBulkRegrabbingDone(0);
-    let done = 0;
+    setBulkRegrabbingFound(0);
+    setBulkRegrabbingNone(0);
+    let done = 0, found = 0, none = 0;
     for (const lead of eligible) {
+      if (bulkRegrabbingStop.current) break;
       try {
         const res = await fetch(`/api/leads/${lead.id}/regrab-email`, { method: "POST" });
         const data = await res.json() as { found?: boolean; email?: string };
         if (data.found && data.email) {
+          found++;
           setLeads((prev) => prev.map((l) => l.id === lead.id ? { ...l, email: data.email! } : l));
+        } else {
+          none++;
         }
-      } catch { /* continue */ }
+      } catch { none++; }
       done++;
       setBulkRegrabbingDone(done);
+      setBulkRegrabbingFound(found);
+      setBulkRegrabbingNone(none);
     }
     setBulkRegrabbing(false);
-    toast.success(`Re-grab complete — processed ${eligible.length} lead${eligible.length !== 1 ? "s" : ""}`);
+    setBulkRegrabbingDoneState(true);
   }
 
   const folderPickerLabel = folderScope === "all"
@@ -844,15 +858,37 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
             </div>
           )}
 
+          {/* ── Bulk re-grab progress banner ── */}
+          {(bulkRegrabbing || bulkRegrabbingDoneState) && (
+            <div className={`px-4 py-2 border-b flex items-center gap-3 shrink-0 ${bulkRegrabbing ? "bg-primary/5" : "bg-muted/40"}`}>
+              {bulkRegrabbing
+                ? <Loader2 className="h-3.5 w-3.5 animate-spin text-primary shrink-0" />
+                : <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0" />}
+              <p className="text-xs flex-1 tabular-nums text-primary">
+                {bulkRegrabbing
+                  ? <>Re-grabbing… <span className="font-medium">{bulkRegrabbingDone} / {bulkRegrabbingTotal}</span> processed · <span className="text-emerald-600 font-medium">{bulkRegrabbingFound} found</span> · <span className="text-muted-foreground">{bulkRegrabbingNone} no email</span></>
+                  : <span className="text-muted-foreground">Re-grab complete — <span className="text-emerald-600 font-medium">{bulkRegrabbingFound} email{bulkRegrabbingFound !== 1 ? "s" : ""} found</span> · {bulkRegrabbingNone} no email · {bulkRegrabbingTotal - bulkRegrabbingDone > 0 ? `${bulkRegrabbingTotal - bulkRegrabbingDone} stopped` : `${bulkRegrabbingTotal} processed`}</span>}
+              </p>
+              {bulkRegrabbing && (
+                <Button size="sm" variant="ghost" className="h-7 gap-1.5 text-xs text-destructive hover:text-destructive shrink-0"
+                  onClick={() => { bulkRegrabbingStop.current = true; }}>
+                  <StopCircle className="h-3 w-3" />
+                  Stop
+                </Button>
+              )}
+              {!bulkRegrabbing && (
+                <Button size="sm" variant="ghost" className="h-7 text-xs shrink-0"
+                  onClick={() => setBulkRegrabbingDoneState(false)}>
+                  Dismiss
+                </Button>
+              )}
+            </div>
+          )}
+
           {/* ── Bulk action bar ── */}
           {someSelected && (
             <div className="px-4 py-2 border-b bg-primary/5 flex items-center gap-3 shrink-0">
               <span className="text-xs font-medium text-primary">{selected.size} selected</span>
-              {bulkRegrabbing && (
-                <span className="text-xs text-muted-foreground tabular-nums">
-                  {bulkRegrabbingDone} / {bulkRegrabbingTotal} re-grabbed
-                </span>
-              )}
               <div className="flex gap-1.5 ml-auto">
                 <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs"
                   onClick={handleBulkRegrab} disabled={bulkRegrabbing}>
