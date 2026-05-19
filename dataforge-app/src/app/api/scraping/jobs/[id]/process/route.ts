@@ -4,7 +4,7 @@ import { getJobById, updateJobStatus, incrementJobMetric } from "@/lib/scraping/
 import { discoverBusinesses } from "@/lib/scraping/google/discovery";
 import { scrapeWebsite } from "@/lib/scraping/crawler/web-scraper";
 import { insertLead } from "@/lib/leads/service";
-import { processKeywordJob } from "@/lib/scraping/jobs/processor";
+import { processKeywordJob, processEmailRegrabJob, processFolderEmailRegrabJob } from "@/lib/scraping/jobs/processor";
 
 export const maxDuration = 300;
 
@@ -29,6 +29,18 @@ export async function POST(
 
   if (job.status === "running") {
     return NextResponse.json({ status: "running", message: "Job already running" });
+  }
+
+  // ── Email re-grab job (keyword-scoped) ───────────────────────────────────
+  if (job.keywordId && job.industry === "email_regrab") {
+    waitUntil(processEmailRegrabJob(job));
+    return NextResponse.json({ status: "started" }, { status: 202 });
+  }
+
+  // ── Email re-grab job (folder-scoped) ────────────────────────────────────
+  if (job.industry === "folder_email_regrab") {
+    waitUntil(processFolderEmailRegrabJob(job));
+    return NextResponse.json({ status: "started" }, { status: 202 });
   }
 
   // ── Keyword job: browser-based Google Maps scraping ───────────────────────

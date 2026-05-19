@@ -28,6 +28,7 @@ import {
   ChevronLeft, ChevronRight, Trash2, Download,
   AlertTriangle, Check, ChevronDown,
   Copy, MapPin, MoreHorizontal, ExternalLink, FolderOpen, SlidersHorizontal,
+  RefreshCw, StopCircle,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
@@ -171,6 +172,13 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
   const [exportCols, setExportCols] = useState<Set<ColKey>>(new Set(DEFAULT_COLS));
   const [colPickerOpen, setColPickerOpen] = useState(false);
 
+  // Re-grab emails state
+  const [regrabJobId, setRegrabJobId]       = useState<string | null>(null);
+  const [regrabStatus, setRegrabStatus]     = useState<string | null>(null);
+  const [regrabProgress, setRegrabProgress] = useState("");
+  const [regrabStopping, setRegrabStopping] = useState(false);
+  const [regrabStarting, setRegrabStarting] = useState(false);
+
   // Folder picker state
   const [folderModalOpen, setFolderModalOpen] = useState(false);
   const [folderScope, setFolderScope] = useState<"selected" | "all">("selected");
@@ -220,6 +228,44 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
 
   useEffect(() => { fetchLeads(); }, [fetchLeads]);
 
+  // Poll regrab job progress
+  useEffect(() => {
+    if (!regrabJobId) return;
+
+    let stopped = false;
+    let timer: ReturnType<typeof setInterval>;
+
+    async function pollOnce() {
+      if (stopped) return;
+      try {
+        const res = await fetch(`/api/scraping/jobs/${regrabJobId}`);
+        if (!res.ok) return;
+        const job = await res.json() as { status: string; errorMessage?: string | null };
+        if (stopped) return;
+        setRegrabStatus(job.status);
+        if (job.errorMessage) setRegrabProgress(job.errorMessage);
+        if (job.status === "completed" || job.status === "paused") {
+          stopped = true;
+          clearInterval(timer);
+          setRegrabStatus(job.status);
+          setRegrabStopping(false);
+          fetchLeads();
+          toast.success(job.errorMessage ?? "Re-grab complete.", { duration: 6000 });
+        } else if (job.status === "failed") {
+          stopped = true;
+          clearInterval(timer);
+          setRegrabStopping(false);
+          toast.error(job.errorMessage ?? "Re-grab failed.", { duration: 8000 });
+        }
+      } catch { /* ignore transient fetch errors */ }
+    }
+
+    pollOnce();
+    timer = setInterval(pollOnce, 3000);
+
+    return () => { stopped = true; clearInterval(timer); };
+  }, [regrabJobId, fetchLeads]);
+
   useEffect(() => {
     if (!open) {
       setSearch(""); setDebSearch(""); setSearchField("business"); setPage(1);
@@ -229,6 +275,8 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
       setFilterPhone(null); setFilterScore(null); setFilterName(null);
       setScoreMin(""); setScoreMax(""); setScoreSlider([0, 100]);
       setFolderModalOpen(false);
+      setRegrabJobId(null); setRegrabStatus(null); setRegrabProgress("");
+      setRegrabStopping(false); setRegrabStarting(false);
     }
   }, [open]);
 
@@ -332,6 +380,33 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
     } finally {
       setExporting(false);
     }
+  }
+
+  async function startRegrab() {
+    setRegrabStarting(true);
+    try {
+      const res = await fetch(`/api/keywords/${kwId}/regrab-emails`, { method: "POST" });
+      const data = await res.json() as { jobId?: string; alreadyRunning?: boolean; error?: string };
+      if (!res.ok) {
+        toast.error(data.error ?? "Could not start re-grab");
+        return;
+      }
+      setRegrabJobId(data.jobId!);
+      setRegrabStatus("pending");
+      setRegrabProgress(data.alreadyRunning ? "Already running — monitoring…" : "Starting…");
+    } catch {
+      toast.error("Failed to start re-grab");
+    } finally {
+      setRegrabStarting(false);
+    }
+  }
+
+  async function stopRegrab() {
+    if (!regrabJobId) return;
+    setRegrabStopping(true);
+    try {
+      await fetch(`/api/scraping/jobs/${regrabJobId}/cancel`, { method: "POST" });
+    } catch { /* ignore */ }
   }
 
   const folderPickerLabel = folderScope === "all"
@@ -468,6 +543,21 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
                 <Trash2 className="h-3 w-3" />
                 Delete all
               </Button>
+
+              <Separator orientation="vertical" className="h-4" />
+
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1 text-xs shrink-0"
+                disabled={total === 0 || regrabStarting || regrabStatus === "running" || regrabStatus === "pending"}
+                onClick={startRegrab}
+              >
+                {regrabStarting
+                  ? <Loader2 className="h-3 w-3 animate-spin" />
+                  : <RefreshCw className="h-3 w-3" />}
+                Re-grab emails
+              </Button>
             </div>
 
             {/* Filters row */}
@@ -522,7 +612,6 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
                   </Popover>
                 );
               })()}
-
               {/* Has no data dropdown */}
               {(() => {
                 const active = [
@@ -603,6 +692,40 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
               )}
             </div>
           </div>
+
+          {/* ── Re-grab progress bar ── */}
+          {regrabJobId && regrabStatus !== "completed" && regrabStatus !== "failed" && (
+            <div className="px-4 py-2 border-b bg-primary/5 flex items-center gap-3 shrink-0">
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-primary shrink-0" />
+              <p className="text-xs text-primary flex-1 tabular-nums">
+                {regrabProgress || "Re-grabbing emails…"}
+              </p>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 gap-1.5 text-xs text-destructive hover:text-destructive shrink-0"
+                onClick={stopRegrab}
+                disabled={regrabStopping}
+              >
+                {regrabStopping
+                  ? <Loader2 className="h-3 w-3 animate-spin" />
+                  : <StopCircle className="h-3 w-3" />}
+                Stop
+              </Button>
+            </div>
+          )}
+          {regrabJobId && (regrabStatus === "completed" || regrabStatus === "paused" || regrabStatus === "failed") && (
+            <div className="px-4 py-2 border-b bg-muted/40 flex items-center gap-3 shrink-0">
+              <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+              <p className="text-xs text-muted-foreground flex-1 tabular-nums">
+                {regrabProgress || "Re-grab complete."}
+              </p>
+              <Button size="sm" variant="ghost" className="h-7 text-xs shrink-0"
+                onClick={() => { setRegrabJobId(null); setRegrabStatus(null); setRegrabProgress(""); }}>
+                Dismiss
+              </Button>
+            </div>
+          )}
 
           {/* ── Bulk action bar ── */}
           {someSelected && (

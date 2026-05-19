@@ -60,7 +60,7 @@ export async function withDbRetry<T>(fn: () => Promise<T>): Promise<T> {
 
     // Everything else (cold-start timeouts, WebSocket ErrorEvents from Neon,
     // ECONNREFUSED, socket hangs) is likely transient — retry once.
-    await new Promise((r) => setTimeout(r, 2000));
+    await new Promise((r) => setTimeout(r, 300));
     return await fn();
   }
 }

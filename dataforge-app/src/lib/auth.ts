@@ -8,6 +8,7 @@ import { authConfig } from "@/auth.config";
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
   secret: process.env.AUTH_SECRET ?? "dev-placeholder-set-AUTH_SECRET-in-production",
+  trustHost: true,
   adapter: PrismaAdapter(prisma),
   session: { strategy: "jwt" },
   providers: [
@@ -37,12 +38,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger }) {
       if (user) {
         token.id = user.id;
+        // Fetch role once on sign-in and store in the JWT
+        const fresh = await prisma.user.findUnique({
+          where: { id: user.id as string },
+          select: { role: true },
+        });
+        token.role = fresh?.role ?? "lead_specialist";
       }
-      // Always refresh role from DB so changes take effect without re-login
-      if (token.id) {
+      // Re-fetch role only when explicitly triggered (e.g. after an admin role change)
+      if (trigger === "update" && token.id) {
         const fresh = await prisma.user.findUnique({
           where: { id: token.id as string },
           select: { role: true },
@@ -58,3 +65,4 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
   },
 });
+

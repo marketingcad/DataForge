@@ -309,6 +309,222 @@ export async function processKeywordJob(job: Awaited<ReturnType<typeof getJobByI
   }
 }
 
+// ─── Email re-grab job ────────────────────────────────────────────────────────
+
+export async function processEmailRegrabJob(job: Awaited<ReturnType<typeof getJobById>>) {
+  const id = job.id;
+
+  try {
+  // Guard: if cancelled before we even started, mark done immediately
+  const precheck = await prisma.scrapingJob.findUnique({ where: { id }, select: { status: true } });
+  if (precheck && precheck.status === "paused") {
+    await prisma.scrapingJob.update({ where: { id }, data: { status: "completed", completedTime: new Date(), errorMessage: "Stopped before start" } });
+    return;
+  }
+  await updateJobStatus(id, "running", { startTime: new Date() });
+
+  // Fetch only id + website — the minimum needed to attempt an email grab.
+  // Full scoring fields are fetched on-demand only for leads where an email is actually found.
+  const leads = await prisma.lead.findMany({
+    where: {
+      source: { startsWith: `GoogleMaps:keyword_${job.keywordId}` },
+      website: { not: null },
+      OR: [{ email: null }, { email: "" }],
+    },
+    select: { id: true, website: true },
+  });
+
+  const total = leads.length;
+
+  await prisma.scrapingJob.update({
+    where: { id },
+    data: { leadsDiscovered: total, errorMessage: `Re-grabbing emails — 0 / ${total} done… ✅ 0 grabbed · ❌ 0 not found` },
+  });
+
+  let grabbed = 0;
+  let notFound = 0;
+
+  for (let i = 0; i < leads.length; i++) {
+    // Check for cancellation before each lead
+    const cur = await prisma.scrapingJob.findUnique({ where: { id }, select: { status: true } });
+    if (cur && cur.status !== "running") {
+      await prisma.scrapingJob.update({
+        where: { id },
+        data: { status: "completed", completedTime: new Date(),
+                leadsProcessed: grabbed,
+                errorMessage: `Stopped — ✅ ${grabbed} grabbed · ❌ ${notFound} not found (out of ${i} visited)` },
+      });
+      return;
+    }
+
+    const lead = leads[i];
+    try {
+      const email = await grabEmailFromWebsite(lead.website!);
+      if (email) {
+        const full = await prisma.lead.findUnique({
+          where: { id: lead.id },
+          select: { dataQualityScore: true, industriesFoundIn: true,
+                    businessName: true, phone: true, contactPerson: true,
+                    city: true, state: true, category: true },
+        });
+        const newScore = full ? calculateDataQualityScore(
+          {
+            businessName:  full.businessName,
+            phone:         full.phone,
+            email,
+            website:       lead.website       ?? undefined,
+            contactPerson: full.contactPerson ?? undefined,
+            city:          full.city          ?? undefined,
+            state:         full.state         ?? undefined,
+            category:      full.category      ?? undefined,
+          },
+          full.industriesFoundIn?.length ?? 0
+        ) : 0;
+        await prisma.lead.update({
+          where: { id: lead.id },
+          data: { email, dataQualityScore: full ? Math.max(full.dataQualityScore, newScore) : newScore },
+        });
+        grabbed++;
+      } else {
+        notFound++;
+      }
+    } catch { notFound++; }
+
+    await prisma.scrapingJob.update({
+      where: { id },
+      data: { leadsProcessed: grabbed, errorMessage: `Re-grabbing emails — ${i + 1} / ${total} done… ✅ ${grabbed} grabbed · ❌ ${notFound} not found` },
+    });
+  }
+
+  await prisma.scrapingJob.update({
+    where: { id },
+    data: {
+      status: "completed",
+      completedTime: new Date(),
+      leadsProcessed: grabbed,
+      errorMessage: `Done — ✅ ${grabbed} grabbed · ❌ ${notFound} not found (out of ${total} leads)`,
+    },
+  });
+
+  revalidatePath("/leads");
+  revalidatePath("/scraping");
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Unknown error";
+    await prisma.scrapingJob.update({
+      where: { id },
+      data: { status: "failed", completedTime: new Date(), errorMessage: `Re-grab failed: ${msg}` },
+    }).catch(() => null);
+  }
+}
+
+export async function processFolderEmailRegrabJob(job: Awaited<ReturnType<typeof getJobById>>) {
+  const id = job.id;
+
+  try {
+  const precheck = await prisma.scrapingJob.findUnique({ where: { id }, select: { status: true } });
+  if (precheck && precheck.status === "paused") {
+    await prisma.scrapingJob.update({ where: { id }, data: { status: "completed", completedTime: new Date(), errorMessage: "Stopped before start" } });
+    return;
+  }
+  await updateJobStatus(id, "running", { startTime: new Date() });
+
+  // Lead IDs were stored at job creation time in pendingLeads
+  const leadIds: string[] = Array.isArray(job.pendingLeads) ? (job.pendingLeads as string[]) : [];
+
+  if (leadIds.length === 0) {
+    await updateJobStatus(id, "completed", {
+      completedTime: new Date(),
+      errorMessage: "No eligible leads found.",
+    });
+    return;
+  }
+
+  const leads = await prisma.lead.findMany({
+    where: { id: { in: leadIds } },
+    select: { id: true, website: true },
+  });
+
+  const total = leads.length;
+
+  await prisma.scrapingJob.update({
+    where: { id },
+    data: { leadsDiscovered: total, errorMessage: `Re-grabbing emails — 0 / ${total} done… ✅ 0 grabbed · ❌ 0 not found` },
+  });
+
+  let grabbed = 0;
+  let notFound = 0;
+
+  for (let i = 0; i < leads.length; i++) {
+    const cur = await prisma.scrapingJob.findUnique({ where: { id }, select: { status: true } });
+    if (cur && cur.status !== "running") {
+      await prisma.scrapingJob.update({
+        where: { id },
+        data: { status: "completed", completedTime: new Date(),
+                leadsProcessed: grabbed,
+                errorMessage: `Stopped — ✅ ${grabbed} grabbed · ❌ ${notFound} not found (out of ${i} visited)` },
+      });
+      return;
+    }
+
+    const lead = leads[i];
+    try {
+      const email = await grabEmailFromWebsite(lead.website!);
+      if (email) {
+        const full = await prisma.lead.findUnique({
+          where: { id: lead.id },
+          select: { dataQualityScore: true, industriesFoundIn: true,
+                    businessName: true, phone: true, contactPerson: true,
+                    city: true, state: true, category: true },
+        });
+        const newScore = full ? calculateDataQualityScore(
+          {
+            businessName:  full.businessName,
+            phone:         full.phone,
+            email,
+            website:       lead.website       ?? undefined,
+            contactPerson: full.contactPerson ?? undefined,
+            city:          full.city          ?? undefined,
+            state:         full.state         ?? undefined,
+            category:      full.category      ?? undefined,
+          },
+          full.industriesFoundIn?.length ?? 0
+        ) : 0;
+        await prisma.lead.update({
+          where: { id: lead.id },
+          data: { email, dataQualityScore: full ? Math.max(full.dataQualityScore, newScore) : newScore },
+        });
+        grabbed++;
+      } else {
+        notFound++;
+      }
+    } catch { notFound++; }
+
+    await prisma.scrapingJob.update({
+      where: { id },
+      data: { leadsProcessed: grabbed, errorMessage: `Re-grabbing emails — ${i + 1} / ${total} done… ✅ ${grabbed} grabbed · ❌ ${notFound} not found` },
+    });
+  }
+
+  await prisma.scrapingJob.update({
+    where: { id },
+    data: {
+      status: "completed",
+      completedTime: new Date(),
+      leadsProcessed: grabbed,
+      errorMessage: `Done — ✅ ${grabbed} grabbed · ❌ ${notFound} not found (out of ${total} leads)`,
+    },
+  });
+
+  revalidatePath("/leads");
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Unknown error";
+    await prisma.scrapingJob.update({
+      where: { id },
+      data: { status: "failed", completedTime: new Date(), errorMessage: `Re-grab failed: ${msg}` },
+    }).catch(() => null);
+  }
+}
+
 // ─── Keyword success notifier ─────────────────────────────────────────────────
 
 export async function notifyKeywordSuccess(
