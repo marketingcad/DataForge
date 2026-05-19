@@ -149,6 +149,30 @@ export async function updateLeadAction(id: string, formData: FormData) {
   redirect(`/leads/${id}?notice=updated`);
 }
 
+export async function updateLeadInlineAction(
+  id: string,
+  data: {
+    businessName?: string;
+    phone?: string;
+    email?: string;
+    website?: string;
+    contactPerson?: string;
+    address?: string;
+    city?: string;
+    state?: string;
+    country?: string;
+  }
+) {
+  await requireDepartment("leads");
+  try {
+    await updateLead(id, data);
+    return { ok: true };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { error: msg };
+  }
+}
+
 export async function deleteLeadAction(id: string) {
   await requireDepartment("leads");
   await prisma.lead.delete({ where: { id } });

@@ -28,8 +28,11 @@ import {
   ChevronLeft, ChevronRight, Trash2, Download,
   AlertTriangle, Check, ChevronDown,
   Copy, MapPin, MoreHorizontal, ExternalLink, FolderOpen, SlidersHorizontal,
-  RefreshCw, StopCircle,
+  RefreshCw, StopCircle, Pencil,
 } from "lucide-react";
+import { Dialog as EditDialog, DialogContent as EditDialogContent, DialogHeader as EditDialogHeader, DialogTitle as EditDialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { updateLeadInlineAction } from "@/actions/leads.actions";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { Slider } from "@/components/ui/slider";
@@ -178,6 +181,14 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
   const [regrabProgress, setRegrabProgress] = useState("");
   const [regrabStopping, setRegrabStopping] = useState(false);
   const [regrabStarting, setRegrabStarting] = useState(false);
+
+  // Per-lead regrab state
+  const [regrabbingIds, setRegrabbingIds] = useState<Set<string>>(new Set());
+
+  // Edit lead state
+  const [editLead, setEditLead] = useState<Lead | null>(null);
+  const [editForm, setEditForm] = useState<Partial<Lead>>({});
+  const [editSaving, setEditSaving] = useState(false);
 
   // Folder picker state
   const [folderModalOpen, setFolderModalOpen] = useState(false);
@@ -407,6 +418,68 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
     try {
       await fetch(`/api/scraping/jobs/${regrabJobId}/cancel`, { method: "POST" });
     } catch { /* ignore */ }
+  }
+
+  async function handleRegrabOne(lead: Lead) {
+    if (!lead.website) return;
+    setRegrabbingIds((prev) => new Set(prev).add(lead.id));
+    try {
+      const res = await fetch(`/api/leads/${lead.id}/regrab-email`, { method: "POST" });
+      const data = await res.json() as { found?: boolean; email?: string; error?: string };
+      if (!res.ok) {
+        toast.error(data.error ?? "Could not re-grab email");
+      } else if (data.found && data.email) {
+        setLeads((prev) => prev.map((l) => l.id === lead.id ? { ...l, email: data.email! } : l));
+        toast.success(`Email found: ${data.email}`);
+      } else {
+        toast.info("No email found on this website");
+      }
+    } catch {
+      toast.error("Failed to re-grab email");
+    } finally {
+      setRegrabbingIds((prev) => { const s = new Set(prev); s.delete(lead.id); return s; });
+    }
+  }
+
+  function openEditLead(lead: Lead) {
+    setEditLead(lead);
+    setEditForm({
+      businessName: lead.businessName,
+      phone: lead.phone,
+      email: lead.email ?? "",
+      website: lead.website ?? "",
+      contactPerson: lead.contactPerson ?? "",
+      address: lead.address ?? "",
+      city: lead.city ?? "",
+      state: lead.state ?? "",
+      country: lead.country ?? "",
+    });
+  }
+
+  async function handleEditSave() {
+    if (!editLead) return;
+    setEditSaving(true);
+    try {
+      const result = await updateLeadInlineAction(editLead.id, {
+        businessName: String(editForm.businessName ?? editLead.businessName),
+        phone: String(editForm.phone ?? editLead.phone),
+        email: String(editForm.email ?? ""),
+        website: String(editForm.website ?? ""),
+        contactPerson: String(editForm.contactPerson ?? ""),
+        address: String(editForm.address ?? ""),
+        city: String(editForm.city ?? ""),
+        state: String(editForm.state ?? ""),
+        country: String(editForm.country ?? ""),
+      });
+      if (result.error) { toast.error(result.error); return; }
+      setLeads((prev) => prev.map((l) => l.id === editLead.id ? { ...l, ...editForm } : l));
+      toast.success("Lead updated");
+      setEditLead(null);
+    } catch {
+      toast.error("Failed to save changes");
+    } finally {
+      setEditSaving(false);
+    }
   }
 
   const folderPickerLabel = folderScope === "all"
@@ -828,7 +901,7 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
                     <TableHead className="sticky top-0 bg-background">Email</TableHead>
                     <TableHead className="sticky top-0 bg-background">Website</TableHead>
                     <TableHead className="sticky top-0 bg-background text-center w-20">Score</TableHead>
-                    <TableHead className="sticky top-0 bg-background w-12 text-center">Action</TableHead>
+                    <TableHead className="sticky top-0 bg-background w-24 text-center">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -896,37 +969,56 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
                         </Badge>
                       </TableCell>
                       <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger render={
-                            <Button variant="ghost" size="icon" className="h-7 w-7" />
-                          }>
-                            <MoreHorizontal className="h-4 w-4" />
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-40">
-                            <DropdownMenuItem
-                              className="text-xs gap-2 cursor-pointer"
-                              onClick={() => window.open(`/leads/${lead.id}`, "_blank")}
-                            >
-                              <ExternalLink className="h-3.5 w-3.5" />
-                              View lead
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              className="text-xs gap-2 cursor-pointer"
-                              onClick={() => openFolderPicker("selected", lead.id)}
-                            >
-                              <FolderOpen className="h-3.5 w-3.5" />
-                              Save to folder
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              className="text-xs gap-2 cursor-pointer text-destructive focus:text-destructive"
-                              onClick={() => setConfirmDeleteId(lead.id)}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                        <div className="flex items-center justify-center gap-0.5">
+                          <Button
+                            variant="ghost" size="icon" className="h-7 w-7"
+                            title={lead.website ? "Re-grab email from website" : "No website available"}
+                            disabled={!lead.website || regrabbingIds.has(lead.id)}
+                            onClick={() => handleRegrabOne(lead)}
+                          >
+                            {regrabbingIds.has(lead.id)
+                              ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              : <RefreshCw className="h-3.5 w-3.5" />}
+                          </Button>
+                          <Button
+                            variant="ghost" size="icon" className="h-7 w-7"
+                            title="Edit lead"
+                            onClick={() => openEditLead(lead)}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger render={
+                              <Button variant="ghost" size="icon" className="h-7 w-7" />
+                            }>
+                              <MoreHorizontal className="h-4 w-4" />
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-40">
+                              <DropdownMenuItem
+                                className="text-xs gap-2 cursor-pointer"
+                                onClick={() => window.open(`/leads/${lead.id}`, "_blank")}
+                              >
+                                <ExternalLink className="h-3.5 w-3.5" />
+                                View lead
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="text-xs gap-2 cursor-pointer"
+                                onClick={() => openFolderPicker("selected", lead.id)}
+                              >
+                                <FolderOpen className="h-3.5 w-3.5" />
+                                Save to folder
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                className="text-xs gap-2 cursor-pointer text-destructive focus:text-destructive"
+                                onClick={() => setConfirmDeleteId(lead.id)}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -974,6 +1066,46 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* ── Edit lead dialog ── */}
+      <EditDialog open={!!editLead} onOpenChange={(v) => { if (!v) setEditLead(null); }}>
+        <EditDialogContent showCloseButton className="max-w-md p-0 overflow-hidden">
+          <EditDialogHeader className="px-4 pt-4 pb-3 border-b">
+            <EditDialogTitle className="text-sm font-semibold">Edit Lead</EditDialogTitle>
+          </EditDialogHeader>
+          <div className="px-4 py-3 space-y-3 max-h-[70vh] overflow-y-auto">
+            {([
+              ["businessName", "Business Name"],
+              ["phone", "Phone"],
+              ["email", "Email"],
+              ["website", "Website"],
+              ["contactPerson", "Contact Person"],
+              ["address", "Address"],
+              ["city", "City"],
+              ["state", "State"],
+              ["country", "Country"],
+            ] as [keyof Lead, string][]).map(([field, label]) => (
+              <div key={field} className="space-y-1">
+                <Label className="text-xs text-muted-foreground">{label}</Label>
+                <Input
+                  className="h-8 text-sm"
+                  value={String(editForm[field] ?? "")}
+                  onChange={(e) => setEditForm((f) => ({ ...f, [field]: e.target.value }))}
+                />
+              </div>
+            ))}
+          </div>
+          <div className="flex justify-end gap-2 px-4 py-3 border-t">
+            <Button variant="ghost" size="sm" onClick={() => setEditLead(null)} disabled={editSaving}>
+              Cancel
+            </Button>
+            <Button size="sm" onClick={handleEditSave} disabled={editSaving}>
+              {editSaving && <Loader2 className="h-3 w-3 animate-spin mr-1" />}
+              Save
+            </Button>
+          </div>
+        </EditDialogContent>
+      </EditDialog>
 
       {/* ── Folder picker (shared component) ── */}
       <FolderPickerModal
