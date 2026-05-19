@@ -234,7 +234,7 @@ export async function importLeadsFromCsvAction(
   const resolvedFolderId = folderId || await getOrCreateDefaultCsvFolder(savedById);
 
   // Normalize all rows upfront — no per-row DB calls yet
-  type NormalizedRow = CsvLeadRow & { phone: string; email: string; website: string; category: string | null };
+  type NormalizedRow = Omit<CsvLeadRow, "category"> & { phone: string; email: string; website: string; category: string | null };
   let errors = 0;
   const normalized: NormalizedRow[] = [];
   for (const row of rows) {
