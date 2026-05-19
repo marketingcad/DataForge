@@ -296,7 +296,7 @@ export async function importLeadsFromCsvAction(
 
     const industries = row.category ? [row.category] : [];
     const score = calculateDataQualityScore(
-      { ...row, phone: row.phone, email: row.email || undefined, website: row.website || undefined },
+      { ...row, phone: row.phone, email: row.email || undefined, website: row.website || undefined, category: row.category ?? undefined },
       industries.length,
     );
 
