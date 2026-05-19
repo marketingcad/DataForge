@@ -452,6 +452,7 @@ model AppSettings {
   ghlAppsLastSyncedAt         DateTime?
   balloonEnabled              Boolean  @default(true)
   balloonApptsPerPoint        Int      @default(1)
+  ghlInboundSecret            String?
 }
 
 model BalloonAuditLog {

@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useEffect, useRef } from "react";
 import { toast } from "sonner";
-import { Check, Loader2, ChevronsUpDown, MapPin } from "lucide-react";
+import { Check, Loader2, ChevronsUpDown, MapPin, Copy, RefreshCw } from "lucide-react";
 import { updateSettingFieldAction } from "@/actions/settings.actions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -65,6 +65,7 @@ interface Settings {
   ghlSubAccountApiKey: string | null;
   ghlLocationId: string | null;
   commissionCurrency: string;
+  ghlInboundSecret: string | null;
 }
 
 type SettingKey = Parameters<typeof updateSettingFieldAction>[0];
@@ -340,7 +341,7 @@ export function SettingsClient({ settings }: { settings: Settings }) {
         </CardHeader>
         <CardContent className="space-y-4">
           <AutoInput
-            id="ghlWebhookUrl" name="ghlWebhookUrl" label="Webhook URL"
+            id="ghlWebhookUrl" name="ghlWebhookUrl" label="GHL Outbound Webhook URL"
             defaultValue={settings.ghlWebhookUrl ?? ""}
             placeholder="https://services.leadconnectorhq.com/hooks/..."
             description="Leads will be pushed to this webhook when uploaded to GHL."
@@ -366,12 +367,107 @@ export function SettingsClient({ settings }: { settings: Settings }) {
             placeholder="abc123XYZ..."
             description="The sub-account Location ID from GHL. Found under Settings → Business Info in your GHL account."
           />
+          <Separator />
+          <GhlInboundWebhookSection defaultSecret={settings.ghlInboundSecret} />
         </CardContent>
       </Card>
 
       {/* ── Maintenance ── */}
       <GeocodeBackfillCard />
 
+    </div>
+  );
+}
+
+// ─── GHL Inbound Webhook section ─────────────────────────────────────────────
+
+function GhlInboundWebhookSection({ defaultSecret }: { defaultSecret: string | null }) {
+  const { save, isPending, saved } = useSaveField("ghlInboundSecret");
+  const [secret, setSecret] = useState(defaultSecret ?? "");
+  const [origin, setOrigin] = useState("");
+
+  useEffect(() => {
+    setOrigin(window.location.origin);
+  }, []);
+
+  const webhookUrl = secret
+    ? `${origin}/api/ghl/inbound-call?secret=${secret}`
+    : `${origin}/api/ghl/inbound-call`;
+
+  function generate() {
+    const newSecret = Array.from(crypto.getRandomValues(new Uint8Array(24)))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+    setSecret(newSecret);
+    save(newSecret);
+  }
+
+  function copyUrl() {
+    navigator.clipboard.writeText(webhookUrl).then(() => {
+      toast.success("Webhook URL copied");
+    });
+  }
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <p className="text-sm font-medium">Inbound Call Webhook</p>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          Paste this URL into your GHL automation (Call Status trigger → Send to Webhook). DataForge will log each call instantly without waiting for a sync.
+        </p>
+      </div>
+
+      {/* Secret key row */}
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-2">
+          <Label htmlFor="ghlInboundSecret">Webhook Secret</Label>
+          <SaveIndicator isPending={isPending} saved={saved} />
+        </div>
+        <div className="flex gap-2">
+          <Input
+            id="ghlInboundSecret"
+            value={secret}
+            onChange={(e) => setSecret(e.target.value)}
+            onBlur={() => save(secret || null)}
+            placeholder="Leave blank to skip verification (not recommended)"
+            className="font-mono text-xs"
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            onClick={generate}
+            disabled={isPending}
+            title="Generate a new random secret"
+            className="shrink-0"
+          >
+            <RefreshCw className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+
+      {/* Webhook URL display */}
+      <div className="space-y-1.5">
+        <Label>Your Webhook URL</Label>
+        <div className="flex gap-2">
+          <div className="flex-1 rounded-md border bg-muted/50 px-3 py-2 font-mono text-xs text-muted-foreground break-all select-all">
+            {origin ? webhookUrl : "Loading…"}
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            onClick={copyUrl}
+            title="Copy webhook URL"
+            className="shrink-0"
+          >
+            <Copy className="h-4 w-4" />
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          In GHL: Automation → trigger "Call Status" → Add Action "Send to Webhook" → paste this URL.
+        </p>
+      </div>
     </div>
   );
 }

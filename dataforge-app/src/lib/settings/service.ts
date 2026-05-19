@@ -21,6 +21,7 @@ export async function updateSettings(data: {
   ghlSubAccountApiKey?: string | null;
   ghlLocationId?: string | null;
   commissionCurrency?: string;
+  ghlInboundSecret?: string | null;
 }) {
   return prisma.appSettings.upsert({
     where: { id: "singleton" },

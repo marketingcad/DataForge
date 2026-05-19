@@ -8,7 +8,7 @@ type SettingKey =
   | "companyName" | "scrapingDefaultMaxLeads" | "scrapingDefaultInterval"
   | "scrapingGlobalPause" | "leadQualityGoodThreshold" | "leadQualityMediumThreshold"
   | "ghlWebhookUrl" | "ghlApiKey" | "ghlSubAccountApiKey" | "ghlLocationId"
-  | "commissionCurrency";
+  | "commissionCurrency" | "ghlInboundSecret";
 
 export async function updateSettingFieldAction(key: SettingKey, value: string | number | boolean | null) {
   try {
