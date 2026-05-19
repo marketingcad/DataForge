@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { IndustryBoard } from "@/components/leads/IndustryBoard";
 import { LeadsGlobe } from "@/components/leads/LeadsGlobe";
+import { LeadsEmptyState } from "@/components/leads/LeadsEmptyState";
 import { getIndustries } from "@/lib/industry/service";
 import { getFolders } from "@/lib/folders/service";
 import { getLeads } from "@/lib/leads/service";
@@ -9,7 +10,6 @@ import { getUsers } from "@/lib/users/service";
 import { auth } from "@/lib/auth";
 import { withDbRetry } from "@/lib/prisma";
 import { redirect } from "next/navigation";
-import { Building2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import Link from "next/link";
 
@@ -77,22 +77,16 @@ export default async function LeadsPage({
       <Separator />
 
       {isEmpty ? (
-        <div className="flex flex-col items-center justify-center py-24 gap-3 text-muted-foreground">
-          <Building2 className="h-14 w-14 text-muted-foreground/20" />
-          <p className="text-sm font-medium">
-            {savedById ? "No leads found for this user" : "No leads yet"}
-          </p>
-          <p className="text-sm max-w-xs text-center">
-            {savedById
-              ? "This user hasn't saved any leads yet."
-              : "Scrape leads from Google — they will appear here organized by industry and folder."}
-          </p>
-          {!savedById && (
-            <Link href="/scraping">
-              <Button size="sm" variant="outline" className="mt-2">Go to Scraping</Button>
-            </Link>
-          )}
-        </div>
+        <LeadsEmptyState
+          userId={session.user.id!}
+          savedById={savedById}
+          folders={(allFolders as { id: string; name: string; industry?: { name: string } | null }[]).map((f) => ({
+            id: f.id,
+            name: f.name,
+            industryName: f.industry?.name ?? null,
+          }))}
+          categories={(industries as { name: string }[]).map((ind) => ind.name)}
+        />
       ) : (
         <IndustryBoard
           key={filterUserId ?? "all"}

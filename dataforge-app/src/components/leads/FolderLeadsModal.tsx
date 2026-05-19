@@ -283,6 +283,7 @@ export function FolderLeadsModal({
           clearInterval(timer);
           setRegrabStatus(job.status);
           setRegrabStopping(false);
+          sessionStorage.removeItem(`regrab_folder_${folder.id}`);
           fetchLeads();
           addNotif({
             type: "success",
@@ -293,6 +294,7 @@ export function FolderLeadsModal({
           stopped = true;
           clearInterval(timer);
           setRegrabStopping(false);
+          sessionStorage.removeItem(`regrab_folder_${folder.id}`);
           addNotif({ type: "error", title: "Re-grab failed", message: job.errorMessage ?? "Something went wrong during the email re-grab." });
         }
       } catch { /* ignore transient errors */ }
@@ -312,10 +314,21 @@ export function FolderLeadsModal({
       setStatus(""); setStateFilter(""); setPageSize(20);
       setFilterEmail(null); setFilterWebsite(null); setFilterContact(null);
       setFilterPhone(null); setFilterBusiness(null); setFilterScore(null);
-      setRegrabJobId(null); setRegrabStatus(null); setRegrabProgress("");
-      setRegrabStopping(false); setRegrabStarting(false);
+      // regrab state intentionally NOT cleared — job persists across modal close/reopen
     }
   }, [open]);
+
+  // Restore in-progress regrab job when modal reopens
+  useEffect(() => {
+    if (open && !regrabJobId && folder.id) {
+      const saved = sessionStorage.getItem(`regrab_folder_${folder.id}`);
+      if (saved) {
+        setRegrabJobId(saved);
+        setRegrabStatus("running");
+        setRegrabProgress("Resuming…");
+      }
+    }
+  }, [open, folder.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const hasActiveFilters = minScore || maxScore || status || stateFilter || filterEmail || filterWebsite || filterContact || filterPhone || filterBusiness || filterScore;
 
@@ -422,6 +435,7 @@ export function FolderLeadsModal({
       setRegrabJobId(data.jobId!);
       setRegrabStatus("pending");
       setRegrabProgress(data.alreadyRunning ? "Already running — monitoring…" : "Starting…");
+      sessionStorage.setItem(`regrab_folder_${folder.id}`, data.jobId!);
     } catch {
       addNotif({ type: "error", title: "Re-grab failed", message: "Something went wrong. Please try again." });
     } finally {
@@ -977,7 +991,7 @@ export function FolderLeadsModal({
                 {regrabProgress || "Re-grab complete."}
               </p>
               <Button size="sm" variant="ghost" className="h-7 text-xs shrink-0"
-                onClick={() => { setRegrabJobId(null); setRegrabStatus(null); setRegrabProgress(""); }}>
+                onClick={() => { sessionStorage.removeItem(`regrab_folder_${folder.id}`); setRegrabJobId(null); setRegrabStatus(null); setRegrabProgress(""); }}>
                 Dismiss
               </Button>
             </div>

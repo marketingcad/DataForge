@@ -265,12 +265,14 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
           clearInterval(timer);
           setRegrabStatus(job.status);
           setRegrabStopping(false);
+          sessionStorage.removeItem(`regrab_kw_${kwId}`);
           fetchLeads();
           toast.success(job.errorMessage ?? "Re-grab complete.", { duration: 6000 });
         } else if (job.status === "failed") {
           stopped = true;
           clearInterval(timer);
           setRegrabStopping(false);
+          sessionStorage.removeItem(`regrab_kw_${kwId}`);
           toast.error(job.errorMessage ?? "Re-grab failed.", { duration: 8000 });
         }
       } catch { /* ignore transient fetch errors */ }
@@ -282,6 +284,18 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
     return () => { stopped = true; clearInterval(timer); };
   }, [regrabJobId, fetchLeads]);
 
+  // Restore in-progress regrab job when modal reopens
+  useEffect(() => {
+    if (open && !regrabJobId && kwId) {
+      const saved = sessionStorage.getItem(`regrab_kw_${kwId}`);
+      if (saved) {
+        setRegrabJobId(saved);
+        setRegrabStatus("running");
+        setRegrabProgress("Resuming…");
+      }
+    }
+  }, [open, kwId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (!open) {
       setSearch(""); setDebSearch(""); setSearchField("business"); setPage(1);
@@ -291,8 +305,7 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
       setFilterPhone(null); setFilterScore(null); setFilterName(null);
       setScoreMin(""); setScoreMax(""); setScoreSlider([0, 100]);
       setFolderModalOpen(false);
-      setRegrabJobId(null); setRegrabStatus(null); setRegrabProgress("");
-      setRegrabStopping(false); setRegrabStarting(false);
+      // regrab state intentionally NOT cleared — job persists across modal close/reopen
     }
   }, [open]);
 
@@ -410,6 +423,7 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
       setRegrabJobId(data.jobId!);
       setRegrabStatus("pending");
       setRegrabProgress(data.alreadyRunning ? "Already running — monitoring…" : "Starting…");
+      sessionStorage.setItem(`regrab_kw_${kwId}`, data.jobId!);
     } catch {
       toast.error("Failed to start re-grab");
     } finally {
@@ -824,7 +838,7 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
                 {regrabProgress || "Re-grab complete."}
               </p>
               <Button size="sm" variant="ghost" className="h-7 text-xs shrink-0"
-                onClick={() => { setRegrabJobId(null); setRegrabStatus(null); setRegrabProgress(""); }}>
+                onClick={() => { sessionStorage.removeItem(`regrab_kw_${kwId}`); setRegrabJobId(null); setRegrabStatus(null); setRegrabProgress(""); }}>
                 Dismiss
               </Button>
             </div>
