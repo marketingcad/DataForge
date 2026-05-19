@@ -10,6 +10,46 @@ const JUNK_DOMAINS = new Set([
   "w3.org", "schema.org", "openstreetmap.org",
 ]);
 
+// Cloudflare Email Obfuscation: /cdn-cgi/l/email-protection#<hex>
+// First byte is the XOR key; remaining pairs XOR with it to produce the email.
+function decodeCloudflareEmail(encoded: string): string | null {
+  try {
+    const hex = encoded.startsWith("#") ? encoded.slice(1) : encoded;
+    if (hex.length < 4) return null;
+    const key = parseInt(hex.slice(0, 2), 16);
+    let email = "";
+    for (let i = 2; i < hex.length; i += 2) {
+      email += String.fromCharCode(parseInt(hex.slice(i, i + 2), 16) ^ key);
+    }
+    return email.includes("@") ? email.toLowerCase() : null;
+  } catch {
+    return null;
+  }
+}
+
+// Normalise common email obfuscation tricks in visible text before regex scanning.
+function deobfuscate(text: string): string {
+  return text
+    // HTML entities
+    .replace(/&#64;|&commat;/gi, "@")
+    .replace(/&#46;/gi, ".")
+    .replace(/&amp;/gi, "&")
+    // Unicode lookalikes for @
+    .replace(/＠/g, "@")
+    // [at] / (at) / " at " patterns
+    .replace(/\s*\[at\]\s*/gi, "@")
+    .replace(/\s*\(at\)\s*/gi, "@")
+    .replace(/\s*\{at\}\s*/gi, "@")
+    .replace(/(?<=[a-z0-9])\s+at\s+(?=[a-z0-9])/gi, "@")
+    // [dot] / (dot) patterns
+    .replace(/\s*\[dot\]\s*/gi, ".")
+    .replace(/\s*\(dot\)\s*/gi, ".")
+    .replace(/\s*\{dot\}\s*/gi, ".")
+    // Remove spaces inserted inside email-like strings: "info @ domain . com"
+    .replace(/([a-z0-9._%+\-])\s*@\s*([a-z0-9.\-])/gi, "$1@$2")
+    .replace(/([a-z0-9])\s+\.\s+([a-z]{2,})/gi, "$1.$2");
+}
+
 function getRootDomain(hostname: string): string {
   const parts = hostname.replace(/^www\./, "").split(".");
   return parts.length >= 2 ? parts.slice(-2).join(".") : hostname;
@@ -51,22 +91,26 @@ function scanZone(zoneHtml: string): string[] {
 
 /**
  * Extract emails from a parsed HTML page in priority order:
- * 1. mailto: links anywhere on the page
- * 2. Footer (footer tag, class/id containing "footer")
- * 3. Contact section (class/id containing "contact")
- * 4. Sidebar (aside, class/id containing "sidebar")
- * 5. Near a phone number (tel: link siblings)
- * 6. Full page body fallback
+ * 1. Cloudflare email-protection decoded links
+ * 2. mailto: links anywhere on the page
+ * 3. Footer / contact / email / sidebar / about zones (deobfuscated text)
+ * 4. Full page body fallback (deobfuscated)
  *
- * Each zone scans both href values AND plain text in p/span/div/li/etc.
- * Within each zone, emails matching siteDomain are ranked first.
+ * Within each zone, emails matching siteDomain are ranked first,
+ * then free providers (gmail, yahoo, hotmail, outlook), then anything else.
  */
 function extractEmailsFromHtml(html: string, siteDomain?: string): string[] {
+  const FREE_PROVIDERS = new Set(["gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "icloud.com", "aol.com", "protonmail.com"]);
+
   function rank(emails: string[]): string[] {
     if (!siteDomain) return emails;
     const own   = emails.filter((e) => getRootDomain(e.split("@")[1] ?? "") === siteDomain);
-    const other = emails.filter((e) => getRootDomain(e.split("@")[1] ?? "") !== siteDomain);
-    return [...own, ...other];
+    const free  = emails.filter((e) => FREE_PROVIDERS.has(e.split("@")[1] ?? ""));
+    const other = emails.filter((e) => {
+      const d = e.split("@")[1] ?? "";
+      return getRootDomain(d) !== siteDomain && !FREE_PROVIDERS.has(d);
+    });
+    return [...own, ...free, ...other];
   }
 
   const seen = new Set<string>();
@@ -78,56 +122,65 @@ function extractEmailsFromHtml(html: string, siteDomain?: string): string[] {
           const domain = e.split("@")[1] ?? "";
           return domain && !JUNK_DOMAINS.has(domain) &&
             !domain.includes("example") &&
-            !/\.(png|jpg|gif|svg|css|js)$/i.test(domain);
+            !/\.(png|jpg|gif|svg|css|js)$/i.test(domain) &&
+            e.length < 120;
         })
     ).filter((e) => { if (seen.has(e)) return false; seen.add(e); return true; });
   }
 
   const results: string[] = [];
 
+  // ── Pass 0: Cloudflare email-protection decoding.
+  // Cloudflare rewrites emails to href="/cdn-cgi/l/email-protection#<hex>"
+  // and also uses data-cfemail attributes.
+  const cfMatches = [
+    ...[...html.matchAll(/email-protection#([0-9a-f]+)/gi)].map((m) => m[1]),
+    ...[...html.matchAll(/data-cfemail="([0-9a-f]+)"/gi)].map((m) => m[1]),
+  ];
+  for (const encoded of cfMatches) {
+    const decoded = decodeCloudflareEmail(encoded);
+    if (decoded) results.push(...collect([decoded]));
+  }
+
   // ── Pass 1: raw HTML scan (before any parsing).
   // Catches mailto: hrefs, plain text, JSON data, attributes — everything in the document.
-  const rawEmails = [...html.matchAll(EMAIL_RE)].map((m) => m[0]);
-  // Also pull mailto: hrefs explicitly (handles cases where the email has ?subject= appended)
   const mailtoRaw = [...html.matchAll(/href=["']mailto:([^"'?\s]+)/gi)].map((m) => m[1]);
+  const rawEmails = [...deobfuscate(html).matchAll(EMAIL_RE)].map((m) => m[0]);
   results.push(...collect([...mailtoRaw, ...rawEmails]));
 
-  // ── Pass 2: structured cheerio scan for better zone-based ranking.
-  // Strip scripts/styles so their content doesn't pollute zone text extraction.
+  // ── Pass 2: structured cheerio scan for zone-based ranking.
   const $ = cheerio.load(html);
   $("script, style, noscript").remove();
 
-  function zoneHtml(sel: string): string {
-    return $.html($(sel)) ?? "";
+  function zoneText(sel: string): string {
+    return deobfuscate($.html($(sel)) ?? "");
   }
 
-  // Priority zones — emails from these zones are surfaced first via rank()
   const zones = [
-    zoneHtml("a[href^='mailto:'], a[href^='MAILTO:']"),
-    zoneHtml("footer, [class*='footer' i], [id*='footer' i]"),
-    zoneHtml("[class*='contact' i], [id*='contact' i]"),
-    zoneHtml("[class*='email' i], [id*='email' i]"),
-    zoneHtml("aside, [class*='sidebar' i], [id*='sidebar' i]"),
-    zoneHtml("[class*='about' i], [id*='about' i]"),
+    zoneText("a[href^='mailto:'], a[href^='MAILTO:']"),
+    zoneText("footer, [class*='footer' i], [id*='footer' i]"),
+    zoneText("[class*='contact' i], [id*='contact' i]"),
+    zoneText("[class*='email' i], [id*='email' i]"),
+    zoneText("aside, [class*='sidebar' i], [id*='sidebar' i]"),
+    zoneText("[class*='about' i], [id*='about' i]"),
+    zoneText("[class*='info' i], [id*='info' i]"),
   ];
 
-  // Siblings of tel: links
   $("a[href^='tel:']").each((_, el) => {
     const parent = $(el).parent();
-    zones.push(
+    zones.push(deobfuscate(
       ($.html(parent) ?? "") +
       ($.html(parent.next()) ?? "") +
       ($.html(parent.prev()) ?? "")
-    );
+    ));
   });
 
   for (const z of zones) {
     if (z) results.push(...collect(scanZone(z)));
   }
 
-  // ── Pass 3: full visible-text scan of the body after tag stripping.
-  // Catches anything left — text nodes, inline styles with emails, etc.
-  const bodyText = ($.html($("body")) ?? html).replace(/<[^>]+>/g, " ");
+  // ── Pass 3: full deobfuscated body scan.
+  const bodyText = deobfuscate(($.html($("body")) ?? html).replace(/<[^>]+>/g, " "));
   results.push(...collect([...bodyText.matchAll(EMAIL_RE)].map((m) => m[0])));
 
   return results;
@@ -199,43 +252,55 @@ export async function grabEmailFromWebsite(rawUrl: string): Promise<string | nul
 
   const PAGE_TIMEOUT = 10_000;
 
-  async function scanPages(base: string): Promise<{ domainEmails: string[]; otherEmails: string[] }> {
+  async function scanPages(base: string): Promise<{ domainEmails: string[]; freeEmails: string[]; otherEmails: string[] }> {
     const pages = [
       base,
       resolveUrl(base, "/contact"),
       resolveUrl(base, "/contact-us"),
+      resolveUrl(base, "/contactus"),
+      resolveUrl(base, "/contact.html"),
+      resolveUrl(base, "/contact.php"),
+      resolveUrl(base, "/get-in-touch"),
+      resolveUrl(base, "/reach-us"),
       resolveUrl(base, "/about"),
+      resolveUrl(base, "/about-us"),
     ].filter(Boolean);
 
     const htmlResults = await Promise.all(pages.map((p) => fetchHtml(p, PAGE_TIMEOUT)));
 
+    const FREE_PROVIDERS = new Set(["gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "icloud.com", "aol.com", "protonmail.com"]);
     const domainEmails: string[] = [];
+    const freeEmails:   string[] = [];
     const otherEmails:  string[] = [];
 
     for (const html of htmlResults) {
       if (!html) continue;
       for (const email of extractEmailsFromHtml(html, siteDomain)) {
-        const isOwn = siteDomain && getRootDomain(email.split("@")[1] ?? "") === siteDomain;
-        if (isOwn) {
+        const d = email.split("@")[1] ?? "";
+        if (siteDomain && getRootDomain(d) === siteDomain) {
           if (!domainEmails.includes(email)) domainEmails.push(email);
+        } else if (FREE_PROVIDERS.has(d)) {
+          if (!freeEmails.includes(email)) freeEmails.push(email);
         } else {
           if (!otherEmails.includes(email)) otherEmails.push(email);
         }
       }
     }
 
-    return { domainEmails, otherEmails };
+    return { domainEmails, freeEmails, otherEmails };
   }
 
   const primary$ = await scanPages(primary);
   if (primary$.domainEmails.length > 0) return primary$.domainEmails[0];
-  if (primary$.otherEmails.length > 0) return primary$.otherEmails[0];
+  if (primary$.freeEmails.length > 0)   return primary$.freeEmails[0];
+  if (primary$.otherEmails.length > 0)  return primary$.otherEmails[0];
 
   // Nothing found on primary — retry with www. prefix if applicable
   if (wwwFallback) {
     const www$ = await scanPages(wwwFallback);
     if (www$.domainEmails.length > 0) return www$.domainEmails[0];
-    if (www$.otherEmails.length > 0) return www$.otherEmails[0];
+    if (www$.freeEmails.length > 0)   return www$.freeEmails[0];
+    if (www$.otherEmails.length > 0)  return www$.otherEmails[0];
   }
 
   return null;
