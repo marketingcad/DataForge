@@ -26,7 +26,7 @@ import {
 import {
   Folder, Search, Phone, Globe, Mail, Loader2,
   ChevronLeft, ChevronRight, Trash2, Download,
-  MoreVertical, Tags, AlertTriangle, Check, ChevronDown,
+  MoreVertical, MoreHorizontal, Tags, AlertTriangle, Check, ChevronDown,
   Copy, SlidersHorizontal, RefreshCw, StopCircle, Pencil,
 } from "lucide-react";
 import { Dialog as EditDialog, DialogContent as EditDialogContent, DialogHeader as EditDialogHeader, DialogTitle as EditDialogTitle } from "@/components/ui/dialog";
@@ -196,6 +196,11 @@ export function FolderLeadsModal({
 
   // Per-lead regrab state
   const [regrabbingIds, setRegrabbingIds] = useState<Set<string>>(new Set());
+
+  // Bulk regrab state
+  const [bulkRegrabbing, setBulkRegrabbing] = useState(false);
+  const [bulkRegrabbingDone, setBulkRegrabbingDone] = useState(0);
+  const [bulkRegrabbingTotal, setBulkRegrabbingTotal] = useState(0);
 
   // Edit lead state
   const [editLead, setEditLead] = useState<Lead | null>(null);
@@ -492,6 +497,31 @@ export function FolderLeadsModal({
     } finally {
       setEditSaving(false);
     }
+  }
+
+  async function handleBulkRegrab() {
+    const eligible = leads.filter((l) => selected.has(l.id) && l.website);
+    if (eligible.length === 0) {
+      toast.info("No selected leads have a website to scrape");
+      return;
+    }
+    setBulkRegrabbing(true);
+    setBulkRegrabbingTotal(eligible.length);
+    setBulkRegrabbingDone(0);
+    let done = 0;
+    for (const lead of eligible) {
+      try {
+        const res = await fetch(`/api/leads/${lead.id}/regrab-email`, { method: "POST" });
+        const data = await res.json() as { found?: boolean; email?: string };
+        if (data.found && data.email) {
+          setLeads((prev) => prev.map((l) => l.id === lead.id ? { ...l, email: data.email! } : l));
+        }
+      } catch { /* continue */ }
+      done++;
+      setBulkRegrabbingDone(done);
+    }
+    setBulkRegrabbing(false);
+    toast.success(`Re-grab complete — processed ${eligible.length} lead${eligible.length !== 1 ? "s" : ""}`);
   }
 
   async function handleMigrateToGhl(scope: "selected" | "all") {
@@ -957,7 +987,19 @@ export function FolderLeadsModal({
           {someSelected && (
             <div className="px-4 py-2 border-b bg-primary/5 flex items-center gap-3 shrink-0">
               <span className="text-xs font-medium text-primary">{selected.size} selected</span>
+              {bulkRegrabbing && (
+                <span className="text-xs text-muted-foreground tabular-nums">
+                  {bulkRegrabbingDone} / {bulkRegrabbingTotal} re-grabbed
+                </span>
+              )}
               <div className="flex gap-1.5 ml-auto">
+                <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs"
+                  onClick={handleBulkRegrab} disabled={bulkRegrabbing}>
+                  {bulkRegrabbing
+                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    : <RefreshCw className="h-3.5 w-3.5" />}
+                  Re-grab emails
+                </Button>
                 <div className="flex items-center">
                   <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs rounded-r-none border-r-0"
                     onClick={() => handleExport("selected")} disabled={exporting}>
@@ -1126,7 +1168,8 @@ export function FolderLeadsModal({
                         </Badge>
                       </TableCell>
                       <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center justify-center gap-0.5">
+                        {/* Desktop: icon buttons only */}
+                        <div className="hidden sm:flex items-center justify-center gap-0.5">
                           <Button
                             variant="ghost" size="icon" className="h-7 w-7"
                             title={lead.website ? "Re-grab email from website" : "No website available"}
@@ -1144,6 +1187,33 @@ export function FolderLeadsModal({
                           >
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
+                        </div>
+                        {/* Mobile: 3-dot with all actions */}
+                        <div className="flex sm:hidden items-center justify-center">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger render={<Button variant="ghost" size="icon" className="h-7 w-7" />}>
+                              <MoreHorizontal className="h-4 w-4" />
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-44">
+                              <DropdownMenuItem
+                                className="text-xs gap-2 cursor-pointer"
+                                disabled={!lead.website || regrabbingIds.has(lead.id)}
+                                onClick={() => handleRegrabOne(lead)}
+                              >
+                                {regrabbingIds.has(lead.id)
+                                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  : <RefreshCw className="h-3.5 w-3.5" />}
+                                Re-grab email
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="text-xs gap-2 cursor-pointer"
+                                onClick={() => openEditLead(lead)}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                                Edit lead
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </TableCell>
                     </TableRow>
