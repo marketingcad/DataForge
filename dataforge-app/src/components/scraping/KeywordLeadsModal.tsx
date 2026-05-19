@@ -448,11 +448,13 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
     setRegrabbingIds((prev) => new Set(prev).add(lead.id));
     try {
       const res = await fetch(`/api/leads/${lead.id}/regrab-email`, { method: "POST" });
-      const data = await res.json() as { found?: boolean; email?: string; error?: string };
+      const data = await res.json() as { found?: boolean; email?: string; dataQualityScore?: number; error?: string };
       if (!res.ok) {
         toast.error(data.error ?? "Could not re-grab email");
       } else if (data.found && data.email) {
-        setLeads((prev) => prev.map((l) => l.id === lead.id ? { ...l, email: data.email! } : l));
+        setLeads((prev) => prev.map((l) => l.id === lead.id
+          ? { ...l, email: data.email!, ...(data.dataQualityScore !== undefined ? { dataQualityScore: data.dataQualityScore } : {}) }
+          : l));
         toast.success(`Email found: ${data.email}`);
       } else {
         toast.info("No email found on this website");
@@ -523,10 +525,12 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
       if (bulkRegrabbingStop.current) break;
       try {
         const res = await fetch(`/api/leads/${lead.id}/regrab-email`, { method: "POST" });
-        const data = await res.json() as { found?: boolean; email?: string };
+        const data = await res.json() as { found?: boolean; email?: string; dataQualityScore?: number };
         if (data.found && data.email) {
           found++;
-          setLeads((prev) => prev.map((l) => l.id === lead.id ? { ...l, email: data.email! } : l));
+          setLeads((prev) => prev.map((l) => l.id === lead.id
+            ? { ...l, email: data.email!, ...(data.dataQualityScore !== undefined ? { dataQualityScore: data.dataQualityScore } : {}) }
+            : l));
         } else {
           none++;
         }

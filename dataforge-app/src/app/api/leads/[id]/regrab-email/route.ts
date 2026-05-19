@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { grabEmailFromWebsite } from "@/lib/scraping/crawler/email-grabber";
+import { updateLead } from "@/lib/leads/service";
 
 export async function POST(
   _req: NextRequest,
@@ -18,6 +19,6 @@ export async function POST(
   const email = await grabEmailFromWebsite(lead.website);
   if (!email) return NextResponse.json({ found: false });
 
-  await prisma.lead.update({ where: { id }, data: { email } });
-  return NextResponse.json({ found: true, email });
+  const updated = await updateLead(id, { email });
+  return NextResponse.json({ found: true, email, dataQualityScore: updated.dataQualityScore });
 }
