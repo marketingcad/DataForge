@@ -171,18 +171,19 @@ export async function getLocationCallConversations(
   apiKey: string,
   locationId: string,
   since?: Date,
-  maxPages = 600
-): Promise<GhlConversation[]> {
+  maxPages = 600,
+  initialStartAfterDate?: number,
+): Promise<{ conversations: GhlConversation[]; nextCursor: number | null }> {
   const headers = buildHeaders(apiKey);
   const all: GhlConversation[] = [];
   const limit = 100;
-  let startAfterDate: number | undefined;
+  let startAfterDate: number | undefined = initialStartAfterDate;
 
   for (let page = 0; page < maxPages; page++) {
     const params = new URLSearchParams({
       locationId,
       limit: String(limit),
-      type: "TYPE_CALL", // server-side filter — only call conversations
+      type: "TYPE_CALL",
     });
     if (startAfterDate !== undefined) {
       params.set("startAfterDate", String(startAfterDate));
@@ -212,9 +213,14 @@ export async function getLocationCallConversations(
     const lastSort = convDate(convs[convs.length - 1]);
     if (!lastSort) break;
     startAfterDate = lastSort;
+
+    // If we used all allowed pages but there may be more, return the cursor to resume
+    if (page === maxPages - 1) {
+      return { conversations: all, nextCursor: startAfterDate ?? null };
+    }
   }
 
-  return all;
+  return { conversations: all, nextCursor: null };
 }
 
 /** Get messages for a conversation. Returns only call-type messages. */

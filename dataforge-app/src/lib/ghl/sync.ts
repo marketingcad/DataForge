@@ -41,7 +41,8 @@ async function fetchDurations(
 
 export async function autoSyncGhlCalls(
   full = false,
-): Promise<{ synced: number; skipped: number; unmatched: number; total: number; noAgents?: boolean }> {
+  options?: { startAfterDate?: number; maxPages?: number },
+): Promise<{ synced: number; skipped: number; unmatched: number; total: number; noAgents?: boolean; nextCursor?: number }> {
   const settings = await prisma.appSettings.findUnique({ where: { id: "singleton" } });
   if (!settings?.ghlApiKey || !settings?.ghlLocationId) {
     throw new Error("GHL API key and Location ID must be configured in Settings.");
@@ -65,23 +66,29 @@ export async function autoSyncGhlCalls(
 
   // Full sync: no since-filter, fetch all pages. Incremental: use last-synced stamp, 5 pages.
   const since = full ? undefined : (settings.ghlCallsLastSyncedAt ?? undefined);
-  const maxPages = full ? 600 : 5;
+  const maxPages = options?.maxPages ?? (full ? 600 : 5);
+  const isBatchedFullSync = full && options?.maxPages !== undefined;
 
-  // Stamp after resolving `since` so the value used this run is the old stamp
-  await prisma.appSettings.update({
-    where: { id: "singleton" },
-    data: { ghlCallsLastSyncedAt: new Date() },
-  });
+  // For incremental sync: stamp before fetching so concurrent runs don't overlap.
+  // For batched full sync: caller manages the timestamp; don't stamp here.
+  // For unbatched full sync (legacy): stamp before fetching as before.
+  if (!isBatchedFullSync) {
+    await prisma.appSettings.update({
+      where: { id: "singleton" },
+      data: { ghlCallsLastSyncedAt: new Date() },
+    });
+  }
 
-  const callConvs = await getLocationCallConversations(
+  const { conversations: callConvs, nextCursor } = await getLocationCallConversations(
     settings.ghlApiKey,
     settings.ghlLocationId,
     since,
     maxPages,
+    options?.startAfterDate,
   );
 
   if (callConvs.length === 0) {
-    return { synced: 0, skipped: 0, unmatched: 0, total: 0 };
+    return { synced: 0, skipped: 0, unmatched: 0, total: 0, nextCursor: nextCursor ?? undefined };
   }
 
   const convIds = callConvs.map((c) => c.id);
@@ -132,7 +139,7 @@ export async function autoSyncGhlCalls(
     synced++;
   });
 
-  return { synced, skipped, unmatched, total: callConvs.length };
+  return { synced, skipped, unmatched, total: callConvs.length, nextCursor: nextCursor ?? undefined };
 }
 
 const CANCELLED_STATUSES = new Set(["cancelled", "canceled", "deleted"]);
