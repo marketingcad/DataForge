@@ -252,48 +252,29 @@ export async function importLeadsFromCsvAction(
     }
   }
 
-  // ── Bulk dedup: one query for phone + website exact matches ──────────────
+  // ── Bulk dedup: phone is the only reliable unique key per business location ──
+  // Business name and website both produce false positives for chains/franchises
+  // (e.g. "State Farm Insurance" or "mcdonalds.com" shared across hundreds of locations).
+  // We fall back to website-domain only when a row has no phone at all.
   const phones   = [...new Set(normalized.map(r => r.phone).filter(Boolean))];
-  const websites = [...new Set(normalized.map(r => r.website).filter(Boolean))];
+  const noPhoneWebsites = [...new Set(
+    normalized.filter(r => !r.phone).map(r => r.website).filter(Boolean)
+  )];
 
-  const phoneWebsiteMatches = (phones.length || websites.length)
+  const existingLeads = (phones.length || noPhoneWebsites.length)
     ? await prisma.lead.findMany({
         where: {
           OR: [
-            ...(phones.length   ? [{ phone:   { in: phones   } }] : []),
-            ...(websites.length ? [{ website: { in: websites } }] : []),
+            ...(phones.length         ? [{ phone:   { in: phones         } }] : []),
+            ...(noPhoneWebsites.length ? [{ website: { in: noPhoneWebsites } }] : []),
           ],
         },
-        select: { phone: true, website: true, businessName: true },
+        select: { phone: true, website: true },
       })
     : [];
 
-  const existingPhones   = new Set(phoneWebsiteMatches.map(e => e.phone).filter(Boolean) as string[]);
-  const existingWebsites = new Set(phoneWebsiteMatches.map(e => e.website).filter(Boolean) as string[]);
-  const existingNamesLower = new Set(phoneWebsiteMatches.map(e => e.businessName.toLowerCase()));
-
-  // ── Business name dedup for rows not caught above ──────────────────────
-  const unmatchedNames = [
-    ...new Set(
-      normalized
-        .filter(r =>
-          !(r.phone   && existingPhones.has(r.phone)) &&
-          !(r.website && existingWebsites.has(r.website))
-        )
-        .map(r => r.businessName)
-        .filter(Boolean)
-    ),
-  ];
-
-  // Query in chunks of 100 to keep OR conditions manageable
-  for (let i = 0; i < unmatchedNames.length; i += 100) {
-    const chunk = unmatchedNames.slice(i, i + 100);
-    const matches = await prisma.lead.findMany({
-      where: { OR: chunk.map(n => ({ businessName: { equals: n, mode: "insensitive" as const } })) },
-      select: { businessName: true },
-    });
-    matches.forEach(e => existingNamesLower.add(e.businessName.toLowerCase()));
-  }
+  const existingPhones   = new Set(existingLeads.map(e => e.phone).filter(Boolean) as string[]);
+  const existingWebsites = new Set(existingLeads.map(e => e.website).filter(Boolean) as string[]);
 
   // ── Build insert list ──────────────────────────────────────────────────
   let duplicates = 0;
@@ -306,10 +287,10 @@ export async function importLeadsFromCsvAction(
   }[] = [];
 
   for (const row of normalized) {
+    // Duplicate if: phone matches, OR (no phone AND website matches)
     const isDuplicate =
       (row.phone   && existingPhones.has(row.phone)) ||
-      (row.website && existingWebsites.has(row.website)) ||
-      (row.businessName && existingNamesLower.has(row.businessName.toLowerCase()));
+      (!row.phone && row.website && existingWebsites.has(row.website));
 
     if (isDuplicate) { duplicates++; continue; }
 
