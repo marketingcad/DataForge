@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
+import { flushSync } from "react-dom";
 import { LeadRow } from "@/actions/domain-scrape.actions";
 import { SaveLeadsModal } from "@/components/scraping/SaveLeadsModal";
 import { ScrapingTrivia } from "@/components/scraping/ScrapingTrivia";
@@ -85,9 +86,11 @@ export function DomainScrapeForm() {
   const seenKeysRef = useRef(new Set<string>());
 
   function crawlUrl(url: string, maxLeads: string, timeLimit: string, pageNum?: number): Promise<{ notFound: boolean; newLeads: number }> {
-    // Set page badge synchronously before EventSource fires any events
-    setCurrentPage(pageNum ?? null);
-    setStatusMsg(pageNum != null ? `Page ${pageNum}: connecting…` : "Connecting…");
+    // Force paint before EventSource fires — prevents React batching from deferring the badge update
+    flushSync(() => {
+      setCurrentPage(pageNum ?? null);
+      setStatusMsg(pageNum != null ? `Page ${pageNum}: connecting…` : "Connecting…");
+    });
 
     return new Promise((resolve) => {
       const params = new URLSearchParams({ url, maxLeads, timeLimit });
