@@ -1,15 +1,10 @@
-import dynamic from "next/dynamic";
 import { getJobs } from "@/lib/scraping/jobs/service";
 import { getKeywords } from "@/lib/keywords/service";
 import { Separator } from "@/components/ui/separator";
 import { withDbRetry } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
-
-const ScrapingPageTabs = dynamic(
-  () => import("@/components/scraping/ScrapingPageTabs").then((m) => ({ default: m.ScrapingPageTabs })),
-  { ssr: false }
-);
+import { ScrapingPageTabsClient } from "@/components/scraping/ScrapingPageTabsClient";
 
 const SCRAPING_ROLES = ["boss", "admin", "lead_specialist"];
 const KEYWORD_ROLES = ["boss", "admin"];
@@ -37,7 +32,7 @@ export default async function ScrapingPage() {
 
       <Separator />
 
-      <ScrapingPageTabs
+      <ScrapingPageTabsClient
         canUseKeywords={canUseKeywords}
         keywords={keywords as never[]}
         jobs={jobs}
