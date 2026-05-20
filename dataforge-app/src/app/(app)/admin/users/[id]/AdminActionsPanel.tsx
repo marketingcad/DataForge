@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft, Shield, Tag, Trash2, AlertTriangle,
-  Ban, Clock, ShieldOff, X, KeyRound, Eye, EyeOff,
+  Ban, Clock, ShieldOff, X, KeyRound, Eye, EyeOff, Link2,
 } from "lucide-react";
 import { ROLE_LABELS, ROLE_ORDER, ROLE_CAN_CREATE, type Role } from "@/lib/rbac/roles";
 import {
@@ -15,11 +15,12 @@ import {
   suspendUserAction,
   unbanUserAction,
   changeUserPasswordAction,
+  updateUserGhlLinkAction,
 } from "@/actions/users.actions";
 import { useNotifications } from "@/lib/notifications";
 
 type ActiveModal =
-  | "role" | "nickname" | "password"
+  | "role" | "nickname" | "password" | "ghlLink"
   | "ban" | "suspend" | "waive"
   | "delete"
   | null;
@@ -30,6 +31,7 @@ interface Props {
   userEmail: string;
   userRole: string;
   userNickname: string | null;
+  userGhlUserId: string | null;
   actorRole: Role;
   isCurrentUser: boolean;
   isBanned: boolean;
@@ -48,7 +50,7 @@ const SUSPEND_PRESETS = [
 ];
 
 export function AdminActionsPanel({
-  userId, userName, userEmail, userRole, userNickname,
+  userId, userName, userEmail, userRole, userNickname, userGhlUserId,
   actorRole, isCurrentUser,
   isBanned, bannedUntil, banReason,
 }: Props) {
@@ -103,6 +105,7 @@ export function AdminActionsPanel({
             {showNickname && (
               <ToolbarBtn icon={<Tag    className="h-3.5 w-3.5" />} label="Edit Nickname" onClick={() => setActiveModal("nickname")} />
             )}
+            <ToolbarBtn icon={<Link2 className="h-3.5 w-3.5" />} label={userGhlUserId ? "GHL Linked" : "Link GHL"} onClick={() => setActiveModal("ghlLink")} />
             <ToolbarBtn icon={<KeyRound className="h-3.5 w-3.5" />} label="Change Password" onClick={() => setActiveModal("password")} />
             <ToolbarBtn icon={<Clock className="h-3.5 w-3.5" />} label="Suspend" onClick={() => setActiveModal("suspend")} warning />
             <ToolbarBtn icon={<Ban   className="h-3.5 w-3.5" />} label="Ban"     onClick={() => setActiveModal("ban")}     danger />
@@ -129,6 +132,13 @@ export function AdminActionsPanel({
             <NicknamePanel
               userId={userId} userNickname={userNickname}
               onDone={() => { setActiveModal(null); router.refresh(); }}
+              onError={(e) => add({ title: "Error", message: e, type: "error" })}
+            />
+          )}
+          {activeModal === "ghlLink" && (
+            <GhlLinkPanel
+              userId={userId} currentGhlUserId={userGhlUserId}
+              onDone={() => { setActiveModal(null); router.refresh(); add({ title: "GHL link updated", type: "success" }); }}
               onError={(e) => add({ title: "Error", message: e, type: "error" })}
             />
           )}
@@ -185,6 +195,7 @@ export function AdminActionsPanel({
 const MODAL_TITLES: Record<NonNullable<ActiveModal>, string> = {
   role:     "Change Role",
   nickname: "Edit Nickname",
+  ghlLink:  "Link GHL User",
   password: "Change Password",
   suspend:  "Suspend User",
   ban:      "Ban User",
@@ -532,6 +543,104 @@ function WaivePanel({ userId, displayName, isSuspended, bannedUntil, banReason, 
         <button onClick={save} disabled={pending}
           className="rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors">
           {pending ? "Waiving…" : isSuspended ? "Waive Suspension" : "Waive Ban"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── GHL link panel ──────────────────────────────────────────────────────────────
+
+interface GhlAgentOption { id: string; name: string; email: string; alreadyLinked: boolean; }
+
+function GhlLinkPanel({ userId, currentGhlUserId, onDone, onError }: {
+  userId: string; currentGhlUserId: string | null;
+  onDone: () => void; onError: (e: string) => void;
+}) {
+  const [pending, start] = useTransition();
+  const [agents, setAgents] = useState<GhlAgentOption[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<string>(currentGhlUserId ?? "");
+  const [manual, setManual] = useState("");
+  const [useManual, setUseManual] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/ghl/agents")
+      .then((r) => r.json())
+      .then((d) => setAgents(d.agents ?? []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  function save() {
+    const id = useManual ? manual.trim() : selected;
+    start(async () => {
+      try { await updateUserGhlLinkAction(userId, id || null); onDone(); }
+      catch (e) { onError((e as Error).message); }
+    });
+  }
+
+  return (
+    <div className="space-y-4">
+      <p className="text-xs text-muted-foreground">
+        Link this DataForge user to a GHL agent so inbound/outbound call webhooks are attributed correctly.
+      </p>
+
+      {currentGhlUserId && (
+        <div className="rounded-lg border bg-muted/40 px-3 py-2 text-xs text-muted-foreground font-mono break-all">
+          Currently linked: <span className="text-foreground">{currentGhlUserId}</span>
+        </div>
+      )}
+
+      {loading ? (
+        <p className="text-xs text-muted-foreground">Loading GHL agents…</p>
+      ) : agents.length > 0 && !useManual ? (
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Pick GHL Agent</p>
+          <div className="max-h-48 overflow-y-auto space-y-1.5 rounded-lg border p-2">
+            <label className="flex items-center gap-2 rounded-md px-2 py-1.5 cursor-pointer hover:bg-muted/50">
+              <input type="radio" name="ghl-agent" value="" checked={selected === ""} onChange={() => setSelected("")} />
+              <span className="text-sm text-muted-foreground italic">Unlink (remove GHL ID)</span>
+            </label>
+            {agents.map((a) => (
+              <label key={a.id} className="flex items-center gap-2 rounded-md px-2 py-1.5 cursor-pointer hover:bg-muted/50">
+                <input type="radio" name="ghl-agent" value={a.id} checked={selected === a.id} onChange={() => setSelected(a.id)} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{a.name}</p>
+                  <p className="text-xs text-muted-foreground truncate">{a.email}</p>
+                </div>
+                {a.alreadyLinked && a.id !== currentGhlUserId && (
+                  <span className="text-xs text-amber-500 shrink-0">In use</span>
+                )}
+              </label>
+            ))}
+          </div>
+          <button type="button" onClick={() => setUseManual(true)} className="text-xs text-muted-foreground underline hover:text-foreground">
+            Enter GHL User ID manually instead
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-1.5">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">GHL User ID</p>
+          <input
+            type="text"
+            value={manual}
+            onChange={(e) => setManual(e.target.value)}
+            placeholder="Paste the GHL User ID…"
+            className="w-full rounded-lg border bg-background px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+          {agents.length > 0 && (
+            <button type="button" onClick={() => setUseManual(false)} className="text-xs text-muted-foreground underline hover:text-foreground">
+              Pick from GHL agent list instead
+            </button>
+          )}
+        </div>
+      )}
+
+      <div className="flex justify-end">
+        <button onClick={save} disabled={pending}
+          className="rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors">
+          {pending ? "Saving…" : "Save Link"}
         </button>
       </div>
     </div>

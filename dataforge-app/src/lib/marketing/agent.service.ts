@@ -190,7 +190,7 @@ export async function getAgentProfile(userId: string) {
       where: { id: userId },
       select: {
         id: true, name: true, nickname: true, email: true, points: true, role: true, createdAt: true,
-        isBanned: true, bannedUntil: true, banReason: true,
+        isBanned: true, bannedUntil: true, banReason: true, ghlUserId: true,
         userBadges: { include: { badge: true }, orderBy: { earnedAt: "asc" } },
       },
     }),

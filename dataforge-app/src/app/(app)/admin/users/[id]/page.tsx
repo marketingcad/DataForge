@@ -63,6 +63,7 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
   const user = data.user as unknown as {
     id: string; name: string | null; nickname: string | null; email: string;
     isBanned: boolean; bannedUntil: Date | null; banReason: string | null;
+    ghlUserId: string | null;
   };
 
   return (
@@ -73,6 +74,7 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
         userEmail={user.email}
         userRole={userRole}
         userNickname={user.nickname}
+        userGhlUserId={user.ghlUserId}
         actorRole={actorRole}
         isCurrentUser={id === session.user.id}
         isBanned={user.isBanned}
