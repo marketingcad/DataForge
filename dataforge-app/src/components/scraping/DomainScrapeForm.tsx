@@ -37,23 +37,62 @@ export function DomainScrapeForm() {
   const [errorMsg, setErrorMsg] = useState("");
   const [summary, setSummary] = useState<{ leadsFound: number; pagesVisited: number; elapsed: number } | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [urlsValue, setUrlsValue] = useState("");
+  const [currentUrlIndex, setCurrentUrlIndex] = useState(0);
+  const [totalUrls, setTotalUrls] = useState(0);
   const sourceRef = useRef<EventSource | null>(null);
   const rowCounter = useRef(0);
+  const abortRef = useRef(false);
 
   const stopCrawl = useCallback(() => {
+    abortRef.current = true;
     sourceRef.current?.close();
     sourceRef.current = null;
     setStatus((s) => s === "crawling" ? "stopped" : s);
   }, []);
 
+  function crawlUrl(url: string, maxLeads: string, timeLimit: string): Promise<void> {
+    return new Promise((resolve) => {
+      const params = new URLSearchParams({ url, maxLeads, timeLimit });
+      const es = new EventSource(`/api/scraping/stream?${params}`);
+      sourceRef.current = es;
+
+      es.addEventListener("status", (e) => {
+        setStatusMsg(JSON.parse(e.data).message);
+      });
+      es.addEventListener("lead", (e) => {
+        const lead = JSON.parse(e.data) as LeadRow;
+        const id = ++rowCounter.current;
+        setRows((prev) => [...prev, { ...lead, id, selected: true }]);
+      });
+      es.addEventListener("done", () => {
+        es.close();
+        sourceRef.current = null;
+        resolve();
+      });
+      es.addEventListener("error", (e: Event) => {
+        const msgEvent = e as MessageEvent;
+        if (msgEvent.data) {
+          const parsed = JSON.parse(msgEvent.data) as { message: string };
+          setErrorMsg(parsed.message);
+        }
+        es.close();
+        sourceRef.current = null;
+        resolve();
+      });
+    });
+  }
+
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     stopCrawl();
     const fd = new FormData(e.currentTarget);
-    const url = (fd.get("url") as string).trim();
+    const rawUrls = (fd.get("urls") as string).trim();
     const maxLeads = fd.get("maxLeads") as string;
     const timeLimit = fd.get("timeLimit") as string;
-    if (!url) return;
+
+    const urls = rawUrls.split(/\n/).map(u => u.trim()).filter(Boolean);
+    if (!urls.length) return;
 
     setRows([]);
     setSummary(null);
@@ -61,42 +100,26 @@ export function DomainScrapeForm() {
     setStatus("crawling");
     setStatusMsg("Connecting…");
     rowCounter.current = 0;
+    abortRef.current = false;
+    setTotalUrls(urls.length);
 
-    const params = new URLSearchParams({ url, maxLeads, timeLimit });
-    const es = new EventSource(`/api/scraping/stream?${params}`);
-    sourceRef.current = es;
+    const startTime = Date.now();
+    let totalPages = 0;
 
-    es.addEventListener("status", (e) => {
-      setStatusMsg(JSON.parse(e.data).message);
+    for (let i = 0; i < urls.length; i++) {
+      if (abortRef.current) break;
+      setCurrentUrlIndex(i + 1);
+      setStatusMsg(`[${i + 1}/${urls.length}] Crawling ${urls[i]}…`);
+      await crawlUrl(urls[i], maxLeads, timeLimit);
+      totalPages++;
+    }
+
+    setSummary({
+      leadsFound: rowCounter.current,
+      pagesVisited: totalPages,
+      elapsed: Math.round((Date.now() - startTime) / 1000),
     });
-
-    es.addEventListener("lead", (e) => {
-      const lead = JSON.parse(e.data) as LeadRow;
-      const id = ++rowCounter.current;
-      setRows((prev) => [...prev, { ...lead, id, selected: true }]);
-    });
-
-    es.addEventListener("done", (e) => {
-      setSummary(JSON.parse(e.data));
-      setStatus("done");
-      es.close();
-      sourceRef.current = null;
-    });
-
-    // Custom server-sent error (e.g. site blocked)
-    es.addEventListener("error", (e: Event) => {
-      const msgEvent = e as MessageEvent;
-      if (msgEvent.data) {
-        const parsed = JSON.parse(msgEvent.data) as { message: string };
-        setErrorMsg(parsed.message);
-        setStatus("done");
-      } else {
-        // Native EventSource connection error
-        setStatus("stopped");
-      }
-      es.close();
-      sourceRef.current = null;
-    });
+    setStatus("done");
   }
 
   function toggleRow(id: number) {
@@ -146,51 +169,65 @@ export function DomainScrapeForm() {
       </div>
 
       {/* Toolbar */}
-      <form onSubmit={handleSubmit} className="flex flex-wrap items-center gap-2">
-        <Input
-          name="url"
-          placeholder="https://example.com"
-          required
-          className="w-64"
-        />
-        <div className="flex items-center gap-1.5">
-          <Input
-            name="maxLeads"
-            type="number"
-            min={1}
-            max={200}
-            defaultValue={50}
-            className="w-20 text-center"
-            aria-label="Max leads"
-          />
-          <span className="text-xs text-muted-foreground whitespace-nowrap">leads max</span>
+      <form onSubmit={handleSubmit} className="space-y-2">
+        <div className="flex flex-wrap items-start gap-2">
+          <div className="flex flex-col gap-1 flex-1 min-w-[240px]">
+            <textarea
+              name="urls"
+              value={urlsValue}
+              onChange={e => setUrlsValue(e.target.value)}
+              placeholder={"https://example.com/directory\nhttps://example.com/directory?page=2\nhttps://example.com/directory?page=3"}
+              required
+              rows={3}
+              className="w-full rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm resize-y focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring placeholder:text-muted-foreground"
+            />
+            <p className="text-[11px] text-muted-foreground">
+              One URL per line — paste multiple pages to stack leads from all of them
+            </p>
+          </div>
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-1.5">
+              <Input
+                name="maxLeads"
+                type="number"
+                min={1}
+                max={200}
+                defaultValue={50}
+                className="w-20 text-center"
+                aria-label="Max leads"
+              />
+              <span className="text-xs text-muted-foreground whitespace-nowrap">leads / URL</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Input
+                name="timeLimit"
+                type="number"
+                min={10}
+                max={300}
+                defaultValue={60}
+                className="w-20 text-center"
+                aria-label="Time limit"
+              />
+              <span className="text-xs text-muted-foreground whitespace-nowrap">sec / URL</span>
+            </div>
+          </div>
+          <div className="flex flex-col gap-2 justify-start pt-0.5">
+            <Button type="submit" size="sm" disabled={isCrawling}>
+              {isCrawling && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {isCrawling ? "Crawling…" : "Start Crawl"}
+            </Button>
+            {isCrawling && (
+              <Button type="button" variant="outline" size="sm" onClick={stopCrawl}>
+                <StopCircle className="h-4 w-4 mr-1.5" />
+                Stop
+              </Button>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-1.5">
-          <Input
-            name="timeLimit"
-            type="number"
-            min={10}
-            max={300}
-            defaultValue={120}
-            className="w-20 text-center"
-            aria-label="Time limit"
-          />
-          <span className="text-xs text-muted-foreground whitespace-nowrap">sec limit</span>
-        </div>
-        <Button type="submit" size="sm" disabled={isCrawling}>
-          {isCrawling && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-          {isCrawling ? "Crawling…" : "Start Crawl"}
-        </Button>
-        {isCrawling && (
-          <Button type="button" variant="outline" size="sm" onClick={stopCrawl}>
-            <StopCircle className="h-4 w-4 mr-1.5" />
-            Stop
-          </Button>
-        )}
         {isCrawling && statusMsg && (
-          <span className="text-xs text-muted-foreground truncate max-w-xs hidden sm:block animate-pulse">
-            {statusMsg}
-          </span>
+          <p className="text-xs text-muted-foreground animate-pulse truncate">
+            {totalUrls > 1 && `[${currentUrlIndex}/${totalUrls}] `}{statusMsg}
+          </p>
         )}
       </form>
 
