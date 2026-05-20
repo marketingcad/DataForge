@@ -404,19 +404,74 @@ export function extractContacts(html: string, _url: string): Contact[] {
     "[class*='contact']","[class*='team']","[class*='person']","[class*='profile']",
     "[class*='result']","[class*='listing']","[class*='broker']","[class*='advisor']",
   ].join(",");
-  // Selectors that explicitly hint at a name field — checked before generic headings
-  const NAME_HINT_SEL = [
-    "[class*='name']","[class*='agent-name']","[class*='staff-name']",
-    "[class*='member-name']","[class*='contact-name']","[class*='person-name']",
-    "[class*='full-name']","[class*='fullname']","[class*='rep-name']",
-    "[id*='name']","[itemprop='name']","[data-field*='name']","[name*='name']",
-  ].join(",");
+  // Attributes/classes that strongly hint an element holds a person's name
+  const NAME_HINT_ATTRS = ["name","contact","person","agent","staff","member","rep","broker","advisor","employee"];
+
+  function hasNameHint($el: ReturnType<typeof $>): boolean {
+    const cls = ($el.attr("class") ?? "").toLowerCase();
+    const id  = ($el.attr("id")    ?? "").toLowerCase();
+    const itp = ($el.attr("itemprop") ?? "").toLowerCase();
+    const dat = ($el.attr("data-field") ?? "").toLowerCase();
+    return NAME_HINT_ATTRS.some(h => cls.includes(h) || id.includes(h) || itp.includes(h) || dat.includes(h));
+  }
+
+  function candidateName($el: ReturnType<typeof $>): string | undefined {
+    // Check the element itself and its name-hinted or heading descendants
+    if (hasNameHint($el)) {
+      const t = $el.clone().children().remove().end().text().trim() || $el.text().trim();
+      if (t && t.length > 1 && t.length < 80 && !PHONE_RE.test(t) && !EMAIL_RE.test(t)) return t;
+    }
+    // Look for name-hinted child
+    let found: string | undefined;
+    $el.find("*").each((_, child) => {
+      if (found) return false;
+      const $c = $(child);
+      if (!hasNameHint($c)) return;
+      const t = $c.text().trim();
+      if (t && t.length > 1 && t.length < 80 && !PHONE_RE.test(t) && !EMAIL_RE.test(t)) found = t;
+    });
+    if (found) return found;
+    // Heading/bold that looks like a person name
+    const tag = ($el[0] as { tagName?: string }).tagName?.toLowerCase() ?? "";
+    if (["h1","h2","h3","h4","h5","h6","strong","b"].includes(tag)) {
+      const t = $el.text().trim();
+      if (t && t.length < 80 && !PHONE_RE.test(t) && !EMAIL_RE.test(t) && isLikelyPersonName(t)) return t;
+    }
+    $el.find("h1,h2,h3,h4,h5,h6,strong,b").each((_, child) => {
+      if (found) return false;
+      const t = $(child).text().trim();
+      if (t && t.length < 80 && !PHONE_RE.test(t) && !EMAIL_RE.test(t) && isLikelyPersonName(t)) found = t;
+    });
+    return found;
+  }
+
+  // Walk outward from the phone anchor: prev siblings first (names appear above phones),
+  // then next siblings, then move up to the parent and repeat — up to 5 levels.
+  function nameNearPhone($anchor: ReturnType<typeof $>): string | undefined {
+    let cur = $anchor;
+    for (let depth = 0; depth < 5; depth++) {
+      // Previous siblings — closest first
+      const prevSibs = cur.prevAll().toArray();
+      for (const sib of prevSibs) {
+        const name = candidateName($(sib));
+        if (name) return name;
+      }
+      // Next siblings — closest first
+      const nextSibs = cur.nextAll().toArray();
+      for (const sib of nextSibs) {
+        const name = candidateName($(sib));
+        if (name) return name;
+      }
+      const parent = cur.parent();
+      if (!parent.length || parent.is("body,html,main,header,footer,nav")) break;
+      cur = parent;
+    }
+    return undefined;
+  }
 
   function nearbyContainer($anchor: ReturnType<typeof $>) {
-    // Prefer the tightest named container so we don't grab a section title
     const named = $anchor.closest(CONTAINER_SEL);
     if (named.length) return named;
-    // Fallback: walk up 4 levels, stop at the first block element
     let cur = $anchor.parent();
     for (let i = 0; i < 4 && cur.length && !cur.is("body,html"); i++) {
       const tag = (cur[0] as { tagName?: string }).tagName?.toLowerCase() ?? "";
@@ -424,30 +479,6 @@ export function extractContacts(html: string, _url: string): Contact[] {
       cur = cur.parent();
     }
     return $anchor.parent();
-  }
-
-  function nameFromContainer($c: ReturnType<typeof $>): string | undefined {
-    // Priority 1: element whose class/id/attr explicitly contains "name"
-    let found: string | undefined;
-    $c.find(NAME_HINT_SEL).each((_, el) => {
-      if (found) return false;
-      const t = $(el).text().trim();
-      // Accept even single-word names here since the attribute is a strong signal
-      if (t && t.length > 1 && t.length < 80 && !PHONE_RE.test(t) && !EMAIL_RE.test(t)) {
-        found = t;
-      }
-    });
-    if (found) return found;
-
-    // Priority 2: heading/bold that passes the person-name heuristic
-    $c.find("h1,h2,h3,h4,h5,h6,strong,b").each((_, el) => {
-      if (found) return false;
-      const t = $(el).text().trim();
-      if (t && t.length < 80 && !PHONE_RE.test(t) && !EMAIL_RE.test(t) && isLikelyPersonName(t)) {
-        found = t;
-      }
-    });
-    return found;
   }
 
   function emailFromContainer($c: ReturnType<typeof $>): string | undefined {
@@ -471,9 +502,8 @@ export function extractContacts(html: string, _url: string): Contact[] {
     const digits = raw.replace(/\D/g, "");
     if (digits.length < 7 || seenDomPhones.has(digits)) return;
     seenDomPhones.add(digits);
-    const $c = nearbyContainer($el);
-    const name  = nameFromContainer($c);
-    const email = emailFromContainer($c);
+    const name  = nameNearPhone($el);
+    const email = emailFromContainer(nearbyContainer($el));
     if (name || email) contacts.push({ phone: raw, name, email });
   });
 
@@ -486,9 +516,8 @@ export function extractContacts(html: string, _url: string): Contact[] {
     const digits = m[0].replace(/\D/g, "");
     if (digits.length < 7 || seenDomPhones.has(digits)) return;
     seenDomPhones.add(digits);
-    const $c = nearbyContainer($el);
-    const name  = nameFromContainer($c);
-    const email = emailFromContainer($c);
+    const name  = nameNearPhone($el);
+    const email = emailFromContainer(nearbyContainer($el));
     if (name || email) contacts.push({ phone: m[0], name, email });
   });
 
