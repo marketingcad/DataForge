@@ -404,12 +404,19 @@ export function extractContacts(html: string, _url: string): Contact[] {
     "[class*='contact']","[class*='team']","[class*='person']","[class*='profile']",
     "[class*='result']","[class*='listing']","[class*='broker']","[class*='advisor']",
   ].join(",");
-  const NAME_TAGS = "h1,h2,h3,h4,h5,h6,strong,b";
+  // Selectors that explicitly hint at a name field — checked before generic headings
+  const NAME_HINT_SEL = [
+    "[class*='name']","[class*='agent-name']","[class*='staff-name']",
+    "[class*='member-name']","[class*='contact-name']","[class*='person-name']",
+    "[class*='full-name']","[class*='fullname']","[class*='rep-name']",
+    "[id*='name']","[itemprop='name']","[data-field*='name']","[name*='name']",
+  ].join(",");
 
   function nearbyContainer($anchor: ReturnType<typeof $>) {
+    // Prefer the tightest named container so we don't grab a section title
     const named = $anchor.closest(CONTAINER_SEL);
     if (named.length) return named;
-    // Fallback: walk up 4 levels to find a reasonable block
+    // Fallback: walk up 4 levels, stop at the first block element
     let cur = $anchor.parent();
     for (let i = 0; i < 4 && cur.length && !cur.is("body,html"); i++) {
       const tag = (cur[0] as { tagName?: string }).tagName?.toLowerCase() ?? "";
@@ -420,8 +427,20 @@ export function extractContacts(html: string, _url: string): Contact[] {
   }
 
   function nameFromContainer($c: ReturnType<typeof $>): string | undefined {
+    // Priority 1: element whose class/id/attr explicitly contains "name"
     let found: string | undefined;
-    $c.find(NAME_TAGS).each((_, el) => {
+    $c.find(NAME_HINT_SEL).each((_, el) => {
+      if (found) return false;
+      const t = $(el).text().trim();
+      // Accept even single-word names here since the attribute is a strong signal
+      if (t && t.length > 1 && t.length < 80 && !PHONE_RE.test(t) && !EMAIL_RE.test(t)) {
+        found = t;
+      }
+    });
+    if (found) return found;
+
+    // Priority 2: heading/bold that passes the person-name heuristic
+    $c.find("h1,h2,h3,h4,h5,h6,strong,b").each((_, el) => {
       if (found) return false;
       const t = $(el).text().trim();
       if (t && t.length < 80 && !PHONE_RE.test(t) && !EMAIL_RE.test(t) && isLikelyPersonName(t)) {
