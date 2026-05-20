@@ -30,12 +30,12 @@ export default async function MarketingPage({
 
   const period: Period = (["yesterday", "week", "month", "all_time"] as const).includes(rawPeriod as Period)
     ? (rawPeriod as Period)
-    : "week";
+    : "month";
 
   const validMetrics = Object.keys(METRIC_LABELS) as Metric[];
   const metric: Metric = validMetrics.includes(rawMetric as Metric)
     ? (rawMetric as Metric)
-    : "appts_set";
+    : "calls";
 
   if (role === "boss" || role === "admin" || role === "team_lead") return <BossDashboard period={period} metric={metric} />;
   return <AgentDashboard userId={session.user.id!} period={period} />;

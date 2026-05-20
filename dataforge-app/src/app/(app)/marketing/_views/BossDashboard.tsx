@@ -37,7 +37,7 @@ const CHART_DAYS: Record<Exclude<Period, "all_time">, number> = {
   month:     30,
 };
 
-export async function BossDashboard({ period = "week", metric = "appts_set" }: { period?: Period; metric?: Metric }) {
+export async function BossDashboard({ period = "month", metric = "calls" }: { period?: Period; metric?: Metric }) {
 
   const [summary, leaderboard, volumeData, tasks, monthlyBreakdown, salesReps] = await withDbRetry(() =>
     Promise.all([
