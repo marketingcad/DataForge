@@ -17,7 +17,7 @@ export async function insertLead(raw: LeadInput & { folderId?: string; savedById
   const email = raw.email ? normalizeEmail(raw.email) : "";
   const website = raw.website ? normalizeWebsite(raw.website) : "";
 
-  const dedupResult = await checkDuplicate(prisma, phone, raw.businessName);
+  const dedupResult = await checkDuplicate(prisma, phone, raw.businessName, email || undefined);
 
   if (dedupResult.isDuplicate) {
     const existing = await prisma.lead.findUnique({

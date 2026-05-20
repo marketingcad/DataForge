@@ -3,19 +3,29 @@ import { DedupResult } from "@/types/lead";
 
 /**
  * Check if a lead already exists in the database.
- * Uniqueness is determined by phone number OR business name (case-insensitive).
- * Website and email are intentionally excluded — they produce too many false
- * positives (shared aggregator domains, franchise sites, etc.).
+ *
+ * Priority:
+ *  1. Phone match (most reliable)
+ *  2. Email match (if no phone)
+ *  3. Business name match (last resort — only when neither phone nor email present,
+ *     to avoid false positives on directory scrapes where every lead shares the
+ *     same site name as businessName)
  */
 export async function checkDuplicate(
   prisma: PrismaClient,
   normalizedPhone: string,
   businessName: string,
+  normalizedEmail?: string,
 ): Promise<DedupResult> {
   const orConditions: object[] = [];
 
-  if (normalizedPhone) orConditions.push({ phone: normalizedPhone });
-  if (businessName.trim()) orConditions.push({ businessName: { equals: businessName.trim(), mode: "insensitive" } });
+  if (normalizedPhone) {
+    orConditions.push({ phone: normalizedPhone });
+  } else if (normalizedEmail) {
+    orConditions.push({ email: normalizedEmail });
+  } else if (businessName.trim()) {
+    orConditions.push({ businessName: { equals: businessName.trim(), mode: "insensitive" } });
+  }
 
   if (orConditions.length === 0) return { isDuplicate: false };
 
@@ -24,9 +34,7 @@ export async function checkDuplicate(
     select: { id: true },
   });
 
-  if (existing) {
-    return { isDuplicate: true, existingId: existing.id };
-  }
-
-  return { isDuplicate: false };
+  return existing
+    ? { isDuplicate: true, existingId: existing.id }
+    : { isDuplicate: false };
 }
