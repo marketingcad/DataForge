@@ -121,8 +121,10 @@ export function DomainScrapeForm() {
     setStatus("crawling");
     setStatusMsg("Connecting…");
     setCurrentPage(null);
+    setTablePage(1);
     rowCounter.current = 0;
     abortRef.current = false;
+    prevRowCount.current = 0;
 
     const startTime = Date.now();
     let totalPagesVisited = 0;
@@ -178,8 +180,22 @@ export function DomainScrapeForm() {
     toast.success(`${label} copied`);
   }
 
+  const [tablePage, setTablePage] = useState(1);
+  const PAGE_SIZE = 25;
+
+  const totalTablePages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const pagedRows = rows.slice((tablePage - 1) * PAGE_SIZE, tablePage * PAGE_SIZE);
+
+  // When new leads stream in, jump to last page so user sees them arrive
+  const prevRowCount = useRef(0);
+  if (rows.length !== prevRowCount.current) {
+    prevRowCount.current = rows.length;
+    const lastPage = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+    if (status === "crawling") setTablePage(lastPage);
+  }
+
   const selectedCount = rows.filter((r) => r.selected).length;
-  const allSelected = rows.length > 0 && rows.every((r) => r.selected);
+  const allSelected = pagedRows.length > 0 && pagedRows.every((r) => r.selected);
   const isCrawling = status === "crawling";
 
   return (
@@ -323,7 +339,7 @@ export function DomainScrapeForm() {
                 </TableCell>
               </TableRow>
             ) : (
-              rows.map((row) => (
+              pagedRows.map((row) => (
                 <TableRow
                   key={row.id}
                   data-state={row.selected ? "selected" : undefined}
@@ -467,36 +483,58 @@ export function DomainScrapeForm() {
       </div>
 
       {/* Footer */}
-      <div className="flex items-center justify-between text-sm text-muted-foreground px-1">
-        <span>
+      <div className="flex items-center justify-between text-sm text-muted-foreground px-1 gap-2 flex-wrap">
+        <span className="flex items-center gap-1.5 flex-wrap">
           {selectedCount} of {rows.length} lead{rows.length !== 1 ? "s" : ""} selected
           {summary && (
-            <span className="ml-3">
-              · {summary.pagesVisited} pages · {summary.elapsed}s
+            <span className="ml-1">
+              · {summary.pagesVisited} site page{summary.pagesVisited !== 1 ? "s" : ""} · {summary.elapsed}s
             </span>
           )}
           {isCrawling && (
-            <Badge variant="outline" className="ml-2 text-xs py-0 animate-pulse">
-              Live
-            </Badge>
+            <Badge variant="outline" className="ml-1 text-xs py-0 animate-pulse">Live</Badge>
           )}
           {status === "done" && rows.length > 0 && (
-            <Badge variant="outline" className="ml-2 text-xs py-0">
-              Done
-            </Badge>
+            <Badge variant="outline" className="ml-1 text-xs py-0">Done</Badge>
           )}
           {status === "stopped" && rows.length > 0 && (
-            <Badge variant="outline" className="ml-2 text-xs py-0">
-              Stopped
-            </Badge>
+            <Badge variant="outline" className="ml-1 text-xs py-0">Stopped</Badge>
           )}
         </span>
-        {rows.length > 0 && (
-          <Button onClick={openSaveModal} disabled={selectedCount === 0} size="sm">
-            <Save className="h-4 w-4 mr-2" />
-            Save Selected ({selectedCount})
-          </Button>
-        )}
+
+        <div className="flex items-center gap-2">
+          {rows.length > PAGE_SIZE && (
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 px-2 text-xs"
+                disabled={tablePage === 1}
+                onClick={() => setTablePage((p) => Math.max(1, p - 1))}
+              >
+                ‹ Prev
+              </Button>
+              <span className="text-xs tabular-nums px-1">
+                {tablePage} / {totalTablePages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 px-2 text-xs"
+                disabled={tablePage === totalTablePages}
+                onClick={() => setTablePage((p) => Math.min(totalTablePages, p + 1))}
+              >
+                Next ›
+              </Button>
+            </div>
+          )}
+          {rows.length > 0 && (
+            <Button onClick={openSaveModal} disabled={selectedCount === 0} size="sm">
+              <Save className="h-4 w-4 mr-2" />
+              Save Selected ({selectedCount})
+            </Button>
+          )}
+        </div>
       </div>
 
       <SaveLeadsModal
