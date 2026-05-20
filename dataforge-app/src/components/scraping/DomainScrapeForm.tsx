@@ -230,7 +230,7 @@ export function DomainScrapeForm() {
               name="maxLeads"
               type="number"
               min={1}
-              max={200}
+              max={10000}
               defaultValue={50}
               className="w-20 text-center"
               aria-label="Max leads"

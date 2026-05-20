@@ -78,7 +78,7 @@ import { normalizeWebsite } from "@/lib/utils/normalize";
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
   const rawUrl       = searchParams.get("url") ?? "";
-  const maxLeads     = Math.min(parseInt(searchParams.get("maxLeads") ?? "50"), 200);
+  const maxLeads     = Math.min(parseInt(searchParams.get("maxLeads") ?? "50"), 10000);
   const timeLimitSec = parseInt(searchParams.get("timeLimit") ?? "120");
 
   const domain = normalizeWebsite(rawUrl);
