@@ -394,9 +394,90 @@ export function extractContacts(html: string, _url: string): Contact[] {
     contacts.push({ businessName, name, email: cardEmails[0], phone: cardPhones[0], address, city, state });
   });
 
-  // 4. Proximity scan: names near phone/email
+  // 4. DOM-proximity: find the container around each phone/email, then grab
+  //    the nearest heading/bold (name) and mailto/@ text (email) within it.
+  //    This handles list/column layouts where name sits in a <strong>/<h3>
+  //    above the phone and email is in an <a href="mailto:…"> nearby.
+  const CONTAINER_SEL = [
+    "li", "tr", "article",
+    "[class*='card']","[class*='member']","[class*='staff']","[class*='agent']",
+    "[class*='contact']","[class*='team']","[class*='person']","[class*='profile']",
+    "[class*='result']","[class*='listing']","[class*='broker']","[class*='advisor']",
+  ].join(",");
+  const NAME_TAGS = "h1,h2,h3,h4,h5,h6,strong,b";
+
+  function nearbyContainer($anchor: ReturnType<typeof $>) {
+    const named = $anchor.closest(CONTAINER_SEL);
+    if (named.length) return named;
+    // Fallback: walk up 4 levels to find a reasonable block
+    let cur = $anchor.parent();
+    for (let i = 0; i < 4 && cur.length && !cur.is("body,html"); i++) {
+      const tag = (cur[0] as { tagName?: string }).tagName?.toLowerCase() ?? "";
+      if (["li","tr","article","section","div","td"].includes(tag)) return cur;
+      cur = cur.parent();
+    }
+    return $anchor.parent();
+  }
+
+  function nameFromContainer($c: ReturnType<typeof $>): string | undefined {
+    let found: string | undefined;
+    $c.find(NAME_TAGS).each((_, el) => {
+      if (found) return false;
+      const t = $(el).text().trim();
+      if (t && t.length < 80 && !PHONE_RE.test(t) && !EMAIL_RE.test(t) && isLikelyPersonName(t)) {
+        found = t;
+      }
+    });
+    return found;
+  }
+
+  function emailFromContainer($c: ReturnType<typeof $>): string | undefined {
+    const mailtoEl = $c.find("a[href^='mailto:']").first();
+    if (mailtoEl.length) {
+      const raw = (mailtoEl.attr("href") ?? "").replace(/^mailto:/i, "").split("?")[0].trim().toLowerCase();
+      if (raw.includes("@") && !FAKE_EMAILS.some((f) => raw.includes(f))) return raw;
+    }
+    // Fall back to any @ text in the container
+    const m = $c.text().match(new RegExp(EMAIL_RE.source));
+    if (m) return m.find((e) => !FAKE_EMAILS.some((f) => e.toLowerCase().includes(f)));
+    return undefined;
+  }
+
+  const seenDomPhones = new Set<string>();
+
+  // a) tel: links — most reliable anchor point
+  $("a[href^='tel:']").each((_, el) => {
+    const $el = $(el);
+    const raw = ($el.attr("href") ?? "").replace(/^tel:/i, "").trim();
+    const digits = raw.replace(/\D/g, "");
+    if (digits.length < 7 || seenDomPhones.has(digits)) return;
+    seenDomPhones.add(digits);
+    const $c = nearbyContainer($el);
+    const name  = nameFromContainer($c);
+    const email = emailFromContainer($c);
+    if (name || email) contacts.push({ phone: raw, name, email });
+  });
+
+  // b) Inline text elements that contain a phone pattern
+  $("p,li,td,span,div,h1,h2,h3,h4,h5,h6,strong,b").each((_, el) => {
+    const $el = $(el);
+    const own = $el.clone().children().remove().end().text().trim();
+    const m = own.match(new RegExp(PHONE_RE.source));
+    if (!m) return;
+    const digits = m[0].replace(/\D/g, "");
+    if (digits.length < 7 || seenDomPhones.has(digits)) return;
+    seenDomPhones.add(digits);
+    const $c = nearbyContainer($el);
+    const name  = nameFromContainer($c);
+    const email = emailFromContainer($c);
+    if (name || email) contacts.push({ phone: m[0], name, email });
+  });
+
+  // c) Text-based fallback for names near phones/emails not caught by DOM scan
   const NAME_PAT = /\b([A-Z][a-z''\-]{1,19}(?:\s[A-Z][a-z''\-]{1,19}){1,3})\b/g;
   for (const pm of bodyText.matchAll(new RegExp(PHONE_RE.source, "g"))) {
+    const digits = pm[0].replace(/\D/g, "");
+    if (seenDomPhones.has(digits)) continue; // already handled by DOM scan
     const idx     = pm.index ?? 0;
     const snippet = bodyText.slice(Math.max(0, idx - 120), idx + 40);
     for (const c of snippet.match(NAME_PAT) ?? []) {
