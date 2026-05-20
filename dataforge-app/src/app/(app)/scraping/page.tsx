@@ -1,11 +1,15 @@
-import { Suspense } from "react";
+import dynamic from "next/dynamic";
 import { getJobs } from "@/lib/scraping/jobs/service";
 import { getKeywords } from "@/lib/keywords/service";
-import { ScrapingPageTabs } from "@/components/scraping/ScrapingPageTabs";
 import { Separator } from "@/components/ui/separator";
 import { withDbRetry } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
+
+const ScrapingPageTabs = dynamic(
+  () => import("@/components/scraping/ScrapingPageTabs").then((m) => ({ default: m.ScrapingPageTabs })),
+  { ssr: false }
+);
 
 const SCRAPING_ROLES = ["boss", "admin", "lead_specialist"];
 const KEYWORD_ROLES = ["boss", "admin"];
@@ -33,13 +37,11 @@ export default async function ScrapingPage() {
 
       <Separator />
 
-      <Suspense fallback={null}>
-        <ScrapingPageTabs
-          canUseKeywords={canUseKeywords}
-          keywords={keywords as never[]}
-          jobs={jobs}
-        />
-      </Suspense>
+      <ScrapingPageTabs
+        canUseKeywords={canUseKeywords}
+        keywords={keywords as never[]}
+        jobs={jobs}
+      />
     </div>
   );
 }
