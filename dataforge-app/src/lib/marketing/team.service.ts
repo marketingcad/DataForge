@@ -13,27 +13,40 @@ export type LeaderboardMetric = "calls" | "leads" | "appts_set" | "deals_won" | 
 /** Roles that participate in the marketing leaderboard / KPIs */
 const MARKETING_ROLES = { in: [UserRole.sales_rep, UserRole.team_lead] };
 
+// Philippine Standard Time is UTC+8. The Vercel server runs in UTC, so all
+// "midnight" boundaries must be shifted by -8 h to align with PHT calendar days.
+const PHT_OFFSET_MS = 8 * 60 * 60 * 1000;
+
+/** Returns the UTC instant that corresponds to midnight PHT on the same PHT calendar day as `d`. */
+function midnightPHT(d: Date): Date {
+  const inPHT = new Date(d.getTime() + PHT_OFFSET_MS);
+  inPHT.setUTCHours(0, 0, 0, 0);
+  return new Date(inPHT.getTime() - PHT_OFFSET_MS);
+}
+
 function startOfCalendarWeek(now: Date): Date {
-  const d = new Date(now);
-  const day = d.getDay(); // 0=Sun, 1=Mon, …
+  const inPHT = new Date(now.getTime() + PHT_OFFSET_MS);
+  const day = inPHT.getUTCDay(); // 0=Sun, 1=Mon, …
   const daysFromMonday = day === 0 ? 6 : day - 1;
-  d.setDate(d.getDate() - daysFromMonday);
-  d.setHours(0, 0, 0, 0);
-  return d;
+  inPHT.setUTCDate(inPHT.getUTCDate() - daysFromMonday);
+  inPHT.setUTCHours(0, 0, 0, 0);
+  return new Date(inPHT.getTime() - PHT_OFFSET_MS);
 }
 
 function periodRange(period: LeaderboardPeriod): { gte?: Date; lte?: Date } {
   const now = new Date();
   if (period === "yesterday") {
-    const start = new Date(now); start.setDate(now.getDate() - 1); start.setHours(0, 0, 0, 0);
-    const end   = new Date(now); end.setDate(now.getDate() - 1);   end.setHours(23, 59, 59, 999);
+    const start = midnightPHT(new Date(now.getTime() - 86_400_000));
+    const end   = new Date(midnightPHT(now).getTime() - 1);
     return { gte: start, lte: end };
   }
   if (period === "week") {
     return { gte: startOfCalendarWeek(now) };
   }
   if (period === "month") {
-    return { gte: new Date(now.getFullYear(), now.getMonth(), 1) };
+    const inPHT = new Date(now.getTime() + PHT_OFFSET_MS);
+    const monthStart = new Date(Date.UTC(inPHT.getUTCFullYear(), inPHT.getUTCMonth(), 1));
+    return { gte: new Date(monthStart.getTime() - PHT_OFFSET_MS) };
   }
   return {}; // all_time — no date filter
 }
@@ -41,11 +54,12 @@ function periodRange(period: LeaderboardPeriod): { gte?: Date; lte?: Date } {
 /** Team KPI summary: agent count + call totals for today / yesterday / week / month */
 export const getTeamSummary = unstable_cache(async function getTeamSummary() {
   const now = new Date();
-  const startOfDay   = new Date(now); startOfDay.setHours(0, 0, 0, 0);
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const startOfWeek  = startOfCalendarWeek(now);
-  const yesterdayStart = new Date(now); yesterdayStart.setDate(now.getDate() - 1); yesterdayStart.setHours(0, 0, 0, 0);
-  const yesterdayEnd   = new Date(now); yesterdayEnd.setDate(now.getDate() - 1);   yesterdayEnd.setHours(23, 59, 59, 999);
+  const startOfDay     = midnightPHT(now);
+  const inPHT          = new Date(now.getTime() + PHT_OFFSET_MS);
+  const startOfMonth   = new Date(new Date(Date.UTC(inPHT.getUTCFullYear(), inPHT.getUTCMonth(), 1)).getTime() - PHT_OFFSET_MS);
+  const startOfWeek    = startOfCalendarWeek(now);
+  const yesterdayStart = midnightPHT(new Date(now.getTime() - 86_400_000));
+  const yesterdayEnd   = new Date(startOfDay.getTime() - 1);
 
   // Single raw query for all call counts — avoids firing 5 parallel callLog queries
   // that previously exhausted the connection pool and caused ETIMEDOUT.
@@ -166,11 +180,11 @@ export async function getTeamCallsPerDay(days = 30) {
 
   const map: Record<string, number> = {};
   for (let i = days - 1; i >= 0; i--) {
-    const d = new Date(); d.setDate(d.getDate() - i); d.setHours(0, 0, 0, 0);
-    map[d.toISOString().slice(0, 10)] = 0;
+    const d = midnightPHT(new Date(Date.now() - i * 86_400_000));
+    map[new Date(d.getTime() + PHT_OFFSET_MS).toISOString().slice(0, 10)] = 0;
   }
   for (const log of logs) {
-    const key = log.calledAt.toISOString().slice(0, 10);
+    const key = new Date(log.calledAt.getTime() + PHT_OFFSET_MS).toISOString().slice(0, 10);
     if (key in map) map[key]++;
   }
 
@@ -187,28 +201,25 @@ export async function getRepDailyCallsForChart(
 ): Promise<{ label: string; [repId: string]: number | string }[]> {
   if (repIds.length === 0) return [];
 
-  const since = new Date();
-  since.setDate(since.getDate() - (days - 1));
-  since.setHours(0, 0, 0, 0);
+  const since = midnightPHT(new Date(Date.now() - (days - 1) * 86_400_000));
 
   const logs = await prisma.callLog.findMany({
     where: { agentId: { in: repIds }, calledAt: { gte: since } },
     select: { agentId: true, calledAt: true },
   });
 
-  // Build date buckets
+  // Build date buckets in PHT
   const dates: string[] = [];
   for (let i = days - 1; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    dates.push(d.toISOString().slice(0, 10));
+    const d = midnightPHT(new Date(Date.now() - i * 86_400_000));
+    dates.push(new Date(d.getTime() + PHT_OFFSET_MS).toISOString().slice(0, 10));
   }
 
   // Count per (date, repId)
   const counts: Record<string, Record<string, number>> = {};
   for (const date of dates) counts[date] = Object.fromEntries(repIds.map((id) => [id, 0]));
   for (const log of logs) {
-    const key = new Date(log.calledAt).toISOString().slice(0, 10);
+    const key = new Date(log.calledAt.getTime() + PHT_OFFSET_MS).toISOString().slice(0, 10);
     if (counts[key]) counts[key][log.agentId] = (counts[key][log.agentId] ?? 0) + 1;
   }
 
@@ -227,9 +238,7 @@ export async function getRepDailyLeadsForChart(
 ): Promise<{ label: string; [repId: string]: number | string }[]> {
   if (repIds.length === 0) return [];
 
-  const since = new Date();
-  since.setDate(since.getDate() - (days - 1));
-  since.setHours(0, 0, 0, 0);
+  const since = midnightPHT(new Date(Date.now() - (days - 1) * 86_400_000));
 
   const leads = await prisma.lead.findMany({
     where: { savedById: { in: repIds }, dateCollected: { gte: since } },
@@ -238,16 +247,15 @@ export async function getRepDailyLeadsForChart(
 
   const dates: string[] = [];
   for (let i = days - 1; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    dates.push(d.toISOString().slice(0, 10));
+    const d = midnightPHT(new Date(Date.now() - i * 86_400_000));
+    dates.push(new Date(d.getTime() + PHT_OFFSET_MS).toISOString().slice(0, 10));
   }
 
   const counts: Record<string, Record<string, number>> = {};
   for (const date of dates) counts[date] = Object.fromEntries(repIds.map((id) => [id, 0]));
   for (const lead of leads) {
     if (!lead.savedById) continue;
-    const key = new Date(lead.dateCollected).toISOString().slice(0, 10);
+    const key = new Date(lead.dateCollected.getTime() + PHT_OFFSET_MS).toISOString().slice(0, 10);
     if (counts[key]) counts[key][lead.savedById] = (counts[key][lead.savedById] ?? 0) + 1;
   }
 
@@ -266,9 +274,7 @@ export async function getRepDailyApptsForChart(
 ): Promise<{ label: string; [repId: string]: number | string }[]> {
   if (repIds.length === 0) return [];
 
-  const since = new Date();
-  since.setDate(since.getDate() - (days - 1));
-  since.setHours(0, 0, 0, 0);
+  const since = midnightPHT(new Date(Date.now() - (days - 1) * 86_400_000));
 
   const appts = await prisma.bookedAppointment.findMany({
     where: { agentId: { in: repIds }, createdAt: { gte: since } },
@@ -277,15 +283,14 @@ export async function getRepDailyApptsForChart(
 
   const dates: string[] = [];
   for (let i = days - 1; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    dates.push(d.toISOString().slice(0, 10));
+    const d = midnightPHT(new Date(Date.now() - i * 86_400_000));
+    dates.push(new Date(d.getTime() + PHT_OFFSET_MS).toISOString().slice(0, 10));
   }
 
   const counts: Record<string, Record<string, number>> = {};
   for (const date of dates) counts[date] = Object.fromEntries(repIds.map((id) => [id, 0]));
   for (const appt of appts) {
-    const key = new Date(appt.createdAt).toISOString().slice(0, 10);
+    const key = new Date(appt.createdAt.getTime() + PHT_OFFSET_MS).toISOString().slice(0, 10);
     if (counts[key]) counts[key][appt.agentId] = (counts[key][appt.agentId] ?? 0) + 1;
   }
 

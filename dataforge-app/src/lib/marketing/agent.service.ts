@@ -5,12 +5,36 @@
  */
 import { prisma } from "@/lib/prisma";
 
+// Philippine Standard Time is UTC+8; server runs in UTC.
+const PHT_OFFSET_MS = 8 * 60 * 60 * 1000;
+
+function midnightPHT(d: Date): Date {
+  const inPHT = new Date(d.getTime() + PHT_OFFSET_MS);
+  inPHT.setUTCHours(0, 0, 0, 0);
+  return new Date(inPHT.getTime() - PHT_OFFSET_MS);
+}
+
+function startOfCalendarWeekPHT(now: Date): Date {
+  const inPHT = new Date(now.getTime() + PHT_OFFSET_MS);
+  const day = inPHT.getUTCDay();
+  const daysFromMonday = day === 0 ? 6 : day - 1;
+  inPHT.setUTCDate(inPHT.getUTCDate() - daysFromMonday);
+  inPHT.setUTCHours(0, 0, 0, 0);
+  return new Date(inPHT.getTime() - PHT_OFFSET_MS);
+}
+
+function startOfMonthPHT(now: Date): Date {
+  const inPHT = new Date(now.getTime() + PHT_OFFSET_MS);
+  const monthStart = new Date(Date.UTC(inPHT.getUTCFullYear(), inPHT.getUTCMonth(), 1));
+  return new Date(monthStart.getTime() - PHT_OFFSET_MS);
+}
+
 /** Personal call stats + earned badges + active task progress */
 export async function getAgentStats(agentId: string) {
   const now          = new Date();
-  const startOfDay   = new Date(now); startOfDay.setHours(0, 0, 0, 0);
-  const startOfWeek  = new Date(now); startOfWeek.setDate(now.getDate() - now.getDay()); startOfWeek.setHours(0, 0, 0, 0);
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const startOfDay   = midnightPHT(now);
+  const startOfWeek  = startOfCalendarWeekPHT(now);
+  const startOfMonth = startOfMonthPHT(now);
   const startOf30    = new Date(now); startOf30.setDate(now.getDate() - 30);
 
   const [total, today, thisWeek, thisMonth, last30, badges, activeTasks, appointmentsSet, dealsWon] = await Promise.all([
@@ -135,11 +159,11 @@ export async function getAgentCallsPerDay(agentId: string, days = 30) {
 
   const map: Record<string, number> = {};
   for (let i = days - 1; i >= 0; i--) {
-    const d = new Date(); d.setDate(d.getDate() - i); d.setHours(0, 0, 0, 0);
-    map[d.toISOString().slice(0, 10)] = 0;
+    const d = midnightPHT(new Date(Date.now() - i * 86_400_000));
+    map[new Date(d.getTime() + PHT_OFFSET_MS).toISOString().slice(0, 10)] = 0;
   }
   for (const log of logs) {
-    const key = log.calledAt.toISOString().slice(0, 10);
+    const key = new Date(log.calledAt.getTime() + PHT_OFFSET_MS).toISOString().slice(0, 10);
     if (key in map) map[key]++;
   }
 
@@ -151,15 +175,15 @@ export async function getAgentCallsPerDay(agentId: string, days = 30) {
  * completed tasks, 30-day call history chart data.
  */
 export async function getAgentProfile(userId: string) {
-  const now           = new Date();
-  const startOfMonth  = new Date(now.getFullYear(), now.getMonth(), 1);
-  const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const endOfLastMonth   = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
-  const dayOfWeek     = now.getDay();
-  const daysFromMon   = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-  const startOfWeek   = new Date(now); startOfWeek.setDate(now.getDate() - daysFromMon); startOfWeek.setHours(0, 0, 0, 0);
-  const startOfLastWeek = new Date(startOfWeek); startOfLastWeek.setDate(startOfWeek.getDate() - 7);
-  const thirtyAgo     = new Date(now); thirtyAgo.setDate(now.getDate() - 29); thirtyAgo.setHours(0, 0, 0, 0);
+  const now              = new Date();
+  const startOfMonth     = startOfMonthPHT(now);
+  const inPHT            = new Date(now.getTime() + PHT_OFFSET_MS);
+  const prevMonthStart   = new Date(Date.UTC(inPHT.getUTCFullYear(), inPHT.getUTCMonth() - 1, 1));
+  const startOfLastMonth = new Date(prevMonthStart.getTime() - PHT_OFFSET_MS);
+  const endOfLastMonth   = new Date(startOfMonth.getTime() - 1);
+  const startOfWeek      = startOfCalendarWeekPHT(now);
+  const startOfLastWeek  = new Date(startOfWeek.getTime() - 7 * 86_400_000);
+  const thirtyAgo        = midnightPHT(new Date(now.getTime() - 29 * 86_400_000));
 
   const [user, totalCalls, callsThisMonth, callsLastMonth, callsThisWeek, callsLastWeek, allBadges, completedTasks, repCommissions] = await Promise.all([
     prisma.user.findUniqueOrThrow({
@@ -206,11 +230,11 @@ export async function getAgentProfile(userId: string) {
   });
   const buckets: Record<string, number> = {};
   for (let i = 29; i >= 0; i--) {
-    const d = new Date(); d.setDate(d.getDate() - i);
-    buckets[d.toISOString().slice(0, 10)] = 0;
+    const d = midnightPHT(new Date(Date.now() - i * 86_400_000));
+    buckets[new Date(d.getTime() + PHT_OFFSET_MS).toISOString().slice(0, 10)] = 0;
   }
   for (const log of recentLogs) {
-    const key = log.calledAt.toISOString().slice(0, 10);
+    const key = new Date(log.calledAt.getTime() + PHT_OFFSET_MS).toISOString().slice(0, 10);
     if (key in buckets) buckets[key]++;
   }
   const callHistory = Object.entries(buckets).map(([date, calls]) => ({
