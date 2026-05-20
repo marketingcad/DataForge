@@ -37,17 +37,18 @@ function parsePayload(b: Record<string, unknown>) {
   const direction: "inbound" | "outbound" =
     directionRaw.toLowerCase().includes("in") ? "inbound" : "outbound";
 
-  const fromPhone = str(b.call_from) ?? str(b.from) ?? str(b.fromPhone) ?? str(b.from_phone);
-  const toPhone   = str(b.call_to)   ?? str(b.to)   ?? str(b.toPhone)   ?? str(b.to_phone);
+  // GHL sends camelCase variants: callFrom, callTo; also check snake_case and prefixed forms
+  const fromPhone = str(b.call_from) ?? str(b.callFrom) ?? str(b.from) ?? str(b.fromPhone) ?? str(b.from_phone);
+  const toPhone   = str(b.call_to)   ?? str(b.callTo)   ?? str(b.to)   ?? str(b.toPhone)   ?? str(b.to_phone);
   // For outbound the contact is the "to" number; for inbound it's the "from".
   const contactPhone = direction === "outbound" ? toPhone : fromPhone;
 
   const startRaw =
-    b.call_start_time ?? b.startTime ?? b.start_time ?? b.calledAt ?? b.called_at ?? b.createdAt ?? b.created_at;
+    b.call_start_time ?? b.callStartTime ?? b.startTime ?? b.start_time ?? b.calledAt ?? b.called_at ?? b.createdAt ?? b.created_at;
   const endRaw =
-    b.call_end_time ?? b.endTime ?? b.end_time;
+    b.call_end_time ?? b.callEndTime ?? b.endTime ?? b.end_time;
 
-  let durationSecs = num(b.call_duration ?? b.duration ?? b.durationSecs ?? b.duration_secs ?? b.durationSeconds);
+  let durationSecs = num(b.call_duration ?? b.callDuration ?? b.duration ?? b.durationSecs ?? b.duration_secs ?? b.durationSeconds);
 
   // Derive duration from timestamps when the field is absent / zero
   if (!durationSecs && startRaw && endRaw) {
