@@ -655,8 +655,12 @@ function IntegrationReferenceCard({ secret }: { secret: string | null }) {
   const [origin, setOrigin] = useState("");
   useEffect(() => { setOrigin(window.location.origin); }, []);
 
-  const callWebhookUrl = origin
+  const inboundCallUrl = origin
     ? (secret ? `${origin}/api/ghl/inbound-call?secret=${secret}` : `${origin}/api/ghl/inbound-call`)
+    : "Loading…";
+
+  const outboundCallUrl = origin
+    ? (secret ? `${origin}/api/ghl/outbound-call?secret=${secret}` : `${origin}/api/ghl/outbound-call`)
     : "Loading…";
 
   return (
@@ -675,21 +679,28 @@ function IntegrationReferenceCard({ secret }: { secret: string | null }) {
         </div>
 
         <EndpointRow
-          label="Call Logged (GHL → DataForge)"
-          description="Paste in GHL: Automation → Call Status trigger → Send to Webhook. Logs each call to the Reports dashboard instantly."
-          url={callWebhookUrl}
+          label="Inbound Call (GHL → DataForge)"
+          description="For inbound calls. Paste in GHL: Automation → Call Details trigger (Direction: Incoming) → Send to Webhook."
+          url={inboundCallUrl}
+        />
+
+        <EndpointRow
+          label="Outbound Call (GHL → DataForge)"
+          description="For outbound calls. Paste in GHL: Automation → Call Details trigger (Direction: Outgoing) → Send to Webhook. Include call_user_id, call_user_name, call_from, call_to, call_start_time, call_duration, call_status in custom data."
+          url={outboundCallUrl}
         />
 
         <Separator />
 
         {/* ── Setup notes ── */}
         <div className="rounded-md border border-dashed bg-muted/30 p-3 space-y-1.5 text-xs text-muted-foreground">
-          <p className="font-medium text-foreground">How to set up the GHL Call Webhook</p>
+          <p className="font-medium text-foreground">How to set up the GHL Call Webhooks</p>
           <ol className="list-decimal list-inside space-y-1">
-            <li>In GHL → <strong>Automations</strong>, create a new workflow.</li>
-            <li>Set the trigger to <strong>Call Status</strong> (choose inbound, outbound, or both).</li>
-            <li>Add an action: <strong>Send to Webhook</strong> → paste the URL above.</li>
-            <li>Make sure each agent's <strong>GHL User ID</strong> is set in DataForge Admin → Users.</li>
+            <li>In GHL → <strong>Automations</strong>, create a workflow for outbound calls.</li>
+            <li>Set the trigger to <strong>Call Details</strong> → filter Call Direction = <strong>Outgoing</strong>.</li>
+            <li>Add action: <strong>Send to Webhook</strong> → paste the <strong>Outbound Call</strong> URL above.</li>
+            <li>Add custom data fields: <code>call_user_id</code>, <code>call_user_name</code>, <code>call_from</code>, <code>call_to</code>, <code>call_start_time</code>, <code>call_duration</code>, <code>call_status</code>.</li>
+            <li>Make sure each agent&apos;s <strong>GHL User ID</strong> is set in DataForge Admin → Users.</li>
             <li>Publish the workflow. Calls will appear in reports within seconds.</li>
           </ol>
         </div>
