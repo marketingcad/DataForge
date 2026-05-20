@@ -84,7 +84,7 @@ export function DomainScrapeForm() {
   // Dedup keys tracked across all pages in a single crawl session
   const seenKeysRef = useRef(new Set<string>());
 
-  function crawlUrl(url: string, maxLeads: string, timeLimit: string, pageNum?: number): Promise<{ notFound: boolean }> {
+  function crawlUrl(url: string, maxLeads: string, timeLimit: string, pageNum?: number): Promise<{ notFound: boolean; newLeads: number }> {
     // Set page badge synchronously before EventSource fires any events
     setCurrentPage(pageNum ?? null);
     setStatusMsg(pageNum != null ? `Page ${pageNum}: connecting…` : "Connecting…");
@@ -94,6 +94,7 @@ export function DomainScrapeForm() {
       const es = new EventSource(`/api/scraping/stream?${params}`);
       sourceRef.current = es;
       let notFound = false;
+      let newLeads = 0;
 
       es.addEventListener("status", (e) => {
         const msg = JSON.parse(e.data).message as string;
@@ -101,7 +102,6 @@ export function DomainScrapeForm() {
       });
       es.addEventListener("lead", (e) => {
         const lead = JSON.parse(e.data) as LeadRow;
-        // Dedup: skip if phone, email, or contactPerson already seen
         const phone = lead.phone?.replace(/\D/g, "") ?? "";
         const email = lead.email?.toLowerCase().trim() ?? "";
         const name  = lead.contactPerson?.toLowerCase().trim() ?? "";
@@ -110,17 +110,18 @@ export function DomainScrapeForm() {
         if (phone) seenKeysRef.current.add(phone);
         if (email) seenKeysRef.current.add(email);
         if (name)  seenKeysRef.current.add(name);
+        newLeads++;
         const id = ++rowCounter.current;
         setRows((prev) => [...prev, { ...lead, id, selected: true }]);
       });
       es.addEventListener("notfound", () => { notFound = true; });
-      es.addEventListener("done", () => { es.close(); sourceRef.current = null; resolve({ notFound }); });
+      es.addEventListener("done", () => { es.close(); sourceRef.current = null; resolve({ notFound, newLeads }); });
       es.addEventListener("error", (e: Event) => {
         const msgEvent = e as MessageEvent;
         if (msgEvent.data) setErrorMsg((JSON.parse(msgEvent.data) as { message: string }).message);
         es.close();
         sourceRef.current = null;
-        resolve({ notFound });
+        resolve({ notFound, newLeads });
       });
     });
   }
@@ -154,9 +155,9 @@ export function DomainScrapeForm() {
       let page = detected.value;
       while (!abortRef.current && page < detected.value + 99) {
         const pageUrl = buildPageUrl(url, detected, page);
-        const { notFound } = await crawlUrl(pageUrl, maxLeads, timeLimit, page);
+        const { notFound, newLeads } = await crawlUrl(pageUrl, maxLeads, timeLimit, page);
         totalPagesVisited++;
-        if (notFound) break;
+        if (notFound || newLeads === 0) break;
         page++;
       }
       setCurrentPage(null);
