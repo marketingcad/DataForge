@@ -241,7 +241,7 @@ export function extractLinks(html: string, origin: string, domain: string): stri
   const links: string[] = [];
   $("a[href]").each((_, el) => {
     const href = $(el).attr("href") ?? "";
-    if (SKIP_HREF.test(href) || SKIP_EXT.test(href) || PAGINATION_RE.test(href)) return;
+    if (SKIP_HREF.test(href) || SKIP_EXT.test(href)) return;
     try {
       const u = new URL(href, origin);
       u.hash = "";
