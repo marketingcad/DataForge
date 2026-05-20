@@ -239,8 +239,8 @@ export async function fetchPage(
 export function extractLinks(html: string, origin: string, domain: string): string[] {
   const $ = cheerio.load(html);
   const links: string[] = [];
-  $("a[href]").each((_, el) => {
-    const href = $(el).attr("href") ?? "";
+
+  function collectHref(href: string) {
     if (SKIP_HREF.test(href) || SKIP_EXT.test(href)) return;
     try {
       const u = new URL(href, origin);
@@ -248,7 +248,27 @@ export function extractLinks(html: string, origin: string, domain: string): stri
       const d = u.hostname.replace(/^www\./, "");
       if (d === domain) links.push(u.toString().replace(/\/$/, ""));
     } catch { /* skip */ }
+  }
+
+  $("a[href]").each((_, el) => collectHref($(el).attr("href") ?? ""));
+
+  // Also collect pagination links identified by element hints —
+  // class/id/aria/rel/text containing next/pagination/page keywords.
+  const PAGINATION_HINT = /\bnext\b|pag(e|ination)|next[-_]page|page[-_]next/i;
+  $("a[href], button[onclick]").each((_, el) => {
+    const $el    = $(el);
+    const cls    = $el.attr("class")      ?? "";
+    const id     = $el.attr("id")         ?? "";
+    const aria   = $el.attr("aria-label") ?? "";
+    const rel    = $el.attr("rel")        ?? "";
+    const text   = $el.text().trim();
+    const isNext = [cls, id, aria, rel, text].some(v => PAGINATION_HINT.test(v))
+                || /^(next|›|»|>)$/i.test(text.replace(/\s+/g, " ").trim());
+    if (!isNext) return;
+    const href = $el.attr("href") ?? "";
+    if (href) collectHref(href);
   });
+
   return [...new Set(links)];
 }
 
