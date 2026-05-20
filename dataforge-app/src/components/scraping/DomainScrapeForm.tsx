@@ -30,6 +30,37 @@ interface TableRow extends LeadRow {
 
 type CrawlStatus = "idle" | "crawling" | "done" | "stopped";
 
+// ─── Pagination URL helpers ───────────────────────────────────────────────────
+
+type PageParam = { key: string; value: number; isPath: boolean };
+
+function detectPageParam(url: string): PageParam | null {
+  try {
+    const u = new URL(url.startsWith("http") ? url : `https://${url}`);
+    for (const key of ["page", "p", "pg", "paged", "pagenum", "page_num", "pageNo", "pg_num"]) {
+      const val = u.searchParams.get(key);
+      if (val !== null && /^\d+$/.test(val)) return { key, value: parseInt(val, 10), isPath: false };
+    }
+    const m = u.pathname.match(/\/pages?\/(\d+)\/?$/i) ?? u.pathname.match(/\/(\d+)\/?$/);
+    if (m) return { key: "path", value: parseInt(m[1], 10), isPath: true };
+  } catch { /* ignore */ }
+  return null;
+}
+
+function buildPageUrl(baseUrl: string, p: PageParam, page: number): string {
+  const u = new URL(baseUrl.startsWith("http") ? baseUrl : `https://${baseUrl}`);
+  if (!p.isPath) {
+    u.searchParams.set(p.key, String(page));
+  } else {
+    u.pathname = u.pathname
+      .replace(/\/pages?\/\d+\/?$/i, `/page/${page}`)
+      .replace(/\/\d+\/?$/, `/${page}`);
+  }
+  return u.toString();
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
 export function DomainScrapeForm() {
   const [rows, setRows] = useState<TableRow[]>([]);
   const [status, setStatus] = useState<CrawlStatus>("idle");
@@ -38,8 +69,10 @@ export function DomainScrapeForm() {
   const [summary, setSummary] = useState<{ leadsFound: number; pagesVisited: number; elapsed: number } | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [urlsValue, setUrlsValue] = useState("");
+  const [withPagination, setWithPagination] = useState(false);
   const [currentUrlIndex, setCurrentUrlIndex] = useState(0);
   const [totalUrls, setTotalUrls] = useState(0);
+  const [autoPaginationPage, setAutoPaginationPage] = useState<number | null>(null);
   const sourceRef = useRef<EventSource | null>(null);
   const rowCounter = useRef(0);
   const abortRef = useRef(false);
@@ -51,11 +84,12 @@ export function DomainScrapeForm() {
     setStatus((s) => s === "crawling" ? "stopped" : s);
   }, []);
 
-  function crawlUrl(url: string, maxLeads: string, timeLimit: string): Promise<void> {
+  function crawlUrl(url: string, maxLeads: string, timeLimit: string): Promise<{ notFound: boolean }> {
     return new Promise((resolve) => {
       const params = new URLSearchParams({ url, maxLeads, timeLimit });
       const es = new EventSource(`/api/scraping/stream?${params}`);
       sourceRef.current = es;
+      let notFound = false;
 
       es.addEventListener("status", (e) => {
         setStatusMsg(JSON.parse(e.data).message);
@@ -65,10 +99,11 @@ export function DomainScrapeForm() {
         const id = ++rowCounter.current;
         setRows((prev) => [...prev, { ...lead, id, selected: true }]);
       });
+      es.addEventListener("notfound", () => { notFound = true; });
       es.addEventListener("done", () => {
         es.close();
         sourceRef.current = null;
-        resolve();
+        resolve({ notFound });
       });
       es.addEventListener("error", (e: Event) => {
         const msgEvent = e as MessageEvent;
@@ -78,7 +113,7 @@ export function DomainScrapeForm() {
         }
         es.close();
         sourceRef.current = null;
-        resolve();
+        resolve({ notFound });
       });
     });
   }
@@ -101,22 +136,51 @@ export function DomainScrapeForm() {
     setStatusMsg("Connecting…");
     rowCounter.current = 0;
     abortRef.current = false;
-    setTotalUrls(urls.length);
+    setAutoPaginationPage(null);
 
     const startTime = Date.now();
-    let totalPages = 0;
+    let totalPagesVisited = 0;
 
-    for (let i = 0; i < urls.length; i++) {
-      if (abortRef.current) break;
-      setCurrentUrlIndex(i + 1);
-      setStatusMsg(`[${i + 1}/${urls.length}] Crawling ${urls[i]}…`);
-      await crawlUrl(urls[i], maxLeads, timeLimit);
-      totalPages++;
+    if (withPagination && urls.length === 1) {
+      // ── Auto-pagination mode ──────────────────────────────────────────────
+      const baseUrl = urls[0];
+      const detected = detectPageParam(baseUrl);
+      if (!detected) {
+        // No page param found — just crawl once as normal
+        setTotalUrls(1);
+        setCurrentUrlIndex(1);
+        await crawlUrl(baseUrl, maxLeads, timeLimit);
+        totalPagesVisited = 1;
+      } else {
+        let page = detected.value;
+        const MAX_AUTO_PAGES = 99;
+        setTotalUrls(0); // unknown until we stop
+        while (!abortRef.current && page < detected.value + MAX_AUTO_PAGES) {
+          const pageUrl = buildPageUrl(baseUrl, detected, page);
+          setAutoPaginationPage(page);
+          setStatusMsg(`Page ${page}: connecting…`);
+          const { notFound } = await crawlUrl(pageUrl, maxLeads, timeLimit);
+          totalPagesVisited++;
+          if (notFound) break;
+          page++;
+        }
+        setAutoPaginationPage(null);
+      }
+    } else {
+      // ── Multi-URL sequential mode ─────────────────────────────────────────
+      setTotalUrls(urls.length);
+      for (let i = 0; i < urls.length; i++) {
+        if (abortRef.current) break;
+        setCurrentUrlIndex(i + 1);
+        setStatusMsg(`[${i + 1}/${urls.length}] Crawling ${urls[i]}…`);
+        await crawlUrl(urls[i], maxLeads, timeLimit);
+        totalPagesVisited++;
+      }
     }
 
     setSummary({
       leadsFound: rowCounter.current,
-      pagesVisited: totalPages,
+      pagesVisited: totalPagesVisited,
       elapsed: Math.round((Date.now() - startTime) / 1000),
     });
     setStatus("done");
@@ -176,14 +240,25 @@ export function DomainScrapeForm() {
               name="urls"
               value={urlsValue}
               onChange={e => setUrlsValue(e.target.value)}
-              placeholder={"https://example.com/directory\nhttps://example.com/directory?page=2\nhttps://example.com/directory?page=3"}
+              placeholder={
+                withPagination
+                  ? "https://example.com/agents?page=1\n(DataForge will auto-increment the page number)"
+                  : "https://example.com/directory\nhttps://example.com/directory?page=2\nhttps://example.com/directory?page=3"
+              }
               required
-              rows={3}
+              rows={withPagination ? 2 : 3}
               className="w-full rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm resize-y focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring placeholder:text-muted-foreground"
             />
-            <p className="text-[11px] text-muted-foreground">
-              One URL per line — paste multiple pages to stack leads from all of them
-            </p>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="withPagination"
+                checked={withPagination}
+                onCheckedChange={(v) => setWithPagination(!!v)}
+              />
+              <label htmlFor="withPagination" className="text-xs text-muted-foreground cursor-pointer select-none">
+                With pagination — auto-increment page number until 404
+              </label>
+            </div>
           </div>
           <div className="flex flex-col gap-2">
             <div className="flex items-center gap-1.5">
@@ -196,7 +271,7 @@ export function DomainScrapeForm() {
                 className="w-20 text-center"
                 aria-label="Max leads"
               />
-              <span className="text-xs text-muted-foreground whitespace-nowrap">leads / URL</span>
+              <span className="text-xs text-muted-foreground whitespace-nowrap">leads / page</span>
             </div>
             <div className="flex items-center gap-1.5">
               <Input
@@ -208,7 +283,7 @@ export function DomainScrapeForm() {
                 className="w-20 text-center"
                 aria-label="Time limit"
               />
-              <span className="text-xs text-muted-foreground whitespace-nowrap">sec / URL</span>
+              <span className="text-xs text-muted-foreground whitespace-nowrap">sec / page</span>
             </div>
           </div>
           <div className="flex flex-col gap-2 justify-start pt-0.5">
@@ -224,10 +299,22 @@ export function DomainScrapeForm() {
             )}
           </div>
         </div>
-        {isCrawling && statusMsg && (
-          <p className="text-xs text-muted-foreground animate-pulse truncate">
-            {totalUrls > 1 && `[${currentUrlIndex}/${totalUrls}] `}{statusMsg}
-          </p>
+        {isCrawling && (
+          <div className="flex items-center gap-2">
+            {autoPaginationPage !== null && (
+              <Badge variant="outline" className="text-xs py-0 font-mono animate-pulse">
+                Page {autoPaginationPage}
+              </Badge>
+            )}
+            {totalUrls > 1 && autoPaginationPage === null && (
+              <Badge variant="outline" className="text-xs py-0 font-mono animate-pulse">
+                URL {currentUrlIndex}/{totalUrls}
+              </Badge>
+            )}
+            {statusMsg && (
+              <span className="text-xs text-muted-foreground truncate">{statusMsg}</span>
+            )}
+          </div>
         )}
       </form>
 

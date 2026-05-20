@@ -186,6 +186,9 @@ export async function GET(req: NextRequest) {
                 : `Blocked: ${item.url}`;
               emit(isFirst ? "error" : "status", { message: msg });
               if (isFirst) break;
+            } else if (fetchResult?.reason === "not_found" && isFirst) {
+              emit("notfound", { url: item.url });
+              break;
             } else if (fetchResult?.reason === "rate_limited") {
               emit("status", { message: `Still rate-limited after ${MAX_RETRIES} retries — stopping.` });
               break;
