@@ -65,6 +65,7 @@ interface Settings {
   ghlSubAccountApiKey: string | null;
   ghlLocationId: string | null;
   commissionCurrency: string;
+  ghlInboundSecret: string | null;
 }
 
 type SettingKey = Parameters<typeof updateSettingFieldAction>[0];
@@ -340,13 +341,6 @@ export function SettingsClient({ settings }: { settings: Settings }) {
         </CardHeader>
         <CardContent className="space-y-4">
           <AutoInput
-            id="ghlWebhookUrl" name="ghlWebhookUrl" label="GHL Outbound Webhook URL"
-            defaultValue={settings.ghlWebhookUrl ?? ""}
-            placeholder="https://services.leadconnectorhq.com/hooks/..."
-            description="Leads will be pushed to this webhook when uploaded to GHL."
-          />
-          <Separator />
-          <AutoInput
             id="ghlApiKey" name="ghlApiKey" label="Agency API Key"
             defaultValue={settings.ghlApiKey ?? ""}
             placeholder="eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."
@@ -366,13 +360,147 @@ export function SettingsClient({ settings }: { settings: Settings }) {
             placeholder="abc123XYZ..."
             description="The sub-account Location ID from GHL. Found under Settings → Business Info in your GHL account."
           />
+          <Separator />
+          <GhlInboundWebhookSection defaultSecret={settings.ghlInboundSecret} />
         </CardContent>
       </Card>
+
+      {/* ── Integration Reference ── */}
+      <IntegrationReferenceCard secret={settings.ghlInboundSecret} />
 
       {/* ── Maintenance ── */}
       <GeocodeBackfillCard />
 
     </div>
+  );
+}
+
+// ─── GHL Inbound Webhook section ─────────────────────────────────────────────
+
+function GhlInboundWebhookSection({ defaultSecret }: { defaultSecret: string | null }) {
+  const { save, isPending, saved } = useSaveField("ghlInboundSecret");
+  const [secret, setSecret] = useState(defaultSecret ?? "");
+  const [origin, setOrigin] = useState("");
+
+  useEffect(() => { setOrigin(window.location.origin); }, []);
+
+  const webhookUrl = secret
+    ? `${origin}/api/ghl/inbound-call?secret=${secret}`
+    : `${origin}/api/ghl/inbound-call`;
+
+  function generate() {
+    const newSecret = Array.from(crypto.getRandomValues(new Uint8Array(24)))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+    setSecret(newSecret);
+    save(newSecret);
+  }
+
+  function copyUrl() {
+    navigator.clipboard.writeText(webhookUrl).then(() => toast.success("Webhook URL copied"));
+  }
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <p className="text-sm font-medium">Inbound Call Webhook</p>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          Paste this URL into your GHL automation (Call Status trigger → Send to Webhook). DataForge will log each call instantly without waiting for a sync.
+        </p>
+      </div>
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-2">
+          <Label htmlFor="ghlInboundSecret">Webhook Secret</Label>
+          <SaveIndicator isPending={isPending} saved={saved} />
+        </div>
+        <div className="flex gap-2">
+          <Input
+            id="ghlInboundSecret"
+            value={secret}
+            onChange={(e) => setSecret(e.target.value)}
+            onBlur={() => save(secret || null)}
+            placeholder="Leave blank to skip verification (not recommended)"
+            className="font-mono text-xs"
+          />
+          <Button type="button" variant="outline" size="icon" onClick={generate} disabled={isPending} title="Generate a new random secret" className="shrink-0">
+            <RefreshCw className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+      <div className="space-y-1.5">
+        <Label>Your Webhook URL</Label>
+        <div className="flex gap-2">
+          <div className="flex-1 rounded-md border bg-muted/50 px-3 py-2 font-mono text-xs text-muted-foreground break-all select-all">
+            {origin ? webhookUrl : "Loading…"}
+          </div>
+          <Button type="button" variant="outline" size="icon" onClick={copyUrl} title="Copy webhook URL" className="shrink-0">
+            <Copy className="h-4 w-4" />
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          In GHL: Automation → trigger "Call Status" → Add Action "Send to Webhook" → paste this URL.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ─── Integration reference card ──────────────────────────────────────────────
+
+function EndpointRow({ label, description, url }: { label: string; description: string; url: string }) {
+  function copy() {
+    navigator.clipboard.writeText(url).then(() => toast.success(`${label} URL copied`));
+  }
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <p className="text-sm font-medium">{label}</p>
+          <p className="text-xs text-muted-foreground">{description}</p>
+        </div>
+        <Button type="button" variant="outline" size="sm" onClick={copy} className="shrink-0 gap-1.5">
+          <Copy className="h-3.5 w-3.5" />
+          Copy URL
+        </Button>
+      </div>
+      <div className="rounded-md border bg-muted/50 px-3 py-2 font-mono text-xs text-muted-foreground break-all select-all">
+        {url}
+      </div>
+    </div>
+  );
+}
+
+function IntegrationReferenceCard({ secret }: { secret: string | null }) {
+  const [origin, setOrigin] = useState("");
+  useEffect(() => { setOrigin(window.location.origin); }, []);
+
+  const inboundCallUrl = origin
+    ? (secret ? `${origin}/api/ghl/inbound-call?secret=${secret}` : `${origin}/api/ghl/inbound-call`)
+    : "Loading…";
+
+  const outboundCallUrl = origin
+    ? (secret ? `${origin}/api/ghl/outbound-call?secret=${secret}` : `${origin}/api/ghl/outbound-call`)
+    : "Loading…";
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base">DataForge Integration Reference</CardTitle>
+        <CardDescription>Webhook endpoints to paste into GHL automations.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        <EndpointRow
+          label="Inbound Call (GHL → DataForge)"
+          description="Automation → Call Details trigger (Direction: Incoming) → Send to Webhook."
+          url={inboundCallUrl}
+        />
+        <EndpointRow
+          label="Outbound Call (GHL → DataForge)"
+          description="Automation → Call Details trigger (Direction: Outgoing) → Send to Webhook. Include call_user_id, call_user_name, call_from, call_to, call_start_time, call_duration, call_status in custom data."
+          url={outboundCallUrl}
+        />
+      </CardContent>
+    </Card>
   );
 }
 
