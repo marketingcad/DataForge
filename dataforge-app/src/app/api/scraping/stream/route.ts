@@ -4,7 +4,7 @@ import {
   FetchResult,
   sleep, jitter, digitsOnly, sse,
   RateLimiter,
-  createBrowserContext, fetchPage, extractLinks, parseLead,
+  createBrowserContext, fetchPage, extractLinks, extractPaginationLinks, parseLead,
 } from "@/lib/scraping/crawler/core";
 
 export const maxDuration = 60;
@@ -209,6 +209,14 @@ export async function GET(req: NextRequest) {
             emit("lead", { ...lead, index: leadsFound });
           }
 
+          // Pagination links → same depth, pushed to FRONT so they're visited next
+          const pageLinks = extractPaginationLinks(html, origin, domain);
+          const newPageLinks = pageLinks.filter(
+            l => !visited.has(l) && !queue.some(q => q.url === l) && isUrlAllowed(l, robots)
+          );
+          queue.unshift(...newPageLinks.map(url => ({ url, depth: item.depth })));
+
+          // Regular links → depth+1, pushed to back (only within depth limit)
           if (item.depth < MAX_DEPTH) {
             for (const link of extractLinks(html, origin, domain)) {
               if (!visited.has(link) && !queue.some(q => q.url === link) && isUrlAllowed(link, robots)) {
