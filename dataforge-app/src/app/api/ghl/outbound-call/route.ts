@@ -23,21 +23,31 @@ function parsePayload(b: Record<string, unknown>) {
   const num = (v: unknown) =>
     typeof v === "number" ? v : typeof v === "string" ? parseInt(v, 10) || 0 : 0;
 
-  const ghlUserId   = str(b.call_user_id) ?? str(b.call_answered_by_user_id);
-  const agentName   = str(b.call_user_name) ?? str(b.call_answered_by_user_name);
+  // Accept both GHL's standard webhook field names AND the call_ custom-value prefixed names
+  const ghlUserId =
+    str(b.call_user_id) ?? str(b.call_answered_by_user_id) ??
+    str(b.userId) ?? str(b.user_id) ?? str(b.assignedTo) ?? str(b.assigned_to) ?? str(b.ownerId);
 
-  const directionRaw = str(b.call_direction) ?? "outbound";
+  const agentName =
+    str(b.call_user_name) ?? str(b.call_answered_by_user_name) ??
+    str(b.userName) ?? str(b.user_name) ?? str(b.assignedToName) ?? str(b.assigned_to_name);
+
+  const directionRaw =
+    str(b.call_direction) ?? str(b.direction) ?? "outbound";
   const direction: "inbound" | "outbound" =
     directionRaw.toLowerCase().includes("in") ? "inbound" : "outbound";
 
-  const fromPhone = str(b.call_from);
-  const toPhone   = str(b.call_to);
+  const fromPhone = str(b.call_from) ?? str(b.from) ?? str(b.fromPhone) ?? str(b.from_phone);
+  const toPhone   = str(b.call_to)   ?? str(b.to)   ?? str(b.toPhone)   ?? str(b.to_phone);
   // For outbound the contact is the "to" number; for inbound it's the "from".
   const contactPhone = direction === "outbound" ? toPhone : fromPhone;
 
-  const startRaw     = b.call_start_time;
-  const endRaw       = b.call_end_time;
-  let durationSecs   = num(b.call_duration);
+  const startRaw =
+    b.call_start_time ?? b.startTime ?? b.start_time ?? b.calledAt ?? b.called_at ?? b.createdAt ?? b.created_at;
+  const endRaw =
+    b.call_end_time ?? b.endTime ?? b.end_time;
+
+  let durationSecs = num(b.call_duration ?? b.duration ?? b.durationSecs ?? b.duration_secs ?? b.durationSeconds);
 
   // Derive duration from timestamps when the field is absent / zero
   if (!durationSecs && startRaw && endRaw) {
@@ -46,7 +56,7 @@ function parsePayload(b: Record<string, unknown>) {
   }
 
   const calledAt  = startRaw ? new Date(String(startRaw)) : new Date();
-  const statusRaw = str(b.call_status) ?? "";
+  const statusRaw = str(b.call_status) ?? str(b.callStatus) ?? str(b.status) ?? "";
 
   // Stable dedup key — one row per agent × start-timestamp
   const dedupKey = ghlUserId && startRaw
@@ -76,6 +86,8 @@ export async function POST(req: NextRequest) {
     if (!body || typeof body !== "object") {
       return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
     }
+
+    console.log("[ghl/outbound-call] raw payload:", JSON.stringify(body).slice(0, 800));
 
     const {
       ghlUserId, agentName, direction,
