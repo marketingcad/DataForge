@@ -68,11 +68,8 @@ export function DomainScrapeForm() {
   const [errorMsg, setErrorMsg] = useState("");
   const [summary, setSummary] = useState<{ leadsFound: number; pagesVisited: number; elapsed: number } | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
-  const [urlsValue, setUrlsValue] = useState("");
   const [withPagination, setWithPagination] = useState(false);
-  const [currentUrlIndex, setCurrentUrlIndex] = useState(0);
-  const [totalUrls, setTotalUrls] = useState(0);
-  const [autoPaginationPage, setAutoPaginationPage] = useState<number | null>(null);
+  const [currentPage, setCurrentPage] = useState<number | null>(null);
   const sourceRef = useRef<EventSource | null>(null);
   const rowCounter = useRef(0);
   const abortRef = useRef(false);
@@ -91,26 +88,17 @@ export function DomainScrapeForm() {
       sourceRef.current = es;
       let notFound = false;
 
-      es.addEventListener("status", (e) => {
-        setStatusMsg(JSON.parse(e.data).message);
-      });
+      es.addEventListener("status", (e) => setStatusMsg(JSON.parse(e.data).message));
       es.addEventListener("lead", (e) => {
         const lead = JSON.parse(e.data) as LeadRow;
         const id = ++rowCounter.current;
         setRows((prev) => [...prev, { ...lead, id, selected: true }]);
       });
       es.addEventListener("notfound", () => { notFound = true; });
-      es.addEventListener("done", () => {
-        es.close();
-        sourceRef.current = null;
-        resolve({ notFound });
-      });
+      es.addEventListener("done", () => { es.close(); sourceRef.current = null; resolve({ notFound }); });
       es.addEventListener("error", (e: Event) => {
         const msgEvent = e as MessageEvent;
-        if (msgEvent.data) {
-          const parsed = JSON.parse(msgEvent.data) as { message: string };
-          setErrorMsg(parsed.message);
-        }
+        if (msgEvent.data) setErrorMsg((JSON.parse(msgEvent.data) as { message: string }).message);
         es.close();
         sourceRef.current = null;
         resolve({ notFound });
@@ -122,60 +110,40 @@ export function DomainScrapeForm() {
     e.preventDefault();
     stopCrawl();
     const fd = new FormData(e.currentTarget);
-    const rawUrls = (fd.get("urls") as string).trim();
+    const url = (fd.get("url") as string).trim();
     const maxLeads = fd.get("maxLeads") as string;
     const timeLimit = fd.get("timeLimit") as string;
-
-    const urls = rawUrls.split(/\n/).map(u => u.trim()).filter(Boolean);
-    if (!urls.length) return;
+    if (!url) return;
 
     setRows([]);
     setSummary(null);
     setErrorMsg("");
     setStatus("crawling");
     setStatusMsg("Connecting…");
+    setCurrentPage(null);
     rowCounter.current = 0;
     abortRef.current = false;
-    setAutoPaginationPage(null);
 
     const startTime = Date.now();
     let totalPagesVisited = 0;
 
-    if (withPagination && urls.length === 1) {
-      // ── Auto-pagination mode ──────────────────────────────────────────────
-      const baseUrl = urls[0];
-      const detected = detectPageParam(baseUrl);
-      if (!detected) {
-        // No page param found — just crawl once as normal
-        setTotalUrls(1);
-        setCurrentUrlIndex(1);
-        await crawlUrl(baseUrl, maxLeads, timeLimit);
-        totalPagesVisited = 1;
-      } else {
-        let page = detected.value;
-        const MAX_AUTO_PAGES = 99;
-        setTotalUrls(0); // unknown until we stop
-        while (!abortRef.current && page < detected.value + MAX_AUTO_PAGES) {
-          const pageUrl = buildPageUrl(baseUrl, detected, page);
-          setAutoPaginationPage(page);
-          setStatusMsg(`Page ${page}: connecting…`);
-          const { notFound } = await crawlUrl(pageUrl, maxLeads, timeLimit);
-          totalPagesVisited++;
-          if (notFound) break;
-          page++;
-        }
-        setAutoPaginationPage(null);
-      }
-    } else {
-      // ── Multi-URL sequential mode ─────────────────────────────────────────
-      setTotalUrls(urls.length);
-      for (let i = 0; i < urls.length; i++) {
-        if (abortRef.current) break;
-        setCurrentUrlIndex(i + 1);
-        setStatusMsg(`[${i + 1}/${urls.length}] Crawling ${urls[i]}…`);
-        await crawlUrl(urls[i], maxLeads, timeLimit);
+    const detected = withPagination ? detectPageParam(url) : null;
+
+    if (detected) {
+      let page = detected.value;
+      while (!abortRef.current && page < detected.value + 99) {
+        const pageUrl = buildPageUrl(url, detected, page);
+        setCurrentPage(page);
+        setStatusMsg(`Page ${page}: connecting…`);
+        const { notFound } = await crawlUrl(pageUrl, maxLeads, timeLimit);
         totalPagesVisited++;
+        if (notFound) break;
+        page++;
       }
+      setCurrentPage(null);
+    } else {
+      await crawlUrl(url, maxLeads, timeLimit);
+      totalPagesVisited = 1;
     }
 
     setSummary({
@@ -234,88 +202,71 @@ export function DomainScrapeForm() {
 
       {/* Toolbar */}
       <form onSubmit={handleSubmit} className="space-y-2">
-        <div className="flex flex-wrap items-start gap-2">
-          <div className="flex flex-col gap-1 flex-1 min-w-[240px]">
-            <textarea
-              name="urls"
-              value={urlsValue}
-              onChange={e => setUrlsValue(e.target.value)}
-              placeholder={
-                withPagination
-                  ? "https://example.com/agents?page=1\n(DataForge will auto-increment the page number)"
-                  : "https://example.com/directory\nhttps://example.com/directory?page=2\nhttps://example.com/directory?page=3"
-              }
-              required
-              rows={withPagination ? 2 : 3}
-              className="w-full rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm resize-y focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring placeholder:text-muted-foreground"
+        <div className="flex flex-wrap items-center gap-2">
+          <Input
+            name="url"
+            placeholder={withPagination ? "https://example.com/agents?page=1" : "https://example.com"}
+            required
+            className="w-72"
+          />
+          <div className="flex items-center gap-1.5">
+            <Input
+              name="maxLeads"
+              type="number"
+              min={1}
+              max={200}
+              defaultValue={50}
+              className="w-20 text-center"
+              aria-label="Max leads"
             />
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="withPagination"
-                checked={withPagination}
-                onCheckedChange={(v) => setWithPagination(!!v)}
-              />
-              <label htmlFor="withPagination" className="text-xs text-muted-foreground cursor-pointer select-none">
-                With pagination — auto-increment page number until 404
-              </label>
-            </div>
+            <span className="text-xs text-muted-foreground whitespace-nowrap">leads max</span>
           </div>
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-1.5">
-              <Input
-                name="maxLeads"
-                type="number"
-                min={1}
-                max={200}
-                defaultValue={50}
-                className="w-20 text-center"
-                aria-label="Max leads"
-              />
-              <span className="text-xs text-muted-foreground whitespace-nowrap">leads / page</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Input
-                name="timeLimit"
-                type="number"
-                min={10}
-                max={300}
-                defaultValue={60}
-                className="w-20 text-center"
-                aria-label="Time limit"
-              />
-              <span className="text-xs text-muted-foreground whitespace-nowrap">sec / page</span>
-            </div>
+          <div className="flex items-center gap-1.5">
+            <Input
+              name="timeLimit"
+              type="number"
+              min={10}
+              max={300}
+              defaultValue={60}
+              className="w-20 text-center"
+              aria-label="Time limit"
+            />
+            <span className="text-xs text-muted-foreground whitespace-nowrap">sec / page</span>
           </div>
-          <div className="flex flex-col gap-2 justify-start pt-0.5">
-            <Button type="submit" size="sm" disabled={isCrawling}>
-              {isCrawling && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              {isCrawling ? "Crawling…" : "Start Crawl"}
+          <Button type="submit" size="sm" disabled={isCrawling}>
+            {isCrawling && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            {isCrawling ? "Crawling…" : "Start Crawl"}
+          </Button>
+          {isCrawling && (
+            <Button type="button" variant="outline" size="sm" onClick={stopCrawl}>
+              <StopCircle className="h-4 w-4 mr-1.5" />
+              Stop
             </Button>
-            {isCrawling && (
-              <Button type="button" variant="outline" size="sm" onClick={stopCrawl}>
-                <StopCircle className="h-4 w-4 mr-1.5" />
-                Stop
-              </Button>
-            )}
-          </div>
+          )}
         </div>
-        {isCrawling && (
+
+        <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
-            {autoPaginationPage !== null && (
-              <Badge variant="outline" className="text-xs py-0 font-mono animate-pulse">
-                Page {autoPaginationPage}
-              </Badge>
-            )}
-            {totalUrls > 1 && autoPaginationPage === null && (
-              <Badge variant="outline" className="text-xs py-0 font-mono animate-pulse">
-                URL {currentUrlIndex}/{totalUrls}
-              </Badge>
-            )}
-            {statusMsg && (
-              <span className="text-xs text-muted-foreground truncate">{statusMsg}</span>
-            )}
+            <Checkbox
+              id="withPagination"
+              checked={withPagination}
+              onCheckedChange={(v) => setWithPagination(!!v)}
+            />
+            <label htmlFor="withPagination" className="text-xs text-muted-foreground cursor-pointer select-none">
+              With pagination — auto-increment page number until 404
+            </label>
           </div>
-        )}
+          {isCrawling && currentPage !== null && (
+            <Badge variant="outline" className="text-xs py-0 font-mono animate-pulse">
+              Page {currentPage}
+            </Badge>
+          )}
+          {isCrawling && statusMsg && (
+            <span className="text-xs text-muted-foreground truncate max-w-xs hidden sm:block animate-pulse">
+              {statusMsg}
+            </span>
+          )}
+        </div>
       </form>
 
       <ScrapingTrivia visible={isCrawling} />
