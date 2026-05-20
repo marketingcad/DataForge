@@ -18,48 +18,68 @@ import { mapGhlCallStatus } from "@/lib/ghl/client";
  * agent per call start timestamp; safe to re-send on GHL retries.
  */
 
+function nested(b: Record<string, unknown>, key: string): unknown {
+  return (b[key] as Record<string, unknown> | undefined) ?? undefined;
+}
+
 function parsePayload(b: Record<string, unknown>) {
   const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : undefined);
   const num = (v: unknown) =>
     typeof v === "number" ? v : typeof v === "string" ? parseInt(v, 10) || 0 : 0;
 
-  // Accept both GHL's standard webhook field names AND the call_ custom-value prefixed names
+  // Nested sub-objects GHL sometimes sends (e.g. { user: { id, name }, call: { ... } })
+  const u = nested(b, "user") as Record<string, unknown> | undefined;
+  const c = nested(b, "call") as Record<string, unknown> | undefined;
+  const d = nested(b, "data") as Record<string, unknown> | undefined;
+
+  // Accept flat, prefixed, camelCase AND nested { user.id } formats
   const ghlUserId =
     str(b.call_user_id) ?? str(b.call_answered_by_user_id) ??
-    str(b.userId) ?? str(b.user_id) ?? str(b.assignedTo) ?? str(b.assigned_to) ?? str(b.ownerId);
+    str(b.userId) ?? str(b.user_id) ?? str(b.assignedTo) ?? str(b.assigned_to) ?? str(b.ownerId) ??
+    str(u?.id) ?? str(d?.userId) ?? str(d?.user_id);
 
   const agentName =
     str(b.call_user_name) ?? str(b.call_answered_by_user_name) ??
-    str(b.userName) ?? str(b.user_name) ?? str(b.assignedToName) ?? str(b.assigned_to_name);
+    str(b.userName) ?? str(b.user_name) ?? str(b.assignedToName) ?? str(b.assigned_to_name) ??
+    str(u?.name) ?? str(u?.fullName);
 
   const directionRaw =
-    str(b.call_direction) ?? str(b.direction) ?? "outbound";
+    str(b.call_direction) ?? str(b.direction) ??
+    str(c?.direction) ?? "outbound";
   const direction: "inbound" | "outbound" =
     directionRaw.toLowerCase().includes("in") ? "inbound" : "outbound";
 
-  // GHL sends camelCase variants: callFrom, callTo; also check snake_case and prefixed forms
-  const fromPhone = str(b.call_from) ?? str(b.callFrom) ?? str(b.from) ?? str(b.fromPhone) ?? str(b.from_phone);
-  const toPhone   = str(b.call_to)   ?? str(b.callTo)   ?? str(b.to)   ?? str(b.toPhone)   ?? str(b.to_phone);
-  // For outbound the contact is the "to" number; for inbound it's the "from".
+  const fromPhone =
+    str(b.call_from) ?? str(b.callFrom) ?? str(b.from) ?? str(b.fromPhone) ?? str(b.from_phone) ??
+    str(c?.from) ?? str(c?.callFrom);
+  const toPhone =
+    str(b.call_to) ?? str(b.callTo) ?? str(b.to) ?? str(b.toPhone) ?? str(b.to_phone) ??
+    str(c?.to) ?? str(c?.callTo);
   const contactPhone = direction === "outbound" ? toPhone : fromPhone;
 
   const startRaw =
-    b.call_start_time ?? b.callStartTime ?? b.startTime ?? b.start_time ?? b.calledAt ?? b.called_at ?? b.createdAt ?? b.created_at;
+    b.call_start_time ?? b.callStartTime ?? b.startTime ?? b.start_time ??
+    b.calledAt ?? b.called_at ?? b.createdAt ?? b.created_at ??
+    c?.startTime ?? c?.start_time ?? c?.callStartTime;
   const endRaw =
-    b.call_end_time ?? b.callEndTime ?? b.endTime ?? b.end_time;
+    b.call_end_time ?? b.callEndTime ?? b.endTime ?? b.end_time ??
+    c?.endTime ?? c?.end_time;
 
-  let durationSecs = num(b.call_duration ?? b.callDuration ?? b.duration ?? b.durationSecs ?? b.duration_secs ?? b.durationSeconds);
+  let durationSecs = num(
+    b.call_duration ?? b.callDuration ?? b.duration ?? b.durationSecs ?? b.duration_secs ?? b.durationSeconds ??
+    c?.duration ?? c?.callDuration
+  );
 
-  // Derive duration from timestamps when the field is absent / zero
   if (!durationSecs && startRaw && endRaw) {
     const ms = new Date(String(endRaw)).getTime() - new Date(String(startRaw)).getTime();
     if (ms > 0) durationSecs = Math.round(ms / 1000);
   }
 
   const calledAt  = startRaw ? new Date(String(startRaw)) : new Date();
-  const statusRaw = str(b.call_status) ?? str(b.callStatus) ?? str(b.status) ?? "";
+  const statusRaw =
+    str(b.call_status) ?? str(b.callStatus) ?? str(b.status) ??
+    str(c?.status) ?? str(c?.callStatus) ?? "";
 
-  // Stable dedup key — one row per agent × start-timestamp
   const dedupKey = ghlUserId && startRaw
     ? `ghl-out:${ghlUserId}:${String(startRaw)}`
     : null;
@@ -88,7 +108,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
     }
 
-    console.log("[ghl/outbound-call] raw payload:", JSON.stringify(body).slice(0, 800));
+    const rawStr = JSON.stringify(body).slice(0, 2000);
+    console.log("[ghl/outbound-call] raw payload:", rawStr);
 
     const {
       ghlUserId, agentName, direction,
@@ -114,12 +135,23 @@ export async function POST(req: NextRequest) {
     }
 
     if (!agent) {
-      console.warn(
-        `[ghl/outbound-call] no DataForge user matched — ghlUserId=${ghlUserId} name="${agentName}"`,
-      );
-      // Acknowledge so GHL doesn't keep retrying
+      const outcome = `no_agent — parsed ghlUserId="${ghlUserId}" name="${agentName}" at ${new Date().toISOString()}`;
+      console.warn("[ghl/outbound-call]", outcome);
+      await prisma.appSettings.update({
+        where: { id: "singleton" },
+        data: { webhookLastPayload: rawStr, webhookLastOutcome: outcome },
+      }).catch(() => {});
       return NextResponse.json({ received: true, warning: "no linked agent" });
     }
+
+    // Store last successful payload for debugging
+    await prisma.appSettings.update({
+      where: { id: "singleton" },
+      data: {
+        webhookLastPayload: rawStr,
+        webhookLastOutcome: `ok — agent="${agent.id}" direction="${direction}" at ${new Date().toISOString()}`,
+      },
+    }).catch(() => {});
 
     // ── Lead resolution by contact phone ───────────────────────────────────
     let leadId: string | null = null;

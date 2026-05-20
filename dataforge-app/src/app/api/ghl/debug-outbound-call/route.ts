@@ -54,11 +54,20 @@ export async function GET(req: NextRequest) {
     orderBy: { name: "asc" },
   });
 
+  const settings = await prisma.appSettings.findUnique({
+    where: { id: "singleton" },
+    select: { webhookLastPayload: true, webhookLastOutcome: true },
+  });
+
   return NextResponse.json({
     totalOutboundLogs: totalOutbound,
     recentLogs: logs,
     linkedAgents: agents,
-    hint: "To test: POST this endpoint with { dryRun: true, call_user_id: '...', call_user_name: '...', call_from: '...', call_to: '...', call_start_time: '...', call_duration: 60, call_status: 'completed' }",
+    lastWebhookReceived: {
+      outcome: settings?.webhookLastOutcome ?? "never received",
+      payload: settings?.webhookLastPayload ? JSON.parse(settings.webhookLastPayload) : null,
+    },
+    hint: "To test: POST this endpoint with { dryRun: true, userId: '...', direction: 'outbound', callStatus: 'completed', callDuration: 60 }",
   });
 }
 

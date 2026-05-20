@@ -453,6 +453,8 @@ model AppSettings {
   balloonEnabled              Boolean  @default(true)
   balloonApptsPerPoint        Int      @default(1)
   ghlInboundSecret            String?
+  webhookLastPayload          String?
+  webhookLastOutcome          String?
 }
 
 model BalloonAuditLog {
