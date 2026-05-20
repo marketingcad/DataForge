@@ -81,16 +81,35 @@ export function DomainScrapeForm() {
     setStatus((s) => s === "crawling" ? "stopped" : s);
   }, []);
 
-  function crawlUrl(url: string, maxLeads: string, timeLimit: string): Promise<{ notFound: boolean }> {
+  // Dedup keys tracked across all pages in a single crawl session
+  const seenKeysRef = useRef(new Set<string>());
+
+  function crawlUrl(url: string, maxLeads: string, timeLimit: string, pageNum?: number): Promise<{ notFound: boolean }> {
+    // Set page badge synchronously before EventSource fires any events
+    setCurrentPage(pageNum ?? null);
+    setStatusMsg(pageNum != null ? `Page ${pageNum}: connecting…` : "Connecting…");
+
     return new Promise((resolve) => {
       const params = new URLSearchParams({ url, maxLeads, timeLimit });
       const es = new EventSource(`/api/scraping/stream?${params}`);
       sourceRef.current = es;
       let notFound = false;
 
-      es.addEventListener("status", (e) => setStatusMsg(JSON.parse(e.data).message));
+      es.addEventListener("status", (e) => {
+        const msg = JSON.parse(e.data).message as string;
+        setStatusMsg(pageNum != null ? `Page ${pageNum}: ${msg}` : msg);
+      });
       es.addEventListener("lead", (e) => {
         const lead = JSON.parse(e.data) as LeadRow;
+        // Dedup: skip if phone, email, or contactPerson already seen
+        const phone = lead.phone?.replace(/\D/g, "") ?? "";
+        const email = lead.email?.toLowerCase().trim() ?? "";
+        const name  = lead.contactPerson?.toLowerCase().trim() ?? "";
+        const key   = phone || email || name;
+        if (key && seenKeysRef.current.has(key)) return;
+        if (phone) seenKeysRef.current.add(phone);
+        if (email) seenKeysRef.current.add(email);
+        if (name)  seenKeysRef.current.add(name);
         const id = ++rowCounter.current;
         setRows((prev) => [...prev, { ...lead, id, selected: true }]);
       });
@@ -119,12 +138,12 @@ export function DomainScrapeForm() {
     setSummary(null);
     setErrorMsg("");
     setStatus("crawling");
-    setStatusMsg("Connecting…");
     setCurrentPage(null);
     setTablePage(1);
     rowCounter.current = 0;
     abortRef.current = false;
     prevRowCount.current = 0;
+    seenKeysRef.current = new Set();
 
     const startTime = Date.now();
     let totalPagesVisited = 0;
@@ -135,9 +154,7 @@ export function DomainScrapeForm() {
       let page = detected.value;
       while (!abortRef.current && page < detected.value + 99) {
         const pageUrl = buildPageUrl(url, detected, page);
-        setCurrentPage(page);
-        setStatusMsg(`Page ${page}: connecting…`);
-        const { notFound } = await crawlUrl(pageUrl, maxLeads, timeLimit);
+        const { notFound } = await crawlUrl(pageUrl, maxLeads, timeLimit, page);
         totalPagesVisited++;
         if (notFound) break;
         page++;
