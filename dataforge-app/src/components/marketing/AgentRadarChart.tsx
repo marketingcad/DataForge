@@ -9,6 +9,7 @@ import {
   Tooltip,
   Legend,
 } from "recharts";
+import { useTheme } from "next-themes";
 
 type DataPoint = {
   month: string;
@@ -41,6 +42,11 @@ function CustomTooltip({ active, payload, label }: {
 }
 
 export function AgentRadarChart({ data }: Props) {
+  const { resolvedTheme } = useTheme();
+  const textColor    = resolvedTheme === "dark" ? "#f1f5f9" : "#111827";
+  const mutedColor   = resolvedTheme === "dark" ? "#94a3b8" : "#6b7280";
+  const gridColor    = resolvedTheme === "dark" ? "#334155" : "#e2e8f0";
+
   const maxVal = Math.max(...data.flatMap((d) => [d.calls, d.leads]), 1);
 
   return (
@@ -49,7 +55,7 @@ export function AgentRadarChart({ data }: Props) {
         data={data}
         margin={{ top: 16, right: 24, bottom: 16, left: 24 }}
       >
-        <PolarGrid stroke="hsl(var(--border))" />
+        <PolarGrid stroke={gridColor} />
 
         <PolarAngleAxis
           dataKey="month"
@@ -63,18 +69,18 @@ export function AgentRadarChart({ data }: Props) {
                 textAnchor={textAnchor}
                 fontSize={12}
                 fontWeight={600}
-                fill="hsl(var(--foreground))"
+                fill={textColor}
                 {...props}
               >
-                <tspan fill="hsl(var(--chart-1, 139 92% 50%))">{d.calls}</tspan>
-                <tspan fill="hsl(var(--muted-foreground))">/</tspan>
-                <tspan fill="hsl(var(--chart-2, 217 91% 60%))">{d.leads}</tspan>
+                <tspan fill="#a855f7">{d.calls}</tspan>
+                <tspan fill={mutedColor}>/</tspan>
+                <tspan fill="#3b82f6">{d.leads}</tspan>
                 <tspan
                   x={x}
                   dy="1.1rem"
                   fontSize={11}
                   fontWeight={500}
-                  fill="hsl(var(--muted-foreground))"
+                  fill={mutedColor}
                 >
                   {d.month}
                 </tspan>
@@ -89,7 +95,7 @@ export function AgentRadarChart({ data }: Props) {
           iconType="circle"
           iconSize={8}
           formatter={(value) => (
-            <span className="text-xs font-semibold capitalize text-foreground">{value}</span>
+            <span style={{ fontSize: 12, fontWeight: 600, color: textColor, textTransform: "capitalize" }}>{value}</span>
           )}
         />
 

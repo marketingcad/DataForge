@@ -9,6 +9,7 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from "recharts";
+import { useTheme } from "next-themes";
 
 interface Props {
   data: { label?: string; date?: string; calls?: number; count?: number }[];
@@ -17,6 +18,8 @@ interface Props {
 }
 
 export function CallVolumeChart({ data, title, color = "#6366f1" }: Props) {
+  const { resolvedTheme } = useTheme();
+  const tickColor = resolvedTheme === "dark" ? "#94a3b8" : "#6b7280";
   const chartData = data.map((d) => ({
     label: d.label ?? d.date ?? "",
     calls: d.calls ?? d.count ?? 0,
@@ -40,14 +43,14 @@ export function CallVolumeChart({ data, title, color = "#6366f1" }: Props) {
             fontSize={10}
             tickLine={false}
             axisLine={false}
-            tick={{ fill: "hsl(var(--muted-foreground))" }}
+            tick={{ fill: tickColor }}
             interval="preserveStartEnd"
           />
           <YAxis
             fontSize={10}
             tickLine={false}
             axisLine={false}
-            tick={{ fill: "hsl(var(--muted-foreground))" }}
+            tick={{ fill: tickColor }}
             allowDecimals={false}
           />
           <Tooltip
