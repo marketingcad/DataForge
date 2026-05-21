@@ -57,8 +57,13 @@ export function AppClientShell({ children, userName, userEmail, userId = "" }: A
           <div className="flex-1" />
           <div className="flex items-center gap-2">
             {secretVisible && (
-              <span className="text-xs font-medium text-muted-foreground animate-in fade-in duration-500 mr-1">
-                Powered By Claude Boys of Linkage Web Solutions 😎
+              <span className="w-56 overflow-hidden shrink-0 animate-in fade-in duration-500">
+                <span
+                  className="inline-block whitespace-nowrap text-xs font-medium text-muted-foreground"
+                  style={{ animation: "marquee-scroll 10s linear infinite" }}
+                >
+                  Powered By Claude Boys of Linkage Web Solutions 😎
+                </span>
               </span>
             )}
             <MigrationStatusBadge />
