@@ -10,6 +10,7 @@ import {
   CartesianGrid,
   Legend,
 } from "recharts";
+import { useTheme } from "next-themes";
 
 export type RepMeta = {
   id: string;
@@ -86,6 +87,9 @@ function CustomLegend({
   );
 }
 export function RepPerformanceChart({ data, reps, title = "Rep Performance", subtitle, myId }: Props) {
+  const { resolvedTheme } = useTheme();
+  const tickColor = resolvedTheme === "dark" ? "#94a3b8" : "#6b7280";
+
   if (reps.length === 0) {
     return (
       <div className="rounded-2xl bg-card border border-border/40 shadow-sm p-8 text-center">
@@ -115,13 +119,13 @@ export function RepPerformanceChart({ data, reps, title = "Rep Performance", sub
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} opacity={0.5} />
             <XAxis
               dataKey="label"
-              tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+              tick={{ fontSize: 10, fill: tickColor }}
               tickLine={false}
               axisLine={false}
               interval={4}
             />
             <YAxis
-              tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+              tick={{ fontSize: 10, fill: tickColor }}
               tickLine={false}
               axisLine={false}
               allowDecimals={false}

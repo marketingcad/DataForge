@@ -1,7 +1,7 @@
 import { getDashboardStats } from "@/lib/dashboard/service";
 
 import { getUsers } from "@/lib/users/service";
-import { getTeamSummary, getLeaderboard, getTopPerformers, getRepDailyLeadsForChart } from "@/lib/marketing/team.service";
+import { getTeamSummary, getLeaderboard, getTopPerformers, getRepDailyApptsForChart } from "@/lib/marketing/team.service";
 import { withDbRetry } from "@/lib/prisma";
 import { IndustryBarChart } from "@/components/dashboard/IndustryBarChart";
 import { QualityDonutChart } from "@/components/dashboard/QualityDonutChart";
@@ -99,19 +99,19 @@ export async function BossDashboard() {
   // Top 5 reps for the performance line charts
   const top5 = leaderboard.slice(0, 5);
   const top5Ids = top5.map((r) => r.id);
-  const repLeadChartData = await withDbRetry(() => getRepDailyLeadsForChart(top5Ids, 30));
-  // Build lead totals per rep from the chart data
-  const repLeadTotals: Record<string, number> = {};
-  for (const row of repLeadChartData) {
+  const repApptChartData = await withDbRetry(() => getRepDailyApptsForChart(top5Ids, 30));
+  // Build appointment totals per agent from the chart data
+  const repApptTotals: Record<string, number> = {};
+  for (const row of repApptChartData) {
     for (const id of top5Ids) {
-      repLeadTotals[id] = (repLeadTotals[id] ?? 0) + ((row[id] as number) || 0);
+      repApptTotals[id] = (repApptTotals[id] ?? 0) + ((row[id] as number) || 0);
     }
   }
-  const repLeadMeta = top5.map((r) => ({
+  const repApptMeta = top5.map((r) => ({
     id: r.id,
     name: r.name,
-    callCount: repLeadTotals[r.id] ?? 0,
-    metricLabel: `${repLeadTotals[r.id] ?? 0} leads`,
+    callCount: repApptTotals[r.id] ?? 0,
+    metricLabel: `${repApptTotals[r.id] ?? 0} appts`,
   }));
 
   const roleGroups: Record<Role, number> = {
@@ -169,21 +169,21 @@ export async function BossDashboard() {
         style={{ gridTemplateRows: "minmax(120px,auto) minmax(120px,auto)" }}
       >
         {/* TOP PERFORMERS — col-span-2, row-span-2, dark anchor */}
-        <div className="col-span-2 row-span-2 rounded-xl bg-foreground text-background flex flex-col overflow-hidden">
+        <div className="col-span-2 row-span-2 rounded-xl bg-foreground text-background dark:bg-zinc-800 dark:text-foreground flex flex-col overflow-hidden">
           {/* Header */}
-          <div className="px-5 py-3 border-b border-background/10">
+          <div className="px-5 py-3 border-b border-background/10 dark:border-foreground/10">
             <p className="text-xs font-bold uppercase tracking-widest opacity-40">Top Performers</p>
             <p className="text-xs font-semibold opacity-20">Sales reps · by leads secured</p>
           </div>
 
           {/* All-Time — hero section */}
-          <div className="flex flex-col items-center justify-center px-5 py-4 border-b border-background/10 flex-1">
+          <div className="flex flex-col items-center justify-center px-5 py-4 border-b border-background/10 dark:border-foreground/10 flex-1">
             <p className="text-xs font-bold uppercase tracking-widest opacity-40 mb-3">All-Time</p>
             {topPerformers.allTime ? (
               <>
                 <Avatar image={topPerformers.allTime.image} name={topPerformers.allTime.name} size={48} />
                 <p className="text-sm font-bold mt-2 text-center">{topPerformers.allTime.name}</p>
-                <span className="text-xs font-black bg-background/20 rounded-full px-2.5 py-0.5 mt-1.5">
+                <span className="text-xs font-black bg-background/20 dark:bg-foreground/10 rounded-full px-2.5 py-0.5 mt-1.5">
                   {topPerformers.allTime.count} leads
                 </span>
                 <BadgeChips badges={topPerformers.allTime.badges} chipSize="md" />
@@ -253,12 +253,12 @@ export async function BossDashboard() {
         </div>
       </div>
 
-      {/* ── LEADS SECURED CHART ── */}
+      {/* ── APPOINTMENTS SET BY AGENTS CHART ── */}
       <RepPerformanceChart
-        data={repLeadChartData}
-        reps={repLeadMeta}
-        title="Leads Secured"
-        subtitle="Daily leads saved — top 5 reps · last 30 days"
+        data={repApptChartData}
+        reps={repApptMeta}
+        title="Appointments Set by Agents"
+        subtitle="Daily appointments booked — top 5 agents · last 30 days"
       />
 
       {/* ── MIDDLE ROW: Challenges + Top Agents ── */}
