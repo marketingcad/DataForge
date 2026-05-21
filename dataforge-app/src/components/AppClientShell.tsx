@@ -32,13 +32,17 @@ export function AppClientShell({ children, userName, userEmail, userId = "" }: A
     enterCount.current = 0;
   }, [pathname]);
 
-  // Shift + Enter × 3 listener
+  // L Shift + Space, then Enter × 3 listener
+  // step 0 → Shift+Space → step 1 → Shift+Enter ×3 → trigger
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Shift") return;
-      if (e.key === "Enter" && e.shiftKey) {
+      if (!e.shiftKey) { enterCount.current = 0; return; }
+      if (enterCount.current === 0 && e.key === " ") {
+        enterCount.current = 1;
+      } else if (enterCount.current >= 1 && e.key === "Enter") {
         enterCount.current += 1;
-        if (enterCount.current >= 3) {
+        if (enterCount.current >= 4) {
           setSecretVisible(true);
           enterCount.current = 0;
         }
