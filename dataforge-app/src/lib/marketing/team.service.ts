@@ -73,8 +73,6 @@ export const getTeamSummary = unstable_cache(async function getTeamSummary() {
         COUNT(*) FILTER (WHERE cl."calledAt" >= ${startOfMonth})                                            AS month,
         COUNT(*)                                                                                             AS all_time
       FROM "CallLog" cl
-      JOIN "User"    u  ON cl."agentId" = u."id"
-      WHERE u."role" IN ('sales_rep', 'team_lead')
     `,
     Promise.all([
       prisma.user.count({ where: { role: MARKETING_ROLES } }),
