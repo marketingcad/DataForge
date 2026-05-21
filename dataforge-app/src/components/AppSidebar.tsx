@@ -28,6 +28,7 @@ import {
   Sparkles,
   NotebookPen,
   ScrollText,
+  BookOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Role } from "@/lib/rbac/roles";
@@ -95,8 +96,9 @@ function buildSections(role: Role): Section[] {
         {
           title: "Admin",
           items: [
-            { label: "Users",    href: "/admin/users", icon: UserCog  },
+            { label: "Users",        href: "/admin/users",    icon: UserCog  },
             ...(role === "boss" ? [{ label: "Settings", href: "/settings", icon: Settings }] : []),
+            { label: "How It Works", href: "/how-it-works",  icon: BookOpen },
           ],
         },
         {
