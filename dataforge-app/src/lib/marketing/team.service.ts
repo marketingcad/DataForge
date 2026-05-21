@@ -54,24 +54,21 @@ function periodRange(period: LeaderboardPeriod): { gte?: Date; lte?: Date } {
 /** Team KPI summary: agent count + call totals for today / yesterday / week / month */
 export const getTeamSummary = unstable_cache(async function getTeamSummary() {
   const now = new Date();
-  const startOfDay     = midnightPHT(now);
+  const last24h        = new Date(now.getTime() - 86_400_000);
   const inPHT          = new Date(now.getTime() + PHT_OFFSET_MS);
   const startOfMonth   = new Date(new Date(Date.UTC(inPHT.getUTCFullYear(), inPHT.getUTCMonth(), 1)).getTime() - PHT_OFFSET_MS);
   const startOfWeek    = startOfCalendarWeek(now);
-  const yesterdayStart = midnightPHT(new Date(now.getTime() - 86_400_000));
-  const yesterdayEnd   = new Date(startOfDay.getTime() - 1);
 
   // Single raw query for all call counts — avoids firing 5 parallel callLog queries
   // that previously exhausted the connection pool and caused ETIMEDOUT.
-  type CallCounts = { today: bigint; yesterday: bigint; week: bigint; month: bigint; all_time: bigint };
+  type CallCounts = { today: bigint; week: bigint; month: bigint; all_time: bigint };
   const [[callCounts], [agentCount, teamApptsSet, teamWon]] = await Promise.all([
     prisma.$queryRaw<CallCounts[]>`
       SELECT
-        COUNT(*) FILTER (WHERE cl."calledAt" >= ${startOfDay})                                              AS today,
-        COUNT(*) FILTER (WHERE cl."calledAt" >= ${yesterdayStart} AND cl."calledAt" <= ${yesterdayEnd})     AS yesterday,
-        COUNT(*) FILTER (WHERE cl."calledAt" >= ${startOfWeek})                                             AS week,
-        COUNT(*) FILTER (WHERE cl."calledAt" >= ${startOfMonth})                                            AS month,
-        COUNT(*)                                                                                             AS all_time
+        COUNT(*) FILTER (WHERE cl."calledAt" >= ${last24h})           AS today,
+        COUNT(*) FILTER (WHERE cl."calledAt" >= ${startOfWeek})       AS week,
+        COUNT(*) FILTER (WHERE cl."calledAt" >= ${startOfMonth})      AS month,
+        COUNT(*)                                                       AS all_time
       FROM "CallLog" cl
     `,
     Promise.all([
@@ -82,12 +79,11 @@ export const getTeamSummary = unstable_cache(async function getTeamSummary() {
   ]);
 
   const callsToday     = Number(callCounts.today);
-  const callsYesterday = Number(callCounts.yesterday);
   const callsThisWeek  = Number(callCounts.week);
   const callsThisMonth = Number(callCounts.month);
   const callsAllTime   = Number(callCounts.all_time);
 
-  return { agentCount, callsToday, callsYesterday, callsThisWeek, callsThisMonth, callsAllTime, teamApptsSet, teamWon };
+  return { agentCount, callsToday, callsThisWeek, callsThisMonth, callsAllTime, teamApptsSet, teamWon };
 }, ["team-summary"], { revalidate: 120, tags: ["marketing"] });
 
 /** Sorted leaderboard of all marketing agents for the given period + metric */

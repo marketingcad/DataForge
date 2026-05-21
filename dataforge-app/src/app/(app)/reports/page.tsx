@@ -24,7 +24,7 @@ export default async function ReportsPage() {
 
   const kpis = [
     { label: "Active Agents",     value: team.agentCount.toString() },
-    { label: "Calls Today",       value: team.callsToday.toString() },
+    { label: "Calls (24h)",        value: team.callsToday.toString() },
     { label: "Calls This Week",   value: totalCallsWeek.toString() },
     { label: "Calls This Month",  value: totalCallsMonth.toString() },
     { label: "Avg Connect Rate",  value: `${avgConnect}%` },

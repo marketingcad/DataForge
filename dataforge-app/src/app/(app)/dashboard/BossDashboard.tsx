@@ -126,7 +126,7 @@ export async function BossDashboard() {
 
   const metricTiles = [
     { label: "Agents",        value: team.agentCount },
-    { label: "Calls Today",   value: team.callsToday },
+    { label: "Calls (24h)",   value: team.callsToday },
     { label: "Calls / Wk",   value: team.callsThisWeek },
     { label: "Calls / Mo",   value: team.callsThisMonth },
     { label: "Active Leads",  value: stats.activeLeads },
@@ -194,9 +194,9 @@ export async function BossDashboard() {
           </div>
         </div>
 
-        {/* Calls Today */}
+        {/* Calls (24h) */}
         <div className="rounded-xl bg-card border border-border p-4 flex flex-col justify-between">
-          <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Calls Today</p>
+          <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Calls (24h)</p>
           <div>
             <p className="text-3xl font-black tabular-nums leading-none">{team.callsToday}</p>
             <p className="text-[11px] text-muted-foreground mt-0.5">logged so far</p>

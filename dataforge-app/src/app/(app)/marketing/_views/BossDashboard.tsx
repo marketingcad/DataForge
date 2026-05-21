@@ -69,9 +69,8 @@ export async function BossDashboard({ period = "month", metric = "calls" }: { pe
   const periodLabel = PERIOD_LABELS[period];
 
   const callsValue =
-    period === "yesterday" ? summary.callsYesterday :
-    period === "week"      ? summary.callsThisWeek :
-    period === "all_time"  ? summary.callsAllTime :
+    period === "week"     ? summary.callsThisWeek :
+    period === "all_time" ? summary.callsAllTime :
     summary.callsThisMonth;
 
   const avgCallsPerAgent = leaderboard.length > 0
