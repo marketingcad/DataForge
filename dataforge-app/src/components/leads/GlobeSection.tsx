@@ -1,29 +1,24 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { LeadsGlobe } from "./LeadsGlobe";
 import type { GlobePoint } from "@/lib/leads/locations";
 
-const LS_KEY = "df-globe-visible";
+const COOKIE_KEY = "df-globe-visible";
+const ONE_YEAR = 60 * 60 * 24 * 365;
 
 interface Props {
   points: GlobePoint[];
+  defaultVisible: boolean;
 }
 
-export function GlobeSection({ points }: Props) {
-  const [visible, setVisible] = useState(true);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    const stored = localStorage.getItem(LS_KEY);
-    if (stored !== null) setVisible(stored === "true");
-    setMounted(true);
-  }, []);
+export function GlobeSection({ points, defaultVisible }: Props) {
+  const [visible, setVisible] = useState(defaultVisible);
 
   function toggle() {
     const next = !visible;
     setVisible(next);
-    localStorage.setItem(LS_KEY, String(next));
+    document.cookie = `${COOKIE_KEY}=${next}; path=/; max-age=${ONE_YEAR}; SameSite=Lax`;
   }
 
   return (
@@ -36,11 +31,11 @@ export function GlobeSection({ points }: Props) {
           onClick={toggle}
           className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors px-2.5 py-1 rounded-lg hover:bg-muted/60"
         >
-          {mounted ? (visible ? "Hide" : "Show") : "Hide"}
+          {visible ? "Hide" : "Show"}
         </button>
       </div>
 
-      {(!mounted || visible) && <LeadsGlobe points={points} />}
+      {visible && <LeadsGlobe points={points} />}
     </div>
   );
 }

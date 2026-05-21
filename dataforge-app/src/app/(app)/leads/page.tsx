@@ -10,6 +10,7 @@ import { getUsers } from "@/lib/users/service";
 import { auth } from "@/lib/auth";
 import { withDbRetry } from "@/lib/prisma";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { Separator } from "@/components/ui/separator";
 import Link from "next/link";
 
@@ -50,6 +51,9 @@ export default async function LeadsPage({
 
   const isEmpty = industries.length === 0 && allFolders.length === 0 && unfiledResult.total === 0;
 
+  const cookieStore = await cookies();
+  const globeVisible = cookieStore.get("df-globe-visible")?.value !== "false";
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -71,7 +75,7 @@ export default async function LeadsPage({
 
       {/* Globe — boss/admin only */}
       {isAdmin && locations.length > 0 && (
-        <GlobeSection points={locations} />
+        <GlobeSection points={locations} defaultVisible={globeVisible} />
       )}
 
       <Separator />
