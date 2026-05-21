@@ -87,8 +87,21 @@ function parsePayload(b: Record<string, unknown>) {
   return { ghlUserId, agentName, direction, fromPhone, toPhone, contactPhone, durationSecs, statusRaw, calledAt, dedupKey };
 }
 
+// GHL sometimes sends a GET to verify the URL is reachable
+export async function GET() {
+  return NextResponse.json({ ok: true, endpoint: "ghl/outbound-call" });
+}
+
 export async function POST(req: NextRequest) {
   try {
+    // Read body first — always store raw payload so we can debug auth failures too
+    const bodyText = await req.text().catch(() => "");
+    let body: unknown = null;
+    try { body = JSON.parse(bodyText); } catch { /* non-JSON body */ }
+
+    const rawStr = (bodyText || "").slice(0, 4000);
+    console.log("[ghl/outbound-call] raw payload:", rawStr);
+
     // ── Auth: accept Bearer token in Authorization header OR ?secret= query param
     const settings = await prisma.appSettings.findUnique({ where: { id: "singleton" } });
     const expectedSecret = settings?.ghlInboundSecret;
@@ -99,17 +112,33 @@ export async function POST(req: NextRequest) {
       const querySecret = new URL(req.url).searchParams.get("secret");
 
       if (bearerToken !== expectedSecret && querySecret !== expectedSecret) {
+        await prisma.appSettings.update({
+          where: { id: "singleton" },
+          data: {
+            webhookLastPayload: rawStr || "(empty body)",
+            webhookLastOutcome: `auth_failed — no matching secret at ${new Date().toISOString()}`,
+          },
+        }).catch(() => {});
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
     }
 
-    const body = await req.json().catch(() => null);
+    // Store the raw payload immediately so we have it even if processing fails
+    await prisma.appSettings.update({
+      where: { id: "singleton" },
+      data: {
+        webhookLastPayload: rawStr || "(empty body)",
+        webhookLastOutcome: `received — processing at ${new Date().toISOString()}`,
+      },
+    }).catch(() => {});
+
     if (!body || typeof body !== "object") {
+      await prisma.appSettings.update({
+        where: { id: "singleton" },
+        data: { webhookLastOutcome: `invalid_json — body was: ${rawStr.slice(0, 200)} at ${new Date().toISOString()}` },
+      }).catch(() => {});
       return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
     }
-
-    const rawStr = JSON.stringify(body).slice(0, 2000);
-    console.log("[ghl/outbound-call] raw payload:", rawStr);
 
     const {
       ghlUserId, agentName, direction,
@@ -139,16 +168,15 @@ export async function POST(req: NextRequest) {
       console.warn("[ghl/outbound-call]", outcome);
       await prisma.appSettings.update({
         where: { id: "singleton" },
-        data: { webhookLastPayload: rawStr, webhookLastOutcome: outcome },
+        data: { webhookLastOutcome: outcome },
       }).catch(() => {});
       return NextResponse.json({ received: true, warning: "no linked agent" });
     }
 
-    // Store last successful payload for debugging
+    // Update outcome with success
     await prisma.appSettings.update({
       where: { id: "singleton" },
       data: {
-        webhookLastPayload: rawStr,
         webhookLastOutcome: `ok — agent="${agent.id}" direction="${direction}" at ${new Date().toISOString()}`,
       },
     }).catch(() => {});
