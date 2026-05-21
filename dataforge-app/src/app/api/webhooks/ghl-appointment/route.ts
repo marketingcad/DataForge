@@ -35,46 +35,53 @@ export async function POST(req: NextRequest) {
     select: { id: true, name: true, nickname: true },
   });
 
-  // Strip leading source prefixes GHL sometimes prepends (e.g. "FB Sharlene" → "Sharlene")
-  const SOURCE_PREFIXES = new Set(["fb", "ig", "tt", "tiktok", "yt", "tw", "twitter", "x", "wa", "sms", "web", "gg", "google"]);
-  function stripSourcePrefix(n: string): string {
-    const words = n.trim().split(/\s+/);
-    if (words.length > 1 && SOURCE_PREFIXES.has(words[0].toLowerCase())) {
-      return words.slice(1).join(" ");
-    }
-    return n;
+  // Noise words GHL might include around a rep's name — ignored during token matching
+  const NOISE = new Set([
+    "fb", "facebook", "ig", "instagram", "tt", "tiktok", "yt", "youtube",
+    "tw", "twitter", "x", "wa", "whatsapp", "sms", "web", "website",
+    "gg", "google", "from", "by", "via", "and", "the", "rep", "agent",
+  ]);
+
+  // Extract meaningful tokens from a string (>= 2 chars, not noise)
+  function tokens(s: string): string[] {
+    return s.toLowerCase().split(/[\s\-_,.|&]+/).filter((w) => w.length >= 2 && !NOISE.has(w));
   }
 
-  const repNameCleaned = stripSourcePrefix(repName);
-
-  function scoreAgainst(candidate: string, query: string): number {
-    const c = candidate.toLowerCase();
-    const q = query.toLowerCase();
-    const parts = c.split(" ");
-    if (c === q)                                         return 100;
-    if (parts[0] === q)                                  return 90;
-    if (parts[parts.length - 1] === q)                   return 80;
-    if (c.startsWith(q))                                 return 70;
-    if (q.split(" ").every((w) => c.includes(w)))        return 60;
-    if (c.includes(q))                                   return 40;
-    return 0;
-  }
+  const queryTokens = tokens(repName);
 
   function score(u: { name: string | null; nickname: string | null }): number {
-    const name     = u.name     ?? "";
-    const nickname = u.nickname ?? "";
-    // Try both the cleaned name (prefix stripped) and the original
-    return Math.max(
-      scoreAgainst(name,     repNameCleaned),
-      scoreAgainst(name,     repName),
-      nickname ? scoreAgainst(nickname, repNameCleaned) : 0,
-      nickname ? scoreAgainst(nickname, repName)        : 0,
+    if (!queryTokens.length) return 0;
+
+    // Build token sets for this agent's name + nickname
+    const candidateTokens = [
+      ...tokens(u.name ?? ""),
+      ...tokens(u.nickname ?? ""),
+    ];
+    if (!candidateTokens.length) return 0;
+
+    // Full string exact match (highest confidence)
+    const qFull  = queryTokens.join(" ");
+    const cFull  = tokens(u.name ?? "").join(" ");
+    const cnFull = tokens(u.nickname ?? "").join(" ");
+    if (cFull === qFull || cnFull === qFull) return 100;
+
+    // Count how many of the agent's name tokens appear in the query
+    const hits = candidateTokens.filter((ct) =>
+      queryTokens.some((qt) => qt === ct || qt.startsWith(ct) || ct.startsWith(qt))
     );
+
+    if (hits.length === 0) return 0;
+
+    // Score = proportion of agent tokens matched × 80, capped at 90
+    // Longer individual token matches are worth more (avoids false positives on short words)
+    const tokenScore = (hits.length / candidateTokens.length) * 80;
+    const lengthBonus = Math.min(10, hits.reduce((s, h) => s + h.length, 0));
+    return Math.min(90, Math.round(tokenScore + lengthBonus));
   }
 
   const matched = allReps
     .map((u) => ({ u, s: score(u) }))
-    .filter((x) => x.s > 0)
+    .filter((x) => x.s >= 20)   // minimum confidence threshold
     .sort((a, b) => b.s - a.s)[0]?.u ?? null;
 
   if (!matched) {
