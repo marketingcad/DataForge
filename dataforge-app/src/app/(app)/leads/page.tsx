@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { IndustryBoard } from "@/components/leads/IndustryBoard";
-import { LeadsGlobe } from "@/components/leads/LeadsGlobe";
+import { GlobeSection } from "@/components/leads/GlobeSection";
 import { LeadsEmptyState } from "@/components/leads/LeadsEmptyState";
 import { getIndustries } from "@/lib/industry/service";
 import { getFolders } from "@/lib/folders/service";
@@ -71,7 +71,7 @@ export default async function LeadsPage({
 
       {/* Globe — boss/admin only */}
       {isAdmin && locations.length > 0 && (
-        <LeadsGlobe points={locations} />
+        <GlobeSection points={locations} />
       )}
 
       <Separator />
