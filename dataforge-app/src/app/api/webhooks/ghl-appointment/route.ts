@@ -35,24 +35,41 @@ export async function POST(req: NextRequest) {
     select: { id: true, name: true, nickname: true },
   });
 
-  const repNameLower = repName.toLowerCase();
+  // Strip leading source prefixes GHL sometimes prepends (e.g. "FB Sharlene" → "Sharlene")
+  const SOURCE_PREFIXES = new Set(["fb", "ig", "tt", "tiktok", "yt", "tw", "twitter", "x", "wa", "sms", "web", "gg", "google"]);
+  function stripSourcePrefix(n: string): string {
+    const words = n.trim().split(/\s+/);
+    if (words.length > 1 && SOURCE_PREFIXES.has(words[0].toLowerCase())) {
+      return words.slice(1).join(" ");
+    }
+    return n;
+  }
 
-  function scoreAgainst(candidate: string): number {
+  const repNameCleaned = stripSourcePrefix(repName);
+
+  function scoreAgainst(candidate: string, query: string): number {
     const c = candidate.toLowerCase();
+    const q = query.toLowerCase();
     const parts = c.split(" ");
-    if (c === repNameLower)                                   return 100;
-    if (parts[0] === repNameLower)                            return 90;
-    if (parts[parts.length - 1] === repNameLower)             return 80;
-    if (c.startsWith(repNameLower))                           return 70;
-    if (repNameLower.split(" ").every((w) => c.includes(w))) return 60;
-    if (c.includes(repNameLower))                             return 40;
+    if (c === q)                                         return 100;
+    if (parts[0] === q)                                  return 90;
+    if (parts[parts.length - 1] === q)                   return 80;
+    if (c.startsWith(q))                                 return 70;
+    if (q.split(" ").every((w) => c.includes(w)))        return 60;
+    if (c.includes(q))                                   return 40;
     return 0;
   }
 
   function score(u: { name: string | null; nickname: string | null }): number {
-    const byName     = scoreAgainst(u.name     ?? "");
-    const byNickname = u.nickname ? scoreAgainst(u.nickname) : 0;
-    return Math.max(byName, byNickname);
+    const name     = u.name     ?? "";
+    const nickname = u.nickname ?? "";
+    // Try both the cleaned name (prefix stripped) and the original
+    return Math.max(
+      scoreAgainst(name,     repNameCleaned),
+      scoreAgainst(name,     repName),
+      nickname ? scoreAgainst(nickname, repNameCleaned) : 0,
+      nickname ? scoreAgainst(nickname, repName)        : 0,
+    );
   }
 
   const matched = allReps
