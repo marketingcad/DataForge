@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import {
   LayoutDashboard, Users, ScanSearch, Megaphone, Trophy,
   BarChart2, LayoutGrid, Settings, BookOpen, Layers,
@@ -21,24 +22,41 @@ function Section({ id, children }: { id: string; children: React.ReactNode }) {
   return <section id={id} className="scroll-mt-4 space-y-3">{children}</section>;
 }
 
+function GoLink({ href, children = "Open" }: { href: string; children?: React.ReactNode }) {
+  return (
+    <Link
+      href={href}
+      className="inline-flex items-center gap-1 text-[10px] font-semibold text-primary hover:underline shrink-0"
+    >
+      {children}
+      <ArrowRight className="h-2.5 w-2.5" />
+    </Link>
+  );
+}
+
 function SectionHeader({
   icon: Icon,
   iconColor,
   title,
   subtitle,
+  href,
 }: {
   icon: React.ElementType;
   iconColor: string;
   title: string;
   subtitle: string;
+  href?: string;
 }) {
   return (
     <div className="flex items-start gap-3 pb-3 border-b border-border/60">
       <div className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 ${iconColor}`}>
         <Icon className="h-4 w-4" />
       </div>
-      <div>
-        <h2 className="text-sm font-bold">{title}</h2>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <h2 className="text-sm font-bold">{title}</h2>
+          {href && <GoLink href={href} />}
+        </div>
         <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>
       </div>
     </div>
@@ -58,17 +76,22 @@ function FeatureRow({
   iconColor = "text-muted-foreground",
   title,
   description,
+  href,
 }: {
   icon: React.ElementType;
   iconColor?: string;
   title: string;
   description: string;
+  href?: string;
 }) {
   return (
     <div className="flex gap-2.5">
       <Icon className={`h-4 w-4 shrink-0 mt-0.5 ${iconColor}`} />
       <div>
-        <p className="text-sm font-medium">{title}</p>
+        <div className="flex items-center gap-1.5">
+          <p className="text-sm font-medium">{title}</p>
+          {href && <GoLink href={href} />}
+        </div>
         <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{description}</p>
       </div>
     </div>
@@ -216,7 +239,7 @@ export default async function HowItWorksPage() {
 
         {/* ── DASHBOARD ── */}
         <Section id="dashboard">
-          <SectionHeader icon={LayoutDashboard} iconColor="bg-indigo-500/15 text-indigo-500" title="Dashboard" subtitle="Organisation-wide snapshot — metrics, charts, and quick actions" />
+          <SectionHeader icon={LayoutDashboard} iconColor="bg-indigo-500/15 text-indigo-500" title="Dashboard" subtitle="Organisation-wide snapshot — metrics, charts, and quick actions" href="/dashboard" />
           <div className="grid grid-cols-2 gap-3">
             <Card className="space-y-3">
               <SubLabel>Top Stats Strip</SubLabel>
@@ -251,7 +274,7 @@ export default async function HowItWorksPage() {
 
         {/* ── LEADS ── */}
         <Section id="leads">
-          <SectionHeader icon={Users} iconColor="bg-emerald-500/15 text-emerald-500" title="Leads" subtitle="The central database of all business contacts" />
+          <SectionHeader icon={Users} iconColor="bg-emerald-500/15 text-emerald-500" title="Leads" subtitle="The central database of all business contacts" href="/leads" />
           <div className="grid grid-cols-2 gap-3">
             <Card className="space-y-3">
               <SubLabel>Industry Board</SubLabel>
@@ -280,22 +303,22 @@ export default async function HowItWorksPage() {
 
         {/* ── SCRAPING ── */}
         <Section id="scraping">
-          <SectionHeader icon={ScanSearch} iconColor="bg-amber-500/15 text-amber-500" title="Lead Scraping" subtitle="Three ways to automatically discover new leads" />
+          <SectionHeader icon={ScanSearch} iconColor="bg-amber-500/15 text-amber-500" title="Lead Scraping" subtitle="Three ways to automatically discover new leads" href="/scraping?tab=domain" />
           <div className="grid grid-cols-3 gap-3">
             {[
               {
                 icon: Globe, color: "text-blue-500", bg: "bg-blue-500/10",
-                title: "Scrape a Website", access: "Boss · Admin · Lead Spec.",
+                title: "Scrape a Website", access: "Boss · Admin · Lead Spec.", href: "/scraping?tab=domain",
                 desc: "Enter a domain and DataForge crawls the site to extract phone numbers, emails, addresses, and business names — useful when you already know which company to target.",
               },
               {
                 icon: Search, color: "text-violet-500", bg: "bg-violet-500/10",
-                title: "Search by Google", access: "Boss · Admin · Lead Spec.",
+                title: "Search by Google", access: "Boss · Admin · Lead Spec.", href: "/scraping?tab=google",
                 desc: "Enter a keyword and location. DataForge queries Google Maps to discover matching businesses and extracts their contact info in bulk. Fastest way to fill a niche pipeline.",
               },
               {
                 icon: Wand2, color: "text-amber-500", bg: "bg-amber-500/10",
-                title: "Auto Keywords", access: "Boss · Admin only",
+                title: "Auto Keywords", access: "Boss · Admin only", href: "/scraping?tab=keywords",
                 desc: "Configure keyword + location pairs with an interval. DataForge runs Google scraping jobs on schedule — daily, hourly, or custom — with no manual trigger needed.",
               },
             ].map((s) => (
@@ -303,7 +326,10 @@ export default async function HowItWorksPage() {
                 <div className={`h-8 w-8 rounded-lg flex items-center justify-center ${s.bg}`}>
                   <s.icon className={`h-4 w-4 ${s.color}`} />
                 </div>
-                <p className="text-sm font-semibold">{s.title}</p>
+                <div className="flex items-center gap-1.5">
+                  <p className="text-sm font-semibold">{s.title}</p>
+                  <GoLink href={s.href} />
+                </div>
                 <p className="text-xs text-muted-foreground leading-relaxed">{s.desc}</p>
                 <p className="text-[10px] font-medium text-muted-foreground border-t border-border/40 pt-2">{s.access}</p>
               </Card>
@@ -322,7 +348,7 @@ export default async function HowItWorksPage() {
 
         {/* ── MARKETING ── */}
         <Section id="marketing">
-          <SectionHeader icon={Megaphone} iconColor="bg-rose-500/15 text-rose-500" title="Marketing Overview" subtitle="Team performance hub — calls, appointments, leaderboard, and commissions" />
+          <SectionHeader icon={Megaphone} iconColor="bg-rose-500/15 text-rose-500" title="Marketing Overview" subtitle="Team performance hub — calls, appointments, leaderboard, and commissions" href="/marketing" />
           <div className="grid grid-cols-2 gap-3">
             <Card className="space-y-3">
               <SubLabel>KPI Cards</SubLabel>
@@ -354,8 +380,8 @@ export default async function HowItWorksPage() {
             <Card className="space-y-2">
               <SubLabel>Notes &amp; Scripts</SubLabel>
               <div className="space-y-2.5">
-                <FeatureRow icon={NotebookPen} iconColor="text-blue-500"   title="Notes"   description="Shared knowledge base. Boss/admin publish; all team can read during calls." />
-                <FeatureRow icon={ScrollText}  iconColor="text-violet-500" title="Scripts" description="Approved call scripts the whole team can reference. Both sections are searchable." />
+                <FeatureRow icon={NotebookPen} iconColor="text-blue-500"   title="Notes"   description="Shared knowledge base. Boss/admin publish; all team can read during calls."   href="/marketing/notes" />
+                <FeatureRow icon={ScrollText}  iconColor="text-violet-500" title="Scripts" description="Approved call scripts the whole team can reference. Both sections are searchable." href="/marketing/scripts" />
               </div>
             </Card>
           </div>
@@ -367,7 +393,8 @@ export default async function HowItWorksPage() {
             </div>
             <p className="text-xs text-muted-foreground flex items-center gap-1.5 border-t border-border/40 pt-2">
               <Settings className="h-3 w-3 shrink-0" />
-              Configure webhook URL and bearer secret in <strong className="text-foreground">Settings → GHL Integration</strong>.
+              Configure webhook URL and bearer secret in{" "}
+              <Link href="/settings" className="font-semibold text-foreground hover:underline">Settings → GHL Integration</Link>.
             </p>
           </Card>
         </Section>
@@ -380,6 +407,7 @@ export default async function HowItWorksPage() {
               <div className="flex items-center gap-2 mb-1">
                 <Medal className="h-4 w-4 text-amber-500" />
                 <p className="text-sm font-semibold">Badges</p>
+                <GoLink href="/marketing/manage/badges" />
               </div>
               <p className="text-xs text-muted-foreground leading-relaxed">
                 Create custom achievement badges and award them manually to agents. Badges appear on leaderboard profile cards and the Top Performers dashboard widget. Use them to recognise milestones — first 100 calls, monthly MVP, top closer, etc.
@@ -389,6 +417,7 @@ export default async function HowItWorksPage() {
               <div className="flex items-center gap-2 mb-1">
                 <Target className="h-4 w-4 text-rose-500" />
                 <p className="text-sm font-semibold">Challenges</p>
+                <GoLink href="/marketing/manage/tasks" />
               </div>
               <p className="text-xs text-muted-foreground leading-relaxed">
                 Set team-wide time-bounded challenges with a call target and point reward. Active challenges appear on the Marketing dashboard for all agents. Progress is tracked per rep and challenges expire automatically on their end date.
@@ -398,6 +427,7 @@ export default async function HowItWorksPage() {
               <div className="flex items-center gap-2 mb-1">
                 <BadgeDollarSign className="h-4 w-4 text-emerald-500" />
                 <p className="text-sm font-semibold">Commissions</p>
+                <GoLink href="/marketing/manage/commissions" />
               </div>
               <p className="text-xs text-muted-foreground leading-relaxed">
                 Commission rules define how much an agent earns per qualifying event. Tracks <strong className="text-foreground">Pending</strong> (earned, not yet paid) and <strong className="text-foreground">Paid</strong> separately.
@@ -413,6 +443,7 @@ export default async function HowItWorksPage() {
               <div className="flex items-center gap-2 mb-1">
                 <Sparkles className="h-4 w-4 text-violet-500" />
                 <p className="text-sm font-semibold">Balloon Pop</p>
+                <GoLink href="/balloons" />
               </div>
               <p className="text-xs text-muted-foreground leading-relaxed">
                 Agents earn points by booking appointments and spend them to pop balloons — each balloon contains a prize you set. 16 balloons on the board at a time.
@@ -427,7 +458,7 @@ export default async function HowItWorksPage() {
 
         {/* ── REPORTS ── */}
         <Section id="reports">
-          <SectionHeader icon={BarChart2} iconColor="bg-sky-500/15 text-sky-500" title="Reports" subtitle="Deep-dive agent performance analytics for coaching" />
+          <SectionHeader icon={BarChart2} iconColor="bg-sky-500/15 text-sky-500" title="Reports" subtitle="Deep-dive agent performance analytics for coaching" href="/reports" />
           <div className="grid grid-cols-2 gap-3">
             <Card className="space-y-3">
               <SubLabel>Summary KPIs</SubLabel>
@@ -461,13 +492,16 @@ export default async function HowItWorksPage() {
           <SectionHeader icon={LayoutGrid} iconColor="bg-teal-500/15 text-teal-500" title="Workspace" subtitle="Kanban, Calendar, and team collaboration tools" />
           <div className="grid grid-cols-3 gap-3">
             {[
-              { icon: LayoutGrid,  color: "text-teal-500",   title: "Kanban Board",               desc: "Tasks move through To Do → In Progress → Review → Done. Admins create and assign tasks with due dates. All roles can view the full board." },
-              { icon: CalendarDays, color: "text-blue-500",  title: "Calendar",                   desc: "Shared team calendar for events and meetings. Boss/admin create and manage events. All other users view only." },
-              { icon: Bug,         color: "text-rose-500",   title: "Bug Reports",                desc: "Any team member can submit a bug or feature request. Boss/admin change status (New → In Progress → Resolved → Closed) and track resolution." },
+              { icon: LayoutGrid,  color: "text-teal-500", href: "/kanban",   title: "Kanban Board",  desc: "Tasks move through To Do → In Progress → Review → Done. Admins create and assign tasks with due dates. All roles can view the full board." },
+              { icon: CalendarDays, color: "text-blue-500", href: "/calendar", title: "Calendar",      desc: "Shared team calendar for events and meetings. Boss/admin create and manage events. All other users view only." },
+              { icon: Bug,         color: "text-rose-500",  href: "/feedback", title: "Bug Reports",   desc: "Any team member can submit a bug or feature request. Boss/admin change status (New → In Progress → Resolved → Closed) and track resolution." },
             ].map((s) => (
               <Card key={s.title} className="space-y-2">
                 <s.icon className={`h-5 w-5 ${s.color}`} />
-                <p className="text-sm font-semibold">{s.title}</p>
+                <div className="flex items-center gap-1.5">
+                  <p className="text-sm font-semibold">{s.title}</p>
+                  <GoLink href={s.href} />
+                </div>
                 <p className="text-xs text-muted-foreground leading-relaxed">{s.desc}</p>
               </Card>
             ))}
@@ -476,12 +510,13 @@ export default async function HowItWorksPage() {
 
         {/* ── ADMIN TOOLS ── */}
         <Section id="admin">
-          <SectionHeader icon={Settings} iconColor="bg-slate-500/15 text-slate-500" title="Admin Tools" subtitle="User management and global configuration" />
+          <SectionHeader icon={Settings} iconColor="bg-slate-500/15 text-slate-500" title="Admin Tools" subtitle="User management and global configuration" href="/admin/users" />
           <div className="grid grid-cols-2 gap-3">
             <Card className="space-y-3">
               <div className="flex items-center gap-2">
                 <UserCog className="h-4 w-4 text-blue-500" />
                 <p className="text-sm font-semibold">Users</p>
+                <GoLink href="/admin/users" />
               </div>
               <p className="text-xs text-muted-foreground leading-relaxed">
                 Create and manage team accounts. Assign roles, set GHL User IDs for call attribution, view per-agent stats, and import agents from GHL.
@@ -501,6 +536,7 @@ export default async function HowItWorksPage() {
               <div className="flex items-center gap-2">
                 <Settings className="h-4 w-4 text-slate-500" />
                 <p className="text-sm font-semibold">Settings <span className="text-[10px] font-normal text-muted-foreground ml-1">Boss only</span></p>
+                <GoLink href="/settings" />
               </div>
               <div className="space-y-2.5">
                 <FeatureRow icon={Building2}     iconColor="text-muted-foreground" title="Company Name"          description="Your organisation's display name across the platform." />
@@ -515,7 +551,10 @@ export default async function HowItWorksPage() {
           <Card className="flex gap-2.5">
             <UserCircle className="h-4 w-4 shrink-0 mt-0.5 text-muted-foreground" />
             <div>
-              <p className="text-sm font-medium">My Profile</p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-sm font-medium">My Profile</p>
+                <GoLink href="/profile" />
+              </div>
               <p className="text-xs text-muted-foreground mt-0.5">Update your display name, profile photo, and password. Your photo appears in the top nav and on leaderboard cards.</p>
             </div>
           </Card>
