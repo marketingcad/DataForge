@@ -54,18 +54,19 @@ export function AppClientShell({ children, userName, userEmail, userId = "" }: A
 
         {/* Header */}
         <header className="flex h-14 items-center justify-between border-b px-6 bg-background shrink-0">
-          <div className="flex-1" />
-          <div className="flex items-center gap-2">
-            {secretVisible && (
-              <span className="w-56 overflow-hidden shrink-0 animate-in fade-in duration-500">
-                <span
-                  className="inline-block whitespace-nowrap text-xs font-medium text-muted-foreground"
-                  style={{ animation: "marquee-scroll 10s linear infinite" }}
-                >
-                  Powered By Claude Boys of Linkage Web Solutions 😎
-                </span>
+          {secretVisible ? (
+            <span className="flex-1 min-w-0 overflow-hidden animate-in fade-in duration-500">
+              <span
+                className="inline-block whitespace-nowrap text-xs font-medium text-muted-foreground"
+                style={{ animation: "marquee-scroll 10s linear infinite" }}
+              >
+                Powered By Claude Boys of Linkage Web Solutions 😎
               </span>
-            )}
+            </span>
+          ) : (
+            <div className="flex-1" />
+          )}
+          <div className="flex items-center gap-2">
             <MigrationStatusBadge />
             <FeedbackButton />
             <ThemeToggle />
