@@ -137,15 +137,13 @@ export async function BossDashboard({ period = "month", metric = "calls" }: { pe
           <h1 className="text-xl font-black tracking-tight">Marketing</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Team performance overview</p>
         </div>
-        <div className="flex flex-col items-end gap-2">
-          <div className="flex items-center gap-2">
-            <AppointmentsModalButton canDelete={true} />
-            <AddAppointmentModal reps={salesReps} />
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <PeriodToggle period={period} />
-            <MetricToggle metric={metric} />
-          </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <PeriodToggle period={period} />
+          <div className="h-5 w-px bg-border hidden sm:block" />
+          <MetricToggle metric={metric} />
+          <div className="h-5 w-px bg-border hidden sm:block" />
+          <AppointmentsModalButton canDelete={true} />
+          <AddAppointmentModal reps={salesReps} />
         </div>
       </div>
 
