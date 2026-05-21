@@ -4,8 +4,13 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { getLeaderboardAction } from "@/actions/marketing.actions";
 import { SalesLeaderboard, type LeaderboardEntry } from "./SalesLeaderboard";
-import type { Metric } from "./MetricToggle";
+import { METRIC_LABELS, type Metric } from "./MetricToggle";
 import type { Period } from "./PeriodToggle";
+
+const VALID_METRICS = Object.keys(METRIC_LABELS) as Metric[];
+function toMetric(raw: string | null, fallback: Metric): Metric {
+  return VALID_METRICS.includes(raw as Metric) ? (raw as Metric) : fallback;
+}
 
 interface Props {
   initialLeaderboard: LeaderboardEntry[];
@@ -20,7 +25,7 @@ export function LeaderboardClientWrapper({ initialLeaderboard, initialPeriod, in
   const [isPending, startTransition] = useTransition();
 
   const period = (searchParams.get("period") ?? initialPeriod) as Period;
-  const metric = (searchParams.get("metric") ?? initialMetric) as Metric;
+  const metric = toMetric(searchParams.get("metric"), initialMetric);
 
   useEffect(() => {
     startTransition(async () => {
