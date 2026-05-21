@@ -27,46 +27,48 @@ function parsePayload(b: Record<string, unknown>) {
   const num = (v: unknown) =>
     typeof v === "number" ? v : typeof v === "string" ? parseInt(v, 10) || 0 : 0;
 
-  // Nested sub-objects GHL sometimes sends (e.g. { user: { id, name }, call: { ... } })
+  // GHL wraps custom data fields inside a "customData" object
+  const cd = (b.customData ?? {}) as Record<string, unknown>;
   const u = nested(b, "user") as Record<string, unknown> | undefined;
   const c = nested(b, "call") as Record<string, unknown> | undefined;
   const d = nested(b, "data") as Record<string, unknown> | undefined;
 
-  // Accept flat, prefixed, camelCase AND nested { user.id } formats
+  // Check customData first (GHL standard), then top-level fallbacks
   const ghlUserId =
+    str(cd.call_user_id) ?? str(cd.call_answered_by_user_id) ??
     str(b.call_user_id) ?? str(b.call_answered_by_user_id) ??
     str(b.userId) ?? str(b.user_id) ?? str(b.assignedTo) ?? str(b.assigned_to) ?? str(b.ownerId) ??
     str(u?.id) ?? str(d?.userId) ?? str(d?.user_id);
 
   const agentName =
+    str(cd.call_user_name) ?? str(cd.call_answered_by_user_name) ??
     str(b.call_user_name) ?? str(b.call_answered_by_user_name) ??
     str(b.userName) ?? str(b.user_name) ?? str(b.assignedToName) ?? str(b.assigned_to_name) ??
     str(u?.name) ?? str(u?.fullName);
 
   const directionRaw =
-    str(b.call_direction) ?? str(b.direction) ??
+    str(cd.call_direction) ?? str(b.call_direction) ?? str(b.direction) ??
     str(c?.direction) ?? "outbound";
   const direction: "inbound" | "outbound" =
     directionRaw.toLowerCase().includes("in") ? "inbound" : "outbound";
 
   const fromPhone =
-    str(b.call_from) ?? str(b.callFrom) ?? str(b.from) ?? str(b.fromPhone) ?? str(b.from_phone) ??
+    str(cd.call_from) ?? str(b.call_from) ?? str(b.callFrom) ?? str(b.from) ??
     str(c?.from) ?? str(c?.callFrom);
   const toPhone =
-    str(b.call_to) ?? str(b.callTo) ?? str(b.to) ?? str(b.toPhone) ?? str(b.to_phone) ??
+    str(cd.call_to) ?? str(b.call_to) ?? str(b.callTo) ?? str(b.to) ??
     str(c?.to) ?? str(c?.callTo);
   const contactPhone = direction === "outbound" ? toPhone : fromPhone;
 
   const startRaw =
-    b.call_start_time ?? b.callStartTime ?? b.startTime ?? b.start_time ??
-    b.calledAt ?? b.called_at ?? b.createdAt ?? b.created_at ??
-    c?.startTime ?? c?.start_time ?? c?.callStartTime;
+    cd.call_start_time ?? b.call_start_time ?? b.callStartTime ?? b.startTime ?? b.start_time ??
+    b.calledAt ?? b.called_at ?? c?.startTime ?? c?.callStartTime;
   const endRaw =
-    b.call_end_time ?? b.callEndTime ?? b.endTime ?? b.end_time ??
+    cd.call_end_time ?? b.call_end_time ?? b.callEndTime ?? b.endTime ?? b.end_time ??
     c?.endTime ?? c?.end_time;
 
   let durationSecs = num(
-    b.call_duration ?? b.callDuration ?? b.duration ?? b.durationSecs ?? b.duration_secs ?? b.durationSeconds ??
+    cd.call_duration ?? b.call_duration ?? b.callDuration ?? b.duration ??
     c?.duration ?? c?.callDuration
   );
 
@@ -77,7 +79,7 @@ function parsePayload(b: Record<string, unknown>) {
 
   const calledAt  = startRaw ? new Date(String(startRaw)) : new Date();
   const statusRaw =
-    str(b.call_status) ?? str(b.callStatus) ?? str(b.status) ??
+    str(cd.call_status) ?? str(b.call_status) ?? str(b.callStatus) ?? str(b.status) ??
     str(c?.status) ?? str(c?.callStatus) ?? "";
 
   const dedupKey = ghlUserId && startRaw
