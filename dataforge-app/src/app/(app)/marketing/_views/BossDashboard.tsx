@@ -1,4 +1,4 @@
-import { Users, Phone, BarChart2, CalendarCheck, Trophy } from "lucide-react";
+import { Users, Phone, BarChart2, CalendarCheck, DollarSign } from "lucide-react";
 import { withDbRetry } from "@/lib/prisma";
 import {
   getTeamSummary,
@@ -12,8 +12,6 @@ import {
 } from "@/lib/marketing/team.service";
 import { getSalesReps } from "@/actions/appointments.actions";
 import { TaskCard } from "../TaskCard";
-import { SeedMarketingButton } from "../SeedMarketingButton";
-import { SyncGhlButton } from "../SyncGhlButton";
 import { AddAppointmentModal } from "@/components/marketing/AddAppointmentModal";
 import { AppointmentsModalButton } from "@/components/marketing/AppointmentsModal";
 import { CallVolumeChart } from "@/components/marketing/CallVolumeChart";
@@ -80,6 +78,8 @@ export async function BossDashboard({ period = "month", metric = "calls" }: { pe
     ? Math.round(leaderboard.reduce((s, a) => s + a.callCount, 0) / leaderboard.length)
     : 0;
 
+  const totalCommissions = leaderboard.reduce((s, a) => s + (a.commissionsEarned ?? 0), 0);
+
   const chartTitle =
     period === "month"    ? "Team Call Volume — Last 30 Days" :
     period === "all_time" ? "Team Call Volume — All Time (Monthly)" :
@@ -119,12 +119,12 @@ export async function BossDashboard({ period = "month", metric = "calls" }: { pe
       icon:   <CalendarCheck className="h-5 w-5 text-sky-500" />,
     },
     {
-      label:  "Deals Won",
-      value:  summary.teamWon,
-      sub:    "All time total",
+      label:  "Commissions",
+      value:  `$${totalCommissions.toLocaleString()}`,
+      sub:    `${periodLabel} total`,
       accent: "bg-rose-500",
       num:    "text-rose-600 dark:text-rose-400",
-      icon:   <Trophy className="h-5 w-5 text-rose-500" />,
+      icon:   <DollarSign className="h-5 w-5 text-rose-500" />,
     },
   ];
 
@@ -141,8 +141,6 @@ export async function BossDashboard({ period = "month", metric = "calls" }: { pe
           <div className="flex items-center gap-2">
             <AppointmentsModalButton canDelete={true} />
             <AddAppointmentModal reps={salesReps} />
-            <SyncGhlButton />
-            <SeedMarketingButton />
           </div>
           <div className="flex flex-wrap gap-2">
             <PeriodToggle period={period} />
