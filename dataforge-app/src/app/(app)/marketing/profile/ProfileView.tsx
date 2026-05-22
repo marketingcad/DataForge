@@ -179,6 +179,35 @@ export function ProfileView({
         ))}
       </div>
 
+      {/* ── Avg Call Duration (sales rep only) ───────────────────────────── */}
+      {isSalesRep && (
+        <div className="rounded-2xl bg-card border border-border/30 shadow-sm overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-border/30 flex items-center gap-2">
+            <span className="text-sm">⏱️</span>
+            <p className="text-sm font-bold">Avg Call Duration</p>
+            <span className="text-xs text-muted-foreground">completed calls only</span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-y sm:divide-y-0 divide-border/30">
+            {([
+              { label: "Today",      value: stats.avgDuration.today,   color: "text-blue-500",    bg: "bg-blue-500/10"    },
+              { label: "This Week",  value: stats.avgDuration.week,    color: "text-orange-500",  bg: "bg-orange-500/10"  },
+              { label: "This Month", value: stats.avgDuration.month,   color: "text-violet-500",  bg: "bg-violet-500/10"  },
+              { label: "All Time",   value: stats.avgDuration.allTime, color: "text-emerald-500", bg: "bg-emerald-500/10" },
+            ] as { label: string; value: number; color: string; bg: string }[]).map((d) => {
+              const m = Math.floor(d.value / 60);
+              const s = d.value % 60;
+              const fmt = d.value <= 0 ? "—" : m === 0 ? `${s}s` : s === 0 ? `${m}m` : `${m}m ${s}s`;
+              return (
+                <div key={d.label} className="px-5 py-4 text-center space-y-1">
+                  <p className={`text-2xl font-black tabular-nums ${d.value <= 0 ? "text-muted-foreground" : d.color}`}>{fmt}</p>
+                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">{d.label}</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* ── Badges ────────────────────────────────────────────────────────── */}
       {allBadges.length > 0 && (
         <div className="rounded-2xl bg-card shadow-sm p-5 space-y-4">

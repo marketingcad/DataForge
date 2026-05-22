@@ -37,7 +37,8 @@ export async function getAgentStats(agentId: string) {
   const startOfMonth = startOfMonthPHT(now);
   const startOf30    = new Date(now); startOf30.setDate(now.getDate() - 30);
 
-  const [total, today, thisWeek, thisMonth, last30, badges, activeTasks, appointmentsSet, dealsWon] = await Promise.all([
+  const [total, today, thisWeek, thisMonth, last30, badges, activeTasks, appointmentsSet, dealsWon,
+    durToday, durWeek, durMonth, durAll] = await Promise.all([
     prisma.callLog.count({ where: { agentId } }),
     prisma.callLog.count({ where: { agentId, calledAt: { gte: startOfDay } } }),
     prisma.callLog.count({ where: { agentId, calledAt: { gte: startOfWeek } } }),
@@ -55,6 +56,10 @@ export async function getAgentStats(agentId: string) {
     }),
     prisma.bookedAppointment.count({ where: { agentId } }),
     prisma.ghlOpportunity.count({ where: { agentId, status: "won" } }),
+    prisma.callLog.aggregate({ where: { agentId, status: "completed", calledAt: { gte: startOfDay } },   _avg: { durationSecs: true } }),
+    prisma.callLog.aggregate({ where: { agentId, status: "completed", calledAt: { gte: startOfWeek } },  _avg: { durationSecs: true } }),
+    prisma.callLog.aggregate({ where: { agentId, status: "completed", calledAt: { gte: startOfMonth } }, _avg: { durationSecs: true } }),
+    prisma.callLog.aggregate({ where: { agentId, status: "completed" },                                  _avg: { durationSecs: true } }),
   ]);
 
   return {
@@ -68,6 +73,12 @@ export async function getAgentStats(agentId: string) {
     activeTasks,
     appointmentsSet,
     dealsWon,
+    avgDuration: {
+      today:   Math.round(durToday._avg.durationSecs ?? 0),
+      week:    Math.round(durWeek._avg.durationSecs  ?? 0),
+      month:   Math.round(durMonth._avg.durationSecs ?? 0),
+      allTime: Math.round(durAll._avg.durationSecs   ?? 0),
+    },
   };
 }
 
@@ -185,7 +196,8 @@ export async function getAgentProfile(userId: string) {
   const startOfLastWeek  = new Date(startOfWeek.getTime() - 7 * 86_400_000);
   const thirtyAgo        = midnightPHT(new Date(now.getTime() - 29 * 86_400_000));
 
-  const [user, totalCalls, callsThisMonth, callsLastMonth, callsThisWeek, callsLastWeek, allBadges, completedTasks, repCommissions] = await Promise.all([
+  const [user, totalCalls, callsThisMonth, callsLastMonth, callsThisWeek, callsLastWeek, allBadges, completedTasks, repCommissions,
+    durToday, durWeek, durMonth, durAll] = await Promise.all([
     prisma.user.findUniqueOrThrow({
       where: { id: userId },
       select: {
@@ -211,6 +223,10 @@ export async function getAgentProfile(userId: string) {
       include: { rule: { select: { name: true } } },
       orderBy: { createdAt: "desc" },
     }),
+    prisma.callLog.aggregate({ where: { agentId: userId, status: "completed", calledAt: { gte: midnightPHT(now) } },   _avg: { durationSecs: true } }),
+    prisma.callLog.aggregate({ where: { agentId: userId, status: "completed", calledAt: { gte: startOfWeek } },        _avg: { durationSecs: true } }),
+    prisma.callLog.aggregate({ where: { agentId: userId, status: "completed", calledAt: { gte: startOfMonth } },       _avg: { durationSecs: true } }),
+    prisma.callLog.aggregate({ where: { agentId: userId, status: "completed" },                                        _avg: { durationSecs: true } }),
   ]);
 
   // Best single day
@@ -256,6 +272,12 @@ export async function getAgentProfile(userId: string) {
       bestDay,
       avgPerDay:   +(totalCalls / Math.max(1, monthsActive * 30)).toFixed(1),
       avgPerMonth: Math.round(totalCalls / monthsActive),
+      avgDuration: {
+        today:   Math.round(durToday._avg.durationSecs ?? 0),
+        week:    Math.round(durWeek._avg.durationSecs  ?? 0),
+        month:   Math.round(durMonth._avg.durationSecs ?? 0),
+        allTime: Math.round(durAll._avg.durationSecs   ?? 0),
+      },
     },
     allBadges: allBadges.map((b) => ({ ...b, earned: earnedKeys.has(b.key) })),
     completedTasks,

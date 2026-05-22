@@ -173,6 +173,34 @@ export async function AgentDashboard({ userId }: Props) {
         ))}
       </div>
 
+      {/* ── Avg Call Duration ── */}
+      <div className="rounded-2xl bg-card shadow-sm overflow-hidden">
+        <div className="px-5 py-4 border-b border-border/40 flex items-center gap-2">
+          <Clock className="h-4 w-4 text-violet-500" />
+          <p className="font-bold text-sm">Avg Call Duration</p>
+          <span className="text-xs text-muted-foreground ml-1">completed calls only</span>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-y md:divide-y-0 divide-border/40">
+          {[
+            { label: "Today",     value: stats.avgDuration.today,   icon: "⚡", color: "text-blue-500",    bg: "bg-blue-500/10"    },
+            { label: "This Week", value: stats.avgDuration.week,    icon: "🔥", color: "text-orange-500",  bg: "bg-orange-500/10"  },
+            { label: "This Month",value: stats.avgDuration.month,   icon: "📈", color: "text-violet-500",  bg: "bg-violet-500/10"  },
+            { label: "All Time",  value: stats.avgDuration.allTime, icon: "📞", color: "text-emerald-500", bg: "bg-emerald-500/10" },
+          ].map((d) => {
+            const m = Math.floor(d.value / 60);
+            const s = d.value % 60;
+            const fmt = d.value <= 0 ? "—" : m === 0 ? `${s}s` : s === 0 ? `${m}m` : `${m}m ${s}s`;
+            return (
+              <div key={d.label} className="px-5 py-4 space-y-2">
+                <div className={`h-8 w-8 rounded-lg ${d.bg} flex items-center justify-center text-base`}>{d.icon}</div>
+                <p className={`text-xl font-black tabular-nums ${d.value <= 0 ? "text-muted-foreground" : ""}`}>{fmt}</p>
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">{d.label}</p>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
       {/* ── Performance charts ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <RepPerformanceChart
