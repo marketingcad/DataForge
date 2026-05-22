@@ -447,7 +447,7 @@ export function ProfileView({
                 <p className="text-sm font-bold">Top Reps</p>
                 <div className="space-y-2">
                   {rankings.entries.map((entry) => {
-                    const isMe = entry.id === user.id;
+                    const isMe = isOwn && entry.id === user.id;
                     return (
                       <div
                         key={entry.id}
@@ -499,7 +499,7 @@ export function ProfileView({
                           </div>
                           <RepAvatar name={me.name} email={me.email} />
                           <div className="flex-1 min-w-0">
-                            <p className="text-xs font-semibold truncate text-violet-700 dark:text-violet-400">You</p>
+                            <p className="text-xs font-semibold truncate text-violet-700 dark:text-violet-400">{isOwn ? "You" : (me.name ?? me.email.split("@")[0])}</p>
                             <p className="text-[10px] text-muted-foreground">{me.appointmentsSet.toLocaleString()} appts booked</p>
                           </div>
                           <div className="text-right shrink-0">
