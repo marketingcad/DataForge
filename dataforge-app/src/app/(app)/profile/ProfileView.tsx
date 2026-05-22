@@ -282,21 +282,13 @@ export function ProfileView({
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,0.2)" vertical={false} />
                   <XAxis
                     dataKey="label"
-                    tick={({ x, y, payload }: { x: string | number; y: string | number; payload: { value: string } }) => (
-                      <text x={x} y={y} dy={10} textAnchor="middle" style={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }}>
-                        {payload.value}
-                      </text>
-                    )}
+                    tick={{ fontSize: 10, fill: "#94a3b8" }}
                     tickLine={false}
                     axisLine={false}
                     interval={4}
                   />
                   <YAxis
-                    tick={({ x, y, payload }: { x: string | number; y: string | number; payload: { value: string } }) => (
-                      <text x={x} y={y} dy={4} textAnchor="end" style={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }}>
-                        {payload.value}
-                      </text>
-                    )}
+                    tick={{ fontSize: 10, fill: "#94a3b8" }}
                     tickLine={false}
                     axisLine={false}
                   />
