@@ -294,9 +294,12 @@ export function ProfileView({
                       border: "1px solid hsl(var(--border))",
                       borderRadius: "12px",
                       fontSize: "12px",
-                      boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                      color: "hsl(var(--card-foreground))",
+                      boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
                     }}
-                    cursor={{ fill: "hsl(var(--muted)/0.5)" }}
+                    labelStyle={{ color: "hsl(var(--muted-foreground))", fontSize: "11px" }}
+                    itemStyle={{ color: "hsl(var(--card-foreground))" }}
+                    cursor={{ fill: "hsl(var(--muted))", opacity: 0.4 }}
                   />
                   <Bar dataKey="calls" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
                 </BarChart>
