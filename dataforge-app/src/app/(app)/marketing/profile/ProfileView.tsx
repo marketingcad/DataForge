@@ -189,7 +189,6 @@ export function ProfileView({
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-y sm:divide-y-0 divide-border/30">
             {([
-              { label: "Today",      value: stats.avgDuration.today,   color: "text-blue-500",    bg: "bg-blue-500/10"    },
               { label: "This Week",  value: stats.avgDuration.week,    color: "text-orange-500",  bg: "bg-orange-500/10"  },
               { label: "This Month", value: stats.avgDuration.month,   color: "text-violet-500",  bg: "bg-violet-500/10"  },
               { label: "All Time",   value: stats.avgDuration.allTime, color: "text-emerald-500", bg: "bg-emerald-500/10" },

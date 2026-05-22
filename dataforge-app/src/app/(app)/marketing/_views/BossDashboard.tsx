@@ -1,4 +1,5 @@
 import { Users, Phone, BarChart2, CalendarCheck, DollarSign } from "lucide-react";
+import Link from "next/link";
 import { withDbRetry } from "@/lib/prisma";
 import {
   getTeamSummary,
@@ -244,7 +245,6 @@ export async function BossDashboard({ period = "month", metric = "calls" }: { pe
                 <tr className="border-b border-border/40">
                   <th className="text-left px-5 py-3 font-semibold text-muted-foreground uppercase tracking-wider">Agent</th>
                   {[
-                    { label: "Today",      color: "text-blue-500"    },
                     { label: "This Week",  color: "text-orange-500"  },
                     { label: "This Month", color: "text-violet-500"  },
                     { label: "All Time",   color: "text-emerald-500" },
@@ -262,8 +262,9 @@ export async function BossDashboard({ period = "month", metric = "calls" }: { pe
                   };
                   return (
                     <tr key={a.id} className="hover:bg-muted/30 transition-colors">
-                      <td className="px-5 py-3 font-semibold truncate max-w-[160px]">{a.name}</td>
-                      <td className="px-5 py-3 text-right">{fmt(a.today)}</td>
+                      <td className="px-5 py-3 max-w-[160px]">
+                        <Link href={`/profile/${a.id}`} className="font-semibold hover:text-violet-500 transition-colors truncate block">{a.name}</Link>
+                      </td>
                       <td className="px-5 py-3 text-right">{fmt(a.week)}</td>
                       <td className="px-5 py-3 text-right">{fmt(a.month)}</td>
                       <td className="px-5 py-3 text-right">{fmt(a.allTime)}</td>

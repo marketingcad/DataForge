@@ -182,7 +182,6 @@ export async function AgentDashboard({ userId }: Props) {
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-y md:divide-y-0 divide-border/40">
           {[
-            { label: "Today",     value: stats.avgDuration.today,   icon: "⚡", color: "text-blue-500",    bg: "bg-blue-500/10"    },
             { label: "This Week", value: stats.avgDuration.week,    icon: "🔥", color: "text-orange-500",  bg: "bg-orange-500/10"  },
             { label: "This Month",value: stats.avgDuration.month,   icon: "📈", color: "text-violet-500",  bg: "bg-violet-500/10"  },
             { label: "All Time",  value: stats.avgDuration.allTime, icon: "📞", color: "text-emerald-500", bg: "bg-emerald-500/10" },

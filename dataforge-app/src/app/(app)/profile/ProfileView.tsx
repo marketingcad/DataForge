@@ -235,6 +235,36 @@ export function ProfileView({
               ))}
             </div>
 
+            {/* Avg call duration — sales rep only */}
+            {isSalesRep && (
+              <div className="rounded-2xl border border-border/40 bg-card shadow-sm overflow-hidden">
+                <div className="px-5 py-3.5 border-b border-border/40 flex items-center gap-2">
+                  <Clock className="h-3.5 w-3.5 text-violet-500" />
+                  <p className="text-sm font-bold">Avg Call Duration</p>
+                  <span className="text-xs text-muted-foreground">completed calls only</span>
+                </div>
+                <div className="grid grid-cols-3 divide-x divide-border/40">
+                  {([
+                    { label: "This Week",  value: stats.avgDuration.week,    color: "text-orange-600", bg: "bg-orange-50 dark:bg-orange-950/30" },
+                    { label: "This Month", value: stats.avgDuration.month,   color: "text-violet-600", bg: "bg-violet-50 dark:bg-violet-950/30" },
+                    { label: "All Time",   value: stats.avgDuration.allTime, color: "text-emerald-600", bg: "bg-emerald-50 dark:bg-emerald-950/30" },
+                  ] as { label: string; value: number; color: string; bg: string }[]).map((d) => {
+                    const m = Math.floor(d.value / 60), s = d.value % 60;
+                    const fmt = d.value <= 0 ? "—" : m === 0 ? `${s}s` : s === 0 ? `${m}m` : `${m}m ${s}s`;
+                    return (
+                      <div key={d.label} className="px-5 py-4 space-y-2">
+                        <div className={cn("h-8 w-8 rounded-lg flex items-center justify-center", d.bg)}>
+                          <Clock className={cn("h-4 w-4", d.color)} />
+                        </div>
+                        <p className={cn("text-2xl font-black tabular-nums leading-tight", d.value <= 0 ? "text-muted-foreground" : d.color)}>{fmt}</p>
+                        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">{d.label}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* 30-day chart */}
             <div className="rounded-2xl border border-border/40 bg-card shadow-sm p-5 space-y-4">
               <div className="flex items-center justify-between">

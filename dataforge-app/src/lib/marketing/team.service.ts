@@ -440,14 +440,13 @@ export async function getAgentAvgDurations() {
   const inPHT        = new Date(now.getTime() + PHT_OFFSET_MS);
   const startOfMonth = new Date(new Date(Date.UTC(inPHT.getUTCFullYear(), inPHT.getUTCMonth(), 1)).getTime() - PHT_OFFSET_MS);
 
-  type Row = { id: string; name: string | null; email: string; avg_today: number | null; avg_week: number | null; avg_month: number | null; avg_all_time: number | null };
+  type Row = { id: string; name: string | null; email: string; avg_week: number | null; avg_month: number | null; avg_all_time: number | null };
 
   const rows = await prisma.$queryRaw<Row[]>`
     SELECT
       u.id,
       u.name,
       u.email,
-      AVG(CASE WHEN cl.status = 'completed' AND cl."calledAt" >= ${startOfDay}   THEN cl."durationSecs" END) AS avg_today,
       AVG(CASE WHEN cl.status = 'completed' AND cl."calledAt" >= ${startOfWeek}  THEN cl."durationSecs" END) AS avg_week,
       AVG(CASE WHEN cl.status = 'completed' AND cl."calledAt" >= ${startOfMonth} THEN cl."durationSecs" END) AS avg_month,
       AVG(CASE WHEN cl.status = 'completed'                                       THEN cl."durationSecs" END) AS avg_all_time
@@ -459,12 +458,11 @@ export async function getAgentAvgDurations() {
   `;
 
   return rows.map((r) => ({
-    id:       r.id,
-    name:     r.name ?? r.email,
-    today:    Math.round(Number(r.avg_today)    || 0),
-    week:     Math.round(Number(r.avg_week)     || 0),
-    month:    Math.round(Number(r.avg_month)    || 0),
-    allTime:  Math.round(Number(r.avg_all_time) || 0),
+    id:      r.id,
+    name:    r.name ?? r.email,
+    week:    Math.round(Number(r.avg_week)     || 0),
+    month:   Math.round(Number(r.avg_month)    || 0),
+    allTime: Math.round(Number(r.avg_all_time) || 0),
   }));
 }
 
