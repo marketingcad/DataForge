@@ -142,11 +142,6 @@ export function ProfileView({
             <div className={cn("h-[72px] w-[72px] rounded-full border-4 border-card flex items-center justify-center text-xl font-black shadow-md shrink-0", ROLE_AVATAR[role] ?? ROLE_AVATAR.lead_specialist)}>
               {initials}
             </div>
-            {!isOwn && (
-              <div className="flex gap-2 sm:pb-1">
-                <button className="rounded-lg border bg-white border-border text-sm font-semibold px-4 py-1.5 hover:bg-muted/40 transition-colors">Message</button>
-              </div>
-            )}
           </div>
 
           <h1 className="text-xl font-black tracking-tight">{user.name ?? user.email}</h1>
