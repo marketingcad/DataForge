@@ -9,6 +9,7 @@ import {
   getTeamMonthlyBreakdown,
   getRepDailyCallsForChart,
   getRepDailyApptsForChart,
+  getAgentAvgDurations,
 } from "@/lib/marketing/team.service";
 import { getSalesReps } from "@/actions/appointments.actions";
 import { TaskCard } from "../TaskCard";
@@ -37,7 +38,7 @@ const CHART_DAYS: Record<Exclude<Period, "all_time">, number> = {
 
 export async function BossDashboard({ period = "month", metric = "calls" }: { period?: Period; metric?: Metric }) {
 
-  const [summary, leaderboard, volumeData, tasks, monthlyBreakdown, salesReps] = await withDbRetry(() =>
+  const [summary, leaderboard, volumeData, tasks, monthlyBreakdown, salesReps, agentDurations] = await withDbRetry(() =>
     Promise.all([
       getTeamSummary(),
       getLeaderboard(period, metric),
@@ -45,6 +46,7 @@ export async function BossDashboard({ period = "month", metric = "calls" }: { pe
       getActiveTasks(),
       getTeamMonthlyBreakdown(),
       getSalesReps(),
+      getAgentAvgDurations(),
     ])
   );
 
@@ -225,6 +227,54 @@ export async function BossDashboard({ period = "month", metric = "calls" }: { pe
           subtitle="Daily appointments booked — top 5 reps · last 30 days"
         />
       </div>
+
+      {/* ── Avg Call Duration per Agent ── */}
+      {agentDurations.length > 0 && (
+        <div className="rounded-2xl bg-card shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-border/40 flex items-center gap-2">
+            <span className="text-sm">⏱️</span>
+            <div>
+              <p className="font-bold text-sm">Avg Call Duration per Agent</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Completed calls only</p>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-border/40">
+                  <th className="text-left px-5 py-3 font-semibold text-muted-foreground uppercase tracking-wider">Agent</th>
+                  {[
+                    { label: "Today",      color: "text-blue-500"    },
+                    { label: "This Week",  color: "text-orange-500"  },
+                    { label: "This Month", color: "text-violet-500"  },
+                    { label: "All Time",   color: "text-emerald-500" },
+                  ].map((h) => (
+                    <th key={h.label} className={`text-right px-5 py-3 font-semibold uppercase tracking-wider ${h.color}`}>{h.label}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/30">
+                {agentDurations.map((a) => {
+                  const fmt = (secs: number) => {
+                    if (secs <= 0) return <span className="text-muted-foreground">—</span>;
+                    const m = Math.floor(secs / 60), s = secs % 60;
+                    return <span className="font-bold tabular-nums">{m === 0 ? `${s}s` : s === 0 ? `${m}m` : `${m}m ${s}s`}</span>;
+                  };
+                  return (
+                    <tr key={a.id} className="hover:bg-muted/30 transition-colors">
+                      <td className="px-5 py-3 font-semibold truncate max-w-[160px]">{a.name}</td>
+                      <td className="px-5 py-3 text-right">{fmt(a.today)}</td>
+                      <td className="px-5 py-3 text-right">{fmt(a.week)}</td>
+                      <td className="px-5 py-3 text-right">{fmt(a.month)}</td>
+                      <td className="px-5 py-3 text-right">{fmt(a.allTime)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* ── 6-month activity radar + monthly table ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
