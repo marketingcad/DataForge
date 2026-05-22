@@ -279,15 +279,27 @@ export function ProfileView({
               </div>
               <ResponsiveContainer width="100%" height={180}>
                 <BarChart data={callHistory} margin={{ top: 0, right: 0, left: -24, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,0.2)" vertical={false} />
                   <XAxis
                     dataKey="label"
-                    tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                    tick={({ x, y, payload }: { x: string | number; y: string | number; payload: { value: string } }) => (
+                      <text x={x} y={y} dy={10} textAnchor="middle" style={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }}>
+                        {payload.value}
+                      </text>
+                    )}
                     tickLine={false}
                     axisLine={false}
                     interval={4}
                   />
-                  <YAxis tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
+                  <YAxis
+                    tick={({ x, y, payload }: { x: string | number; y: string | number; payload: { value: string } }) => (
+                      <text x={x} y={y} dy={4} textAnchor="end" style={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }}>
+                        {payload.value}
+                      </text>
+                    )}
+                    tickLine={false}
+                    axisLine={false}
+                  />
                   <Tooltip
                     contentStyle={{
                       background: "hsl(var(--card))",
@@ -301,7 +313,7 @@ export function ProfileView({
                     itemStyle={{ color: "hsl(var(--card-foreground))" }}
                     cursor={{ fill: "hsl(var(--muted))", opacity: 0.4 }}
                   />
-                  <Bar dataKey="calls" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="calls" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
