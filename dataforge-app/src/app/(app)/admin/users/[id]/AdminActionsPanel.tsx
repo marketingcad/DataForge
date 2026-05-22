@@ -299,7 +299,7 @@ function NicknamePanel({ userId, userNickname, onDone, onError }: {
         className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50" />
       <div className="flex justify-end">
         <button onClick={save} disabled={pending || nick.trim() === (userNickname ?? "")}
-          className="rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors">
+          className="rounded-lg bg-violet-600 text-white px-4 py-2 text-sm font-medium hover:bg-violet-700 disabled:opacity-50 transition-colors">
           {pending ? "Saving…" : "Save Nickname"}
         </button>
       </div>
@@ -541,7 +541,7 @@ function WaivePanel({ userId, displayName, isSuspended, bannedUntil, banReason, 
 
       <div className="flex justify-end">
         <button onClick={save} disabled={pending}
-          className="rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors">
+          className="rounded-lg bg-violet-600 text-white px-4 py-2 text-sm font-medium hover:bg-violet-700 disabled:opacity-50 transition-colors">
           {pending ? "Waiving…" : isSuspended ? "Waive Suspension" : "Waive Ban"}
         </button>
       </div>
@@ -639,7 +639,7 @@ function GhlLinkPanel({ userId, currentGhlUserId, onDone, onError }: {
 
       <div className="flex justify-end">
         <button onClick={save} disabled={pending}
-          className="rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors">
+          className="rounded-lg bg-violet-600 text-white px-4 py-2 text-sm font-medium hover:bg-violet-700 disabled:opacity-50 transition-colors">
           {pending ? "Saving…" : "Save Link"}
         </button>
       </div>
@@ -713,7 +713,7 @@ function PasswordPanel({ userId, displayName, onDone, onError }: {
 
       <div className="flex justify-end">
         <button onClick={save} disabled={pending || !password || !confirm}
-          className="rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors">
+          className="rounded-lg bg-violet-600 text-white px-4 py-2 text-sm font-medium hover:bg-violet-700 disabled:opacity-50 transition-colors">
           {pending ? "Saving…" : "Set Password"}
         </button>
       </div>
