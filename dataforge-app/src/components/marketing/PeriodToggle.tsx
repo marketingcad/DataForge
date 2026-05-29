@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -19,18 +19,18 @@ const OPTIONS = [
 export type Period = (typeof OPTIONS)[number]["value"] | "custom";
 
 export function PeriodToggle({ period }: { period: Period }) {
-  const pathname     = usePathname();
-  const searchParams = useSearchParams();
-  const router       = useRouter();
-  const active       = (searchParams.get("period") ?? period) as Period;
+  const pathname       = usePathname();
+  const searchParams   = useSearchParams();
+  const router         = useRouter();
+  const active         = (searchParams.get("period") ?? period) as Period;
+  const isFirstClick   = useRef(false);
 
   const [isOpen, setIsOpen] = useState(false);
-  const [range, setRange] = useState<DateRange | undefined>(() => {
-    const f = searchParams.get("from");
-    const t = searchParams.get("to");
-    if (f) return { from: new Date(f + "T00:00:00"), to: t ? new Date(t + "T00:00:00") : undefined };
-    return undefined;
-  });
+  const [range, setRange]   = useState<DateRange | undefined>(undefined);
+
+  function toDateStr(d: Date) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
 
   function href(value: string) {
     const params = new URLSearchParams(searchParams.toString());
@@ -40,15 +40,40 @@ export function PeriodToggle({ period }: { period: Period }) {
     return `${pathname}?${params.toString()}`;
   }
 
-  function toDateStr(d: Date) {
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  function handleOpenChange(open: boolean) {
+    if (open) {
+      // Restore the current URL selection so it renders highlighted in the calendar
+      const f = searchParams.get("from");
+      const t = searchParams.get("to");
+      setRange(f && t
+        ? { from: new Date(f + "T00:00:00"), to: new Date(t + "T00:00:00") }
+        : undefined
+      );
+      // Flag: next onSelect call is the user's first click — always start fresh
+      isFirstClick.current = true;
+    }
+    setIsOpen(open);
   }
 
   function handleRangeSelect(r: DateRange | undefined) {
+    if (isFirstClick.current) {
+      isFirstClick.current = false;
+      // react-day-picker v9 with a pre-existing complete range keeps `from` fixed and
+      // updates `to` on click. Detect which date the user actually clicked:
+      // - If `from` changed vs. the URL value → they clicked before the current start
+      // - Otherwise → they clicked on/after the range, so `to` is the clicked date
+      const prevFrom = searchParams.get("from");
+      const clickedDate =
+        r?.from && (!prevFrom || toDateStr(r.from) !== prevFrom)
+          ? r.from
+          : (r?.to ?? r?.from);
+      setRange(clickedDate ? { from: clickedDate, to: undefined } : undefined);
+      return;
+    }
+
     setRange(r);
-    if (!r?.from || !r?.to) return;
-    // In react-day-picker v9, the first click sets from === to — wait for a real range
-    if (toDateStr(r.from) === toDateStr(r.to)) return;
+    if (!r?.from || !r?.to || toDateStr(r.from) === toDateStr(r.to)) return;
+
     const params = new URLSearchParams(searchParams.toString());
     params.set("period", "custom");
     params.set("from", toDateStr(r.from));
@@ -87,13 +112,7 @@ export function PeriodToggle({ period }: { period: Period }) {
         </Link>
       ))}
 
-      <Popover
-        open={isOpen}
-        onOpenChange={(open) => {
-          if (open) setRange(undefined);
-          setIsOpen(open);
-        }}
-      >
+      <Popover open={isOpen} onOpenChange={handleOpenChange}>
         <PopoverTrigger
           render={
             <Button
