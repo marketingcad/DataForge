@@ -203,6 +203,25 @@ export async function changeUserPasswordAction(targetUserId: string, newPassword
   revalidatePath(`/admin/users/${targetUserId}`);
 }
 
+export async function changeOwnPasswordAction(currentPassword: string, newPassword: string) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Not authenticated.");
+
+  const userId = (session.user as unknown as Record<string, unknown>).id as string;
+  if (!newPassword || newPassword.length < 8) throw new Error("New password must be at least 8 characters.");
+
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { password: true } });
+  if (!user) throw new Error("User not found.");
+
+  if (user.password) {
+    const valid = await bcrypt.compare(currentPassword, user.password);
+    if (!valid) throw new Error("Current password is incorrect.");
+  }
+
+  const hashed = await bcrypt.hash(newPassword, 12);
+  await prisma.user.update({ where: { id: userId }, data: { password: hashed } });
+}
+
 export async function getUserDetailAction(userId: string) {
   await requireRole("boss", "admin");
   return withDbRetry(async () => {

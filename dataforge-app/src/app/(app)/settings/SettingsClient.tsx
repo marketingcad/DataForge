@@ -15,6 +15,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { ACCENT_LS_KEY } from "@/components/providers";
+import { changeOwnPasswordAction } from "@/actions/users.actions";
 
 // ─── Accent colour ────────────────────────────────────────────────────────────
 
@@ -203,7 +204,7 @@ function AutoSelect({
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function SettingsClient({ settings }: { settings: Settings }) {
+export function SettingsClient({ settings, isAdmin }: { settings: Settings | null; isAdmin: boolean }) {
   const [accent, setAccent] = useState<AccentId>(() => {
     if (typeof window === "undefined") return "neutral";
     return getStoredAccent();
@@ -220,16 +221,17 @@ export function SettingsClient({ settings }: { settings: Settings }) {
   }
 
   return (
-    <Tabs defaultValue="general" className="space-y-4">
+    <Tabs defaultValue={isAdmin ? "general" : "security"} className="space-y-4">
       <TabsList className="w-full justify-start">
-        <TabsTrigger value="general">General</TabsTrigger>
-        <TabsTrigger value="leads">Leads</TabsTrigger>
-        <TabsTrigger value="integrations">Integrations</TabsTrigger>
-        <TabsTrigger value="maintenance">Maintenance</TabsTrigger>
+        {isAdmin && <TabsTrigger value="general">General</TabsTrigger>}
+        {isAdmin && <TabsTrigger value="leads">Leads</TabsTrigger>}
+        {isAdmin && <TabsTrigger value="integrations">Integrations</TabsTrigger>}
+        {isAdmin && <TabsTrigger value="maintenance">Maintenance</TabsTrigger>}
+        <TabsTrigger value="security">Security</TabsTrigger>
       </TabsList>
 
       {/* ── General tab ── */}
-      <TabsContent value="general" className="space-y-6 mt-0">
+      {isAdmin && settings && <TabsContent value="general" className="space-y-6 mt-0">
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base">General</CardTitle>
@@ -282,10 +284,10 @@ export function SettingsClient({ settings }: { settings: Settings }) {
             </div>
           </CardContent>
         </Card>
-      </TabsContent>
+      </TabsContent>}
 
       {/* ── Leads tab ── */}
-      <TabsContent value="leads" className="space-y-6 mt-0">
+      {isAdmin && settings && <TabsContent value="leads" className="space-y-6 mt-0">
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Scraping</CardTitle>
@@ -340,10 +342,10 @@ export function SettingsClient({ settings }: { settings: Settings }) {
             </div>
           </CardContent>
         </Card>
-      </TabsContent>
+      </TabsContent>}
 
       {/* ── Integrations tab ── */}
-      <TabsContent value="integrations" className="space-y-6 mt-0">
+      {isAdmin && settings && <TabsContent value="integrations" className="space-y-6 mt-0">
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base">GoHighLevel Integration</CardTitle>
@@ -376,13 +378,117 @@ export function SettingsClient({ settings }: { settings: Settings }) {
         </Card>
 
         <OutboundCallReferenceCard secret={settings.ghlInboundSecret} />
-      </TabsContent>
+      </TabsContent>}
 
       {/* ── Maintenance tab ── */}
-      <TabsContent value="maintenance" className="mt-0">
+      {isAdmin && <TabsContent value="maintenance" className="mt-0">
         <GeocodeBackfillCard />
+      </TabsContent>}
+
+      {/* ── Security tab (all roles) ── */}
+      <TabsContent value="security" className="mt-0">
+        <ChangePasswordCard />
       </TabsContent>
     </Tabs>
+  );
+}
+
+// ─── Change password card (all roles) ────────────────────────────────────────
+
+function ChangePasswordCard() {
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword]         = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [pending, startTransition]            = useTransition();
+  const [error, setError]                     = useState<string | null>(null);
+  const [success, setSuccess]                 = useState(false);
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setSuccess(false);
+
+    if (newPassword.length < 8) {
+      setError("New password must be at least 8 characters.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+
+    startTransition(async () => {
+      try {
+        await changeOwnPasswordAction(currentPassword, newPassword);
+        setSuccess(true);
+        setCurrentPassword("");
+        setNewPassword("");
+        setConfirmPassword("");
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to change password.");
+      }
+    });
+  }
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base">Change Password</CardTitle>
+        <CardDescription>Update your account password. You&apos;ll stay signed in after changing it.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-4 max-w-sm">
+          <div className="space-y-1.5">
+            <Label htmlFor="currentPassword">Current Password</Label>
+            <Input
+              id="currentPassword"
+              type="password"
+              autoComplete="current-password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              placeholder="Enter current password"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="newPassword">New Password</Label>
+            <Input
+              id="newPassword"
+              type="password"
+              autoComplete="new-password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="At least 8 characters"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="confirmPassword">Confirm New Password</Label>
+            <Input
+              id="confirmPassword"
+              type="password"
+              autoComplete="new-password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Repeat new password"
+            />
+          </div>
+
+          {error && (
+            <p className="text-xs text-destructive">{error}</p>
+          )}
+          {success && (
+            <p className="text-xs text-green-500 flex items-center gap-1.5">
+              <Check className="h-3.5 w-3.5" />
+              Password changed successfully.
+            </p>
+          )}
+
+          <Button type="submit" disabled={pending || !currentPassword || !newPassword || !confirmPassword}>
+            {pending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+            Update Password
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
   );
 }
 

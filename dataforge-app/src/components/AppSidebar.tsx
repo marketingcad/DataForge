@@ -104,7 +104,8 @@ function buildSections(role: Role): Section[] {
         {
           title: "Account",
           items: [
-            { label: "My Profile", href: "/profile", icon: UserCircle },
+            { label: "My Profile", href: "/profile",  icon: UserCircle },
+            { label: "Settings",   href: "/settings", icon: Settings   },
           ],
         },
       ];
@@ -134,7 +135,8 @@ function buildSections(role: Role): Section[] {
         {
           title: "Account",
           items: [
-            { label: "My Profile", href: "/profile", icon: UserCircle },
+            { label: "My Profile", href: "/profile",  icon: UserCircle },
+            { label: "Settings",   href: "/settings", icon: Settings   },
           ],
         },
       ];
@@ -161,7 +163,8 @@ function buildSections(role: Role): Section[] {
         {
           title: "Account",
           items: [
-            { label: "My Profile", href: "/profile", icon: UserCircle },
+            { label: "My Profile", href: "/profile",  icon: UserCircle },
+            { label: "Settings",   href: "/settings", icon: Settings   },
           ],
         },
       ];
@@ -281,12 +284,14 @@ export function AppSidebar({ role }: { role: Role }) {
   const activeSearch = mounted ? search   : "";
 
   return (
+
     <aside
       className={cn(
         "hidden md:flex flex-col border-r bg-sidebar text-foreground shrink-0 transition-[width] duration-200",
         collapsed ? "w-14" : "w-56"
       )}
     >
+
       {/* Brand */}
       <div className={cn("flex h-14 items-center border-b shrink-0 gap-2.5", collapsed ? "justify-center px-3" : "px-4 justify-between")}>
         <Link href="/dashboard" className="flex items-center gap-2.5 min-w-0">
@@ -351,7 +356,7 @@ export function AppSidebar({ role }: { role: Role }) {
       <div className={cn("border-t py-3 flex items-center", collapsed ? "justify-center px-2" : "px-4 justify-between")}>
         {!collapsed && <p className="text-[10px]">DataForge v1.0</p>}
         <button
-          onClick={() => setCollapsed((c) => !c)}
+          onClick={() => setCollapsed((c) => !c)} 
           className="opacity-100 hover:opacity-40 transition-opacity"
           title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         >

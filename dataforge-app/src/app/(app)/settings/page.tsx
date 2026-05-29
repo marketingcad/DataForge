@@ -9,21 +9,21 @@ export default async function SettingsPage() {
   if (!session) redirect("/sign-in");
 
   const role = ((session.user as unknown as Record<string, unknown>)?.role as Role) ?? "lead_specialist";
-  if (role !== "boss" && role !== "admin") redirect("/unauthorized");
+  const isAdmin = role === "boss" || role === "admin";
 
-  const settings = await getSettings();
+  const settings = isAdmin ? await getSettings() : null;
 
   return (
     <div className="flex flex-col items-center">
       <div className="w-full max-w-2xl space-y-6">
         <div>
-          <h1 className="text-xl font-bold tracking-tight">App Settings</h1>
+          <h1 className="text-xl font-bold tracking-tight">Settings</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Configure global defaults for the DataForge application.
+            {isAdmin ? "Configure global defaults for the DataForge application." : "Manage your account settings."}
           </p>
         </div>
 
-        <SettingsClient settings={settings} />
+        <SettingsClient settings={settings} isAdmin={isAdmin} />
       </div>
     </div>
   );
