@@ -86,7 +86,13 @@ export function PeriodToggle({ period }: { period: Period }) {
         </Link>
       ))}
 
-      <Popover open={isOpen} onOpenChange={setIsOpen}>
+      <Popover
+        open={isOpen}
+        onOpenChange={(open) => {
+          if (open) setRange(undefined);
+          setIsOpen(open);
+        }}
+      >
         <PopoverTrigger
           render={
             <Button
