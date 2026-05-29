@@ -7,7 +7,7 @@ import { redirect } from "next/navigation";
 import { ScrapingPageTabsClient } from "@/components/scraping/ScrapingPageTabsClient";
 
 const SCRAPING_ROLES = ["boss", "admin", "lead_specialist"];
-const KEYWORD_ROLES = ["boss", "admin"];
+const KEYWORD_ROLES = ["boss", "admin", "lead_specialist"];
 
 export default async function ScrapingPage() {
   const session = await auth();

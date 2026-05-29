@@ -59,7 +59,7 @@ function buildSections(role: Role): Section[] {
   const scrapingSub: SubItem[] = [
     { label: "Scrape a Website", href: "/scraping?tab=domain"   },
     { label: "Search by Google", href: "/scraping?tab=google"   },
-    ...( ["boss", "admin", "team_lead"].includes(role)
+    ...( ["boss", "admin", "team_lead", "lead_specialist"].includes(role)
       ? [{ label: "Auto Keywords", href: "/scraping?tab=keywords" }]
       : []
     ),
@@ -366,3 +366,4 @@ export function AppSidebar({ role }: { role: Role }) {
     </aside>
   );
 }
+
