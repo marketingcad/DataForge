@@ -230,7 +230,7 @@ export function SettingsClient({ settings, isAdmin, userProfile }: { settings: S
         {isAdmin && <TabsTrigger value="integrations">Integrations</TabsTrigger>}
         {isAdmin && <TabsTrigger value="maintenance">Maintenance</TabsTrigger>}
         <TabsTrigger value="profile">Profile</TabsTrigger>
-        <TabsTrigger value="appearance">Appearance</TabsTrigger>
+        {isAdmin && <TabsTrigger value="appearance">Appearance</TabsTrigger>}
         <TabsTrigger value="security">Security</TabsTrigger>
       </TabsList>
 
@@ -361,8 +361,8 @@ export function SettingsClient({ settings, isAdmin, userProfile }: { settings: S
         <ProfileCard userProfile={userProfile} />
       </TabsContent>
 
-      {/* ── Appearance tab (all roles) ── */}
-      <TabsContent value="appearance" className="mt-0">
+      {/* ── Appearance tab (admin only) ── */}
+      {isAdmin && <TabsContent value="appearance" className="mt-0">
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Appearance</CardTitle>
@@ -395,7 +395,7 @@ export function SettingsClient({ settings, isAdmin, userProfile }: { settings: S
             </div>
           </CardContent>
         </Card>
-      </TabsContent>
+      </TabsContent>}
 
       {/* ── Security tab (all roles) ── */}
       <TabsContent value="security" className="mt-0">
