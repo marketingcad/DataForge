@@ -46,14 +46,15 @@ export function PeriodToggle({ period }: { period: Period }) {
 
   function handleRangeSelect(r: DateRange | undefined) {
     setRange(r);
-    if (r?.from && r?.to) {
-      const params = new URLSearchParams(searchParams.toString());
-      params.set("period", "custom");
-      params.set("from", toDateStr(r.from));
-      params.set("to", toDateStr(r.to));
-      router.push(`${pathname}?${params.toString()}`);
-      setIsOpen(false);
-    }
+    if (!r?.from || !r?.to) return;
+    // In react-day-picker v9, the first click sets from === to — wait for a real range
+    if (toDateStr(r.from) === toDateStr(r.to)) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("period", "custom");
+    params.set("from", toDateStr(r.from));
+    params.set("to", toDateStr(r.to));
+    router.push(`${pathname}?${params.toString()}`);
+    setIsOpen(false);
   }
 
   const customLabel = (() => {
