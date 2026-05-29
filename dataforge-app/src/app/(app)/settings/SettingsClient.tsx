@@ -206,7 +206,7 @@ function AutoSelect({
 
 type UserProfile = { name: string | null; nickname: string | null; email: string; role: string } | null;
 
-export function SettingsClient({ settings, isAdmin, userProfile }: { settings: Settings | null; isAdmin: boolean; userProfile: UserProfile }) {
+export function SettingsClient({ settings, isAdmin, isLeadSpecialist = false, userProfile }: { settings: Settings | null; isAdmin: boolean; isLeadSpecialist?: boolean; userProfile: UserProfile }) {
   const [accent, setAccent] = useState<AccentId>(() => {
     if (typeof window === "undefined") return "neutral";
     return getStoredAccent();
@@ -229,6 +229,8 @@ export function SettingsClient({ settings, isAdmin, userProfile }: { settings: S
         {isAdmin && <TabsTrigger value="leads">Leads</TabsTrigger>}
         {isAdmin && <TabsTrigger value="integrations">Integrations</TabsTrigger>}
         {isAdmin && <TabsTrigger value="maintenance">Maintenance</TabsTrigger>}
+        {isLeadSpecialist && <TabsTrigger value="scraping">Scraping</TabsTrigger>}
+        {isLeadSpecialist && <TabsTrigger value="geocoding">Geocoding</TabsTrigger>}
         <TabsTrigger value="profile">Profile</TabsTrigger>
         {isAdmin && <TabsTrigger value="appearance">Appearance</TabsTrigger>}
         <TabsTrigger value="security">Security</TabsTrigger>
@@ -353,6 +355,69 @@ export function SettingsClient({ settings, isAdmin, userProfile }: { settings: S
 
       {/* ── Maintenance tab ── */}
       {isAdmin && <TabsContent value="maintenance" className="mt-0">
+        <GeocodeBackfillCard />
+      </TabsContent>}
+
+      {/* ── Scraping tab (lead specialist) ── */}
+      {isLeadSpecialist && settings && <TabsContent value="scraping" className="space-y-4 mt-0">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Scraping Defaults</CardTitle>
+            <CardDescription>Default values applied when creating new keyword scrapers.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <AutoInput
+                id="ls-scrapingDefaultMaxLeads" name="scrapingDefaultMaxLeads"
+                label="Default Max Leads per Run" type="number"
+                defaultValue={settings.scrapingDefaultMaxLeads} min={1} max={500}
+              />
+              <AutoInput
+                id="ls-scrapingDefaultInterval" name="scrapingDefaultInterval"
+                label="Default Interval (minutes)" type="number"
+                defaultValue={settings.scrapingDefaultInterval} min={60}
+                description={
+                  settings.scrapingDefaultInterval >= 1440
+                    ? `${Math.round(settings.scrapingDefaultInterval / 1440)} day(s)`
+                    : `${settings.scrapingDefaultInterval} minutes`
+                }
+              />
+            </div>
+            <Separator />
+            <AutoSwitch
+              name="scrapingGlobalPause" label="Global Scraping Pause"
+              defaultChecked={settings.scrapingGlobalPause}
+              description="Pauses all scheduled keyword scraping runs across the app."
+            />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Lead Quality Thresholds</CardTitle>
+            <CardDescription>Score thresholds used to classify leads as Good, Medium, or Low quality.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-4">
+              <AutoInput
+                id="ls-leadQualityGoodThreshold" name="leadQualityGoodThreshold"
+                label="Good threshold (≥)" type="number"
+                defaultValue={settings.leadQualityGoodThreshold} min={1} max={100}
+                description='Scores ≥ this value are "Good"'
+              />
+              <AutoInput
+                id="ls-leadQualityMediumThreshold" name="leadQualityMediumThreshold"
+                label="Medium threshold (≥)" type="number"
+                defaultValue={settings.leadQualityMediumThreshold} min={1} max={100}
+                description='Scores ≥ this value are "Medium"'
+              />
+            </div>
+          </CardContent>
+        </Card>
+      </TabsContent>}
+
+      {/* ── Geocoding tab (lead specialist) ── */}
+      {isLeadSpecialist && <TabsContent value="geocoding" className="mt-0">
         <GeocodeBackfillCard />
       </TabsContent>}
 

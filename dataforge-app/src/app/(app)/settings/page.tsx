@@ -13,9 +13,10 @@ export default async function SettingsPage() {
   const role = (sessionUser?.role as Role) ?? "lead_specialist";
   const userId = sessionUser?.id as string;
   const isAdmin = role === "boss" || role === "admin";
+  const isLeadSpecialist = role === "lead_specialist";
 
   const [settings, userProfile] = await Promise.all([
-    isAdmin ? getSettings() : Promise.resolve(null),
+    isAdmin || isLeadSpecialist ? getSettings() : Promise.resolve(null),
     prisma.user.findUnique({
       where: { id: userId },
       select: { name: true, nickname: true, email: true, role: true },
@@ -32,7 +33,7 @@ export default async function SettingsPage() {
           </p>
         </div>
 
-        <SettingsClient settings={settings} isAdmin={isAdmin} userProfile={userProfile} />
+        <SettingsClient settings={settings} isAdmin={isAdmin} isLeadSpecialist={isLeadSpecialist} userProfile={userProfile} />
       </div>
     </div>
   );
