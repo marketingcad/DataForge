@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
@@ -219,159 +220,169 @@ export function SettingsClient({ settings }: { settings: Settings }) {
   }
 
   return (
-    <div className="space-y-6">
+    <Tabs defaultValue="general" className="space-y-4">
+      <TabsList className="w-full justify-start">
+        <TabsTrigger value="general">General</TabsTrigger>
+        <TabsTrigger value="leads">Leads</TabsTrigger>
+        <TabsTrigger value="integrations">Integrations</TabsTrigger>
+        <TabsTrigger value="maintenance">Maintenance</TabsTrigger>
+      </TabsList>
 
-      {/* ── General ── */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">General</CardTitle>
-          <CardDescription>Basic application configuration.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <AutoInput
-            id="companyName" name="companyName" label="Company Name"
-            defaultValue={settings.companyName} placeholder="DataForge"
-          />
-          <Separator />
-          <AutoSelect
-            id="commissionCurrency" name="commissionCurrency" label="Currency"
-            defaultValue={settings.commissionCurrency}
-            description="Symbol shown on all commission amounts across the app."
-            options={CURRENCIES.map((c) => ({ value: c.symbol, label: c.label }))}
-          />
-        </CardContent>
-      </Card>
+      {/* ── General tab ── */}
+      <TabsContent value="general" className="space-y-6 mt-0">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">General</CardTitle>
+            <CardDescription>Basic application configuration.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <AutoInput
+              id="companyName" name="companyName" label="Company Name"
+              defaultValue={settings.companyName} placeholder="DataForge"
+            />
+            <Separator />
+            <AutoSelect
+              id="commissionCurrency" name="commissionCurrency" label="Currency"
+              defaultValue={settings.commissionCurrency}
+              description="Symbol shown on all commission amounts across the app."
+              options={CURRENCIES.map((c) => ({ value: c.symbol, label: c.label }))}
+            />
+          </CardContent>
+        </Card>
 
-      {/* ── Appearance ── */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Appearance</CardTitle>
-          <CardDescription>Choose an accent colour scheme. Applies instantly, saved to your browser.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-3">
-            {ACCENT_SCHEMES.map((scheme) => {
-              const active = accent === scheme.id;
-              return (
-                <button
-                  key={scheme.id}
-                  type="button"
-                  onClick={() => handleAccentChange(scheme.id)}
-                  className={`flex flex-col items-center gap-1.5 rounded-lg border-2 p-2 transition-colors ${
-                    active ? "border-foreground" : "border-transparent hover:border-border"
-                  }`}
-                  title={scheme.label}
-                >
-                  <span
-                    className="relative flex h-8 w-8 items-center justify-center rounded-full shadow-sm"
-                    style={{ backgroundColor: scheme.swatch }}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Appearance</CardTitle>
+            <CardDescription>Choose an accent colour scheme. Applies instantly, saved to your browser.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-3">
+              {ACCENT_SCHEMES.map((scheme) => {
+                const active = accent === scheme.id;
+                return (
+                  <button
+                    key={scheme.id}
+                    type="button"
+                    onClick={() => handleAccentChange(scheme.id)}
+                    className={`flex flex-col items-center gap-1.5 rounded-lg border-2 p-2 transition-colors ${
+                      active ? "border-foreground" : "border-transparent hover:border-border"
+                    }`}
+                    title={scheme.label}
                   >
-                    {active && <Check className="h-4 w-4 text-white drop-shadow" strokeWidth={3} />}
-                  </span>
-                  <span className="text-[11px] text-muted-foreground font-medium">{scheme.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
+                    <span
+                      className="relative flex h-8 w-8 items-center justify-center rounded-full shadow-sm"
+                      style={{ backgroundColor: scheme.swatch }}
+                    >
+                      {active && <Check className="h-4 w-4 text-white drop-shadow" strokeWidth={3} />}
+                    </span>
+                    <span className="text-[11px] text-muted-foreground font-medium">{scheme.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      </TabsContent>
 
-      {/* ── Scraping ── */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Scraping</CardTitle>
-          <CardDescription>Default values applied when creating new keyword scrapers.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+      {/* ── Leads tab ── */}
+      <TabsContent value="leads" className="space-y-6 mt-0">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Scraping</CardTitle>
+            <CardDescription>Default values applied when creating new keyword scrapers.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <AutoInput
+                id="scrapingDefaultMaxLeads" name="scrapingDefaultMaxLeads"
+                label="Default Max Leads per Run" type="number"
+                defaultValue={settings.scrapingDefaultMaxLeads} min={1} max={500}
+              />
+              <AutoInput
+                id="scrapingDefaultInterval" name="scrapingDefaultInterval"
+                label="Default Interval (minutes)" type="number"
+                defaultValue={settings.scrapingDefaultInterval} min={60}
+                description={
+                  settings.scrapingDefaultInterval >= 1440
+                    ? `${Math.round(settings.scrapingDefaultInterval / 1440)} day(s)`
+                    : `${settings.scrapingDefaultInterval} minutes`
+                }
+              />
+            </div>
+            <Separator />
+            <AutoSwitch
+              name="scrapingGlobalPause" label="Global Scraping Pause"
+              defaultChecked={settings.scrapingGlobalPause}
+              description="Pauses all scheduled keyword scraping runs across the app."
+            />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Lead Quality Thresholds</CardTitle>
+            <CardDescription>Score thresholds used to classify leads as Good, Medium, or Low quality.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-4">
+              <AutoInput
+                id="leadQualityGoodThreshold" name="leadQualityGoodThreshold"
+                label="Good threshold (≥)" type="number"
+                defaultValue={settings.leadQualityGoodThreshold} min={1} max={100}
+                description='Scores ≥ this value are "Good"'
+              />
+              <AutoInput
+                id="leadQualityMediumThreshold" name="leadQualityMediumThreshold"
+                label="Medium threshold (≥)" type="number"
+                defaultValue={settings.leadQualityMediumThreshold} min={1} max={100}
+                description='Scores ≥ this value are "Medium"'
+              />
+            </div>
+          </CardContent>
+        </Card>
+      </TabsContent>
+
+      {/* ── Integrations tab ── */}
+      <TabsContent value="integrations" className="space-y-6 mt-0">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">GoHighLevel Integration</CardTitle>
+            <CardDescription>Connect DataForge with your GHL account.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
             <AutoInput
-              id="scrapingDefaultMaxLeads" name="scrapingDefaultMaxLeads"
-              label="Default Max Leads per Run" type="number"
-              defaultValue={settings.scrapingDefaultMaxLeads} min={1} max={500}
+              id="ghlApiKey" name="ghlApiKey" label="Agency API Key"
+              defaultValue={settings.ghlApiKey ?? ""}
+              placeholder="eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."
+              password
+              description="Agency-level Private Integration API key. Used to sync call logs and opportunities."
             />
             <AutoInput
-              id="scrapingDefaultInterval" name="scrapingDefaultInterval"
-              label="Default Interval (minutes)" type="number"
-              defaultValue={settings.scrapingDefaultInterval} min={60}
-              description={
-                settings.scrapingDefaultInterval >= 1440
-                  ? `${Math.round(settings.scrapingDefaultInterval / 1440)} day(s)`
-                  : `${settings.scrapingDefaultInterval} minutes`
-              }
-            />
-          </div>
-          <Separator />
-          <AutoSwitch
-            name="scrapingGlobalPause" label="Global Scraping Pause"
-            defaultChecked={settings.scrapingGlobalPause}
-            description="Pauses all scheduled keyword scraping runs across the app."
-          />
-        </CardContent>
-      </Card>
-
-      {/* ── Lead Quality ── */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Lead Quality Thresholds</CardTitle>
-          <CardDescription>Score thresholds used to classify leads as Good, Medium, or Low quality.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 gap-4">
-            <AutoInput
-              id="leadQualityGoodThreshold" name="leadQualityGoodThreshold"
-              label="Good threshold (≥)" type="number"
-              defaultValue={settings.leadQualityGoodThreshold} min={1} max={100}
-              description='Scores ≥ this value are "Good"'
+              id="ghlSubAccountApiKey" name="ghlSubAccountApiKey" label="Sub Account API Key"
+              defaultValue={settings.ghlSubAccountApiKey ?? ""}
+              placeholder="eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."
+              password
+              description="Location-level Private Integration API key. Required for syncing calendar appointments."
             />
             <AutoInput
-              id="leadQualityMediumThreshold" name="leadQualityMediumThreshold"
-              label="Medium threshold (≥)" type="number"
-              defaultValue={settings.leadQualityMediumThreshold} min={1} max={100}
-              description='Scores ≥ this value are "Medium"'
+              id="ghlLocationId" name="ghlLocationId" label="Location ID"
+              defaultValue={settings.ghlLocationId ?? ""}
+              placeholder="abc123XYZ..."
+              description="The sub-account Location ID from GHL. Found under Settings → Business Info in your GHL account."
             />
-          </div>
-        </CardContent>
-      </Card>
+            <Separator />
+            <GhlInboundWebhookSection defaultSecret={settings.ghlInboundSecret} />
+          </CardContent>
+        </Card>
 
-      {/* ── GHL Integration ── */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">GoHighLevel Integration</CardTitle>
-          <CardDescription>Connect DataForge with your GHL account.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <AutoInput
-            id="ghlApiKey" name="ghlApiKey" label="Agency API Key"
-            defaultValue={settings.ghlApiKey ?? ""}
-            placeholder="eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."
-            password
-            description="Agency-level Private Integration API key. Used to sync call logs and opportunities."
-          />
-          <AutoInput
-            id="ghlSubAccountApiKey" name="ghlSubAccountApiKey" label="Sub Account API Key"
-            defaultValue={settings.ghlSubAccountApiKey ?? ""}
-            placeholder="eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."
-            password
-            description="Location-level Private Integration API key. Required for syncing calendar appointments."
-          />
-          <AutoInput
-            id="ghlLocationId" name="ghlLocationId" label="Location ID"
-            defaultValue={settings.ghlLocationId ?? ""}
-            placeholder="abc123XYZ..."
-            description="The sub-account Location ID from GHL. Found under Settings → Business Info in your GHL account."
-          />
-          <Separator />
-          <GhlInboundWebhookSection defaultSecret={settings.ghlInboundSecret} />
-        </CardContent>
-      </Card>
+        <OutboundCallReferenceCard secret={settings.ghlInboundSecret} />
+      </TabsContent>
 
-      {/* ── Integration Reference ── */}
-      <IntegrationReferenceCard secret={settings.ghlInboundSecret} />
-
-      {/* ── Maintenance ── */}
-      <GeocodeBackfillCard />
-
-    </div>
+      {/* ── Maintenance tab ── */}
+      <TabsContent value="maintenance" className="mt-0">
+        <GeocodeBackfillCard />
+      </TabsContent>
+    </Tabs>
   );
 }
 
@@ -445,60 +456,42 @@ function GhlInboundWebhookSection({ defaultSecret }: { defaultSecret: string | n
   );
 }
 
-// ─── Integration reference card ──────────────────────────────────────────────
+// ─── Outbound call reference card (inbound removed — already in GHL section) ──
 
-function EndpointRow({ label, description, url }: { label: string; description: string; url: string }) {
-  function copy() {
-    navigator.clipboard.writeText(url).then(() => toast.success(`${label} URL copied`));
-  }
-  return (
-    <div className="space-y-1">
-      <div className="flex items-center justify-between gap-2">
-        <div>
-          <p className="text-sm font-medium">{label}</p>
-          <p className="text-xs text-muted-foreground">{description}</p>
-        </div>
-        <Button type="button" variant="outline" size="sm" onClick={copy} className="shrink-0 gap-1.5">
-          <Copy className="h-3.5 w-3.5" />
-          Copy URL
-        </Button>
-      </div>
-      <div className="rounded-md border bg-muted/50 px-3 py-2 font-mono text-xs text-muted-foreground break-all select-all">
-        {url}
-      </div>
-    </div>
-  );
-}
-
-function IntegrationReferenceCard({ secret }: { secret: string | null }) {
+function OutboundCallReferenceCard({ secret }: { secret: string | null }) {
   const [origin, setOrigin] = useState("");
   useEffect(() => { setOrigin(window.location.origin); }, []);
-
-  const inboundCallUrl = origin
-    ? (secret ? `${origin}/api/ghl/inbound-call?secret=${secret}` : `${origin}/api/ghl/inbound-call`)
-    : "Loading…";
 
   const outboundCallUrl = origin
     ? (secret ? `${origin}/api/ghl/outbound-call?secret=${secret}` : `${origin}/api/ghl/outbound-call`)
     : "Loading…";
 
+  function copy() {
+    navigator.clipboard.writeText(outboundCallUrl).then(() => toast.success("Outbound call URL copied"));
+  }
+
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-base">DataForge Integration Reference</CardTitle>
-        <CardDescription>Webhook endpoints to paste into GHL automations.</CardDescription>
+        <CardTitle className="text-base">Outbound Call Webhook</CardTitle>
+        <CardDescription>Webhook endpoint for logging outbound calls from GHL.</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-5">
-        <EndpointRow
-          label="Inbound Call (GHL → DataForge)"
-          description="Automation → Call Details trigger (Direction: Incoming) → Send to Webhook."
-          url={inboundCallUrl}
-        />
-        <EndpointRow
-          label="Outbound Call (GHL → DataForge)"
-          description="Automation → Call Details trigger (Direction: Outgoing) → Send to Webhook. Include call_user_id, call_user_name, call_from, call_to, call_start_time, call_duration, call_status in custom data."
-          url={outboundCallUrl}
-        />
+      <CardContent className="space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <p className="text-sm font-medium">Outbound Call (GHL → DataForge)</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Automation → Call Details trigger (Direction: Outgoing) → Send to Webhook. Include <code className="font-mono text-[11px]">call_user_id</code>, <code className="font-mono text-[11px]">call_from</code>, <code className="font-mono text-[11px]">call_to</code>, <code className="font-mono text-[11px]">call_duration</code>, <code className="font-mono text-[11px]">call_status</code> in custom data.
+            </p>
+          </div>
+          <Button type="button" variant="outline" size="sm" onClick={copy} className="shrink-0 gap-1.5">
+            <Copy className="h-3.5 w-3.5" />
+            Copy URL
+          </Button>
+        </div>
+        <div className="rounded-md border bg-muted/50 px-3 py-2 font-mono text-xs text-muted-foreground break-all select-all">
+          {outboundCallUrl}
+        </div>
       </CardContent>
     </Card>
   );
