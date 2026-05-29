@@ -82,7 +82,7 @@ function buildSections(role: Role): Section[] {
         {
           title: "Marketing",
           items: [
-            { label: "Marketing", icon: Megaphone, sub: marketingAdminSub },
+            { label: "Metrics", icon: Megaphone, sub: marketingAdminSub },
             { label: "Achievements", icon: Trophy,    sub: achievementsSub },
           ],
         },
