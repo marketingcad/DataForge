@@ -1,6 +1,6 @@
 "use server";
 
-import { getFolders, createFolder, deleteFolder, updateFolderIndustry } from "@/lib/folders/service";
+import { getFolders, createFolder, deleteFolder, updateFolderIndustry, updateFolderSubcategory } from "@/lib/folders/service";
 import { requireDepartment } from "@/lib/rbac/guards";
 import { revalidatePath } from "next/cache";
 import type { Role } from "@/lib/rbac/roles";
@@ -14,9 +14,9 @@ export async function getFoldersAction() {
   return getFolders(); // all roles see all folders
 }
 
-export async function createFolderAction(name: string, color: string, industryId?: string | null) {
+export async function createFolderAction(name: string, color: string, industryId?: string | null, subcategoryId?: string | null) {
   const user = await requireDepartment("leads");
-  return createFolder(user.id, name.trim(), color, industryId);
+  return createFolder(user.id, name.trim(), color, industryId, subcategoryId);
 }
 
 export async function deleteFolderAction(id: string) {
@@ -27,5 +27,11 @@ export async function deleteFolderAction(id: string) {
 export async function updateFolderCategoryAction(id: string, industryId: string | null) {
   const user = await requireDepartment("leads");
   await updateFolderIndustry(id, scopedUserId(user), industryId);
+  revalidatePath("/leads");
+}
+
+export async function updateFolderSubcategoryAction(id: string, subcategoryId: string | null) {
+  const user = await requireDepartment("leads");
+  await updateFolderSubcategory(id, scopedUserId(user), subcategoryId);
   revalidatePath("/leads");
 }

@@ -6,7 +6,8 @@ import {
   getAllLeadsForExportAction,
   bulkDeleteLeadsAction,
 } from "@/actions/leads.actions";
-import { deleteFolderAction, updateFolderCategoryAction } from "@/actions/folders.actions";
+import { deleteFolderAction, updateFolderCategoryAction, updateFolderSubcategoryAction } from "@/actions/folders.actions";
+import { getSubcategoriesByIndustryAction } from "@/actions/industry.actions";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -218,6 +219,13 @@ export function FolderLeadsModal({
   const [showChangeCategory, setShowChangeCategory] = useState(false);
   const [categorySearch, setCategorySearch]         = useState("");
   const [savingCategory, setSavingCategory]         = useState(false);
+
+  // Two-step category → subcategory flow
+  const [changeCatStep, setChangeCatStep]             = useState<"category" | "subcategory">("category");
+  const [pendingIndustryId, setPendingIndustryId]     = useState<string | null>(null);
+  const [subsForChange, setSubsForChange]             = useState<{ id: string; name: string; color: string }[]>([]);
+  const [loadingSubs, setLoadingSubs]                 = useState(false);
+  const [subSearch, setSubSearch]                     = useState("");
 
   // Debounce search
   useEffect(() => {
@@ -594,26 +602,94 @@ export function FolderLeadsModal({
     startMigration(toMigrate, folder.name);
   }
 
-  async function handleChangeCategory(industryId: string | null) {
+  function closeCategoryDialog() {
+    setShowChangeCategory(false);
+    setCategorySearch("");
+    setSubSearch("");
+    setChangeCatStep("category");
+    setPendingIndustryId(null);
+    setSubsForChange([]);
+  }
+
+  async function handlePickCategory(industryId: string | null) {
+    if (industryId === null) {
+      // Uncategorized — save immediately, clear subcategory too
+      setSavingCategory(true);
+      try {
+        await updateFolderCategoryAction(folder.id, null);
+        await updateFolderSubcategoryAction(folder.id, null);
+        addNotif({ type: "info", title: "Category changed", message: `"${folder.name}" moved to Uncategorized.` });
+        closeCategoryDialog();
+        onOpenChange(false);
+        onCategoryChanged?.(folder.id);
+      } catch {
+        addNotif({ type: "error", title: "Category change failed", message: "Something went wrong." });
+      } finally {
+        setSavingCategory(false);
+      }
+      return;
+    }
+    // Load subcategories then advance to step 2
+    setPendingIndustryId(industryId);
+    setSubSearch("");
+    setLoadingSubs(true);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const subs = await getSubcategoriesByIndustryAction(industryId) as any[];
+      setSubsForChange(subs.map((s) => ({ id: s.id, name: s.name, color: s.color })));
+    } catch {
+      setSubsForChange([]);
+    } finally {
+      setLoadingSubs(false);
+    }
+    setChangeCatStep("subcategory");
+  }
+
+  async function handlePickSubcategory(subcategoryId: string | null) {
+    if (!pendingIndustryId) return;
     setSavingCategory(true);
     try {
-      await updateFolderCategoryAction(folder.id, industryId);
-      const name = allIndustries.find((i) => i.id === industryId)?.name ?? "Uncategorized";
-      addNotif({ type: "info", title: `Category changed`, message: `"${folder.name}" moved to ${name}.` });
-      setShowChangeCategory(false);
-      setCategorySearch("");
+      await updateFolderCategoryAction(folder.id, pendingIndustryId);
+      await updateFolderSubcategoryAction(folder.id, subcategoryId);
+      const catName = allIndustries.find((i) => i.id === pendingIndustryId)?.name ?? "category";
+      const subName = subsForChange.find((s) => s.id === subcategoryId)?.name;
+      const dest = subName ? `${catName} › ${subName}` : catName;
+      addNotif({ type: "info", title: "Category changed", message: `"${folder.name}" moved to ${dest}.` });
+      closeCategoryDialog();
       onOpenChange(false);
       onCategoryChanged?.(folder.id);
     } catch {
-      addNotif({ type: "error", title: "Category change failed", message: "Something went wrong. Please try again." });
+      addNotif({ type: "error", title: "Category change failed", message: "Something went wrong." });
     } finally {
       setSavingCategory(false);
+    }
+  }
+
+  async function handleOpenChangeSubcategory() {
+    if (!currentIndustryId) return;
+    setPendingIndustryId(currentIndustryId);
+    setSubSearch("");
+    setChangeCatStep("subcategory");
+    setLoadingSubs(true);
+    setShowChangeCategory(true);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const subs = await getSubcategoriesByIndustryAction(currentIndustryId) as any[];
+      setSubsForChange(subs.map((s) => ({ id: s.id, name: s.name, color: s.color })));
+    } catch {
+      setSubsForChange([]);
+    } finally {
+      setLoadingSubs(false);
     }
   }
 
   const filteredCategories = categorySearch.trim()
     ? allIndustries.filter((i) => i.name.toLowerCase().includes(categorySearch.toLowerCase()))
     : allIndustries;
+
+  const filteredSubs = subSearch.trim()
+    ? subsForChange.filter((s) => s.name.toLowerCase().includes(subSearch.toLowerCase()))
+    : subsForChange;
 
   return (
     <>
@@ -670,17 +746,26 @@ export function FolderLeadsModal({
                 >
                   <MoreVertical className="h-3.5 w-3.5" />
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-44">
+                <DropdownMenuContent align="end" className="w-48">
                   {allIndustries.length > 0 && (
                     <DropdownMenuItem
                       className="gap-2 cursor-pointer text-xs"
-                      onClick={() => { setCategorySearch(""); setShowChangeCategory(true); }}
+                      onClick={() => { setCategorySearch(""); setChangeCatStep("category"); setShowChangeCategory(true); }}
                     >
                       <Tags className="h-3 w-3" />
                       Change category
                     </DropdownMenuItem>
                   )}
-                  {allIndustries.length > 0 && <DropdownMenuSeparator />}
+                  {currentIndustryId && (
+                    <DropdownMenuItem
+                      className="gap-2 cursor-pointer text-xs"
+                      onClick={handleOpenChangeSubcategory}
+                    >
+                      <Tags className="h-3 w-3" />
+                      Change subcategory
+                    </DropdownMenuItem>
+                  )}
+                  {(allIndustries.length > 0 || currentIndustryId) && <DropdownMenuSeparator />}
                   <DropdownMenuItem
                     className="gap-2 cursor-pointer text-xs text-destructive focus:text-destructive"
                     onClick={() => setConfirmDelete("folder")}
@@ -1357,68 +1442,150 @@ export function FolderLeadsModal({
         </EditDialogContent>
       </EditDialog>
 
-      {/* ── Change category dialog ── */}
-      <Dialog
-        open={showChangeCategory}
-        onOpenChange={(v) => { if (!v) { setShowChangeCategory(false); setCategorySearch(""); } }}
-      >
+      {/* ── Change category / subcategory dialog ── */}
+      <Dialog open={showChangeCategory} onOpenChange={(v) => { if (!v) closeCategoryDialog(); }}>
         <DialogContent showCloseButton className="max-w-sm p-0 overflow-hidden">
-          <DialogHeader className="px-4 pt-4 pb-3 border-b">
-            <DialogTitle className="text-sm font-semibold">
-              Change category —{" "}
-              <span className="text-muted-foreground font-normal">{folder.name}</span>
-            </DialogTitle>
-          </DialogHeader>
 
-          <div className="px-3 pt-3 pb-2">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
-              <Input
-                placeholder="Search categories…"
-                value={categorySearch}
-                onChange={(e) => setCategorySearch(e.target.value)}
-                className="pl-8 h-9 text-sm"
-                autoFocus
-              />
-            </div>
-          </div>
+          {/* Step 1: Pick category */}
+          {changeCatStep === "category" && (
+            <>
+              <DialogHeader className="px-4 pt-4 pb-3 border-b">
+                <DialogTitle className="text-sm font-semibold">
+                  Change category —{" "}
+                  <span className="text-muted-foreground font-normal">{folder.name}</span>
+                </DialogTitle>
+              </DialogHeader>
+              <div className="px-3 pt-3 pb-2">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                  <Input
+                    placeholder="Search categories…"
+                    value={categorySearch}
+                    onChange={(e) => setCategorySearch(e.target.value)}
+                    className="pl-8 h-9 text-sm"
+                    autoFocus
+                  />
+                </div>
+              </div>
+              <div className="max-h-64 overflow-y-auto px-1 pb-2">
+                {(!categorySearch || "uncategorized".includes(categorySearch.toLowerCase())) && (
+                  <button
+                    disabled={savingCategory}
+                    onClick={() => handlePickCategory(null)}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-md hover:bg-accent transition-colors disabled:opacity-50"
+                  >
+                    <span className="h-2.5 w-2.5 rounded-full bg-muted-foreground/40 shrink-0" />
+                    <span className="flex-1 text-left text-muted-foreground">Uncategorized</span>
+                    {currentIndustryId == null && <Check className="h-3.5 w-3.5 text-muted-foreground" />}
+                    {savingCategory && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                  </button>
+                )}
+                {filteredCategories.map((ind) => (
+                  <button
+                    key={ind.id}
+                    disabled={savingCategory}
+                    onClick={() => handlePickCategory(ind.id)}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-md hover:bg-accent transition-colors disabled:opacity-50"
+                  >
+                    <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: ind.color }} />
+                    <span className="flex-1 text-left">{ind.name}</span>
+                    {currentIndustryId === ind.id && <Check className="h-3.5 w-3.5 text-muted-foreground" />}
+                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" />
+                  </button>
+                ))}
+                {filteredCategories.length === 0 && categorySearch && (
+                  <p className="text-xs text-muted-foreground text-center py-6">
+                    No categories match &ldquo;{categorySearch}&rdquo;
+                  </p>
+                )}
+              </div>
+            </>
+          )}
 
-          <div className="max-h-64 overflow-y-auto px-1 pb-2">
-            {(!categorySearch || "uncategorized".includes(categorySearch.toLowerCase())) && (
-              <button
-                disabled={savingCategory || currentIndustryId == null}
-                onClick={() => handleChangeCategory(null)}
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-md hover:bg-accent transition-colors disabled:opacity-50"
-              >
-                <span className="h-2.5 w-2.5 rounded-full bg-muted-foreground/40 shrink-0" />
-                <span className="flex-1 text-left text-muted-foreground">Uncategorized</span>
-                {currentIndustryId == null && <Check className="h-3.5 w-3.5 text-muted-foreground" />}
-              </button>
-            )}
+          {/* Step 2: Pick subcategory */}
+          {changeCatStep === "subcategory" && (
+            <>
+              <DialogHeader className="px-4 pt-4 pb-3 border-b">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => { setChangeCatStep("category"); setPendingIndustryId(null); setSubSearch(""); }}
+                    className="p-1 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  <div className="flex-1 min-w-0">
+                    <DialogTitle className="text-sm font-semibold">
+                      Pick subcategory
+                    </DialogTitle>
+                    <p className="text-xs text-muted-foreground truncate mt-0.5">
+                      {allIndustries.find((i) => i.id === pendingIndustryId)?.name} › {folder.name}
+                    </p>
+                  </div>
+                </div>
+              </DialogHeader>
 
-            {filteredCategories.map((ind) => {
-              const isCurrent = currentIndustryId === ind.id;
-              return (
-                <button
-                  key={ind.id}
-                  disabled={savingCategory || isCurrent}
-                  onClick={() => handleChangeCategory(ind.id)}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-md hover:bg-accent transition-colors disabled:opacity-50"
-                >
-                  <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: ind.color }} />
-                  <span className="flex-1 text-left">{ind.name}</span>
-                  {isCurrent && <Check className="h-3.5 w-3.5 text-muted-foreground" />}
-                  {savingCategory && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                </button>
-              );
-            })}
+              {loadingSubs ? (
+                <div className="flex items-center justify-center py-10">
+                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                </div>
+              ) : (
+                <>
+                  {subsForChange.length > 0 && (
+                    <div className="px-3 pt-3 pb-2">
+                      <div className="relative">
+                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                        <Input
+                          placeholder="Search subcategories…"
+                          value={subSearch}
+                          onChange={(e) => setSubSearch(e.target.value)}
+                          className="pl-8 h-9 text-sm"
+                          autoFocus
+                        />
+                      </div>
+                    </div>
+                  )}
+                  <div className="max-h-64 overflow-y-auto px-1 pb-2">
+                    {/* "No subcategory" option always at top */}
+                    {(!subSearch || "none".includes(subSearch.toLowerCase())) && (
+                      <button
+                        disabled={savingCategory}
+                        onClick={() => handlePickSubcategory(null)}
+                        className="w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-md hover:bg-accent transition-colors disabled:opacity-50"
+                      >
+                        <span className="h-2.5 w-2.5 rounded-full bg-muted-foreground/40 shrink-0" />
+                        <span className="flex-1 text-left text-muted-foreground">No subcategory</span>
+                        {savingCategory && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                      </button>
+                    )}
 
-            {filteredCategories.length === 0 && categorySearch && (
-              <p className="text-xs text-muted-foreground text-center py-6">
-                No industries match &ldquo;{categorySearch}&rdquo;
-              </p>
-            )}
-          </div>
+                    {filteredSubs.map((sub) => (
+                      <button
+                        key={sub.id}
+                        disabled={savingCategory}
+                        onClick={() => handlePickSubcategory(sub.id)}
+                        className="w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-md hover:bg-accent transition-colors disabled:opacity-50"
+                      >
+                        <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: sub.color }} />
+                        <span className="flex-1 text-left">{sub.name}</span>
+                        {savingCategory && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                      </button>
+                    ))}
+
+                    {subsForChange.length === 0 && (
+                      <p className="text-xs text-muted-foreground text-center py-6">
+                        No subcategories in this category yet
+                      </p>
+                    )}
+                    {filteredSubs.length === 0 && subSearch && subsForChange.length > 0 && (
+                      <p className="text-xs text-muted-foreground text-center py-6">
+                        No subcategories match &ldquo;{subSearch}&rdquo;
+                      </p>
+                    )}
+                  </div>
+                </>
+              )}
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </>

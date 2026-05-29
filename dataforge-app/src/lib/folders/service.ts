@@ -12,6 +12,7 @@ export async function getFolders(userId?: string, savedById?: string) {
       },
       user: { select: { name: true, email: true } },
       industry: { select: { id: true, name: true, color: true } },
+      subcategory: { select: { id: true, name: true, color: true } },
     },
   });
 
@@ -46,9 +47,16 @@ export async function createFolder(
   name: string,
   color: string,
   industryId?: string | null,
+  subcategoryId?: string | null,
 ) {
   return prisma.folder.create({
-    data: { userId, name, color, ...(industryId ? { industryId } : {}) },
+    data: {
+      userId,
+      name,
+      color,
+      ...(industryId ? { industryId } : {}),
+      ...(subcategoryId ? { subcategoryId } : {}),
+    },
   });
 }
 
@@ -64,5 +72,16 @@ export async function updateFolderIndustry(
   return prisma.folder.updateMany({
     where: { id, ...(userId ? { userId } : {}) },
     data: { industryId },
+  });
+}
+
+export async function updateFolderSubcategory(
+  id: string,
+  userId: string | undefined,
+  subcategoryId: string | null,
+) {
+  return prisma.folder.updateMany({
+    where: { id, ...(userId ? { userId } : {}) },
+    data: { subcategoryId },
   });
 }

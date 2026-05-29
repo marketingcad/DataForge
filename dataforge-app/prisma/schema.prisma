@@ -8,32 +8,52 @@ datasource db {
 }
 
 model Industry {
-  id        String   @id @default(uuid())
-  name      String
-  color     String   @default("#6366f1")
-  userId    String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  folders   Folder[]
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id            String        @id @default(uuid())
+  name          String
+  color         String        @default("#6366f1")
+  userId        String
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  folders       Folder[]
+  subcategories Subcategory[]
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }
 
-model Folder {
-  id         String    @id @default(uuid())
+model Subcategory {
+  id         String   @id @default(uuid())
   name       String
-  color      String    @default("#6366f1")
+  color      String   @default("#6366f1")
   userId     String
-  industryId String?
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-  industry   Industry? @relation(fields: [industryId], references: [id])
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  leads      Lead[]
+  industryId String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  industry   Industry @relation(fields: [industryId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  folders    Folder[]
 
   @@index([userId])
   @@index([industryId])
+}
+
+model Folder {
+  id            String       @id @default(uuid())
+  name          String
+  color         String       @default("#6366f1")
+  userId        String
+  industryId    String?
+  subcategoryId String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  industry      Industry?    @relation(fields: [industryId], references: [id])
+  subcategory   Subcategory? @relation(fields: [subcategoryId], references: [id], onDelete: SetNull)
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  leads         Lead[]
+
+  @@index([userId])
+  @@index([industryId])
+  @@index([subcategoryId])
 }
 
 model Lead {
@@ -112,6 +132,7 @@ model User {
   feedbackReports      FeedbackReport[]
   folders              Folder[]
   industries           Industry[]
+  subcategories        Subcategory[]
   kanbanComments       KanbanComment[]     @relation("KanbanCommentAuthor")
   kanbanAssigned       KanbanTask[]        @relation("KanbanAssigned")
   kanbanCreated        KanbanTask[]        @relation("KanbanCreated")
