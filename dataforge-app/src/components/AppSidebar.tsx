@@ -39,7 +39,7 @@ type Section = { title?: string; items: NavItem[] };
 
 function buildSections(role: Role): Section[] {
   const marketingSub: SubItem[] = [
-    { label: "Yesterday",  href: "/marketing?period=yesterday"  },
+    { label: "Today",      href: "/marketing?period=today"      },
     { label: "This Week",  href: "/marketing?period=week"       },
     { label: "This Month", href: "/marketing?period=month"      },
     { label: "Notes",      href: "/marketing/notes"             },

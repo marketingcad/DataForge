@@ -26,14 +26,16 @@ export function LeaderboardClientWrapper({ initialLeaderboard, initialPeriod, in
 
   const period = (searchParams.get("period") ?? initialPeriod) as Period;
   const metric = toMetric(searchParams.get("metric"), initialMetric);
+  const from   = searchParams.get("from") ?? undefined;
+  const to     = searchParams.get("to")   ?? undefined;
 
   useEffect(() => {
     startTransition(async () => {
-      const data = await getLeaderboardAction(period, metric);
+      const data = await getLeaderboardAction(period, metric, from, to);
       setLeaderboard(data);
       setCurrentMetric(metric);
     });
-  }, [period, metric]);
+  }, [period, metric, from, to]);
 
   return (
     <div className="relative">

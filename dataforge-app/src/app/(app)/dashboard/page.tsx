@@ -110,7 +110,7 @@ async function SalesRepDashboard({ userId, period }: { userId: string; period: P
           <h1 className="text-lg font-semibold tracking-tight">Dashboard</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             {myRank > 0
-              ? `You're ranked #${myRank} on the team ${period === "yesterday" ? "yesterday" : period === "month" ? "this month" : "this week"}.`
+              ? `You're ranked #${myRank} on the team ${period === "today" ? "today" : period === "month" ? "this month" : "this week"}.`
               : "Your marketing and outreach overview."}
           </p>
         </div>
@@ -146,7 +146,7 @@ export default async function DashboardPage({
 
   if (role === "sales_rep" || role === "team_lead") {
     const { period: raw } = await searchParams;
-    const period: Period = (["yesterday", "week", "month", "all_time"] as const).includes(raw as Period)
+    const period: Period = (["today", "week", "month", "all_time", "custom"] as const).includes(raw as Period)
       ? (raw as Period)
       : "week";
     return <SalesRepDashboard userId={session!.user.id!} period={period} />;

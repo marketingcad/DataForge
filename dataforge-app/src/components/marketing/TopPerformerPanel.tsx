@@ -10,9 +10,11 @@ export interface LeaderboardEntry {
 }
 
 const PERIOD_LABELS: Record<string, string> = {
-  yesterday: "Yesterday",
-  week:      "This Week",
-  month:     "This Month",
+  today:    "Today",
+  week:     "This Week",
+  month:    "This Month",
+  all_time: "All Time",
+  custom:   "Custom Range",
 };
 
 interface Props {
@@ -94,7 +96,7 @@ export function TopPerformerPanel({ leaderboard, period = "week" }: Props) {
         <div className="z-10">
           <p className="text-xl font-extrabold leading-tight tracking-tight">{first.name}</p>
           <span className="inline-block mt-1.5 text-[11px] font-bold uppercase tracking-widest px-3 py-1 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400">
-            #1 {period === "yesterday" ? "yesterday" : PERIOD_LABELS[period].toLowerCase()}
+            #1 {PERIOD_LABELS[period ?? "week"]?.toLowerCase() ?? "this week"}
           </span>
         </div>
 
@@ -103,7 +105,7 @@ export function TopPerformerPanel({ leaderboard, period = "week" }: Props) {
           <p className="text-6xl font-black text-amber-500 dark:text-amber-400 leading-none tabular-nums">
             {first.callCount}
           </p>
-          <p className="text-sm text-muted-foreground mt-1 font-medium">calls {period === "yesterday" ? "yesterday" : PERIOD_LABELS[period].toLowerCase()}</p>
+          <p className="text-sm text-muted-foreground mt-1 font-medium">calls {PERIOD_LABELS[period ?? "week"]?.toLowerCase() ?? "this week"}</p>
         </div>
 
         {/* Badges */}
@@ -119,7 +121,7 @@ export function TopPerformerPanel({ leaderboard, period = "week" }: Props) {
 
         {/* Dominance line */}
         <p className="z-10 text-sm font-bold text-amber-700 dark:text-amber-400 mt-1">
-          🏆 {first.name?.split(" ")[0]} dominated {period === "yesterday" ? "yesterday" : period === "month" ? "this month" : "this week"}.
+          🏆 {first.name?.split(" ")[0]} dominated {PERIOD_LABELS[period ?? "week"]?.toLowerCase() ?? "this week"}.
         </p>
       </div>
 

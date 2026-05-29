@@ -18,7 +18,7 @@ import { AgentDashboard } from "./_views/AgentDashboard";
 export default async function MarketingPage({
   searchParams,
 }: {
-  searchParams: Promise<{ period?: string; metric?: string }>;
+  searchParams: Promise<{ period?: string; metric?: string; from?: string; to?: string }>;
 }) {
   const session = await auth();
   if (!session) redirect("/sign-in");
@@ -26,9 +26,9 @@ export default async function MarketingPage({
   const role = (session.user as unknown as Record<string, unknown>)?.role as Role | undefined;
   if (!role || !["boss", "admin", "sales_rep", "team_lead"].includes(role)) redirect("/unauthorized");
 
-  const { period: rawPeriod, metric: rawMetric } = await searchParams;
+  const { period: rawPeriod, metric: rawMetric, from, to } = await searchParams;
 
-  const period: Period = (["yesterday", "week", "month", "all_time"] as const).includes(rawPeriod as Period)
+  const period: Period = (["today", "week", "month", "all_time", "custom"] as const).includes(rawPeriod as Period)
     ? (rawPeriod as Period)
     : "month";
 
@@ -37,6 +37,7 @@ export default async function MarketingPage({
     ? (rawMetric as Metric)
     : "calls";
 
-  if (role === "boss" || role === "admin" || role === "team_lead") return <BossDashboard period={period} metric={metric} />;
+  if (role === "boss" || role === "admin" || role === "team_lead")
+    return <BossDashboard period={period} metric={metric} from={from} to={to} />;
   return <AgentDashboard userId={session.user.id!} period={period} />;
 }

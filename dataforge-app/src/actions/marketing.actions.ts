@@ -17,11 +17,15 @@ export async function getMarketingDashboardAction() {
 }
 
 export async function getLeaderboardAction(
-  period: "yesterday" | "week" | "month" | "all_time" = "week",
+  period: "today" | "week" | "month" | "all_time" | "custom" = "week",
   metric: "calls" | "leads" | "appts_set" | "deals_won" | "commissions" | "avg_call_time" | "badges" = "appts_set",
+  from?: string,
+  to?: string,
 ) {
   await requireDepartment("marketing");
-  return withDbRetry(() => getLeaderboard(period, metric));
+  const customFrom = from ? new Date(from) : undefined;
+  const customTo   = to   ? new Date(to)   : undefined;
+  return withDbRetry(() => getLeaderboard(period, metric, customFrom, customTo));
 }
 
 export async function getAgentProfileAction(agentId: string) {

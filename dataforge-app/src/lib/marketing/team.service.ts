@@ -7,7 +7,7 @@ import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { UserRole } from "@/generated/prisma/enums";
 
-export type LeaderboardPeriod = "yesterday" | "week" | "month" | "all_time";
+export type LeaderboardPeriod = "today" | "week" | "month" | "all_time" | "custom";
 export type LeaderboardMetric = "calls" | "leads" | "appts_set" | "deals_won" | "commissions" | "avg_call_time" | "badges";
 
 /** Roles that participate in the marketing leaderboard / KPIs */
@@ -33,12 +33,14 @@ function startOfCalendarWeek(now: Date): Date {
   return new Date(inPHT.getTime() - PHT_OFFSET_MS);
 }
 
-function periodRange(period: LeaderboardPeriod): { gte?: Date; lte?: Date } {
+function periodRange(
+  period: LeaderboardPeriod,
+  customFrom?: Date,
+  customTo?: Date,
+): { gte?: Date; lte?: Date } {
   const now = new Date();
-  if (period === "yesterday") {
-    const start = midnightPHT(new Date(now.getTime() - 86_400_000));
-    const end   = new Date(midnightPHT(now).getTime() - 1);
-    return { gte: start, lte: end };
+  if (period === "today") {
+    return { gte: midnightPHT(now) };
   }
   if (period === "week") {
     return { gte: startOfCalendarWeek(now) };
@@ -47,6 +49,13 @@ function periodRange(period: LeaderboardPeriod): { gte?: Date; lte?: Date } {
     const inPHT = new Date(now.getTime() + PHT_OFFSET_MS);
     const monthStart = new Date(Date.UTC(inPHT.getUTCFullYear(), inPHT.getUTCMonth(), 1));
     return { gte: new Date(monthStart.getTime() - PHT_OFFSET_MS) };
+  }
+  if (period === "custom" && customFrom) {
+    const gte = midnightPHT(customFrom);
+    const lte = customTo
+      ? new Date(midnightPHT(customTo).getTime() + 86_400_000 - 1)
+      : now;
+    return { gte, lte };
   }
   return {}; // all_time — no date filter
 }
@@ -90,8 +99,10 @@ export const getTeamSummary = unstable_cache(async function getTeamSummary() {
 export async function getLeaderboard(
   period: LeaderboardPeriod = "week",
   metric: LeaderboardMetric = "appts_set",
+  customFrom?: Date,
+  customTo?: Date,
 ) {
-  const range = periodRange(period);
+  const range = periodRange(period, customFrom, customTo);
   const dateFilter = Object.keys(range).length > 0 ? range : undefined;
 
   const agents = await prisma.user.findMany({

@@ -25,25 +25,39 @@ import { MetricToggle, type Metric, METRIC_LABELS } from "@/components/marketing
 import { BalloonPopFeed } from "@/components/marketing/BalloonPopFeed";
 
 const PERIOD_LABELS: Record<Period, string> = {
-  yesterday: "Yesterday",
-  week:      "This Week",
-  month:     "This Month",
-  all_time:  "All Time",
+  today:    "Today",
+  week:     "This Week",
+  month:    "This Month",
+  all_time: "All Time",
+  custom:   "Custom Range",
 };
 
-const CHART_DAYS: Record<Exclude<Period, "all_time">, number> = {
-  yesterday: 2,
-  week:      7,
-  month:     30,
-};
+export async function BossDashboard({
+  period = "month",
+  metric = "calls",
+  from,
+  to,
+}: {
+  period?: Period;
+  metric?: Metric;
+  from?: string;
+  to?: string;
+}) {
+  const customFrom = from ? new Date(from) : undefined;
+  const customTo   = to   ? new Date(to)   : undefined;
 
-export async function BossDashboard({ period = "month", metric = "calls" }: { period?: Period; metric?: Metric }) {
+  const chartDays =
+    period === "today"  ? 1  :
+    period === "week"   ? 7  :
+    period === "custom" && from && to
+      ? Math.max(1, Math.ceil((new Date(to).getTime() - new Date(from).getTime()) / 86_400_000) + 1)
+      : 30;
 
   const [summary, leaderboard, volumeData, tasks, monthlyBreakdown, salesReps, agentDurations] = await withDbRetry(() =>
     Promise.all([
       getTeamSummary(),
-      getLeaderboard(period, metric),
-      period === "all_time" ? getTeamCallsAllTime() : getTeamCallsPerDay(CHART_DAYS[period]),
+      getLeaderboard(period, metric, customFrom, customTo),
+      period === "all_time" ? getTeamCallsAllTime() : getTeamCallsPerDay(chartDays),
       getActiveTasks(),
       getTeamMonthlyBreakdown(),
       getSalesReps(),
@@ -69,11 +83,16 @@ export async function BossDashboard({ period = "month", metric = "calls" }: { pe
     metricLabel: `${repApptTotals[r.id] ?? 0} appts`,
   }));
 
-  const periodLabel = PERIOD_LABELS[period];
+  const periodLabel =
+    period === "custom" && from && to
+      ? `${new Date(from + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${new Date(to + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}`
+      : PERIOD_LABELS[period];
 
   const callsValue =
+    period === "today"    ? summary.callsToday    :
     period === "week"     ? summary.callsThisWeek :
-    period === "all_time" ? summary.callsAllTime :
+    period === "all_time" ? summary.callsAllTime  :
+    period === "custom"   ? leaderboard.reduce((s, a) => s + a.callCount, 0) :
     summary.callsThisMonth;
 
   const avgCallsPerAgent = leaderboard.length > 0
@@ -83,8 +102,10 @@ export async function BossDashboard({ period = "month", metric = "calls" }: { pe
   const totalCommissions = leaderboard.reduce((s, a) => s + (a.commissionsEarned ?? 0), 0);
 
   const chartTitle =
+    period === "today"    ? "Team Call Volume — Today" :
     period === "month"    ? "Team Call Volume — Last 30 Days" :
     period === "all_time" ? "Team Call Volume — All Time (Monthly)" :
+    period === "custom"   ? `Team Call Volume — ${from ?? ""} to ${to ?? ""}` :
     "Team Call Volume — Last 7 Days";
 
   const kpis = [
