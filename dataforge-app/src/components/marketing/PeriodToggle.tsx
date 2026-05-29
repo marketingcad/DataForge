@@ -40,13 +40,17 @@ export function PeriodToggle({ period }: { period: Period }) {
     return `${pathname}?${params.toString()}`;
   }
 
+  function toDateStr(d: Date) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
+
   function handleRangeSelect(r: DateRange | undefined) {
     setRange(r);
     if (r?.from && r?.to) {
       const params = new URLSearchParams(searchParams.toString());
       params.set("period", "custom");
-      params.set("from", r.from.toISOString().slice(0, 10));
-      params.set("to", r.to.toISOString().slice(0, 10));
+      params.set("from", toDateStr(r.from));
+      params.set("to", toDateStr(r.to));
       router.push(`${pathname}?${params.toString()}`);
       setIsOpen(false);
     }
