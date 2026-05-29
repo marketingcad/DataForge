@@ -15,7 +15,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { ACCENT_LS_KEY } from "@/components/providers";
-import { changeOwnPasswordAction } from "@/actions/users.actions";
+import { changeOwnPasswordAction, updateOwnNicknameAction } from "@/actions/users.actions";
 
 // ─── Accent colour ────────────────────────────────────────────────────────────
 
@@ -204,7 +204,9 @@ function AutoSelect({
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function SettingsClient({ settings, isAdmin }: { settings: Settings | null; isAdmin: boolean }) {
+type UserProfile = { name: string | null; nickname: string | null; email: string; role: string } | null;
+
+export function SettingsClient({ settings, isAdmin, userProfile }: { settings: Settings | null; isAdmin: boolean; userProfile: UserProfile }) {
   const [accent, setAccent] = useState<AccentId>(() => {
     if (typeof window === "undefined") return "neutral";
     return getStoredAccent();
@@ -221,12 +223,14 @@ export function SettingsClient({ settings, isAdmin }: { settings: Settings | nul
   }
 
   return (
-    <Tabs defaultValue={isAdmin ? "general" : "security"} className="space-y-4">
-      <TabsList className="w-full justify-start">
+    <Tabs defaultValue={isAdmin ? "general" : "profile"} className="space-y-4">
+      <TabsList className="w-full justify-start flex-wrap">
         {isAdmin && <TabsTrigger value="general">General</TabsTrigger>}
         {isAdmin && <TabsTrigger value="leads">Leads</TabsTrigger>}
         {isAdmin && <TabsTrigger value="integrations">Integrations</TabsTrigger>}
         {isAdmin && <TabsTrigger value="maintenance">Maintenance</TabsTrigger>}
+        <TabsTrigger value="profile">Profile</TabsTrigger>
+        <TabsTrigger value="appearance">Appearance</TabsTrigger>
         <TabsTrigger value="security">Security</TabsTrigger>
       </TabsList>
 
@@ -249,39 +253,6 @@ export function SettingsClient({ settings, isAdmin }: { settings: Settings | nul
               description="Symbol shown on all commission amounts across the app."
               options={CURRENCIES.map((c) => ({ value: c.symbol, label: c.label }))}
             />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Appearance</CardTitle>
-            <CardDescription>Choose an accent colour scheme. Applies instantly, saved to your browser.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-3">
-              {ACCENT_SCHEMES.map((scheme) => {
-                const active = accent === scheme.id;
-                return (
-                  <button
-                    key={scheme.id}
-                    type="button"
-                    onClick={() => handleAccentChange(scheme.id)}
-                    className={`flex flex-col items-center gap-1.5 rounded-lg border-2 p-2 transition-colors ${
-                      active ? "border-foreground" : "border-transparent hover:border-border"
-                    }`}
-                    title={scheme.label}
-                  >
-                    <span
-                      className="relative flex h-8 w-8 items-center justify-center rounded-full shadow-sm"
-                      style={{ backgroundColor: scheme.swatch }}
-                    >
-                      {active && <Check className="h-4 w-4 text-white drop-shadow" strokeWidth={3} />}
-                    </span>
-                    <span className="text-[11px] text-muted-foreground font-medium">{scheme.label}</span>
-                  </button>
-                );
-              })}
-            </div>
           </CardContent>
         </Card>
       </TabsContent>}
@@ -385,11 +356,141 @@ export function SettingsClient({ settings, isAdmin }: { settings: Settings | nul
         <GeocodeBackfillCard />
       </TabsContent>}
 
+      {/* ── Profile tab (all roles) ── */}
+      <TabsContent value="profile" className="mt-0">
+        <ProfileCard userProfile={userProfile} />
+      </TabsContent>
+
+      {/* ── Appearance tab (all roles) ── */}
+      <TabsContent value="appearance" className="mt-0">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Appearance</CardTitle>
+            <CardDescription>Choose an accent colour scheme. Applies instantly and is saved to your browser.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-3">
+              {ACCENT_SCHEMES.map((scheme) => {
+                const active = accent === scheme.id;
+                return (
+                  <button
+                    key={scheme.id}
+                    type="button"
+                    onClick={() => handleAccentChange(scheme.id)}
+                    className={`flex flex-col items-center gap-1.5 rounded-lg border-2 p-2 transition-colors ${
+                      active ? "border-foreground" : "border-transparent hover:border-border"
+                    }`}
+                    title={scheme.label}
+                  >
+                    <span
+                      className="relative flex h-8 w-8 items-center justify-center rounded-full shadow-sm"
+                      style={{ backgroundColor: scheme.swatch }}
+                    >
+                      {active && <Check className="h-4 w-4 text-white drop-shadow" strokeWidth={3} />}
+                    </span>
+                    <span className="text-[11px] text-muted-foreground font-medium">{scheme.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      </TabsContent>
+
       {/* ── Security tab (all roles) ── */}
       <TabsContent value="security" className="mt-0">
         <ChangePasswordCard />
       </TabsContent>
     </Tabs>
+  );
+}
+
+// ─── Profile card (all roles) ────────────────────────────────────────────────
+
+const ROLE_LABELS: Record<string, string> = {
+  boss:            "Boss",
+  admin:           "Admin",
+  team_lead:       "Team Lead",
+  sales_rep:       "Sales Rep",
+  lead_specialist: "Lead Specialist",
+};
+
+function ProfileCard({ userProfile }: { userProfile: UserProfile }) {
+  const [nickname, setNickname]   = useState(userProfile?.nickname ?? "");
+  const [pending, startTransition] = useTransition();
+  const [saved, setSaved]          = useState(false);
+  const [error, setError]          = useState<string | null>(null);
+
+  function handleSave() {
+    setError(null);
+    setSaved(false);
+    startTransition(async () => {
+      try {
+        await updateOwnNicknameAction(nickname);
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2500);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to save.");
+      }
+    });
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Read-only info */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Account Info</CardTitle>
+          <CardDescription>Your account details. Contact an admin to update your name or email.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Full Name</p>
+              <p className="text-sm font-medium">{userProfile?.name ?? "—"}</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Role</p>
+              <p className="text-sm font-medium">{ROLE_LABELS[userProfile?.role ?? ""] ?? userProfile?.role ?? "—"}</p>
+            </div>
+          </div>
+          <div className="space-y-1">
+            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Email</p>
+            <p className="text-sm font-medium">{userProfile?.email ?? "—"}</p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Editable nickname */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Display Name</CardTitle>
+          <CardDescription>Your nickname appears on the leaderboard, Balloon Pop, and call logs.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3 max-w-sm">
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2">
+              <Label htmlFor="nickname">Nickname</Label>
+              {pending && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+              {saved   && <Check   className="h-3.5 w-3.5 text-green-500" />}
+            </div>
+            <Input
+              id="nickname"
+              placeholder="e.g. JohnD, SalesKing…"
+              value={nickname}
+              onChange={(e) => setNickname(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") handleSave(); }}
+            />
+            <p className="text-xs text-muted-foreground">Leave blank to use your full name everywhere.</p>
+          </div>
+          {error && <p className="text-xs text-destructive">{error}</p>}
+          <Button size="sm" onClick={handleSave} disabled={pending}>
+            {pending && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}
+            Save Nickname
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 

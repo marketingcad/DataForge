@@ -2,16 +2,25 @@ import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { type Role } from "@/lib/rbac/roles";
 import { getSettings } from "@/lib/settings/service";
+import { prisma } from "@/lib/prisma";
 import { SettingsClient } from "./SettingsClient";
 
 export default async function SettingsPage() {
   const session = await auth();
   if (!session) redirect("/sign-in");
 
-  const role = ((session.user as unknown as Record<string, unknown>)?.role as Role) ?? "lead_specialist";
+  const sessionUser = session.user as unknown as Record<string, unknown>;
+  const role = (sessionUser?.role as Role) ?? "lead_specialist";
+  const userId = sessionUser?.id as string;
   const isAdmin = role === "boss" || role === "admin";
 
-  const settings = isAdmin ? await getSettings() : null;
+  const [settings, userProfile] = await Promise.all([
+    isAdmin ? getSettings() : Promise.resolve(null),
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { name: true, nickname: true, email: true, role: true },
+    }),
+  ]);
 
   return (
     <div className="flex flex-col items-center">
@@ -23,7 +32,7 @@ export default async function SettingsPage() {
           </p>
         </div>
 
-        <SettingsClient settings={settings} isAdmin={isAdmin} />
+        <SettingsClient settings={settings} isAdmin={isAdmin} userProfile={userProfile} />
       </div>
     </div>
   );

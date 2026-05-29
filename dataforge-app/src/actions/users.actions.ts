@@ -203,6 +203,13 @@ export async function changeUserPasswordAction(targetUserId: string, newPassword
   revalidatePath(`/admin/users/${targetUserId}`);
 }
 
+export async function updateOwnNicknameAction(nickname: string) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Not authenticated.");
+  const userId = (session.user as unknown as Record<string, unknown>).id as string;
+  await prisma.user.update({ where: { id: userId }, data: { nickname: nickname.trim() || null } });
+}
+
 export async function changeOwnPasswordAction(currentPassword: string, newPassword: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Not authenticated.");
