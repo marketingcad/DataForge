@@ -219,7 +219,7 @@ export async function getLeads({
         { state: { contains: search, mode: "insensitive" } },
       ];
     } else if (searchField === "phone") {
-      where.phone = { contains: search };
+      where.phone = { startsWith: search };
     } else if (searchField === "email") {
       where.email = { contains: search, mode: "insensitive" };
     } else if (searchField === "website") {
