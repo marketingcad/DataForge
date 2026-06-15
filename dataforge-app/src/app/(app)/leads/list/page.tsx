@@ -32,7 +32,7 @@ export default async function LeadsListPage({ searchParams }: PageProps) {
     getLeads({
       search: getString(params.search),
       industry: getString(params.industry),
-      state: getString(params.state),
+      location: getString(params.location),
       status: getString(params.status),
       folderId,
       page: Number(getString(params.page)) || 1,

@@ -85,3 +85,10 @@ export async function updateFolderSubcategory(
     data: { subcategoryId },
   });
 }
+
+export async function renameFolder(id: string, name: string, userId?: string) {
+  return prisma.folder.updateMany({
+    where: { id, ...(userId ? { userId } : {}) },
+    data: { name },
+  });
+}

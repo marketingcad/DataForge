@@ -6,7 +6,7 @@ import {
   getAllLeadsForExportAction,
   bulkDeleteLeadsAction,
 } from "@/actions/leads.actions";
-import { deleteFolderAction, updateFolderCategoryAction, updateFolderSubcategoryAction } from "@/actions/folders.actions";
+import { deleteFolderAction, updateFolderCategoryAction, updateFolderSubcategoryAction, renameFolderAction } from "@/actions/folders.actions";
 import { getSubcategoriesByIndustryAction } from "@/actions/industry.actions";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -70,7 +70,7 @@ const SORT_LABELS: Record<SortOption, string> = {
 const SEARCH_FIELDS: { value: SearchField; label: string; placeholder: string }[] = [
   { value: "business",  label: "Business",  placeholder: "Search by business name…" },
   { value: "contact",   label: "Contact",   placeholder: "Search by contact person…" },
-  { value: "location",  label: "Location",  placeholder: "Search by city or state…" },
+  { value: "location",  label: "Location",  placeholder: "Search by city, state, or address…" },
   { value: "phone",     label: "Phone",     placeholder: "Search by phone number…" },
   { value: "email",     label: "Email",     placeholder: "Search by email address…" },
   { value: "website",   label: "Website",   placeholder: "Search by website…" },
@@ -219,6 +219,12 @@ export function FolderLeadsModal({
   const [showChangeCategory, setShowChangeCategory] = useState(false);
   const [categorySearch, setCategorySearch]         = useState("");
   const [savingCategory, setSavingCategory]         = useState(false);
+
+  // Rename folder
+  const [folderName, setFolderName]         = useState(folder.name);
+  const [showRenameFolder, setShowRenameFolder] = useState(false);
+  const [renameFolderValue, setRenameFolderValue] = useState("");
+  const [savingRename, setSavingRename]     = useState(false);
 
   // Two-step category → subcategory flow
   const [changeCatStep, setChangeCatStep]             = useState<"category" | "subcategory">("category");
@@ -417,6 +423,21 @@ export function FolderLeadsModal({
     } finally {
       setDeleting(false);
       setConfirmDelete(null);
+    }
+  }
+
+  async function handleRenameFolder() {
+    if (!renameFolderValue.trim()) return;
+    setSavingRename(true);
+    try {
+      await renameFolderAction(folder.id, renameFolderValue.trim());
+      setFolderName(renameFolderValue.trim());
+      toast.success(`Folder renamed to "${renameFolderValue.trim()}"`);
+      setShowRenameFolder(false);
+    } catch {
+      toast.error("Failed to rename folder");
+    } finally {
+      setSavingRename(false);
     }
   }
 
@@ -716,7 +737,7 @@ export function FolderLeadsModal({
                     <span className="font-medium text-foreground">Uncategorized</span>
                   )}
                   <ChevronRight className="h-3 w-3 shrink-0 text-muted-foreground/40" />
-                  <span className="font-medium text-foreground truncate">{folder.name}</span>
+                  <span className="font-medium text-foreground truncate">{folderName}</span>
                 </div>
               );
             })()}
@@ -729,7 +750,7 @@ export function FolderLeadsModal({
               </div>
               <div className="flex-1 min-w-0">
                 <DialogTitle className="flex items-center gap-2 text-sm font-semibold">
-                  <span className="truncate">{folder.name}</span>
+                  <span className="truncate">{folderName}</span>
                   <Badge
                     className="shrink-0 text-[10px] font-medium px-1.5 py-0"
                     style={{ backgroundColor: folder.color + "18", color: folder.color, border: "none" }}
@@ -747,6 +768,13 @@ export function FolderLeadsModal({
                   <MoreVertical className="h-3.5 w-3.5" />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem
+                    className="gap-2 cursor-pointer text-xs"
+                    onClick={() => { setRenameFolderValue(folderName); setShowRenameFolder(true); }}
+                  >
+                    <Pencil className="h-3 w-3" />
+                    Rename folder
+                  </DropdownMenuItem>
                   {allIndustries.length > 0 && (
                     <DropdownMenuItem
                       className="gap-2 cursor-pointer text-xs"
@@ -765,7 +793,7 @@ export function FolderLeadsModal({
                       Change subcategory
                     </DropdownMenuItem>
                   )}
-                  {(allIndustries.length > 0 || currentIndustryId) && <DropdownMenuSeparator />}
+                  <DropdownMenuSeparator />
                   <DropdownMenuItem
                     className="gap-2 cursor-pointer text-xs text-destructive focus:text-destructive"
                     onClick={() => setConfirmDelete("folder")}
@@ -1441,6 +1469,31 @@ export function FolderLeadsModal({
           </div>
         </EditDialogContent>
       </EditDialog>
+
+      {/* ── Rename folder dialog ── */}
+      <Dialog open={showRenameFolder} onOpenChange={(v) => { if (!v) setShowRenameFolder(false); }}>
+        <DialogContent showCloseButton className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Rename Folder</DialogTitle>
+          </DialogHeader>
+          <div className="py-2">
+            <Input
+              value={renameFolderValue}
+              onChange={(e) => setRenameFolderValue(e.target.value)}
+              placeholder="Folder name"
+              onKeyDown={(e) => { if (e.key === "Enter") handleRenameFolder(); }}
+              autoFocus
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setShowRenameFolder(false)}>Cancel</Button>
+            <Button onClick={handleRenameFolder} disabled={savingRename || !renameFolderValue.trim()}>
+              {savingRename ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
+              Save
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Change category / subcategory dialog ── */}
       <Dialog open={showChangeCategory} onOpenChange={(v) => { if (!v) closeCategoryDialog(); }}>

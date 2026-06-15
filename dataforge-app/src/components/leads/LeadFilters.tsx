@@ -11,7 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Search, X } from "lucide-react";
+import { Search, MapPin, X } from "lucide-react";
 
 const CATEGORIES = [
   "Roofing", "Dental", "Healthcare", "Real Estate", "Legal",
@@ -23,6 +23,7 @@ export function LeadFilters() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const setParam = useCallback(
     (key: string, value: string) => {
@@ -41,7 +42,7 @@ export function LeadFilters() {
   const hasFilters =
     searchParams.has("search") ||
     searchParams.has("industry") ||
-    searchParams.has("state") ||
+    searchParams.has("location") ||
     searchParams.has("status");
 
   function clearAll() {
@@ -61,6 +62,21 @@ export function LeadFilters() {
             const value = e.target.value;
             if (searchTimer.current) clearTimeout(searchTimer.current);
             searchTimer.current = setTimeout(() => setParam("search", value), 350);
+          }}
+        />
+      </div>
+
+      {/* Location filter — searches address, city, and state */}
+      <div className="relative">
+        <MapPin className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+        <Input
+          className="pl-8 w-44"
+          placeholder="City, state, or address…"
+          defaultValue={searchParams.get("location") ?? undefined}
+          onChange={(e) => {
+            const value = e.target.value;
+            if (stateTimer.current) clearTimeout(stateTimer.current);
+            stateTimer.current = setTimeout(() => setParam("location", value), 350);
           }}
         />
       </div>

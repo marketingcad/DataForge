@@ -158,6 +158,7 @@ export async function getLeads({
   search = "",
   industry = "",
   state = "",
+  location = "",
   status = "",
   folderId = "",
   sort = "newest",
@@ -183,6 +184,7 @@ export async function getLeads({
   search?: string;
   industry?: string;
   state?: string;
+  location?: string;
   status?: string;
   folderId?: string;
   sort?: "name_asc" | "name_desc" | "newest" | "oldest";
@@ -212,6 +214,7 @@ export async function getLeads({
       where.contactPerson = { contains: search, mode: "insensitive" };
     } else if (searchField === "location") {
       where.OR = [
+        { address: { contains: search, mode: "insensitive" } },
         { city: { contains: search, mode: "insensitive" } },
         { state: { contains: search, mode: "insensitive" } },
       ];
@@ -230,7 +233,14 @@ export async function getLeads({
   }
 
   if (industry) where.industriesFoundIn = { has: industry };
-  if (state) where.state = { equals: state, mode: "insensitive" };
+  if (state) where.state = { contains: state, mode: "insensitive" };
+  if (location) {
+    where.OR = [
+      { address: { contains: location, mode: "insensitive" } },
+      { city: { contains: location, mode: "insensitive" } },
+      { state: { contains: location, mode: "insensitive" } },
+    ];
+  }
   if (status) where.recordStatus = status;
   if (folderId === "unfiled") where.folderId = null;
   else if (folderId) where.folderId = folderId;

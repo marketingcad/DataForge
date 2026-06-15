@@ -5,11 +5,19 @@ import { useRouter } from "next/navigation";
 import { FolderLeadsModal } from "./FolderLeadsModal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { deleteFolderAction } from "@/actions/folders.actions";
-import { Folder, Inbox, Users, Calendar, RefreshCw, MoreVertical, Trash2, Loader2 } from "lucide-react";
+import { deleteFolderAction, renameFolderAction } from "@/actions/folders.actions";
+import { Folder, Inbox, Users, Calendar, RefreshCw, MoreVertical, Trash2, Loader2, Pencil } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -28,11 +36,12 @@ interface FolderCardProps {
   folder: FolderData;
   isUnfiled?: boolean;
   onClick: () => void;
+  onRename?: () => void;
   onDelete?: () => void;
   deleting?: boolean;
 }
 
-function FolderCard({ folder, isUnfiled, onClick, onDelete, deleting }: FolderCardProps) {
+function FolderCard({ folder, isUnfiled, onClick, onRename, onDelete, deleting }: FolderCardProps) {
   return (
     <div
       className="relative w-64 shrink-0 rounded-xl border bg-card hover:border-border hover:shadow-md transition-all duration-150 overflow-hidden group"
@@ -41,7 +50,7 @@ function FolderCard({ folder, isUnfiled, onClick, onDelete, deleting }: FolderCa
       <div className="h-1.5 w-full" style={{ backgroundColor: folder.color }} />
 
       {/* Three-dot menu — only for real folders, not Unfiled */}
-      {!isUnfiled && onDelete && (
+      {!isUnfiled && (onRename || onDelete) && (
         <div className="absolute top-3.5 right-3 z-10" onClick={(e) => e.stopPropagation()}>
           <DropdownMenu>
             <DropdownMenuTrigger
@@ -52,12 +61,19 @@ function FolderCard({ folder, isUnfiled, onClick, onDelete, deleting }: FolderCa
                 : <MoreVertical className="h-3.5 w-3.5" />}
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" side="bottom" className="min-w-0 w-9 p-1">
-              <DropdownMenuItem
-                className="text-destructive focus:text-destructive cursor-pointer"
-                onClick={onDelete}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </DropdownMenuItem>
+              {onRename && (
+                <DropdownMenuItem className="cursor-pointer" onClick={onRename}>
+                  <Pencil className="h-3.5 w-3.5" />
+                </DropdownMenuItem>
+              )}
+              {onDelete && (
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive cursor-pointer"
+                  onClick={onDelete}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -131,6 +147,9 @@ export function FolderBoard({ folders: initialFolders, unfiledCount }: FolderBoa
   const [folders, setFolders] = useState<FolderData[]>(initialFolders);
   const [selected, setSelected] = useState<FolderData | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [renamingFolder, setRenamingFolder] = useState<FolderData | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [savingRename, setSavingRename] = useState(false);
 
   const unfiledFolder: FolderData = {
     id: "unfiled",
@@ -141,6 +160,29 @@ export function FolderBoard({ folders: initialFolders, unfiledCount }: FolderBoa
     _count: { leads: unfiledCount },
     user: null,
   };
+
+  function openRename(folder: FolderData) {
+    setRenamingFolder(folder);
+    setRenameValue(folder.name);
+  }
+
+  async function handleRenameFolder() {
+    if (!renamingFolder || !renameValue.trim()) return;
+    setSavingRename(true);
+    try {
+      await renameFolderAction(renamingFolder.id, renameValue.trim());
+      setFolders((prev) =>
+        prev.map((f) => f.id === renamingFolder.id ? { ...f, name: renameValue.trim() } : f)
+      );
+      toast.success(`Folder renamed to "${renameValue.trim()}"`);
+      setRenamingFolder(null);
+      router.refresh();
+    } catch {
+      toast.error("Failed to rename folder");
+    } finally {
+      setSavingRename(false);
+    }
+  }
 
   async function handleDeleteFolder(folder: FolderData) {
     setDeletingId(folder.id);
@@ -171,6 +213,7 @@ export function FolderBoard({ folders: initialFolders, unfiledCount }: FolderBoa
             key={folder.id}
             folder={folder}
             onClick={() => setSelected(folder)}
+            onRename={() => openRename(folder)}
             onDelete={() => handleDeleteFolder(folder)}
             deleting={deletingId === folder.id}
           />
@@ -184,6 +227,35 @@ export function FolderBoard({ folders: initialFolders, unfiledCount }: FolderBoa
           onOpenChange={(v) => { if (!v) setSelected(null); }}
         />
       )}
+
+      <Dialog open={!!renamingFolder} onOpenChange={(v) => { if (!v) setRenamingFolder(null); }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Rename Folder</DialogTitle>
+          </DialogHeader>
+          <div className="py-2">
+            <Input
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              placeholder="Folder name"
+              onKeyDown={(e) => { if (e.key === "Enter") handleRenameFolder(); }}
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRenamingFolder(null)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleRenameFolder}
+              disabled={savingRename || !renameValue.trim()}
+            >
+              {savingRename ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

@@ -1,6 +1,6 @@
 "use server";
 
-import { getFolders, createFolder, deleteFolder, updateFolderIndustry, updateFolderSubcategory } from "@/lib/folders/service";
+import { getFolders, createFolder, deleteFolder, updateFolderIndustry, updateFolderSubcategory, renameFolder } from "@/lib/folders/service";
 import { requireDepartment } from "@/lib/rbac/guards";
 import { revalidatePath } from "next/cache";
 import type { Role } from "@/lib/rbac/roles";
@@ -33,5 +33,11 @@ export async function updateFolderCategoryAction(id: string, industryId: string 
 export async function updateFolderSubcategoryAction(id: string, subcategoryId: string | null) {
   const user = await requireDepartment("leads");
   await updateFolderSubcategory(id, scopedUserId(user), subcategoryId);
+  revalidatePath("/leads");
+}
+
+export async function renameFolderAction(id: string, name: string) {
+  const user = await requireDepartment("leads");
+  await renameFolder(id, name.trim(), scopedUserId(user));
   revalidatePath("/leads");
 }
