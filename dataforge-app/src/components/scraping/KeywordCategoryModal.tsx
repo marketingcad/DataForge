@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogContent,
@@ -34,6 +35,8 @@ import {
   Repeat2,
   Settings2,
   Copy,
+  Search,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -169,6 +172,8 @@ export function KeywordCategoryModal({
   const [movingKwId, setMovingKwId] = useState<string | null>(null);
   const [duplicatingKwId, setDuplicatingKwId] = useState<string | null>(null);
   const [favorites, setFavorites] = useState<string[]>([]);
+  const [kwSearch, setKwSearch] = useState("");
+  const [kwStatusFilter, setKwStatusFilter] = useState<"all" | "active" | "paused" | "disabled">("all");
 
   useEffect(() => {
     try {
@@ -298,6 +303,15 @@ export function KeywordCategoryModal({
 
   const isUncategorized = category === "Uncategorized";
 
+  const filteredKeywords = keywords.filter((kw) => {
+    const term = kwSearch.toLowerCase();
+    if (term && !kw.keyword.toLowerCase().includes(term) && !kw.location.toLowerCase().includes(term)) return false;
+    if (kwStatusFilter === "active" && (!kw.enabled || kw.failedAttempts >= 5)) return false;
+    if (kwStatusFilter === "paused" && (kw.enabled || kw.failedAttempts >= 5)) return false;
+    if (kwStatusFilter === "disabled" && kw.failedAttempts < 5) return false;
+    return true;
+  });
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
@@ -351,16 +365,62 @@ export function KeywordCategoryModal({
           </div>
         </DialogHeader>
 
+        {/* ── Filter bar ── */}
+        <div className="px-5 py-2 border-b shrink-0 flex flex-wrap items-center gap-2">
+          <div className="relative flex-1 min-w-[160px] max-w-xs">
+            <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+            <Input
+              className="pl-8 h-8 text-xs"
+              placeholder="Search keyword or location…"
+              value={kwSearch}
+              onChange={(e) => setKwSearch(e.target.value)}
+            />
+            {kwSearch && (
+              <button onClick={() => setKwSearch("")} className="absolute right-2 top-2 text-muted-foreground hover:text-foreground">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-1">
+            {(["all", "active", "paused", "disabled"] as const).map((s) => (
+              <button
+                key={s}
+                onClick={() => setKwStatusFilter(s)}
+                className={cn(
+                  "px-2.5 py-1 rounded-md text-xs font-medium transition-colors capitalize",
+                  kwStatusFilter === s
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-muted"
+                )}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+          {(kwSearch || kwStatusFilter !== "all") && (
+            <span className="text-xs text-muted-foreground">
+              {filteredKeywords.length} of {keywords.length}
+            </span>
+          )}
+        </div>
+
         {/* ── Content ── */}
         <div className="flex-1 overflow-y-auto">
           {keywords.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full gap-2 text-muted-foreground">
               <p className="text-sm">No keywords in this category</p>
             </div>
+          ) : filteredKeywords.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full gap-2 text-muted-foreground">
+              <p className="text-sm">No keywords match your filters</p>
+              <button onClick={() => { setKwSearch(""); setKwStatusFilter("all"); }} className="text-xs text-primary hover:underline">
+                Clear filters
+              </button>
+            </div>
           ) : view === "grid" ? (
             /* ── Grid view ── */
             <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {keywords.map((kw) => {
+              {filteredKeywords.map((kw) => {
                 const job = kw.jobs[0] ?? null;
                 const hasFailed = kw.failedAttempts > 0;
                 const isDisabledByFailure = !kw.enabled && kw.failedAttempts >= 5;
@@ -606,7 +666,7 @@ export function KeywordCategoryModal({
           ) : (
             /* ── List view ── */
             <div className="divide-y">
-              {keywords.map((kw) => {
+              {filteredKeywords.map((kw) => {
                 const job = kw.jobs[0] ?? null;
                 const hasFailed = kw.failedAttempts > 0;
                 const isDisabledByFailure = !kw.enabled && kw.failedAttempts >= 5;

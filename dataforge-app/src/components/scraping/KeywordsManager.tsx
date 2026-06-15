@@ -35,6 +35,7 @@ import {
   Search,
   Activity,
   MoreVertical,
+  Pencil,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -215,6 +216,56 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
     );
     saveManualCategories(manualCategories.filter((c) => c.name !== cat));
     toast.success(`Folder "${cat}" deleted`);
+  }
+
+  // Rename category dialog
+  const [renamingCat, setRenamingCat] = useState<string | null>(null);
+  const [renameCatValue, setRenameCatValue] = useState("");
+  const [savingRenameCat, setSavingRenameCat] = useState(false);
+
+  async function handleRenameCategory() {
+    const newName = renameCatValue.trim();
+    if (!renamingCat || !newName || newName === renamingCat) { setRenamingCat(null); return; }
+    setSavingRenameCat(true);
+    try {
+      const kwsInCat = keywords.filter((k) => (k.category || "Uncategorized") === renamingCat);
+      await Promise.all(
+        kwsInCat.map((k) =>
+          fetch(`/api/keywords/${k.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ category: newName }),
+          })
+        )
+      );
+      // Update local keyword state
+      setKeywords((prev) =>
+        prev.map((k) =>
+          (k.category || "Uncategorized") === renamingCat ? { ...k, category: newName } : k
+        )
+      );
+      // Update localStorage: colors
+      const oldColor = categoryColors[renamingCat];
+      if (oldColor) {
+        const next = { ...categoryColors };
+        delete next[renamingCat];
+        next[newName] = oldColor;
+        setCategoryColors(next);
+        localStorage.setItem("kw-category-colors", JSON.stringify(next));
+      }
+      // Update localStorage: manual categories
+      saveManualCategories(
+        manualCategories.map((c) => c.name === renamingCat ? { ...c, name: newName } : c)
+      );
+      // If this category is currently open, update selectedCategory
+      if (selectedCategory === renamingCat) setSelectedCategory(newName);
+      toast.success(`Folder renamed to "${newName}"`);
+      setRenamingCat(null);
+    } catch {
+      toast.error("Failed to rename folder");
+    } finally {
+      setSavingRenameCat(false);
+    }
   }
 
   // Derived: sorted unique categories (from keywords + manual empty ones)
@@ -868,6 +919,13 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="w-44">
                             <DropdownMenuItem
+                              className="gap-2"
+                              onClick={(e) => { e.stopPropagation(); setRenameCatValue(cat); setRenamingCat(cat); }}
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                              Rename folder
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
                               className="text-destructive focus:text-destructive gap-2"
                               onClick={(e) => { e.stopPropagation(); handleDeleteCategory(cat); }}
                             >
@@ -991,6 +1049,29 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
             <Button variant="ghost" onClick={() => setCreateCatOpen(false)}>Cancel</Button>
             <Button onClick={handleCreateCategory} disabled={!createCatName.trim()}>
               Create category
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Rename category dialog ── */}
+      <Dialog open={!!renamingCat} onOpenChange={(v) => { if (!v) setRenamingCat(null); }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader><DialogTitle>Rename Folder</DialogTitle></DialogHeader>
+          <div className="py-2">
+            <Input
+              value={renameCatValue}
+              onChange={(e) => setRenameCatValue(e.target.value)}
+              placeholder="Folder name"
+              onKeyDown={(e) => { if (e.key === "Enter") handleRenameCategory(); }}
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRenamingCat(null)}>Cancel</Button>
+            <Button onClick={handleRenameCategory} disabled={savingRenameCat || !renameCatValue.trim()}>
+              {savingRenameCat ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
+              Save
             </Button>
           </DialogFooter>
         </DialogContent>
