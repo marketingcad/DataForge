@@ -196,7 +196,7 @@ interface IndustryBoardProps {
   filterUserId?: string;
   filterUsers?: { id: string; name: string | null; email: string }[];
   userId?: string;
-  csvFolders?: { id: string; name: string; industryName?: string | null; subcategoryName?: string | null }[];
+  csvFolders?: { id: string; name: string; industryId?: string | null; industryName?: string | null; subcategoryId?: string | null; subcategoryName?: string | null }[];
   csvCategories?: string[];
 }
 

@@ -102,11 +102,13 @@ export default async function LeadsPage({
           filterUserId={filterUserId}
           filterUsers={isAdmin && users.length > 0 ? users.map((u) => ({ id: u.id, name: u.name, email: u.email })) : undefined}
           userId={session.user.id!}
-          csvFolders={(allFolders as { id: string; name: string; industry?: { name: string } | null }[]).map((f) => ({
+          csvFolders={(allFolders as { id: string; name: string; industry?: { id: string; name: string } | null; subcategory?: { id: string; name: string } | null }[]).map((f) => ({
             id: f.id,
             name: f.name,
+            industryId: f.industry?.id ?? null,
             industryName: f.industry?.name ?? null,
-            subcategoryName: (f as { subcategory?: { name: string } | null }).subcategory?.name ?? null,
+            subcategoryId: f.subcategory?.id ?? null,
+            subcategoryName: f.subcategory?.name ?? null,
           }))}
           csvCategories={(industries as { name: string }[]).map((ind) => ind.name)}
         />
