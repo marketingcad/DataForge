@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { Upload, FileText, X, AlertCircle, CheckCircle2, Loader2, Check, ChevronsUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -10,6 +10,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { importLeadsFromCsvAction, type CsvLeadRow } from "@/actions/leads.actions";
+import { getSubcategoriesByIndustryAction } from "@/actions/industry.actions";
 
 const BATCH_SIZE = 50;
 
@@ -50,15 +51,19 @@ function mapRow(raw: Record<string, string>): CsvLeadRow | null {
 
 type Folder = { id: string; name: string; industryId?: string | null; industryName?: string | null; subcategoryId?: string | null; subcategoryName?: string | null };
 
+type IndustryOption = { id: string; name: string };
+type SubcategoryOption = { id: string; name: string };
+
 interface Props {
   open: boolean;
   onClose: () => void;
   folders: Folder[];
   userId: string;
+  industries?: IndustryOption[];
   categories?: string[];
 }
 
-export function CsvImportDialog({ open, onClose, folders, userId, categories = [] }: Props) {
+export function CsvImportDialog({ open, onClose, folders, userId, industries = [], categories = [] }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [rows, setRows] = useState<CsvLeadRow[]>([]);
   const [skipped, setSkipped] = useState(0);
@@ -75,40 +80,29 @@ export function CsvImportDialog({ open, onClose, folders, userId, categories = [
   const [progress, setProgress] = useState({ imported: 0, total: 0 });
   const [result, setResult] = useState<{ created: number; duplicates: number; errors: number } | null>(null);
 
-  // Derive unique categories from folders
-  const categoryOptions = (() => {
-    const seen = new Set<string>();
-    const result: { id: string; name: string }[] = [];
-    for (const f of folders) {
-      if (f.industryId && f.industryName && !seen.has(f.industryId)) {
-        seen.add(f.industryId);
-        result.push({ id: f.industryId, name: f.industryName });
-      }
-    }
-    return result;
-  })();
+  // Subcategories fetched dynamically when a category is selected
+  const [subcategoryOptions, setSubcategoryOptions] = useState<SubcategoryOption[]>([]);
+  const [loadingSubs, setLoadingSubs] = useState(false);
 
-  // Derive unique subcategories for the selected category
-  const subcategoryOptions = (() => {
-    const seen = new Set<string>();
-    const result: { id: string; name: string }[] = [];
-    for (const f of folders) {
-      if (f.industryId === selectedCategoryId && f.subcategoryId && f.subcategoryName && !seen.has(f.subcategoryId)) {
-        seen.add(f.subcategoryId);
-        result.push({ id: f.subcategoryId, name: f.subcategoryName });
-      }
-    }
-    return result;
-  })();
+  useEffect(() => {
+    if (!selectedCategoryId) { setSubcategoryOptions([]); return; }
+    let cancelled = false;
+    setLoadingSubs(true);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    getSubcategoriesByIndustryAction(selectedCategoryId).then((data: any[]) => {
+      if (!cancelled) setSubcategoryOptions(data.map((s) => ({ id: s.id, name: s.name })));
+    }).finally(() => { if (!cancelled) setLoadingSubs(false); });
+    return () => { cancelled = true; };
+  }, [selectedCategoryId]);
 
-  // Filter folders by selected category / subcategory
+  // Filter folders by selected subcategory → category → all
   const filteredFolders = folders.filter((f) => {
     if (selectedSubcategoryId) return f.subcategoryId === selectedSubcategoryId;
     if (selectedCategoryId) return f.industryId === selectedCategoryId;
     return true;
   });
 
-  // Group filtered folders (single flat group once subcategory is chosen)
+  // Group filtered folders
   const grouped = filteredFolders.reduce<Record<string, Folder[]>>((acc, f) => {
     const key = selectedSubcategoryId
       ? (f.subcategoryName ?? "Folders")
@@ -125,7 +119,7 @@ export function CsvImportDialog({ open, onClose, folders, userId, categories = [
     ? [selectedFolder.industryName, selectedFolder.subcategoryName, selectedFolder.name].filter(Boolean).join(" › ")
     : "";
 
-  const selectedCategoryName = categoryOptions.find((c) => c.id === selectedCategoryId)?.name ?? "";
+  const selectedCategoryName = industries.find((c) => c.id === selectedCategoryId)?.name ?? "";
   const selectedSubcategoryName = subcategoryOptions.find((s) => s.id === selectedSubcategoryId)?.name ?? "";
 
   const categoryLabel = categoryOverride === "none" ? "Use category from CSV" : categoryOverride;
@@ -299,9 +293,9 @@ export function CsvImportDialog({ open, onClose, folders, userId, categories = [
                         <CommandGroup>
                           <CommandItem value="__none__" onSelect={() => { setSelectedCategoryId(null); setSelectedSubcategoryId(null); setFolderId(""); setCategoryPickerOpen(false); }}>
                             <Check className={cn("mr-2 h-4 w-4 shrink-0", !selectedCategoryId ? "opacity-100" : "opacity-0")} />
-                            <span className="text-muted-foreground">None</span>
+                            <span className="text-muted-foreground">All categories</span>
                           </CommandItem>
-                          {categoryOptions.map((c) => (
+                          {industries.map((c) => (
                             <CommandItem key={c.id} value={c.name} onSelect={() => { setSelectedCategoryId(c.id); setSelectedSubcategoryId(null); setFolderId(""); setCategoryPickerOpen(false); }}>
                               <Check className={cn("mr-2 h-4 w-4 shrink-0", selectedCategoryId === c.id ? "opacity-100" : "opacity-0")} />
                               {c.name}
@@ -314,16 +308,21 @@ export function CsvImportDialog({ open, onClose, folders, userId, categories = [
                 </Popover>
               </div>
 
-              {/* Subcategory — only shown when a category is selected and has subcategories */}
-              {selectedCategoryId && subcategoryOptions.length > 0 && (
+              {/* Subcategory — shown whenever a category is selected */}
+              {selectedCategoryId && (
                 <div className="space-y-1.5">
                   <Label>Subcategory <span className="text-muted-foreground text-xs">(optional)</span></Label>
                   <Popover open={subcategoryPickerOpen} onOpenChange={setSubcategoryPickerOpen}>
                     <PopoverTrigger
-                      className="inline-flex w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm font-normal shadow-sm hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      className="inline-flex w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm font-normal shadow-sm hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
                       aria-expanded={subcategoryPickerOpen}
+                      disabled={loadingSubs}
                     >
-                      <span className="truncate">{selectedSubcategoryName || <span className="text-muted-foreground">Select a subcategory…</span>}</span>
+                      <span className="truncate flex items-center gap-2">
+                        {loadingSubs
+                          ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /><span className="text-muted-foreground">Loading…</span></>
+                          : selectedSubcategoryName || <span className="text-muted-foreground">Select a subcategory…</span>}
+                      </span>
                       <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
                     </PopoverTrigger>
                     <PopoverContent className="p-0" align="start" style={{ width: "var(--anchor-width)" }}>
@@ -334,7 +333,7 @@ export function CsvImportDialog({ open, onClose, folders, userId, categories = [
                           <CommandGroup>
                             <CommandItem value="__none__" onSelect={() => { setSelectedSubcategoryId(null); setFolderId(""); setSubcategoryPickerOpen(false); }}>
                               <Check className={cn("mr-2 h-4 w-4 shrink-0", !selectedSubcategoryId ? "opacity-100" : "opacity-0")} />
-                              <span className="text-muted-foreground">None (show all folders in category)</span>
+                              <span className="text-muted-foreground">All subcategories</span>
                             </CommandItem>
                             {subcategoryOptions.map((s) => (
                               <CommandItem key={s.id} value={s.name} onSelect={() => { setSelectedSubcategoryId(s.id); setFolderId(""); setSubcategoryPickerOpen(false); }}>

@@ -378,6 +378,7 @@ export function IndustryBoard({ industries: initialIndustries, unfiledFolders, f
           onClose={() => setCsvImportOpen(false)}
           folders={csvFolders}
           userId={userId}
+          industries={industries.map((i) => ({ id: i.id, name: i.name }))}
           categories={csvCategories}
         />
       )}
