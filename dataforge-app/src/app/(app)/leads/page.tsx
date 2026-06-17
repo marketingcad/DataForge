@@ -88,6 +88,7 @@ export default async function LeadsPage({
             id: f.id,
             name: f.name,
             industryName: f.industry?.name ?? null,
+            subcategoryName: (f as { subcategory?: { name: string } | null }).subcategory?.name ?? null,
           }))}
           categories={(industries as { name: string }[]).map((ind) => ind.name)}
         />
@@ -105,6 +106,7 @@ export default async function LeadsPage({
             id: f.id,
             name: f.name,
             industryName: f.industry?.name ?? null,
+            subcategoryName: (f as { subcategory?: { name: string } | null }).subcategory?.name ?? null,
           }))}
           csvCategories={(industries as { name: string }[]).map((ind) => ind.name)}
         />

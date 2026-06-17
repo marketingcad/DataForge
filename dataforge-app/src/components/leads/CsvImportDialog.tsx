@@ -48,7 +48,7 @@ function mapRow(raw: Record<string, string>): CsvLeadRow | null {
   return mapped as CsvLeadRow;
 }
 
-type Folder = { id: string; name: string; industryName?: string | null };
+type Folder = { id: string; name: string; industryName?: string | null; subcategoryName?: string | null };
 
 interface Props {
   open: boolean;
@@ -71,9 +71,10 @@ export function CsvImportDialog({ open, onClose, folders, userId, categories = [
   const [progress, setProgress] = useState({ imported: 0, total: 0 });
   const [result, setResult] = useState<{ created: number; duplicates: number; errors: number } | null>(null);
 
-  // Group folders by industry for the combobox
+  // Group folders by "Category › Subcategory" for the combobox
   const grouped = folders.reduce<Record<string, Folder[]>>((acc, f) => {
-    const key = f.industryName ?? "Uncategorized";
+    const category = f.industryName ?? "Uncategorized";
+    const key = f.subcategoryName ? `${category} › ${f.subcategoryName}` : category;
     if (!acc[key]) acc[key] = [];
     acc[key].push(f);
     return acc;
@@ -81,7 +82,7 @@ export function CsvImportDialog({ open, onClose, folders, userId, categories = [
 
   const selectedFolder = folders.find((f) => f.id === folderId);
   const folderLabel = selectedFolder
-    ? (selectedFolder.industryName ? `${selectedFolder.industryName} / ${selectedFolder.name}` : selectedFolder.name)
+    ? [selectedFolder.industryName, selectedFolder.subcategoryName, selectedFolder.name].filter(Boolean).join(" › ")
     : "";
 
   const categoryLabel = categoryOverride === "none" ? "Use category from CSV" : categoryOverride;
