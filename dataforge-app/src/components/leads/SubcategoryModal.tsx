@@ -1,13 +1,15 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useTransition } from "react";
 import { getFoldersBySubcategoryAction } from "@/actions/industry.actions";
+import { createFolderAction } from "@/actions/folders.actions";
 import { FolderLeadsModal } from "./FolderLeadsModal";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -18,10 +20,21 @@ import {
   Users,
   Calendar,
   RefreshCw,
+  Plus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { format } from "date-fns";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+
+const COLOR_SWATCHES = [
+  "#6366f1", "#8b5cf6", "#ec4899", "#ef4444",
+  "#f97316", "#eab308", "#22c55e", "#06b6d4",
+  "#3b82f6", "#64748b",
+];
 
 type FolderData = {
   id: string;
@@ -118,6 +131,41 @@ export function SubcategoryModal({
   const [selectedFolder, setSelectedFolder] = useState<FolderData | null>(null);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
+  // Create folder
+  const [createOpen, setCreateOpen] = useState(false);
+  const [folderName, setFolderName] = useState("");
+  const [folderColor, setFolderColor] = useState(COLOR_SWATCHES[0]);
+  const [saving, startSaving] = useTransition();
+
+  function openCreate() {
+    setFolderName("");
+    setFolderColor(COLOR_SWATCHES[0]);
+    setCreateOpen(true);
+  }
+
+  function handleCreate() {
+    if (!folderName.trim()) return;
+    startSaving(async () => {
+      try {
+        const result = await createFolderAction(folderName.trim(), folderColor, industry.id, subcategory.id);
+        const newFolder: FolderData = {
+          id: result.id,
+          name: result.name,
+          color: result.color,
+          createdAt: result.createdAt,
+          updatedAt: result.updatedAt,
+          _count: { leads: 0 },
+          user: null,
+        };
+        setFolders((prev) => [...prev, newFolder]);
+        toast.success(`Folder "${result.name}" created`);
+        setCreateOpen(false);
+      } catch {
+        toast.error("Failed to create folder");
+      }
+    });
+  }
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -161,6 +209,10 @@ export function SubcategoryModal({
                   {folders.length} folder{folders.length !== 1 ? "s" : ""} · {totalLeads.toLocaleString()} leads
                 </p>
               </div>
+              <Button size="sm" variant="outline" className="gap-1.5 shrink-0" onClick={openCreate}>
+                <Plus className="h-3.5 w-3.5" />
+                New Folder
+              </Button>
               <TooltipProvider>
                 <div className="flex items-center gap-1 rounded-lg border p-1 shrink-0">
                   <Tooltip>
@@ -196,6 +248,10 @@ export function SubcategoryModal({
               <div className="flex flex-col items-center justify-center h-48 gap-2 text-muted-foreground">
                 <Folder className="h-10 w-10 text-muted-foreground/20" />
                 <p className="text-sm">No folders in this subcategory yet</p>
+                <Button size="sm" variant="outline" className="gap-1.5 mt-1" onClick={openCreate}>
+                  <Plus className="h-3.5 w-3.5" />
+                  Add your first folder
+                </Button>
               </div>
             )}
 
@@ -230,6 +286,48 @@ export function SubcategoryModal({
               </div>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create folder dialog */}
+      <Dialog open={createOpen} onOpenChange={(v) => { if (!v) setCreateOpen(false); }}>
+        <DialogContent showCloseButton className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>New Folder</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-1">
+            <div className="space-y-1.5">
+              <Label htmlFor="folder-name">Name</Label>
+              <Input
+                id="folder-name"
+                placeholder="e.g. New York Dentists"
+                value={folderName}
+                onChange={(e) => setFolderName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") handleCreate(); }}
+                autoFocus
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Color</Label>
+              <div className="flex flex-wrap gap-2">
+                {COLOR_SWATCHES.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setFolderColor(c)}
+                    className={cn("h-6 w-6 rounded-full border-2 transition-transform", folderColor === c ? "border-foreground scale-110" : "border-transparent hover:scale-105")}
+                    style={{ backgroundColor: c }}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={handleCreate} disabled={!folderName.trim() || saving}>
+              {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Create Folder
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
