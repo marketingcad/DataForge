@@ -129,9 +129,9 @@ interface KeywordCategoryModalProps {
   allCategories: string[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  runningId: string | null;
-  runningJobId: string | null;
-  runningLabel: string;
+  runningIds: Record<string, true>;
+  runningJobIds: Record<string, string>;
+  runningLabels: Record<string, string>;
   autoRunId: string | null;
   onToggle: (id: string, enabled: boolean) => void;
   onRunNow: (kwId: string) => void;
@@ -152,9 +152,9 @@ export function KeywordCategoryModal({
   allCategories,
   open,
   onOpenChange,
-  runningId,
-  runningJobId,
-  runningLabel,
+  runningIds,
+  runningJobIds,
+  runningLabels,
   autoRunId,
   onToggle,
   onRunNow,
@@ -424,9 +424,9 @@ export function KeywordCategoryModal({
                 const job = kw.jobs[0] ?? null;
                 const hasFailed = kw.failedAttempts > 0;
                 const isDisabledByFailure = !kw.enabled && kw.failedAttempts >= 5;
-                const isRunning = runningId === kw.id || (job?.status === "running" || job?.status === "pending");
+                const isRunning = !!runningIds[kw.id] || (job?.status === "running" || job?.status === "pending");
                 const isAutoRunning = autoRunId === kw.id;
-                const stopJobId = runningJobId ?? job?.id ?? "";
+                const stopJobId = runningJobIds[kw.id] ?? job?.id ?? "";
 
                 return (
                   <div key={kw.id} className="rounded-lg border bg-card p-4 flex flex-col gap-3">
@@ -482,7 +482,7 @@ export function KeywordCategoryModal({
                     {isRunning ? (
                       <div className="flex items-center gap-1.5 text-xs font-medium text-blue-600 dark:text-blue-400">
                         <Loader2 className="h-3 w-3 animate-spin shrink-0" />
-                        <span className="truncate">{isAutoRunning ? `[Auto] ${runningLabel}` : runningLabel}</span>
+                        <span className="truncate">{isAutoRunning ? `[Auto] ${runningLabels[kw.id] ?? "Starting…"}` : (runningLabels[kw.id] ?? "Starting…")}</span>
                       </div>
                     ) : isAutoRunning ? (
                       <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
@@ -574,7 +574,7 @@ export function KeywordCategoryModal({
                             variant="outline"
                             className="gap-1.5 h-8 flex-1"
                             onClick={() => onRunNow(kw.id)}
-                            disabled={!!runningId}
+                            disabled={isRunning}
                           >
                             <Play className="h-3.5 w-3.5" />Run now
                           </Button>
@@ -584,7 +584,7 @@ export function KeywordCategoryModal({
                             className="h-8 w-8 p-0 text-emerald-600 border-emerald-300 hover:bg-emerald-50 dark:border-emerald-700 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
                             title="Auto run — repeats until stopped"
                             onClick={() => onAutoRun(kw.id)}
-                            disabled={!!runningId}
+                            disabled={isRunning}
                           >
                             <Repeat2 className="h-3.5 w-3.5" />
                           </Button>
@@ -670,9 +670,9 @@ export function KeywordCategoryModal({
                 const job = kw.jobs[0] ?? null;
                 const hasFailed = kw.failedAttempts > 0;
                 const isDisabledByFailure = !kw.enabled && kw.failedAttempts >= 5;
-                const isRunning = runningId === kw.id || (job?.status === "running" || job?.status === "pending");
+                const isRunning = !!runningIds[kw.id] || (job?.status === "running" || job?.status === "pending");
                 const isAutoRunning = autoRunId === kw.id;
-                const stopJobId = runningJobId ?? job?.id ?? "";
+                const stopJobId = runningJobIds[kw.id] ?? job?.id ?? "";
 
                 return (
                   <div key={kw.id} className="px-5 py-4 flex items-start gap-4">
@@ -726,7 +726,7 @@ export function KeywordCategoryModal({
                       {isRunning ? (
                         <div className="flex items-center gap-1.5 text-xs font-medium text-blue-600 dark:text-blue-400">
                           <Loader2 className="h-3 w-3 animate-spin shrink-0" />
-                          <span>{isAutoRunning ? `[Auto] ${runningLabel}` : runningLabel}</span>
+                          <span>{isAutoRunning ? `[Auto] ${runningLabels[kw.id] ?? "Starting…"}` : (runningLabels[kw.id] ?? "Starting…")}</span>
                         </div>
                       ) : isAutoRunning ? (
                         <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
@@ -796,7 +796,7 @@ export function KeywordCategoryModal({
                         </Button>
                       ) : (
                         <>
-                          <Button size="sm" variant="outline" className="gap-1.5 h-8" onClick={() => onRunNow(kw.id)} disabled={!!runningId}>
+                          <Button size="sm" variant="outline" className="gap-1.5 h-8" onClick={() => onRunNow(kw.id)} disabled={isRunning}>
                             <Play className="h-3.5 w-3.5" />Run now
                           </Button>
                           <Button
@@ -805,7 +805,7 @@ export function KeywordCategoryModal({
                             className="h-8 w-8 p-0 text-emerald-600 border-emerald-300 hover:bg-emerald-50 dark:border-emerald-700 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
                             title="Auto run — repeats until stopped"
                             onClick={() => onAutoRun(kw.id)}
-                            disabled={!!runningId}
+                            disabled={isRunning}
                           >
                             <Repeat2 className="h-3.5 w-3.5" />
                           </Button>

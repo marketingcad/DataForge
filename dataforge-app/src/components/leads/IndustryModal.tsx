@@ -217,6 +217,40 @@ function SubcategoryCard({
   );
 }
 
+function UngroupedSubcategoryCard({
+  folderCount,
+  totalLeads,
+  onClick,
+}: {
+  folderCount: number;
+  totalLeads: number;
+  onClick: () => void;
+}) {
+  return (
+    <div className="w-56 shrink-0 rounded-xl border bg-card hover:border-border hover:shadow-md transition-all duration-150 overflow-hidden">
+      <button onClick={onClick} className="w-full text-left p-4 space-y-3 focus:outline-none">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg shrink-0 bg-muted">
+            <Folder className="h-4 w-4 text-muted-foreground" />
+          </div>
+          <Badge variant="secondary" className="shrink-0 text-xs tabular-nums font-semibold">
+            {totalLeads.toLocaleString()}
+          </Badge>
+        </div>
+        <div className="min-w-0 space-y-1">
+          <p className="text-sm font-semibold truncate leading-tight">Ungrouped</p>
+          <p className="text-[11px] text-muted-foreground">
+            {folderCount} folder{folderCount !== 1 ? "s" : ""}
+          </p>
+        </div>
+        <p className="text-[11px] text-muted-foreground font-medium">
+          Click to view folders →
+        </p>
+      </button>
+    </div>
+  );
+}
+
 export function IndustryModal({ industry, open, onOpenChange, unfiledFolders, allIndustries = [], filterUserId }: IndustryModalProps) {
   const [subcategories, setSubcategories] = useState<SubcategoryData[]>([]);
   const [ungroupedFolders, setUngroupedFolders] = useState<FolderData[]>([]);
@@ -239,6 +273,7 @@ export function IndustryModal({ industry, open, onOpenChange, unfiledFolders, al
 
   // Deleting
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [showUngrouped, setShowUngrouped] = useState(false);
 
   const load = useCallback(async () => {
     if (!industry) return;
@@ -493,7 +528,7 @@ export function IndustryModal({ industry, open, onOpenChange, unfiledFolders, al
                   </h3>
                 </div>
 
-                {subcategories.length === 0 && !loading ? (
+                {subcategories.length === 0 && ungroupedFolders.length === 0 && !loading ? (
                   <button
                     onClick={() => setAddSubOpen(true)}
                     className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
@@ -513,6 +548,13 @@ export function IndustryModal({ industry, open, onOpenChange, unfiledFolders, al
                         deleting={deletingId === sub.id}
                       />
                     ))}
+                    {ungroupedFolders.length > 0 && (
+                      <UngroupedSubcategoryCard
+                        folderCount={ungroupedFolders.length}
+                        totalLeads={totalUngroupedLeads}
+                        onClick={() => setShowUngrouped(true)}
+                      />
+                    )}
                   </div>
                 ) : (
                   <div className="flex flex-col divide-y rounded-lg border overflow-hidden">
@@ -535,49 +577,24 @@ export function IndustryModal({ industry, open, onOpenChange, unfiledFolders, al
                         </button>
                       </div>
                     ))}
+                    {ungroupedFolders.length > 0 && (
+                      <div className="flex items-center gap-3 px-4 py-3 hover:bg-muted/50 transition-colors group">
+                        <button className="flex items-center gap-3 flex-1 min-w-0 text-left" onClick={() => setShowUngrouped(true)}>
+                          <div className="h-8 w-8 flex items-center justify-center rounded-md shrink-0 bg-muted">
+                            <Folder className="h-4 w-4 text-muted-foreground" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold truncate">Ungrouped</p>
+                            <p className="text-xs text-muted-foreground">{ungroupedFolders.length} folder{ungroupedFolders.length !== 1 ? "s" : ""} · {totalUngroupedLeads.toLocaleString()} leads</p>
+                          </div>
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </section>
             )}
 
-            {/* Ungrouped folders section */}
-            {ungroupedFolders.length > 0 && (
-              <section>
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">
-                  Ungrouped Folders
-                  <span className="ml-1.5 normal-case font-normal">({ungroupedFolders.length})</span>
-                </h3>
-
-                {viewMode === "grid" ? (
-                  <div className="flex flex-wrap gap-4">
-                    {ungroupedFolders.map((folder) => (
-                      <FolderCard key={folder.id} folder={folder} onClick={() => setSelectedFolder(folder)} />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="flex flex-col divide-y rounded-lg border overflow-hidden">
-                    {ungroupedFolders.map((folder) => (
-                      <button
-                        key={folder.id}
-                        onClick={() => setSelectedFolder(folder)}
-                        className="flex items-center gap-3 px-4 py-3 hover:bg-muted/50 transition-colors text-left group"
-                      >
-                        <div className="h-8 w-8 flex items-center justify-center rounded-md shrink-0 bg-muted">
-                          <Folder className="h-4 w-4 text-muted-foreground" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold truncate">{folder.name}</p>
-                          {folder.user?.name && <p className="text-xs text-muted-foreground">{folder.user.name}</p>}
-                        </div>
-                        <span className="text-xs font-medium px-2 py-0.5 rounded-full shrink-0 bg-muted text-muted-foreground">
-                          {folder._count.leads} lead{folder._count.leads !== 1 ? "s" : ""}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </section>
-            )}
 
             {!loading && subcategories.length === 0 && ungroupedFolders.length === 0 && (
               <div className="flex flex-col items-center justify-center h-48 gap-2 text-muted-foreground">
@@ -689,7 +706,66 @@ export function IndustryModal({ industry, open, onOpenChange, unfiledFolders, al
         />
       )}
 
-      {/* Ungrouped folder drill-in */}
+      {/* Ungrouped subcategory drill-in — shows folder list before going to leads */}
+      {showUngrouped && (
+        <Dialog open={showUngrouped} onOpenChange={setShowUngrouped}>
+          <DialogContent
+            showCloseButton
+            style={{ width: "calc(100vw - 40px)", height: "calc(100vh - 60px)", maxWidth: "none" }}
+            className="flex flex-col p-0 overflow-hidden"
+          >
+            <DialogHeader className="px-6 pt-5 pb-4 border-b shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg shrink-0 bg-muted">
+                  <Folder className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs text-muted-foreground">{industry.name}</span>
+                    <span className="text-xs text-muted-foreground">›</span>
+                    <DialogTitle className="text-base font-semibold">Ungrouped</DialogTitle>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {ungroupedFolders.length} folder{ungroupedFolders.length !== 1 ? "s" : ""} · {totalUngroupedLeads.toLocaleString()} leads
+                  </p>
+                </div>
+              </div>
+            </DialogHeader>
+            <div className="flex-1 overflow-y-auto p-6 relative">
+              {viewMode === "grid" ? (
+                <div className="flex flex-wrap gap-4">
+                  {ungroupedFolders.map((folder) => (
+                    <FolderCard key={folder.id} folder={folder} onClick={() => setSelectedFolder(folder)} />
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col divide-y rounded-lg border overflow-hidden">
+                  {ungroupedFolders.map((folder) => (
+                    <button
+                      key={folder.id}
+                      onClick={() => setSelectedFolder(folder)}
+                      className="flex items-center gap-3 px-4 py-3 hover:bg-muted/50 transition-colors text-left group"
+                    >
+                      <div className="h-8 w-8 flex items-center justify-center rounded-md shrink-0 bg-muted">
+                        <Folder className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold truncate">{folder.name}</p>
+                        {folder.user?.name && <p className="text-xs text-muted-foreground">{folder.user.name}</p>}
+                      </div>
+                      <span className="text-xs font-medium px-2 py-0.5 rounded-full shrink-0 bg-muted text-muted-foreground">
+                        {folder._count.leads} lead{folder._count.leads !== 1 ? "s" : ""}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Folder leads drill-in (from ungrouped) */}
       {selectedFolder && (
         <FolderLeadsModal
           // eslint-disable-next-line @typescript-eslint/no-explicit-any

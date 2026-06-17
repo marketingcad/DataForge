@@ -321,10 +321,10 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
   // History modal
   const [historyKw, setHistoryKw] = useState<KeywordRow | null>(null);
 
-  // Run now loading state per keyword
-  const [runningId, setRunningId] = useState<string | null>(null);
-  const [runningJobId, setRunningJobId] = useState<string | null>(null);
-  const [runningLabel, setRunningLabel] = useState<string>("Starting…");
+  // Run now loading state per keyword — keyed by keyword ID so multiple can run simultaneously
+  const [runningIds, setRunningIds] = useState<Record<string, true>>({});
+  const [runningJobIds, setRunningJobIds] = useState<Record<string, string>>({});
+  const [runningLabels, setRunningLabels] = useState<Record<string, string>>({});
   const [forceStopConfirm, setForceStopConfirm] = useState<{ kwId: string; jobId: string } | null>(null);
 
   // Track job IDs that have already had their completion toast shown
@@ -409,12 +409,14 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // On mount, resume live polling if any keyword already has a running job
+  // On mount, resume live polling for ALL keywords that already have a running job
   useEffect(() => {
-    const runningKw = keywords.find((k) => k.jobs[0]?.status === "running" || k.jobs[0]?.status === "pending");
-    if (runningKw && runningKw.jobs[0]) {
-      livePolledJobsRef.current.add(runningKw.jobs[0].id);
-      resumePolling(runningKw.id, runningKw.jobs[0].id);
+    for (const kw of keywords) {
+      const j = kw.jobs[0];
+      if (!j) continue;
+      if (j.status !== "running" && j.status !== "pending") continue;
+      livePolledJobsRef.current.add(j.id);
+      resumePolling(kw.id, j.id);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -435,9 +437,9 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
   }, []);
 
   async function resumePolling(kwId: string, jobId: string) {
-    setRunningId(kwId);
-    setRunningJobId(jobId);
-    setRunningLabel("Reconnecting…");
+    setRunningIds(prev => ({ ...prev, [kwId]: true }));
+    setRunningJobIds(prev => ({ ...prev, [kwId]: jobId }));
+    setRunningLabels(prev => ({ ...prev, [kwId]: "Reconnecting…" }));
     const MAX_POLLS = 60;
     let completionHandled = false;
     for (let i = 0; i < MAX_POLLS; i++) {
@@ -449,7 +451,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
         if (job.status === "running") {
           const msg = job.errorMessage || "Searching Google Maps…";
           const prefix = job.leadsDiscovered > 0 ? `[ ${job.leadsDiscovered} found ] — ` : "";
-          setRunningLabel(prefix + msg);
+          setRunningLabels(prev => ({ ...prev, [kwId]: prefix + msg }));
 
           // Scraper logged a terminal message but Vercel timed out before writing status="completed"
           if (job.errorMessage?.startsWith("Done") || job.errorMessage?.startsWith("All discovered")) {
@@ -465,7 +467,8 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
         }
       } catch { break; }
     }
-    setRunningId(null); setRunningJobId(null);
+    setRunningIds(prev => { const n = { ...prev }; delete n[kwId]; return n; });
+    setRunningJobIds(prev => { const n = { ...prev }; delete n[kwId]; return n; });
     if (!completionHandled) {
       try {
         const p = await fetch(`/api/scraping/jobs/${jobId}`);
@@ -483,7 +486,8 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
       autoRunRef.current = null;
       setAutoRunId(null);
     }
-    setRunningId(null); setRunningJobId(null);
+    setRunningIds(prev => { const n = { ...prev }; delete n[kwId]; return n; });
+    setRunningJobIds(prev => { const n = { ...prev }; delete n[kwId]; return n; });
     setForceStopConfirm(null);
     await fetch(`/api/scraping/jobs/${jobId}/cancel`, { method: "POST" }).catch(() => null);
   }
@@ -693,31 +697,33 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
   }
 
   async function handleRunNow(kwId: string) {
-    setRunningId(kwId);
-    setRunningLabel("Starting…");
+    setRunningIds(prev => ({ ...prev, [kwId]: true }));
+    setRunningLabels(prev => ({ ...prev, [kwId]: "Starting…" }));
 
     let jobId: string;
     try {
       const res = await fetch(`/api/keywords/${kwId}/run`, { method: "POST" });
       if (!res.ok) {
         toast.error("Failed to start scraping. Try again.");
-        setRunningId(null); setRunningJobId(null);
+        setRunningIds(prev => { const n = { ...prev }; delete n[kwId]; return n; });
+        setRunningJobIds(prev => { const n = { ...prev }; delete n[kwId]; return n; });
         return;
       }
       const data = await res.json();
       jobId = data.jobId;
-      setRunningJobId(jobId);
+      setRunningJobIds(prev => ({ ...prev, [kwId]: jobId }));
       // Prevent the background poll from starting a second resumePolling for this job
       livePolledJobsRef.current.add(jobId);
     } catch {
       toast.error("Failed to start scraping. Try again.");
-      setRunningId(null); setRunningJobId(null);
+      setRunningIds(prev => { const n = { ...prev }; delete n[kwId]; return n; });
+      setRunningJobIds(prev => { const n = { ...prev }; delete n[kwId]; return n; });
       return;
     }
 
     fetch(`/api/scraping/jobs/${jobId}/process`, { method: "POST" }).catch(() => null);
 
-    setRunningLabel("Starting browser…");
+    setRunningLabels(prev => ({ ...prev, [kwId]: "Starting browser…" }));
     const MAX_POLLS = 180;
     let completionHandled = false;
 
@@ -729,11 +735,11 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
         const job = await poll.json();
 
         if (job.status === "pending") {
-          setRunningLabel(`Starting browser… (${Math.round((i + 1) * 5)}s)`);
+          setRunningLabels(prev => ({ ...prev, [kwId]: `Starting browser… (${Math.round((i + 1) * 5)}s)` }));
         } else if (job.status === "running") {
           const msg = job.errorMessage || "Searching Google Maps…";
           const prefix = job.leadsDiscovered > 0 ? `[ ${job.leadsDiscovered} found ] — ` : "";
-          setRunningLabel(prefix + msg);
+          setRunningLabels(prev => ({ ...prev, [kwId]: prefix + msg }));
           if (job.leadsDiscovered > 0) {
             setKeywords((prev) =>
               prev.map((k) =>
@@ -757,7 +763,10 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
           applyJobResult(kwId, jobId, job);
           completionHandled = true;
           if (job.status === "failed") {
-            setTimeout(() => { setRunningId(null); setRunningJobId(null); }, 15000);
+            setTimeout(() => {
+              setRunningIds(prev => { const n = { ...prev }; delete n[kwId]; return n; });
+              setRunningJobIds(prev => { const n = { ...prev }; delete n[kwId]; return n; });
+            }, 15000);
             return;
           }
           break;
@@ -765,7 +774,8 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
       } catch { break; }
     }
 
-    setRunningId(null); setRunningJobId(null);
+    setRunningIds(prev => { const n = { ...prev }; delete n[kwId]; return n; });
+    setRunningJobIds(prev => { const n = { ...prev }; delete n[kwId]; return n; });
 
     if (!completionHandled) {
       try {
@@ -873,7 +883,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
             const kwsInCat = keywords.filter((k) => (k.category || "Uncategorized") === cat);
             const color = getCategoryColor(cat, idx);
             const activeCount = kwsInCat.filter((k) => k.enabled).length;
-            const hasRunning = kwsInCat.some((k) => k.id === runningId);
+            const hasRunning = kwsInCat.some((k) => runningIds[k.id]);
             const totalLeads = kwsInCat.reduce((sum, k) => sum + k._count.leads, 0);
             const isUncategorized = cat === "Uncategorized";
 
@@ -979,9 +989,9 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
           keywords={keywords.filter((k) => (k.category || "Uncategorized") === selectedCategory)}
           open={selectedCategory !== null}
           onOpenChange={(o) => { if (!o) setSelectedCategory(null); }}
-          runningId={runningId}
-          runningJobId={runningJobId}
-          runningLabel={runningLabel}
+          runningIds={runningIds}
+          runningJobIds={runningJobIds}
+          runningLabels={runningLabels}
           allCategories={allCategoryNames}
           onToggle={handleToggle}
           onRunNow={handleRunNow}
@@ -1008,9 +1018,9 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
             </DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            {runningLabel.startsWith("Grabbing emails")
+            {(runningLabels[forceStopConfirm?.kwId ?? ""] ?? "").startsWith("Grabbing emails")
               ? "The scraper is currently visiting lead websites to collect email addresses. Force stopping now will leave the remaining leads in this batch without emails."
-              : runningLabel.startsWith("Starting") || runningLabel === "Reconnecting…"
+              : (runningLabels[forceStopConfirm?.kwId ?? ""] ?? "").startsWith("Starting") || (runningLabels[forceStopConfirm?.kwId ?? ""] ?? "") === "Reconnecting…"
               ? "The scraper is starting up. Force stopping now will cancel this run."
               : "The scraper is actively collecting leads. Force stopping now will save what has already been collected and cancel the rest of this run."}
           </p>
