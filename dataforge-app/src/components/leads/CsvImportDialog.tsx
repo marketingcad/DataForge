@@ -271,12 +271,12 @@ export function CsvImportDialog({ open, onClose, folders, userId, industries = [
             </div>
           )}
 
-          {/* Cascading folder picker */}
+          {/* Destination: Category → Subcategory → Folder */}
           {!isImporting && !result && (
             <>
-              {/* Category */}
+              {/* 1. Category */}
               <div className="space-y-1.5">
-                <Label>Category <span className="text-muted-foreground text-xs">(optional)</span></Label>
+                <Label>Category</Label>
                 <Popover open={categoryPickerOpen} onOpenChange={setCategoryPickerOpen}>
                   <PopoverTrigger
                     className="inline-flex w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm font-normal shadow-sm hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
@@ -291,10 +291,6 @@ export function CsvImportDialog({ open, onClose, folders, userId, industries = [
                       <CommandList>
                         <CommandEmpty>No category found.</CommandEmpty>
                         <CommandGroup>
-                          <CommandItem value="__none__" onSelect={() => { setSelectedCategoryId(null); setSelectedSubcategoryId(null); setFolderId(""); setCategoryPickerOpen(false); }}>
-                            <Check className={cn("mr-2 h-4 w-4 shrink-0", !selectedCategoryId ? "opacity-100" : "opacity-0")} />
-                            <span className="text-muted-foreground">All categories</span>
-                          </CommandItem>
                           {industries.map((c) => (
                             <CommandItem key={c.id} value={c.name} onSelect={() => { setSelectedCategoryId(c.id); setSelectedSubcategoryId(null); setFolderId(""); setCategoryPickerOpen(false); }}>
                               <Check className={cn("mr-2 h-4 w-4 shrink-0", selectedCategoryId === c.id ? "opacity-100" : "opacity-0")} />
@@ -308,56 +304,57 @@ export function CsvImportDialog({ open, onClose, folders, userId, industries = [
                 </Popover>
               </div>
 
-              {/* Subcategory — shown whenever a category is selected */}
-              {selectedCategoryId && (
-                <div className="space-y-1.5">
-                  <Label>Subcategory <span className="text-muted-foreground text-xs">(optional)</span></Label>
-                  <Popover open={subcategoryPickerOpen} onOpenChange={setSubcategoryPickerOpen}>
-                    <PopoverTrigger
-                      className="inline-flex w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm font-normal shadow-sm hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
-                      aria-expanded={subcategoryPickerOpen}
-                      disabled={loadingSubs}
-                    >
-                      <span className="truncate flex items-center gap-2">
-                        {loadingSubs
+              {/* 2. Subcategory — always visible, disabled until category chosen */}
+              <div className="space-y-1.5">
+                <Label>Subcategory</Label>
+                <Popover open={subcategoryPickerOpen} onOpenChange={(v) => { if (!selectedCategoryId) return; setSubcategoryPickerOpen(v); }}>
+                  <PopoverTrigger
+                    className="inline-flex w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm font-normal shadow-sm hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
+                    aria-expanded={subcategoryPickerOpen}
+                    disabled={!selectedCategoryId || loadingSubs}
+                  >
+                    <span className="truncate flex items-center gap-2">
+                      {!selectedCategoryId
+                        ? <span className="text-muted-foreground">Select a category first</span>
+                        : loadingSubs
                           ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /><span className="text-muted-foreground">Loading…</span></>
                           : selectedSubcategoryName || <span className="text-muted-foreground">Select a subcategory…</span>}
-                      </span>
-                      <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
-                    </PopoverTrigger>
-                    <PopoverContent className="p-0" align="start" style={{ width: "var(--anchor-width)" }}>
-                      <Command>
-                        <CommandInput placeholder="Search subcategories…" />
-                        <CommandList>
-                          <CommandEmpty>No subcategory found.</CommandEmpty>
-                          <CommandGroup>
-                            <CommandItem value="__none__" onSelect={() => { setSelectedSubcategoryId(null); setFolderId(""); setSubcategoryPickerOpen(false); }}>
-                              <Check className={cn("mr-2 h-4 w-4 shrink-0", !selectedSubcategoryId ? "opacity-100" : "opacity-0")} />
-                              <span className="text-muted-foreground">All subcategories</span>
+                    </span>
+                    <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
+                  </PopoverTrigger>
+                  <PopoverContent className="p-0" align="start" style={{ width: "var(--anchor-width)" }}>
+                    <Command>
+                      <CommandInput placeholder="Search subcategories…" />
+                      <CommandList>
+                        <CommandEmpty>No subcategory found.</CommandEmpty>
+                        <CommandGroup>
+                          {subcategoryOptions.map((s) => (
+                            <CommandItem key={s.id} value={s.name} onSelect={() => { setSelectedSubcategoryId(s.id); setFolderId(""); setSubcategoryPickerOpen(false); }}>
+                              <Check className={cn("mr-2 h-4 w-4 shrink-0", selectedSubcategoryId === s.id ? "opacity-100" : "opacity-0")} />
+                              {s.name}
                             </CommandItem>
-                            {subcategoryOptions.map((s) => (
-                              <CommandItem key={s.id} value={s.name} onSelect={() => { setSelectedSubcategoryId(s.id); setFolderId(""); setSubcategoryPickerOpen(false); }}>
-                                <Check className={cn("mr-2 h-4 w-4 shrink-0", selectedSubcategoryId === s.id ? "opacity-100" : "opacity-0")} />
-                                {s.name}
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
-                </div>
-              )}
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              </div>
 
-              {/* Folder */}
+              {/* 3. Folder — always visible, disabled until subcategory chosen */}
               <div className="space-y-1.5">
-                <Label>Save to Folder <span className="text-muted-foreground text-xs">(optional)</span></Label>
-                <Popover open={folderOpen} onOpenChange={setFolderOpen}>
+                <Label>Folder</Label>
+                <Popover open={folderOpen} onOpenChange={(v) => { if (!selectedSubcategoryId) return; setFolderOpen(v); }}>
                   <PopoverTrigger
-                    className="inline-flex w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm font-normal shadow-sm hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    className="inline-flex w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm font-normal shadow-sm hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
                     aria-expanded={folderOpen}
+                    disabled={!selectedSubcategoryId}
                   >
-                    <span className="truncate">{folderLabel || <span className="text-muted-foreground">Select a folder…</span>}</span>
+                    <span className="truncate">
+                      {!selectedSubcategoryId
+                        ? <span className="text-muted-foreground">Select a subcategory first</span>
+                        : folderLabel || <span className="text-muted-foreground">Select a folder…</span>}
+                    </span>
                     <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
                   </PopoverTrigger>
                   <PopoverContent className="p-0" align="start" style={{ width: "var(--anchor-width)" }}>
@@ -383,7 +380,7 @@ export function CsvImportDialog({ open, onClose, folders, userId, industries = [
                     </Command>
                   </PopoverContent>
                 </Popover>
-                {!folderId && (
+                {!folderId && selectedSubcategoryId && (
                   <p className="text-xs text-muted-foreground">
                     No folder selected — leads will go to <strong>CSV Imports › General</strong>
                   </p>
