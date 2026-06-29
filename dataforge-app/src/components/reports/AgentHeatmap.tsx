@@ -10,6 +10,8 @@ type Column = {
 
 const COLUMNS: Column[] = [
   { key: "leadsCount",  label: "Leads",     format: (v) => v.toString() },
+  { key: "apptsMonth",  label: "Appts/Mo",  format: (v) => v.toString() },
+  { key: "apptsTotal",  label: "Appts",     format: (v) => v.toString() },
   { key: "callsWeek",   label: "Calls/Wk",  format: (v) => v.toString() },
   { key: "callsMonth",  label: "Calls/Mo",  format: (v) => v.toString() },
   { key: "totalCalls",  label: "All-Time",  format: (v) => v.toString() },
@@ -63,7 +65,7 @@ export function AgentHeatmap({ rows }: { rows: AgentReportRow[] }) {
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-sm border-collapse min-w-[640px]">
+      <table className="w-full text-sm border-collapse min-w-[760px]">
         <thead>
           <tr className="border-b border-border/60">
             <th className="py-3 px-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider w-36">

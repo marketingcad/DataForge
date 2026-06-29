@@ -4,6 +4,8 @@ export type AgentReportRow = {
   id: string;
   name: string;
   leadsCount: number;
+  apptsMonth: number;  // GHL appointments set this month
+  apptsTotal: number;  // GHL appointments set all-time
   callsWeek: number;
   callsMonth: number;
   avgDuration: number; // seconds
@@ -28,6 +30,11 @@ export async function getAgentReportMatrix(): Promise<AgentReportRow[]> {
       callLogs: {
         select: { id: true, durationSecs: true, status: true, calledAt: true },
       },
+      // GHL appointments set by this rep (source = "webhook"); createdAt = when booked
+      bookedAppointments: {
+        where: { source: "webhook" },
+        select: { createdAt: true },
+      },
       userBadges: { select: { id: true } },
       _count: { select: { savedLeads: true } },
     },
@@ -49,6 +56,8 @@ export async function getAgentReportMatrix(): Promise<AgentReportRow[]> {
       id:          a.id,
       name:        a.name ?? a.email,
       leadsCount:  a._count.savedLeads,
+      apptsMonth:  a.bookedAppointments.filter((p) => p.createdAt >= monthStart).length,
+      apptsTotal:  a.bookedAppointments.length,
       callsWeek:   weekCalls.length,
       callsMonth:  monthCalls.length,
       avgDuration: avgDur,

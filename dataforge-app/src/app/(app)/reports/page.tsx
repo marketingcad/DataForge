@@ -18,12 +18,14 @@ export default async function ReportsPage() {
   /* Derive summary stats */
   const totalCallsWeek  = rows.reduce((s, r) => s + r.callsWeek, 0);
   const totalCallsMonth = rows.reduce((s, r) => s + r.callsMonth, 0);
+  const totalApptsMonth = rows.reduce((s, r) => s + r.apptsMonth, 0);
   const avgConnect      = rows.length
     ? Math.round(rows.reduce((s, r) => s + r.connectRate, 0) / rows.length)
     : 0;
 
   const kpis = [
     { label: "Active Agents",     value: team.agentCount.toString() },
+    { label: "Appts This Month",  value: totalApptsMonth.toString() },
     { label: "Calls (24h)",        value: team.callsToday.toString() },
     { label: "Calls This Week",   value: totalCallsWeek.toString() },
     { label: "Calls This Month",  value: totalCallsMonth.toString() },
@@ -50,7 +52,7 @@ export default async function ReportsPage() {
       </div>
 
       {/* KPI strip */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
         {kpis.map((k, i) => {
           const accents = [
             "bg-violet-500",
@@ -59,6 +61,7 @@ export default async function ReportsPage() {
             "bg-teal-500",
             "bg-emerald-500",
             "bg-amber-500",
+            "bg-rose-500",
           ];
           return (
             <div key={k.label} className="rounded-2xl bg-card shadow-sm p-4 space-y-2">

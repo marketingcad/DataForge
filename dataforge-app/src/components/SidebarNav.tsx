@@ -15,7 +15,6 @@ import {
   Settings,
   DollarSign,
   Sparkles,
-  BarChart3,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { type Role } from "@/lib/rbac/roles";
@@ -84,9 +83,8 @@ function buildSections(role: Role): NavSection[] {
           items: [
             { href: "/kanban",   label: "Kanban",      icon: LayoutGrid   },
             { href: "/calendar", label: "Calendar",    icon: CalendarDays },
-            { href: "/reports",     label: "Reports",     icon: Settings     },
-            { href: "/reports/ghl", label: "GHL Report",  icon: BarChart3    },
-            { href: "/feedback",    label: "Bug Reports", icon: Bug          },
+            { href: "/reports",  label: "Reports",     icon: Settings     },
+            { href: "/feedback", label: "Bug Reports", icon: Bug          },
           ],
         },
         {
@@ -133,9 +131,8 @@ function buildSections(role: Role): NavSection[] {
           items: [
             { href: "/kanban",   label: "Kanban",      icon: LayoutGrid   },
             { href: "/calendar", label: "Calendar",    icon: CalendarDays },
-            { href: "/reports",     label: "Reports",     icon: Settings     },
-            { href: "/reports/ghl", label: "GHL Report",  icon: BarChart3    },
-            { href: "/feedback",    label: "Bug Reports", icon: Bug          },
+            { href: "/reports",  label: "Reports",     icon: Settings     },
+            { href: "/feedback", label: "Bug Reports", icon: Bug          },
           ],
         },
         {
