@@ -46,12 +46,22 @@ export async function BossDashboard({
   const customFrom = from ? new Date(from) : undefined;
   const customTo   = to   ? new Date(to)   : undefined;
 
+  // Philippine time (UTC+8): how many days into the current calendar month we are.
+  // Used so the "Month" filter buckets from the 1st → today (month-to-date) instead
+  // of a rolling 30-day window, and resets when a new month starts.
+  const PHT_OFFSET_MS = 8 * 60 * 60 * 1000;
+  const dayOfMonthPHT = new Date(Date.now() + PHT_OFFSET_MS).getUTCDate();
+
   const chartDays =
     period === "today"  ? 1  :
     period === "week"   ? 7  :
+    period === "month"  ? dayOfMonthPHT :
     period === "custom" && from && to
       ? Math.max(1, Math.ceil((new Date(to).getTime() - new Date(from).getTime()) / 86_400_000) + 1)
       : 30;
+
+  // Per-rep trend charts: month-to-date when "Month" is selected, else a 30-day trend.
+  const repTrendDays = period === "month" ? dayOfMonthPHT : 30;
 
   const [summary, leaderboard, volumeData, tasks, monthlyBreakdown, salesReps, agentDurations] = await withDbRetry(() =>
     Promise.all([
@@ -68,8 +78,8 @@ export async function BossDashboard({
   const top5 = leaderboard.slice(0, 5);
   const top5Ids = top5.map((r) => r.id);
   const [repCallChartData, repApptChartData] = await Promise.all([
-    getRepDailyCallsForChart(top5Ids, 30),
-    getRepDailyApptsForChart(top5Ids, 30),
+    getRepDailyCallsForChart(top5Ids, repTrendDays),
+    getRepDailyApptsForChart(top5Ids, repTrendDays),
   ]);
   const repCallMeta = top5.map((r) => ({ id: r.id, name: r.name, callCount: r.callCount }));
   const repApptTotals: Record<string, number> = {};
@@ -103,7 +113,7 @@ export async function BossDashboard({
 
   const chartTitle =
     period === "today"    ? "Team Call Volume — Today" :
-    period === "month"    ? "Team Call Volume — Last 30 Days" :
+    period === "month"    ? "Team Call Volume — This Month" :
     period === "all_time" ? "Team Call Volume — All Time (Monthly)" :
     period === "custom"   ? `Team Call Volume — ${from ?? ""} to ${to ?? ""}` :
     "Team Call Volume — Last 7 Days";
@@ -240,13 +250,13 @@ export async function BossDashboard({
           data={repCallChartData}
           reps={repCallMeta}
           title="Calls Performance"
-          subtitle="Daily calls — top 5 reps · last 30 days"
+          subtitle={`Daily calls — top 5 reps · ${period === "month" ? "this month" : "last 30 days"}`}
         />
         <RepPerformanceChart
           data={repApptChartData}
           reps={repApptMeta}
           title="Appointments Set"
-          subtitle="Daily appointments booked — top 5 reps · last 30 days"
+          subtitle={`Daily appointments booked — top 5 reps · ${period === "month" ? "this month" : "last 30 days"}`}
         />
       </div>
 

@@ -18,7 +18,11 @@ export type AgentReportRow = {
 export async function getAgentReportMatrix(): Promise<AgentReportRow[]> {
   const now = new Date();
   const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  // Start of the current calendar month in Philippine time (UTC+8) — matches the
+  // marketing overview, so "this month" resets at PHT midnight on the 1st.
+  const PHT_OFFSET_MS = 8 * 60 * 60 * 1000;
+  const inPHT = new Date(now.getTime() + PHT_OFFSET_MS);
+  const monthStart = new Date(Date.UTC(inPHT.getUTCFullYear(), inPHT.getUTCMonth(), 1) - PHT_OFFSET_MS);
 
   const agents = await prisma.user.findMany({
     where: { role: "sales_rep" },
