@@ -1,6 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import type { AgentReportRow } from "@/lib/reports/service";
+import { AppointmentsModal } from "@/components/marketing/AppointmentsModal";
+
+const APPT_KEYS: ReadonlySet<keyof AgentReportRow> = new Set(["apptsMonth", "apptsTotal"]);
 
 type Column = {
   key: keyof AgentReportRow;
@@ -43,6 +47,8 @@ function cellStyle(value: number, max: number) {
 }
 
 export function AgentHeatmap({ rows }: { rows: AgentReportRow[] }) {
+  const [selected, setSelected] = useState<{ id: string; name: string } | null>(null);
+
   if (rows.length === 0) {
     return (
       <div className="flex items-center justify-center h-40 text-muted-foreground text-sm">
@@ -99,13 +105,25 @@ export function AgentHeatmap({ rows }: { rows: AgentReportRow[] }) {
               </td>
               {COLUMNS.map((col) => {
                 const val = Number(row[col.key]);
+                const clickable = APPT_KEYS.has(col.key) && val > 0;
                 return (
                   <td
                     key={String(col.key)}
                     className="py-2 px-2 text-center text-sm rounded-md transition-colors"
                     style={cellStyle(val, maxes[col.key])}
                   >
-                    {col.format(val)}
+                    {clickable ? (
+                      <button
+                        type="button"
+                        onClick={() => setSelected({ id: row.id, name: row.name })}
+                        title={`View ${row.name}'s appointments`}
+                        className="w-full cursor-pointer underline decoration-dotted underline-offset-4 hover:decoration-solid focus:outline-none"
+                      >
+                        {col.format(val)}
+                      </button>
+                    ) : (
+                      col.format(val)
+                    )}
                   </td>
                 );
               })}
@@ -113,6 +131,15 @@ export function AgentHeatmap({ rows }: { rows: AgentReportRow[] }) {
           ))}
         </tbody>
       </table>
+
+      {selected && (
+        <AppointmentsModal
+          agentId={selected.id}
+          agentName={selected.name}
+          open={!!selected}
+          onOpenChange={(o) => { if (!o) setSelected(null); }}
+        />
+      )}
     </div>
   );
 }

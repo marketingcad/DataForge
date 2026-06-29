@@ -16,6 +16,8 @@ type Appointment = Awaited<ReturnType<typeof getAppointmentsAction>>[number];
 interface Props {
   /** If provided, only show this agent's appointments (sales_rep view) */
   agentId?: string;
+  /** If provided, shown in the dialog title (e.g. "Cristina's Appointments") */
+  agentName?: string;
   /** Whether the current user can delete */
   canDelete?: boolean;
   /** Controlled open state — pass your own useState pair */
@@ -53,7 +55,7 @@ function DeleteButton({ id, onDeleted }: { id: string; onDeleted: () => void }) 
   );
 }
 
-export function AppointmentsModal({ agentId, canDelete = false, open, onOpenChange }: Props) {
+export function AppointmentsModal({ agentId, agentName, canDelete = false, open, onOpenChange }: Props) {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading]           = useState(false);
 
@@ -83,7 +85,7 @@ export function AppointmentsModal({ agentId, canDelete = false, open, onOpenChan
         <DialogHeader className="px-5 py-3 border-b shrink-0">
           <DialogTitle className="flex items-center gap-2 text-sm font-semibold">
             <CalendarDays className="h-4 w-4 text-muted-foreground" />
-            Appointments
+            {agentName ? `${agentName}'s Appointments` : "Appointments"}
             {!loading && (
               <Badge variant="secondary" className="ml-1 rounded-full text-[11px] px-2 py-0">
                 {appointments.length}
