@@ -3,7 +3,12 @@ import { redirect } from "next/navigation";
 import { withDbRetry } from "@/lib/prisma";
 import { getAgentReportMatrix } from "@/lib/reports/service";
 import { getTeamSummary } from "@/lib/marketing/team.service";
+import { getSalesReps } from "@/actions/appointments.actions";
 import { AgentHeatmap } from "@/components/reports/AgentHeatmap";
+import { AppointmentsModalButton } from "@/components/marketing/AppointmentsModal";
+import { AddAppointmentModal } from "@/components/marketing/AddAppointmentModal";
+import { LeadsModalButton } from "@/components/reports/AgentLeadsModal";
+import { AddLeadModal } from "@/components/reports/AddLeadModal";
 import Link from "next/link";
 
 export default async function ReportsPage() {
@@ -11,8 +16,8 @@ export default async function ReportsPage() {
   const role = (session?.user as unknown as Record<string, unknown>)?.role as string | undefined;
   if (role !== "boss" && role !== "admin") redirect("/dashboard");
 
-  const [rows, team] = await withDbRetry(() =>
-    Promise.all([getAgentReportMatrix(), getTeamSummary()])
+  const [rows, team, salesReps] = await withDbRetry(() =>
+    Promise.all([getAgentReportMatrix(), getTeamSummary(), getSalesReps()])
   );
 
   /* Derive summary stats */
@@ -43,12 +48,18 @@ export default async function ReportsPage() {
             Agent performance matrix — darker cells indicate stronger relative performance.
           </p>
         </div>
-        <Link
-          href="/dashboard"
-          className="text-xs text-muted-foreground hover:text-foreground font-medium transition-colors"
-        >
-          ← Dashboard
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <AppointmentsModalButton canDelete={true} />
+          <AddAppointmentModal reps={salesReps} />
+          <LeadsModalButton canDelete={true} />
+          <AddLeadModal reps={salesReps} />
+          <Link
+            href="/dashboard"
+            className="ml-1 text-xs text-muted-foreground hover:text-foreground font-medium transition-colors"
+          >
+            ← Dashboard
+          </Link>
+        </div>
       </div>
 
       {/* KPI strip */}

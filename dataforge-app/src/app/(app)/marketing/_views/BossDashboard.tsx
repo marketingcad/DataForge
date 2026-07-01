@@ -12,10 +12,7 @@ import {
   getRepDailyApptsForChart,
   getAgentAvgDurations,
 } from "@/lib/marketing/team.service";
-import { getSalesReps } from "@/actions/appointments.actions";
 import { TaskCard } from "../TaskCard";
-import { AddAppointmentModal } from "@/components/marketing/AddAppointmentModal";
-import { AppointmentsModalButton } from "@/components/marketing/AppointmentsModal";
 import { CallVolumeChart } from "@/components/marketing/CallVolumeChart";
 import { LeaderboardClientWrapper } from "@/components/marketing/LeaderboardClientWrapper";
 import { AgentRadarChart } from "@/components/marketing/AgentRadarChart";
@@ -63,14 +60,13 @@ export async function BossDashboard({
   // Per-rep trend charts: month-to-date when "Month" is selected, else a 30-day trend.
   const repTrendDays = period === "month" ? dayOfMonthPHT : 30;
 
-  const [summary, leaderboard, volumeData, tasks, monthlyBreakdown, salesReps, agentDurations] = await withDbRetry(() =>
+  const [summary, leaderboard, volumeData, tasks, monthlyBreakdown, agentDurations] = await withDbRetry(() =>
     Promise.all([
       getTeamSummary(),
       getLeaderboard(period, metric, customFrom, customTo),
       period === "all_time" ? getTeamCallsAllTime() : getTeamCallsPerDay(chartDays),
       getActiveTasks(),
       getTeamMonthlyBreakdown(),
-      getSalesReps(),
       getAgentAvgDurations(),
     ])
   );
@@ -174,9 +170,6 @@ export async function BossDashboard({
           <PeriodToggle period={period} />
           <div className="h-5 w-px bg-border hidden sm:block" />
           <MetricToggle metric={metric} />
-          <div className="h-5 w-px bg-border hidden sm:block" />
-          <AppointmentsModalButton canDelete={true} />
-          <AddAppointmentModal reps={salesReps} />
         </div>
       </div>
 

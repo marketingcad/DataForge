@@ -100,11 +100,14 @@ export async function getAllLeadsForExportAction(params: LeadFilterParams) {
   });
 }
 
-/** All leads saved by a given agent — for the Reports agent-leads popup. */
-export async function getAgentLeadsAction(agentId: string) {
+/**
+ * Leads for the Reports popup. Pass an agentId to scope to one rep's leads,
+ * or omit it to return all recent leads (with the saving rep's name).
+ */
+export async function getAgentLeadsAction(agentId?: string) {
   await requireDepartment("leads");
   return prisma.lead.findMany({
-    where: { savedById: agentId },
+    where: agentId ? { savedById: agentId } : {},
     select: {
       id: true,
       businessName: true,
@@ -117,10 +120,44 @@ export async function getAgentLeadsAction(agentId: string) {
       dataQualityScore: true,
       dateCollected: true,
       exportedAt: true,
+      savedById: true,
+      savedBy: { select: { name: true } },
     },
     orderBy: { dateCollected: "desc" },
     take: 2000,
   });
+}
+
+/** Manually add a lead tied to a sales rep — the leads analog of addManualAppointment. */
+export async function createManualLeadAction(data: {
+  agentId: string;
+  businessName: string;
+  phone?: string;
+  email?: string;
+  website?: string;
+  city?: string;
+  state?: string;
+  category?: string;
+}) {
+  await requireDepartment("leads");
+  if (!data.agentId) throw new Error("Please select a sales rep.");
+  if (!data.businessName?.trim()) throw new Error("Business name is required.");
+
+  const result = await insertLead({
+    businessName: data.businessName.trim(),
+    phone:    data.phone?.trim() || "",
+    email:    data.email?.trim() || undefined,
+    website:  data.website?.trim() || undefined,
+    city:     data.city?.trim() || undefined,
+    state:    data.state?.trim() || undefined,
+    category: data.category?.trim() || undefined,
+    source:   "Manual",
+    savedById: data.agentId,
+  });
+
+  revalidatePath("/leads");
+  revalidatePath("/reports");
+  return result;
 }
 
 export async function bulkDeleteLeadsAction(ids: string[]) {

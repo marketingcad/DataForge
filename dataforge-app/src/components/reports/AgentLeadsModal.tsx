@@ -15,7 +15,8 @@ import { getAgentLeadsAction, bulkDeleteLeadsAction } from "@/actions/leads.acti
 type Lead = Awaited<ReturnType<typeof getAgentLeadsAction>>[number];
 
 interface Props {
-  agentId: string;
+  /** Scope to one rep's leads; omit to show all recent leads (with a rep column) */
+  agentId?: string;
   agentName?: string;
   /** Whether the current user can delete leads */
   canDelete?: boolean;
@@ -64,8 +65,11 @@ export function AgentLeadsModal({ agentId, agentName, canDelete = false, open, o
   // Filters
   const [search, setSearch]     = useState("");
   const [source, setSource]     = useState("");
+  const [repFilter, setRepFilter] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo]     = useState("");
+
+  const showRepCol = !agentId;
 
   // Bulk selection
   const [selected, setSelected]       = useState<Set<string>>(new Set());
@@ -83,7 +87,7 @@ export function AgentLeadsModal({ agentId, agentName, canDelete = false, open, o
 
   useEffect(() => { if (open) load(); }, [open, load]);
   useEffect(() => {
-    setSearch(""); setSource(""); setDateFrom(""); setDateTo("");
+    setSearch(""); setSource(""); setRepFilter(""); setDateFrom(""); setDateTo("");
     setSelected(new Set()); setConfirmBulk(false);
   }, [open, agentId]);
 
@@ -92,12 +96,20 @@ export function AgentLeadsModal({ agentId, agentName, canDelete = false, open, o
     [leads],
   );
 
+  // Unique reps present (for the rep filter, shown only in all-leads mode).
+  const repOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const l of leads) if (l.savedById) map.set(l.savedById, l.savedBy?.name ?? "Unassigned");
+    return [...map.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [leads]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     const fromTs = dateFrom ? new Date(`${dateFrom}T00:00:00`).getTime() : null;
     const toTs   = dateTo   ? new Date(`${dateTo}T23:59:59.999`).getTime() : null;
     return leads.filter((l) => {
       if (source && l.source !== source) return false;
+      if (repFilter && l.savedById !== repFilter) return false;
       if (q) {
         const hit =
           l.businessName?.toLowerCase().includes(q) ||
@@ -110,10 +122,10 @@ export function AgentLeadsModal({ agentId, agentName, canDelete = false, open, o
       if (toTs !== null && ts > toTs) return false;
       return true;
     });
-  }, [leads, search, source, dateFrom, dateTo]);
+  }, [leads, search, source, repFilter, dateFrom, dateTo]);
 
-  const hasFilters = !!(search || source || dateFrom || dateTo);
-  function clearFilters() { setSearch(""); setSource(""); setDateFrom(""); setDateTo(""); }
+  const hasFilters = !!(search || source || repFilter || dateFrom || dateTo);
+  function clearFilters() { setSearch(""); setSource(""); setRepFilter(""); setDateFrom(""); setDateTo(""); }
 
   const allFilteredSelected = filtered.length > 0 && filtered.every((l) => selected.has(l.id));
   function toggleAll() {
@@ -141,7 +153,7 @@ export function AgentLeadsModal({ agentId, agentName, canDelete = false, open, o
     });
   }
 
-  const colCount = 8 + (canDelete ? 2 : 0);
+  const colCount = 8 + (showRepCol ? 1 : 0) + (canDelete ? 2 : 0);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -178,6 +190,14 @@ export function AgentLeadsModal({ agentId, agentName, canDelete = false, open, o
               <option value="">All sources</option>
               {sourceOptions.map((s) => (
                 <option key={s} value={s}>{sourceLabel(s)}</option>
+              ))}
+            </select>
+          )}
+          {showRepCol && repOptions.length > 0 && (
+            <select value={repFilter} onChange={(e) => setRepFilter(e.target.value)} className={SELECT_CLASS}>
+              <option value="">All reps</option>
+              {repOptions.map((r) => (
+                <option key={r.id} value={r.id}>{r.name}</option>
               ))}
             </select>
           )}
@@ -236,6 +256,7 @@ export function AgentLeadsModal({ agentId, agentName, canDelete = false, open, o
                     </TableHead>
                   )}
                   <TableHead className="sticky top-0 bg-background">Business</TableHead>
+                  {showRepCol && <TableHead className="sticky top-0 bg-background">Sales Rep</TableHead>}
                   <TableHead className="sticky top-0 bg-background">Phone</TableHead>
                   <TableHead className="sticky top-0 bg-background">Email</TableHead>
                   <TableHead className="sticky top-0 bg-background">Location</TableHead>
@@ -261,6 +282,7 @@ export function AgentLeadsModal({ agentId, agentName, canDelete = false, open, o
                       </TableCell>
                     )}
                     <TableCell className="font-medium">{l.businessName}</TableCell>
+                    {showRepCol && <TableCell className="font-medium">{l.savedBy?.name ?? "Unassigned"}</TableCell>}
                     <TableCell className="text-muted-foreground">{l.phone || "—"}</TableCell>
                     <TableCell className="text-muted-foreground">{l.email || "—"}</TableCell>
                     <TableCell className="text-muted-foreground">
@@ -297,5 +319,21 @@ export function AgentLeadsModal({ agentId, agentName, canDelete = false, open, o
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** Self-contained trigger button + modal showing all leads (with a rep column). */
+export function LeadsModalButton({ canDelete = false }: { canDelete?: boolean }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        className="inline-flex items-center gap-1.5 rounded-lg border border-border/60 bg-background px-3 py-1.5 text-xs font-semibold text-foreground shadow-sm hover:bg-accent transition-colors"
+      >
+        📇 View Leads
+      </button>
+      <AgentLeadsModal canDelete={canDelete} open={open} onOpenChange={setOpen} />
+    </>
   );
 }
