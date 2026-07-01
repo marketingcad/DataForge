@@ -32,6 +32,9 @@ type LeadFilterParams = {
   searchField?: "business" | "contact" | "location" | "phone" | "email" | "website" | "score";
   savedById?: string;
   pageSize?: number;
+  exportStatus?: "exported" | "not_exported";
+  exportedFrom?: string;
+  exportedTo?: string;
 };
 
 export async function getLeadsForFolderAction(params: LeadFilterParams & { page?: number }) {
@@ -60,6 +63,9 @@ export async function getLeadsForFolderAction(params: LeadFilterParams & { page?
     noScore: params.noScore,
     searchField: params.searchField || "business",
     savedById: params.savedById,
+    exportStatus: params.exportStatus,
+    exportedFrom: params.exportedFrom,
+    exportedTo: params.exportedTo,
   });
 }
 
@@ -88,6 +94,9 @@ export async function getAllLeadsForExportAction(params: LeadFilterParams) {
     noScore: params.noScore,
     searchField: params.searchField || "business",
     savedById: params.savedById,
+    exportStatus: params.exportStatus,
+    exportedFrom: params.exportedFrom,
+    exportedTo: params.exportedTo,
   });
 }
 
@@ -95,6 +104,17 @@ export async function bulkDeleteLeadsAction(ids: string[]) {
   await requireDepartment("leads");
   if (!ids.length) return;
   await prisma.lead.deleteMany({ where: { id: { in: ids } } });
+  revalidatePath("/leads");
+}
+
+/** Mark the given leads as exported now (overwrites any previous export date). */
+export async function markLeadsExportedAction(ids: string[]) {
+  await requireDepartment("leads");
+  if (!ids.length) return;
+  await prisma.lead.updateMany({
+    where: { id: { in: ids } },
+    data: { exportedAt: new Date() },
+  });
   revalidatePath("/leads");
 }
 

@@ -180,6 +180,9 @@ export async function getLeads({
   noScore,
   searchField = "business",
   savedById,
+  exportStatus,
+  exportedFrom,
+  exportedTo,
 }: {
   search?: string;
   industry?: string;
@@ -206,6 +209,10 @@ export async function getLeads({
   noScore?: boolean;
   searchField?: "business" | "contact" | "location" | "phone" | "email" | "website" | "score";
   savedById?: string;
+  exportStatus?: "exported" | "not_exported";
+  /** yyyy-mm-dd — filters by export date (inclusive) */
+  exportedFrom?: string;
+  exportedTo?: string;
 }) {
   const where: Record<string, unknown> = {};
 
@@ -268,6 +275,17 @@ export async function getLeads({
   if (and.length) where.AND = and;
 
   if (savedById) where.savedById = savedById;
+
+  // Export status + export-date range (filters on exportedAt).
+  if (exportStatus === "not_exported") {
+    where.exportedAt = null;
+  } else if (exportStatus === "exported" || exportedFrom || exportedTo) {
+    const range: Record<string, Date> = {};
+    if (exportedFrom) range.gte = new Date(`${exportedFrom}T00:00:00.000Z`);
+    if (exportedTo)   range.lte = new Date(`${exportedTo}T23:59:59.999Z`);
+    // "exported" with no date bounds → any non-null export date.
+    where.exportedAt = Object.keys(range).length ? range : { not: null };
+  }
 
   const orderBy =
     sort === "name_asc"  ? [{ businessName: "asc"  as const }] :

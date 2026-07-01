@@ -5,6 +5,7 @@ import {
   getLeadsForFolderAction,
   getAllLeadsForExportAction,
   bulkDeleteLeadsAction,
+  markLeadsExportedAction,
 } from "@/actions/leads.actions";
 import { deleteFolderAction, updateFolderCategoryAction, updateFolderSubcategoryAction, renameFolderAction } from "@/actions/folders.actions";
 import { getSubcategoriesByIndustryAction } from "@/actions/industry.actions";
@@ -54,6 +55,7 @@ type Lead = {
   country: string | null;
   dataQualityScore: number;
   migratedToGhl: boolean;
+  exportedAt: string | Date | null;
 };
 
 type SortOption = "name_asc" | "name_desc" | "newest" | "oldest";
@@ -170,6 +172,9 @@ export function FolderLeadsModal({
   const [scoreSlider, setScoreSlider] = useState<[number, number]>([0, 100]);
   const [status, setStatus]         = useState<string>("");
   const [stateFilter, setStateFilter] = useState<string>("");
+  const [exportStatus, setExportStatus] = useState<"" | "exported" | "not_exported">("");
+  const [exportedFrom, setExportedFrom] = useState<string>("");
+  const [exportedTo, setExportedTo]     = useState<string>("");
   const [filterEmail,    setFilterEmail]    = useState<FilterValue>(null);
   const [filterWebsite,  setFilterWebsite]  = useState<FilterValue>(null);
   const [filterContact,  setFilterContact]  = useState<FilterValue>(null);
@@ -269,6 +274,9 @@ export function FolderLeadsModal({
         noBusiness:  filterBusiness === "no"  || undefined,
         noScore:     filterScore    === "no"  || undefined,
         savedById: filterUserId,
+        exportStatus: exportStatus || undefined,
+        exportedFrom: exportedFrom || undefined,
+        exportedTo:   exportedTo   || undefined,
       });
       setLeads(r.leads as Lead[]);
       setTotal(r.total);
@@ -276,7 +284,7 @@ export function FolderLeadsModal({
     } finally {
       setLoading(false);
     }
-  }, [open, folder.id, debSearch, searchField, sort, page, pageSize, minScore, maxScore, status, stateFilter, filterEmail, filterWebsite, filterContact, filterPhone, filterBusiness, filterScore, filterUserId]);
+  }, [open, folder.id, debSearch, searchField, sort, page, pageSize, minScore, maxScore, status, stateFilter, filterEmail, filterWebsite, filterContact, filterPhone, filterBusiness, filterScore, filterUserId, exportStatus, exportedFrom, exportedTo]);
 
   useEffect(() => { fetchLeads(); }, [fetchLeads]);
 
@@ -330,6 +338,7 @@ export function FolderLeadsModal({
       setSelected(new Set()); setConfirmDelete(null);
       setMinScore(""); setMaxScore(""); setScoreSlider([0, 100]);
       setStatus(""); setStateFilter(""); setPageSize(20);
+      setExportStatus(""); setExportedFrom(""); setExportedTo("");
       setFilterEmail(null); setFilterWebsite(null); setFilterContact(null);
       setFilterPhone(null); setFilterBusiness(null); setFilterScore(null);
       // regrab state intentionally NOT cleared — job persists across modal close/reopen
@@ -348,13 +357,14 @@ export function FolderLeadsModal({
     }
   }, [open, folder.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const hasActiveFilters = minScore || maxScore || status || stateFilter || filterEmail || filterWebsite || filterContact || filterPhone || filterBusiness || filterScore;
+  const hasActiveFilters = minScore || maxScore || status || stateFilter || filterEmail || filterWebsite || filterContact || filterPhone || filterBusiness || filterScore || exportStatus || exportedFrom || exportedTo;
 
   function clearFilters() {
     setMinScore(""); setMaxScore(""); setScoreSlider([0, 100]);
     setStatus(""); setStateFilter("");
     setFilterEmail(null); setFilterWebsite(null); setFilterContact(null);
     setFilterPhone(null); setFilterBusiness(null); setFilterScore(null);
+    setExportStatus(""); setExportedFrom(""); setExportedTo("");
   }
 
   const activeFilterParams = {
@@ -379,6 +389,9 @@ export function FolderLeadsModal({
     noBusiness:  filterBusiness === "no"  || undefined,
     noScore:     filterScore    === "no"  || undefined,
     savedById: filterUserId,
+    exportStatus: exportStatus || undefined,
+    exportedFrom: exportedFrom || undefined,
+    exportedTo:   exportedTo   || undefined,
   };
 
   const activeField = SEARCH_FIELDS.find((f) => f.value === searchField) ?? SEARCH_FIELDS[0];
@@ -441,15 +454,45 @@ export function FolderLeadsModal({
     }
   }
 
-  async function handleExport(scope: "selected" | "all") {
+  async function handleExport(scope: "selected" | "all" | "unexported") {
     setExporting(true);
     try {
-      const toExport = scope === "selected"
-        ? leads.filter((l) => selected.has(l.id))
-        : (await getAllLeadsForExportAction(activeFilterParams)).leads as Lead[];
+      let toExport: Lead[];
+      if (scope === "selected") {
+        toExport = leads.filter((l) => selected.has(l.id));
+      } else if (scope === "unexported") {
+        // Force the not-exported filter regardless of the current export-status filter.
+        toExport = (await getAllLeadsForExportAction({ ...activeFilterParams, exportStatus: "not_exported" })).leads as Lead[];
+      } else {
+        toExport = (await getAllLeadsForExportAction(activeFilterParams)).leads as Lead[];
+      }
+
+      if (toExport.length === 0) {
+        addNotif({
+          type: "warning",
+          title: "Nothing to export",
+          message: scope === "unexported"
+            ? "All matching leads have already been exported."
+            : "No leads match the current filters.",
+        });
+        return;
+      }
+
       exportToCSV(toExport, `${folder.name.replace(/\s+/g, "_")}_leads.csv`, exportCols);
-      addNotif({ type: "success", title: `${toExport.length} lead${toExport.length !== 1 ? "s" : ""} exported`, message: `Saved as CSV from "${folder.name}".` });
-    } catch {
+
+      // Mark the exported leads with the current export date, then refresh so the date shows.
+      try {
+        await markLeadsExportedAction(toExport.map((l) => l.id));
+        await fetchLeads();
+      } catch (err) {
+        console.error("[export] failed to mark leads exported", err);
+        addNotif({ type: "warning", title: "Exported, but not marked", message: "The CSV downloaded, but marking the leads as exported failed. Please try again." });
+        return;
+      }
+
+      addNotif({ type: "success", title: `${toExport.length} lead${toExport.length !== 1 ? "s" : ""} exported`, message: `Saved as CSV from "${folder.name}" and marked as exported.` });
+    } catch (err) {
+      console.error("[export] failed", err);
       addNotif({ type: "error", title: "Export failed", message: "Something went wrong. Please try again." });
     } finally {
       setExporting(false);
@@ -869,13 +912,23 @@ export function FolderLeadsModal({
               <Separator orientation="vertical" className="h-4" />
 
               <div className="flex items-center shrink-0">
-                <Button variant="outline" size="sm"
-                  className="h-8 gap-1 text-xs rounded-r-none border-r-0"
-                  disabled={exporting || total === 0}
-                  onClick={() => handleExport("all")}>
-                  {exporting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
-                  Export CSV
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    render={<Button variant="outline" size="sm" className="h-8 gap-1 text-xs rounded-r-none border-r-0" disabled={exporting || total === 0} />}
+                  >
+                    {exporting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+                    Export CSV
+                    <ChevronDown className="h-3 w-3 text-muted-foreground ml-0.5" />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-52">
+                    <DropdownMenuItem className="text-xs cursor-pointer gap-2" onClick={() => handleExport("all")} disabled={exporting}>
+                      <Download className="h-3.5 w-3.5" /> Export all (filtered)
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="text-xs cursor-pointer gap-2" onClick={() => handleExport("unexported")} disabled={exporting}>
+                      <Download className="h-3.5 w-3.5" /> Export unexported only
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
                 <Popover open={colPickerOpen} onOpenChange={setColPickerOpen}>
                   <PopoverTrigger
                     disabled={total === 0}
@@ -974,6 +1027,55 @@ export function FolderLeadsModal({
                     ))}
                   </DropdownMenuContent>
                 </DropdownMenu>
+              </div>
+
+              {/* Exported status */}
+              <div className="space-y-1">
+                <span className="text-[10px] text-muted-foreground block">Exported</span>
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    render={<Button variant="outline" size="sm" className="h-7 gap-1 text-xs w-32 justify-between" />}
+                  >
+                    <span className={exportStatus ? "" : "text-muted-foreground"}>
+                      {exportStatus === "exported" ? "Exported" : exportStatus === "not_exported" ? "Not exported" : "All"}
+                    </span>
+                    <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-36">
+                    <DropdownMenuItem className="text-xs cursor-pointer" onClick={() => setExportStatus("")}>
+                      All {!exportStatus && <Check className="h-3 w-3 ml-auto" />}
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem className="text-xs cursor-pointer" onClick={() => setExportStatus("exported")}>
+                      Exported {exportStatus === "exported" && <Check className="h-3 w-3 ml-auto" />}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="text-xs cursor-pointer" onClick={() => setExportStatus("not_exported")}>
+                      Not exported {exportStatus === "not_exported" && <Check className="h-3 w-3 ml-auto" />}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+
+              {/* Export date range */}
+              <div className="space-y-1">
+                <span className="text-[10px] text-muted-foreground block">Exported from</span>
+                <Input
+                  type="date"
+                  value={exportedFrom}
+                  max={exportedTo || undefined}
+                  onChange={(e) => setExportedFrom(e.target.value)}
+                  className="h-7 w-36 text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <span className="text-[10px] text-muted-foreground block">Exported to</span>
+                <Input
+                  type="date"
+                  value={exportedTo}
+                  min={exportedFrom || undefined}
+                  onChange={(e) => setExportedTo(e.target.value)}
+                  className="h-7 w-36 text-xs"
+                />
               </div>
 
               {/* Has data dropdown */}
@@ -1267,6 +1369,7 @@ export function FolderLeadsModal({
                     <TableHead className="sticky top-0 bg-background">Email</TableHead>
                     <TableHead className="sticky top-0 bg-background">Website</TableHead>
                     <TableHead className="sticky top-0 bg-background text-center w-20">Score</TableHead>
+                    <TableHead className="sticky top-0 bg-background text-center w-24">Exported</TableHead>
                     <TableHead className="sticky top-0 bg-background w-20 text-center">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -1333,6 +1436,19 @@ export function FolderLeadsModal({
                         >
                           {lead.dataQualityScore}
                         </Badge>
+                      </TableCell>
+                      <TableCell className="text-center whitespace-nowrap">
+                        {lead.exportedAt ? (
+                          <span
+                            className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600"
+                            title={`Exported ${new Date(lead.exportedAt).toLocaleString()}`}
+                          >
+                            <Check className="h-3 w-3 shrink-0" />
+                            {new Date(lead.exportedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
                       </TableCell>
                       <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
                         {/* Desktop: icon buttons only */}

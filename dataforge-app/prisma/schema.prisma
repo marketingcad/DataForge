@@ -85,6 +85,7 @@ model Lead {
   migratedToGhl     Boolean          @default(false)
   migratedToGhlAt   DateTime?
   ghlContactId      String?
+  exportedAt        DateTime?
   callLogs          CallLog[]
   ghlOpportunities  GhlOpportunity[]
   ghlAppointments   GhlAppointment[]
@@ -102,6 +103,7 @@ model Lead {
   @@index([savedById])
   @@index([keywordId])
   @@index([assignedToId])
+  @@index([exportedAt])
 }
 
 model User {
