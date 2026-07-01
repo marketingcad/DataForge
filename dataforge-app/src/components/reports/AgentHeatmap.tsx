@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { AgentReportRow } from "@/lib/reports/service";
 import { AppointmentsModal } from "@/components/marketing/AppointmentsModal";
+import { AgentLeadsModal } from "@/components/reports/AgentLeadsModal";
 
 const APPT_KEYS: ReadonlySet<keyof AgentReportRow> = new Set(["apptsMonth", "apptsTotal"]);
 
@@ -48,6 +49,7 @@ function cellStyle(value: number, max: number) {
 
 export function AgentHeatmap({ rows, canDelete = false }: { rows: AgentReportRow[]; canDelete?: boolean }) {
   const [selected, setSelected] = useState<{ id: string; name: string } | null>(null);
+  const [selectedLeads, setSelectedLeads] = useState<{ id: string; name: string } | null>(null);
 
   if (rows.length === 0) {
     return (
@@ -105,7 +107,9 @@ export function AgentHeatmap({ rows, canDelete = false }: { rows: AgentReportRow
               </td>
               {COLUMNS.map((col) => {
                 const val = Number(row[col.key]);
-                const clickable = APPT_KEYS.has(col.key) && val > 0;
+                const isLead = col.key === "leadsCount";
+                const isAppt = APPT_KEYS.has(col.key);
+                const clickable = (isAppt || isLead) && val > 0;
                 return (
                   <td
                     key={String(col.key)}
@@ -115,8 +119,10 @@ export function AgentHeatmap({ rows, canDelete = false }: { rows: AgentReportRow
                     {clickable ? (
                       <button
                         type="button"
-                        onClick={() => setSelected({ id: row.id, name: row.name })}
-                        title={`View ${row.name}'s appointments`}
+                        onClick={() => (isLead
+                          ? setSelectedLeads({ id: row.id, name: row.name })
+                          : setSelected({ id: row.id, name: row.name }))}
+                        title={isLead ? `View ${row.name}'s leads` : `View ${row.name}'s appointments`}
                         className="w-full cursor-pointer underline decoration-dotted underline-offset-4 hover:decoration-solid focus:outline-none"
                       >
                         {col.format(val)}
@@ -139,6 +145,15 @@ export function AgentHeatmap({ rows, canDelete = false }: { rows: AgentReportRow
           canDelete={canDelete}
           open={!!selected}
           onOpenChange={(o) => { if (!o) setSelected(null); }}
+        />
+      )}
+
+      {selectedLeads && (
+        <AgentLeadsModal
+          agentId={selectedLeads.id}
+          agentName={selectedLeads.name}
+          open={!!selectedLeads}
+          onOpenChange={(o) => { if (!o) setSelectedLeads(null); }}
         />
       )}
     </div>

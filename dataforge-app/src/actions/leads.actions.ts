@@ -100,6 +100,29 @@ export async function getAllLeadsForExportAction(params: LeadFilterParams) {
   });
 }
 
+/** All leads saved by a given agent — for the Reports agent-leads popup. */
+export async function getAgentLeadsAction(agentId: string) {
+  await requireDepartment("leads");
+  return prisma.lead.findMany({
+    where: { savedById: agentId },
+    select: {
+      id: true,
+      businessName: true,
+      phone: true,
+      email: true,
+      city: true,
+      state: true,
+      category: true,
+      source: true,
+      dataQualityScore: true,
+      dateCollected: true,
+      exportedAt: true,
+    },
+    orderBy: { dateCollected: "desc" },
+    take: 2000,
+  });
+}
+
 export async function bulkDeleteLeadsAction(ids: string[]) {
   await requireDepartment("leads");
   if (!ids.length) return;
