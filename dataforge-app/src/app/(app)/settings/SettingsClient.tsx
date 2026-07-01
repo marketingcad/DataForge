@@ -352,7 +352,7 @@ export function SettingsClient({ settings, isAdmin, isLeadSpecialist = false, us
 
         <OutboundCallReferenceCard secret={settings.ghlInboundSecret} />
 
-        <LeadWebhookReferenceCard secret={settings.ghlInboundSecret} />
+        <LeadWebhookReferenceCard />
       </TabsContent>}
 
       {/* ── Maintenance tab ── */}
@@ -773,13 +773,11 @@ function OutboundCallReferenceCard({ secret }: { secret: string | null }) {
 
 // ─── Lead webhook reference card ─────────────────────────────────────────────
 
-function LeadWebhookReferenceCard({ secret }: { secret: string | null }) {
+function LeadWebhookReferenceCard() {
   const [origin, setOrigin] = useState("");
   useEffect(() => { setOrigin(window.location.origin); }, []);
 
-  const leadUrl = origin
-    ? (secret ? `${origin}/api/webhooks/ghl-lead?secret=${secret}` : `${origin}/api/webhooks/ghl-lead`)
-    : "Loading…";
+  const leadUrl = origin ? `${origin}/api/webhooks/ghl-lead` : "Loading…";
 
   function copy() {
     navigator.clipboard.writeText(leadUrl).then(() => toast.success("Lead webhook URL copied"));

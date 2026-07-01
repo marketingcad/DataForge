@@ -8,30 +8,36 @@ export async function GET() {
   return NextResponse.json({ ok: true, message: "GHL lead webhook is live" });
 }
 
+// Record the last payload + outcome for debugging (viewable via /api/ghl/webhook-status).
+async function logOutcome(payload: string, outcome: string) {
+  try {
+    await prisma.appSettings.update({
+      where: { id: "singleton" },
+      data: {
+        webhookLastPayload: (payload || "(empty body)").slice(0, 4000),
+        webhookLastOutcome: `lead: ${outcome} at ${new Date().toISOString()}`,
+      },
+    });
+  } catch {
+    /* logging is best-effort */
+  }
+}
+
 /**
- * Inbound GHL lead webhook — mirrors the appointment webhook.
+ * Inbound GHL lead webhook — mirrors the appointment webhook (unauthenticated).
  *
- * GHL posts a lead here; we fuzzy-match the sales rep by name and store a Lead
- * (source "GHL") tied to that rep via savedById. Like the appointment webhook,
- * if no rep matches we skip it. Optionally protected by the shared
- * `ghlInboundSecret` (?secret=…) configured in Settings → Integrations.
+ * GHL posts a lead here; we fuzzy-match the sales rep by name (created_by /
+ * consultant name) and store a Lead (source "GHL") tied to that rep via
+ * savedById. Like the appointment webhook, if no rep matches we skip it.
  */
 export async function POST(req: NextRequest) {
-  const settings = await prisma.appSettings.findUnique({ where: { id: "singleton" } });
-
-  // Optional shared-secret check (same secret as the call webhooks).
-  const expectedSecret = settings?.ghlInboundSecret;
-  if (expectedSecret) {
-    const provided = req.nextUrl.searchParams.get("secret");
-    if (provided !== expectedSecret) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-  }
+  const rawStr = await req.text().catch(() => "");
 
   let body: Record<string, unknown>;
   try {
-    body = await req.json() as Record<string, unknown>;
+    body = rawStr ? (JSON.parse(rawStr) as Record<string, unknown>) : {};
   } catch {
+    await logOutcome(rawStr, "invalid_json");
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
@@ -54,17 +60,19 @@ export async function POST(req: NextRequest) {
     const state         = str("state", "province");
     const country       = str("country");
     const category      = str("category", "industry");
-    const repName       = str("craeted_by", "created_by", "assigned_to", "assignedTo", "owner", "rep", "booked_by");
+    const repName       = str("craeted_by", "created_by", "consultant_name", "assigned_to", "assignedTo", "owner", "rep", "booked_by");
 
     // A lead needs at least a business or contact name to identify it.
     const name = businessName || contactPerson;
     if (!name) {
+      await logOutcome(rawStr, "missing_name");
       return NextResponse.json({ error: "Missing business/contact name", received: body }, { status: 400 });
     }
 
     // ── Match rep by name (shared with the appointment webhook) ──
     const matched = await matchRepByName(repName);
     if (!matched) {
+      await logOutcome(rawStr, `rep_not_found — "${repName}"`);
       return NextResponse.json({
         ok: false,
         reason: `Rep "${repName}" not found in DataForge`,
@@ -88,6 +96,7 @@ export async function POST(req: NextRequest) {
       savedById:     matched.id,
     });
 
+    await logOutcome(rawStr, `${result.status} — rep="${matched.name}" lead="${name}"`);
     revalidatePath("/leads");
     return NextResponse.json({
       ok: true,
@@ -96,6 +105,7 @@ export async function POST(req: NextRequest) {
       businessName: name,
     });
   } catch (err) {
+    await logOutcome(rawStr, `error — ${String(err).slice(0, 200)}`);
     console.error("[ghl-lead] error:", err);
     return NextResponse.json({ ok: false, error: String(err) }, { status: 500 });
   }
