@@ -66,6 +66,17 @@ export async function createUserAction(formData: {
   revalidatePath("/admin/users");
 }
 
+export async function updateUserNameAction(targetUserId: string, name: string) {
+  await requireRole("boss", "admin");
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error("Name cannot be empty.");
+  const target = await prisma.user.findUnique({ where: { id: targetUserId }, select: { id: true } });
+  if (!target) throw new Error("User not found.");
+  await prisma.user.update({ where: { id: targetUserId }, data: { name: trimmed } });
+  revalidatePath("/admin/users");
+  revalidatePath(`/admin/users/${targetUserId}`);
+}
+
 export async function updateUserNicknameAction(targetUserId: string, nickname: string) {
   await requireRole("boss", "admin");
   const target = await prisma.user.findUnique({ where: { id: targetUserId }, select: { role: true } });

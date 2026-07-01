@@ -4,12 +4,13 @@ import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft, Shield, Tag, Trash2, AlertTriangle,
-  Ban, Clock, ShieldOff, X, KeyRound, Eye, EyeOff, Link2,
+  Ban, Clock, ShieldOff, X, KeyRound, Eye, EyeOff, Link2, Pencil,
 } from "lucide-react";
 import { ROLE_LABELS, ROLE_ORDER, ROLE_CAN_CREATE, type Role } from "@/lib/rbac/roles";
 import {
   updateUserRoleAction,
   deleteUserAction,
+  updateUserNameAction,
   updateUserNicknameAction,
   banUserAction,
   suspendUserAction,
@@ -20,7 +21,7 @@ import {
 import { useNotifications } from "@/lib/notifications";
 
 type ActiveModal =
-  | "role" | "nickname" | "password" | "ghlLink"
+  | "name" | "role" | "nickname" | "password" | "ghlLink"
   | "ban" | "suspend" | "waive"
   | "delete"
   | null;
@@ -99,6 +100,7 @@ export function AdminActionsPanel({
           )}
 
           <div className="ml-auto flex items-center flex-wrap gap-2">
+            <ToolbarBtn icon={<Pencil className="h-3.5 w-3.5" />} label="Edit Name" onClick={() => setActiveModal("name")} />
             {assignableRoles.length > 0 && (
               <ToolbarBtn icon={<Shield className="h-3.5 w-3.5" />} label="Change Role"   onClick={() => setActiveModal("role")} />
             )}
@@ -120,6 +122,13 @@ export function AdminActionsPanel({
       {/* ── Modal ── */}
       {activeModal && (
         <ActionModal title={MODAL_TITLES[activeModal]} onClose={() => setActiveModal(null)}>
+          {activeModal === "name" && (
+            <NamePanel
+              userId={userId} userName={userName}
+              onDone={() => { setActiveModal(null); router.refresh(); add({ title: "Name updated", type: "success" }); }}
+              onError={(e) => add({ title: "Error", message: e, type: "error" })}
+            />
+          )}
           {activeModal === "role" && (
             <RolePanel
               userId={userId} userRole={userRole}
@@ -193,6 +202,7 @@ export function AdminActionsPanel({
 // ── Modal titles ────────────────────────────────────────────────────────────────
 
 const MODAL_TITLES: Record<NonNullable<ActiveModal>, string> = {
+  name:     "Edit Name",
   role:     "Change Role",
   nickname: "Edit Nickname",
   ghlLink:  "Link GHL User",
@@ -274,6 +284,36 @@ function RolePanel({ userId, userRole, assignableRoles, onDone, onError }: {
         </label>
       ))}
       {pending && <p className="text-xs text-muted-foreground">Saving…</p>}
+    </div>
+  );
+}
+
+// ── Name panel ──────────────────────────────────────────────────────────────────
+
+function NamePanel({ userId, userName, onDone, onError }: {
+  userId: string; userName: string | null; onDone: () => void; onError: (e: string) => void;
+}) {
+  const [name, setName] = useState(userName ?? "");
+  const [pending, start] = useTransition();
+  function save() {
+    if (!name.trim()) { onError("Name cannot be empty."); return; }
+    start(async () => {
+      try { await updateUserNameAction(userId, name); onDone(); }
+      catch (e) { onError((e as Error).message); }
+    });
+  }
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-muted-foreground">The user&apos;s display name, shown across the app.</p>
+      <input type="text" value={name} onChange={(e) => setName(e.target.value)} disabled={pending}
+        placeholder="Full name"
+        className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50" />
+      <div className="flex justify-end">
+        <button onClick={save} disabled={pending || !name.trim() || name.trim() === (userName ?? "")}
+          className="rounded-lg bg-violet-600 text-white px-4 py-2 text-sm font-medium hover:bg-violet-700 disabled:opacity-50 transition-colors">
+          {pending ? "Saving…" : "Save Name"}
+        </button>
+      </div>
     </div>
   );
 }
