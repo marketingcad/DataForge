@@ -71,6 +71,19 @@ export async function deleteAppointmentAction(id: string) {
   revalidatePath("/reports");
 }
 
+export async function deleteAppointmentsAction(ids: string[]) {
+  const session = await auth();
+  const user = session?.user as { id?: string; role?: string } | undefined;
+  if (!user?.id || !["boss", "admin"].includes(user.role ?? "")) {
+    throw new Error("Unauthorized");
+  }
+  if (!ids.length) return;
+  await prisma.bookedAppointment.deleteMany({ where: { id: { in: ids } } });
+  revalidatePath("/marketing");
+  revalidatePath("/marketing/appointments");
+  revalidatePath("/reports");
+}
+
 export async function getAppointmentsAction(agentId?: string) {
   const session = await auth();
   const user = session?.user as { id?: string; role?: string } | undefined;
