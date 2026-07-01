@@ -46,7 +46,7 @@ function cellStyle(value: number, max: number) {
   } as React.CSSProperties;
 }
 
-export function AgentHeatmap({ rows }: { rows: AgentReportRow[] }) {
+export function AgentHeatmap({ rows, canDelete = false }: { rows: AgentReportRow[]; canDelete?: boolean }) {
   const [selected, setSelected] = useState<{ id: string; name: string } | null>(null);
 
   if (rows.length === 0) {
@@ -136,6 +136,7 @@ export function AgentHeatmap({ rows }: { rows: AgentReportRow[] }) {
         <AppointmentsModal
           agentId={selected.id}
           agentName={selected.name}
+          canDelete={canDelete}
           open={!!selected}
           onOpenChange={(o) => { if (!o) setSelected(null); }}
         />

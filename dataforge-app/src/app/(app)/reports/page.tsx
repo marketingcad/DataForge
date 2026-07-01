@@ -106,7 +106,8 @@ export default async function ReportsPage() {
           </div>
         </div>
         <div className="p-5">
-          <AgentHeatmap rows={rows} />
+          {/* Only boss/admin reach this page (guarded above), so appointment deletion is enabled. */}
+          <AgentHeatmap rows={rows} canDelete />
         </div>
       </div>
 

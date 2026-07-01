@@ -68,6 +68,7 @@ export async function deleteAppointmentAction(id: string) {
   await prisma.bookedAppointment.delete({ where: { id } });
   revalidatePath("/marketing");
   revalidatePath("/marketing/appointments");
+  revalidatePath("/reports");
 }
 
 export async function getAppointmentsAction(agentId?: string) {
