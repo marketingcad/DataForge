@@ -128,7 +128,8 @@ export async function getLeaderboard(
         select: { id: true },
       },
       savedLeads: {
-        where: dateFilter ? { dateCollected: dateFilter } : undefined,
+        // "Leads" metric = GHL (special) leads only, not scraped leads.
+        where: { source: "GHL", ...(dateFilter ? { dateCollected: dateFilter } : {}) },
         select: { id: true },
       },
       repCommissions: {

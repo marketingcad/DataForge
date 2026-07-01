@@ -107,7 +107,8 @@ export async function getAllLeadsForExportAction(params: LeadFilterParams) {
 export async function getAgentLeadsAction(agentId?: string) {
   await requireDepartment("leads");
   return prisma.lead.findMany({
-    where: agentId ? { savedById: agentId } : {},
+    // Only GHL (special) leads — scraped leads live on the Leads page, not here.
+    where: agentId ? { savedById: agentId, source: "GHL" } : { source: "GHL" },
     select: {
       id: true,
       businessName: true,
@@ -151,7 +152,9 @@ export async function createManualLeadAction(data: {
     city:     data.city?.trim() || undefined,
     state:    data.state?.trim() || undefined,
     category: data.category?.trim() || undefined,
-    source:   "Manual",
+    // Tag as a GHL (special) lead so it's tracked with the rep's GHL leads,
+    // not mixed into the scraped Leads page.
+    source:   "GHL",
     savedById: data.agentId,
   });
 

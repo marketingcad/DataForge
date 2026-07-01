@@ -287,6 +287,10 @@ export async function getLeads({
     where.exportedAt = Object.keys(range).length ? range : { not: null };
   }
 
+  // GHL webhook leads are a separate, special type — never mixed into the
+  // scraped Leads views (this query backs the Leads page + CSV export).
+  where.source = { not: "GHL" };
+
   const orderBy =
     sort === "name_asc"  ? [{ businessName: "asc"  as const }] :
     sort === "name_desc" ? [{ businessName: "desc" as const }] :

@@ -40,7 +40,8 @@ export async function getAgentReportMatrix(): Promise<AgentReportRow[]> {
         select: { createdAt: true },
       },
       userBadges: { select: { id: true } },
-      _count: { select: { savedLeads: true } },
+      // "Leads" here = GHL (special) leads only — scraped leads are excluded.
+      _count: { select: { savedLeads: { where: { source: "GHL" } } } },
     },
     orderBy: { name: "asc" },
   });
