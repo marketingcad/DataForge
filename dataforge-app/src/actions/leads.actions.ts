@@ -128,6 +128,7 @@ export async function bulkDeleteLeadsAction(ids: string[]) {
   if (!ids.length) return;
   await prisma.lead.deleteMany({ where: { id: { in: ids } } });
   revalidatePath("/leads");
+  revalidatePath("/reports");
 }
 
 /** Mark the given leads as exported now (overwrites any previous export date). */

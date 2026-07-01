@@ -152,6 +152,7 @@ export function AgentHeatmap({ rows, canDelete = false }: { rows: AgentReportRow
         <AgentLeadsModal
           agentId={selectedLeads.id}
           agentName={selectedLeads.name}
+          canDelete={canDelete}
           open={!!selectedLeads}
           onOpenChange={(o) => { if (!o) setSelectedLeads(null); }}
         />
