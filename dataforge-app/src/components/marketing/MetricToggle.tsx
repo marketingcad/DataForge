@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { Phone, CalendarCheck, DollarSign, Award } from "lucide-react";
+import { Phone, Users, CalendarCheck, DollarSign, Award } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const METRICS = [
   { label: "Calls",       value: "calls",       icon: Phone          },
+  { label: "Leads",       value: "leads",       icon: Users          },
   { label: "Appts Set",   value: "appts_set",   icon: CalendarCheck  },
   { label: "Commissions", value: "commissions", icon: DollarSign     },
   { label: "Badges",      value: "badges",      icon: Award          },

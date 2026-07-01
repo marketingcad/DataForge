@@ -28,6 +28,7 @@ interface Props {
 function formatMetricValue(entry: LeaderboardEntry, metric: Metric): string {
   switch (metric) {
     case "calls":       return entry.callCount.toLocaleString();
+    case "leads":       return entry.leadsBooked.toLocaleString();
     case "appts_set":   return entry.appointmentsSet.toLocaleString();
     case "commissions": return `₱${entry.commissionsEarned.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
     case "badges":      return entry.badgesEarned.toLocaleString();
