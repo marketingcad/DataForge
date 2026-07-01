@@ -351,6 +351,8 @@ export function SettingsClient({ settings, isAdmin, isLeadSpecialist = false, us
         </Card>
 
         <OutboundCallReferenceCard secret={settings.ghlInboundSecret} />
+
+        <LeadWebhookReferenceCard secret={settings.ghlInboundSecret} />
       </TabsContent>}
 
       {/* ── Maintenance tab ── */}
@@ -763,6 +765,47 @@ function OutboundCallReferenceCard({ secret }: { secret: string | null }) {
         </div>
         <div className="rounded-md border bg-muted/50 px-3 py-2 font-mono text-xs text-muted-foreground break-all select-all">
           {outboundCallUrl}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Lead webhook reference card ─────────────────────────────────────────────
+
+function LeadWebhookReferenceCard({ secret }: { secret: string | null }) {
+  const [origin, setOrigin] = useState("");
+  useEffect(() => { setOrigin(window.location.origin); }, []);
+
+  const leadUrl = origin
+    ? (secret ? `${origin}/api/webhooks/ghl-lead?secret=${secret}` : `${origin}/api/webhooks/ghl-lead`)
+    : "Loading…";
+
+  function copy() {
+    navigator.clipboard.writeText(leadUrl).then(() => toast.success("Lead webhook URL copied"));
+  }
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base">Lead Webhook</CardTitle>
+        <CardDescription>Receive leads from GHL and tie each to a sales rep — mirrors the appointment webhook.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <p className="text-sm font-medium">Lead (GHL → DataForge)</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Automation → trigger (e.g. new lead/contact) → Send to Webhook. Include the rep in <code className="font-mono text-[11px]">created_by</code> (name is fuzzy-matched to a rep, like appointments), plus <code className="font-mono text-[11px]">business_name</code> or <code className="font-mono text-[11px]">name</code>, <code className="font-mono text-[11px]">phone</code>, <code className="font-mono text-[11px]">email</code>, <code className="font-mono text-[11px]">website</code>, <code className="font-mono text-[11px]">address</code>. Leads are saved with source “GHL”; unmatched reps are skipped.
+            </p>
+          </div>
+          <Button type="button" variant="outline" size="sm" onClick={copy} className="shrink-0 gap-1.5">
+            <Copy className="h-3.5 w-3.5" />
+            Copy URL
+          </Button>
+        </div>
+        <div className="rounded-md border bg-muted/50 px-3 py-2 font-mono text-xs text-muted-foreground break-all select-all">
+          {leadUrl}
         </div>
       </CardContent>
     </Card>
