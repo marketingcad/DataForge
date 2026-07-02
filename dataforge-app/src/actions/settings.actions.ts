@@ -3,12 +3,36 @@
 import { revalidatePath } from "next/cache";
 import { requireRole } from "@/lib/rbac/guards";
 import { updateSettings } from "@/lib/settings/service";
+import { prisma } from "@/lib/prisma";
+import type { FeatureKey } from "@/lib/features";
 
 type SettingKey =
   | "companyName" | "scrapingDefaultMaxLeads" | "scrapingDefaultInterval"
   | "scrapingGlobalPause" | "leadQualityGoodThreshold" | "leadQualityMediumThreshold"
   | "ghlWebhookUrl" | "ghlApiKey" | "ghlSubAccountApiKey" | "ghlLocationId"
   | "commissionCurrency" | "ghlInboundSecret";
+
+/** Boss-only: enable/disable a feature (module) across the app. */
+export async function setFeatureEnabledAction(key: FeatureKey, enabled: boolean) {
+  try {
+    await requireRole("boss");
+    const s = await prisma.appSettings.findUnique({
+      where: { id: "singleton" },
+      select: { disabledFeatures: true },
+    });
+    const set = new Set(s?.disabledFeatures ?? []);
+    if (enabled) set.delete(key); else set.add(key);
+    await prisma.appSettings.upsert({
+      where: { id: "singleton" },
+      update: { disabledFeatures: [...set] },
+      create: { id: "singleton", disabledFeatures: [...set] },
+    });
+    revalidatePath("/", "layout");
+    return { success: true };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Failed to save" };
+  }
+}
 
 export async function updateSettingFieldAction(key: SettingKey, value: string | number | boolean | null) {
   try {

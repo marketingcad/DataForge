@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { getScriptsAction } from "@/actions/documents.actions";
+import { assertFeatureEnabled } from "@/lib/features-guard";
 import { ScriptsClient } from "./ScriptsClient";
 
 export const dynamic = "force-dynamic";
@@ -8,6 +9,7 @@ export const dynamic = "force-dynamic";
 export default async function ScriptsPage() {
   const session = await auth();
   if (!session) redirect("/sign-in");
+  await assertFeatureEnabled("scripts");
 
   const result = await getScriptsAction();
   const scripts = result.scripts ?? [];

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { getMyPopsAction } from "@/actions/balloons.actions";
+import { assertFeatureEnabled } from "@/lib/features-guard";
 import { BalloonGrid } from "./BalloonGrid";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +14,7 @@ export default async function BalloonsPage() {
 
   const role = (session.user as unknown as { role?: string }).role ?? "";
   if (!["sales_rep", "team_lead", "boss", "admin"].includes(role)) redirect("/dashboard");
+  await assertFeatureEnabled("balloon");
 
   const userId = session.user.id!;
 

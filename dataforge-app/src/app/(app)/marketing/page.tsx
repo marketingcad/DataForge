@@ -14,6 +14,7 @@ import type { Period } from "@/components/marketing/PeriodToggle";
 import { METRIC_LABELS, type Metric } from "@/components/marketing/MetricToggle";
 import { BossDashboard } from "./_views/BossDashboard";
 import { AgentDashboard } from "./_views/AgentDashboard";
+import { assertFeatureEnabled } from "@/lib/features-guard";
 
 export default async function MarketingPage({
   searchParams,
@@ -25,6 +26,7 @@ export default async function MarketingPage({
 
   const role = (session.user as unknown as Record<string, unknown>)?.role as Role | undefined;
   if (!role || !["boss", "admin", "sales_rep", "team_lead"].includes(role)) redirect("/unauthorized");
+  await assertFeatureEnabled("overview");
 
   const { period: rawPeriod, metric: rawMetric, from, to } = await searchParams;
 

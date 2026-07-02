@@ -4,6 +4,7 @@ import { Separator } from "@/components/ui/separator";
 import { withDbRetry } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import { assertFeatureEnabled } from "@/lib/features-guard";
 import { ScrapingPageTabsClient } from "@/components/scraping/ScrapingPageTabsClient";
 
 const SCRAPING_ROLES = ["boss", "admin", "lead_specialist"];
@@ -13,6 +14,7 @@ export default async function ScrapingPage() {
   const session = await auth();
   const role = (session?.user as unknown as Record<string, unknown>)?.role as string | undefined;
   if (!role || !SCRAPING_ROLES.includes(role)) redirect("/unauthorized");
+  await assertFeatureEnabled("scraping");
   const canUseKeywords = KEYWORD_ROLES.includes(role);
 
   const [{ jobs }, keywords] = await Promise.all([

@@ -13,6 +13,7 @@ export default async function SettingsPage() {
   const role = (sessionUser?.role as Role) ?? "lead_specialist";
   const userId = sessionUser?.id as string;
   const isAdmin = role === "boss" || role === "admin";
+  const isBoss = role === "boss";
   const isLeadSpecialist = role === "lead_specialist";
 
   const [settings, userProfile] = await Promise.all([
@@ -33,7 +34,7 @@ export default async function SettingsPage() {
           </p>
         </div>
 
-        <SettingsClient settings={settings} isAdmin={isAdmin} isLeadSpecialist={isLeadSpecialist} userProfile={userProfile} />
+        <SettingsClient settings={settings} isAdmin={isAdmin} isBoss={isBoss} isLeadSpecialist={isLeadSpecialist} userProfile={userProfile} />
       </div>
     </div>
   );

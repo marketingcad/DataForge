@@ -7,6 +7,7 @@ import { getSettings } from "@/lib/settings/service";
 import { CommissionsManager } from "./CommissionsManager";
 import { LedgerPanel } from "./LedgerPanel";
 import { RepCommissionsPanel } from "./RepCommissionsPanel";
+import { assertFeatureEnabled } from "@/lib/features-guard";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { DollarSign, Clock, CheckCircle2 } from "lucide-react";
@@ -20,6 +21,7 @@ export default async function ManageCommissionsPage({
   const session = await auth();
   const role = (session?.user as { role?: string })?.role;
   if (role !== "boss" && role !== "admin") redirect("/unauthorized");
+  await assertFeatureEnabled("commissions");
 
   const { tab } = await searchParams;
   const activeTab = tab === "ledger" ? "ledger" : tab === "rep" ? "rep" : "rules";

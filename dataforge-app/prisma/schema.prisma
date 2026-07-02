@@ -479,6 +479,7 @@ model AppSettings {
   webhookLastPayload          String?
   webhookLastOutcome          String?
   reportsShareToken           String?  @unique
+  disabledFeatures            String[] @default([])
 }
 
 model BalloonAuditLog {

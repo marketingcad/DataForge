@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Role } from "@/lib/rbac/roles";
+import { isHrefDisabled } from "@/lib/features";
 
 type SubItem = { label: string; href: string };
 type NavItem = { label: string; href?: string; icon: React.ElementType; sub?: SubItem[] };
@@ -271,11 +272,27 @@ function CollapsibleItem({
   );
 }
 
-export function AppSidebar({ role }: { role: Role }) {
+export function AppSidebar({ role, disabledFeatures = [] }: { role: Role; disabledFeatures?: string[] }) {
   const pathname     = usePathname();
   const searchParams = useSearchParams();
   const search       = searchParams.toString();
-  const sections     = buildSections(role);
+
+  // Hide nav items/subitems for features the boss has disabled.
+  const sections = buildSections(role)
+    .map((section) => ({
+      ...section,
+      items: section.items
+        .map((item) => {
+          if (item.sub) {
+            const sub = item.sub.filter((s) => !isHrefDisabled(s.href, disabledFeatures));
+            return sub.length ? { ...item, sub } : null;
+          }
+          if (item.href && isHrefDisabled(item.href, disabledFeatures)) return null;
+          return item;
+        })
+        .filter((i): i is NavItem => i !== null),
+    }))
+    .filter((section) => section.items.length > 0);
   const [collapsed, setCollapsed] = useState(false);
   const [mounted, setMounted]     = useState(false);
   useEffect(() => setMounted(true), []);

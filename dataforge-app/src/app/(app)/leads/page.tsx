@@ -9,6 +9,7 @@ import { getLeadLocations } from "@/lib/leads/locations";
 import { getUsers } from "@/lib/users/service";
 import { auth } from "@/lib/auth";
 import { withDbRetry } from "@/lib/prisma";
+import { assertFeatureEnabled } from "@/lib/features-guard";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { Separator } from "@/components/ui/separator";
@@ -23,6 +24,7 @@ export default async function LeadsPage({
   if (!session) redirect("/sign-in");
   const role = (session.user as unknown as Record<string, unknown>)?.role as string;
   if (!["boss", "admin", "lead_specialist"].includes(role)) redirect("/unauthorized");
+  await assertFeatureEnabled("leads");
 
   const isAdmin = role === "boss" || role === "admin";
   const sp = await searchParams;

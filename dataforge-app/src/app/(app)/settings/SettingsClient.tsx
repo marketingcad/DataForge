@@ -3,7 +3,8 @@
 import { useState, useTransition, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { Check, Loader2, ChevronsUpDown, MapPin, Copy, RefreshCw } from "lucide-react";
-import { updateSettingFieldAction } from "@/actions/settings.actions";
+import { updateSettingFieldAction, setFeatureEnabledAction } from "@/actions/settings.actions";
+import { FEATURES, type FeatureKey } from "@/lib/features";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -68,6 +69,7 @@ interface Settings {
   ghlLocationId: string | null;
   commissionCurrency: string;
   ghlInboundSecret: string | null;
+  disabledFeatures: string[];
 }
 
 type SettingKey = Parameters<typeof updateSettingFieldAction>[0];
@@ -202,11 +204,53 @@ function AutoSelect({
   );
 }
 
+// ─── Feature toggle row (boss only) ──────────────────────────────────────────
+
+function FeatureToggleRow({
+  feature, defaultEnabled,
+}: {
+  feature: { key: FeatureKey; label: string; description: string };
+  defaultEnabled: boolean;
+}) {
+  const [enabled, setEnabled] = useState(defaultEnabled);
+  const [pending, startTransition] = useTransition();
+  const [saved, setSaved] = useState(false);
+
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <div>
+        <div className="flex items-center gap-2">
+          <p className="text-sm font-medium">{feature.label}</p>
+          <SaveIndicator isPending={pending} saved={saved} />
+        </div>
+        <p className="text-xs text-muted-foreground mt-0.5">{feature.description}</p>
+      </div>
+      <Switch
+        checked={enabled}
+        disabled={pending}
+        onCheckedChange={(v) => {
+          setEnabled(v);
+          startTransition(async () => {
+            const res = await setFeatureEnabledAction(feature.key, v);
+            if (res?.error) {
+              toast.error("Failed to save", { description: res.error });
+              setEnabled(!v);
+            } else {
+              setSaved(true);
+              setTimeout(() => setSaved(false), 2000);
+            }
+          });
+        }}
+      />
+    </div>
+  );
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 type UserProfile = { name: string | null; nickname: string | null; email: string; role: string } | null;
 
-export function SettingsClient({ settings, isAdmin, isLeadSpecialist = false, userProfile }: { settings: Settings | null; isAdmin: boolean; isLeadSpecialist?: boolean; userProfile: UserProfile }) {
+export function SettingsClient({ settings, isAdmin, isBoss = false, isLeadSpecialist = false, userProfile }: { settings: Settings | null; isAdmin: boolean; isBoss?: boolean; isLeadSpecialist?: boolean; userProfile: UserProfile }) {
   const [accent, setAccent] = useState<AccentId>(() => {
     if (typeof window === "undefined") return "neutral";
     return getStoredAccent();
@@ -228,6 +272,7 @@ export function SettingsClient({ settings, isAdmin, isLeadSpecialist = false, us
         {isAdmin && <TabsTrigger value="general">General</TabsTrigger>}
         {isAdmin && <TabsTrigger value="leads">Leads</TabsTrigger>}
         {isAdmin && <TabsTrigger value="integrations">Integrations</TabsTrigger>}
+        {isBoss && <TabsTrigger value="features">Features</TabsTrigger>}
         {isAdmin && <TabsTrigger value="maintenance">Maintenance</TabsTrigger>}
         {isLeadSpecialist && <TabsTrigger value="scraping">Scraping</TabsTrigger>}
         {isLeadSpecialist && <TabsTrigger value="geocoding">Geocoding</TabsTrigger>}
@@ -353,6 +398,27 @@ export function SettingsClient({ settings, isAdmin, isLeadSpecialist = false, us
         <OutboundCallReferenceCard secret={settings.ghlInboundSecret} />
 
         <LeadWebhookReferenceCard />
+      </TabsContent>}
+
+      {/* ── Features tab (boss only) ── */}
+      {isBoss && settings && <TabsContent value="features" className="space-y-6 mt-0">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Feature Availability</CardTitle>
+            <CardDescription>
+              Turn app modules on or off for the whole team. A disabled feature is hidden from the sidebar and its page is blocked. Only the boss can change these.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {FEATURES.map((f) => (
+              <FeatureToggleRow
+                key={f.key}
+                feature={f}
+                defaultEnabled={!settings.disabledFeatures.includes(f.key)}
+              />
+            ))}
+          </CardContent>
+        </Card>
       </TabsContent>}
 
       {/* ── Maintenance tab ── */}
