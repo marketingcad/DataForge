@@ -47,7 +47,16 @@ function cellStyle(value: number, max: number) {
   } as React.CSSProperties;
 }
 
-export function AgentHeatmap({ rows, canDelete = false }: { rows: AgentReportRow[]; canDelete?: boolean }) {
+export function AgentHeatmap({
+  rows,
+  canDelete = false,
+  interactive = true,
+}: {
+  rows: AgentReportRow[];
+  canDelete?: boolean;
+  /** When false (e.g. public shared view), cells are not clickable and popups are disabled. */
+  interactive?: boolean;
+}) {
   const [selected, setSelected] = useState<{ id: string; name: string } | null>(null);
   const [selectedLeads, setSelectedLeads] = useState<{ id: string; name: string } | null>(null);
 
@@ -109,7 +118,7 @@ export function AgentHeatmap({ rows, canDelete = false }: { rows: AgentReportRow
                 const val = Number(row[col.key]);
                 const isLead = col.key === "leadsCount";
                 const isAppt = APPT_KEYS.has(col.key);
-                const clickable = (isAppt || isLead) && val > 0;
+                const clickable = interactive && (isAppt || isLead) && val > 0;
                 return (
                   <td
                     key={String(col.key)}

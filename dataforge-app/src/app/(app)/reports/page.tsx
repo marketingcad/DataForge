@@ -1,6 +1,6 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { withDbRetry } from "@/lib/prisma";
+import { prisma, withDbRetry } from "@/lib/prisma";
 import { getAgentReportMatrix } from "@/lib/reports/service";
 import { getTeamSummary } from "@/lib/marketing/team.service";
 import { getSalesReps } from "@/actions/appointments.actions";
@@ -9,6 +9,7 @@ import { AppointmentsModalButton } from "@/components/marketing/AppointmentsModa
 import { AddAppointmentModal } from "@/components/marketing/AddAppointmentModal";
 import { LeadsModalButton } from "@/components/reports/AgentLeadsModal";
 import { AddLeadModal } from "@/components/reports/AddLeadModal";
+import { ShareReportButton } from "@/components/reports/ShareReportButton";
 import Link from "next/link";
 
 export default async function ReportsPage() {
@@ -16,8 +17,13 @@ export default async function ReportsPage() {
   const role = (session?.user as unknown as Record<string, unknown>)?.role as string | undefined;
   if (role !== "boss" && role !== "admin") redirect("/dashboard");
 
-  const [rows, team, salesReps] = await withDbRetry(() =>
-    Promise.all([getAgentReportMatrix(), getTeamSummary(), getSalesReps()])
+  const [rows, team, salesReps, settings] = await withDbRetry(() =>
+    Promise.all([
+      getAgentReportMatrix(),
+      getTeamSummary(),
+      getSalesReps(),
+      prisma.appSettings.findUnique({ where: { id: "singleton" }, select: { reportsShareToken: true } }),
+    ])
   );
 
   /* Derive summary stats */
@@ -49,6 +55,7 @@ export default async function ReportsPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <ShareReportButton initialToken={settings?.reportsShareToken ?? null} />
           <AppointmentsModalButton canDelete={true} />
           <AddAppointmentModal reps={salesReps} />
           <LeadsModalButton canDelete={true} />
