@@ -284,9 +284,14 @@ export default async function HowItWorksPage() {
               <div className="space-y-2.5 pt-1 border-t border-border/40">
                 <FeatureRow icon={Star}       iconColor="text-amber-500"  title="Quality Score"   description="0–100% completeness: name, phone, email, address, website, industry, notes." />
                 <FeatureRow icon={FolderOpen} iconColor="text-blue-500"   title="Folders"         description="Organise leads into named folders within an industry. Rename or delete anytime." />
-                <FeatureRow icon={Download}   iconColor="text-violet-500" title="CSV Export"      description="Export any folder as CSV for GHL, CRMs, or spreadsheets. All fields included." />
+                <FeatureRow icon={Download}   iconColor="text-violet-500" title="CSV Export"      description="Export all filtered leads or only unexported ones. Exported leads are stamped with an export date so you never send the same list twice." />
+                <FeatureRow icon={CheckCircle2} iconColor="text-emerald-500" title="Exported Tracking" description="An Exported column shows the export date; filter by Exported / Not exported and by an export-date range." />
                 <FeatureRow icon={Filter}     iconColor="text-rose-500"   title="Filter by Rep"   description="Boss/admin can filter all leads by which rep saved them — useful for audits." />
               </div>
+              <p className="text-[11px] text-muted-foreground flex items-center gap-1.5 border-t border-border/40 pt-2">
+                <Info className="h-3 w-3 shrink-0" />
+                Scraped leads only. GHL webhook leads are a separate special type and don&apos;t appear here.
+              </p>
             </Card>
             <Card className="space-y-3">
               <SubLabel>Lead Origins Globe</SubLabel>
@@ -389,12 +394,17 @@ export default async function HowItWorksPage() {
             <SubLabel>GHL Integration — Webhooks</SubLabel>
             <div className="grid grid-cols-2 gap-2.5">
               <FeatureRow icon={Webhook} iconColor="text-rose-500"   title="Call Webhook"        description="Fires after every call. DataForge resolves the agent by GHL User ID or name, creates a CallLog, and updates all call metrics immediately." />
-              <FeatureRow icon={Webhook} iconColor="text-violet-500" title="Appointment Webhook" description="Fires when an appointment is booked. DataForge records a BookedAppointment — drives the Appointments chart and leaderboard." />
+              <FeatureRow icon={Webhook} iconColor="text-violet-500" title="Appointment Webhook" description="Fires when an appointment is booked. DataForge matches the rep by name and records a BookedAppointment — drives the Appointments chart and leaderboard." />
+              <FeatureRow icon={Webhook} iconColor="text-emerald-500" title="Lead Webhook"       description="Fires when a lead is created in GHL. DataForge matches the rep by name (created_by) and stores it as a special GHL lead (source “GHL”) — counted in the Leads metric and Reports." />
             </div>
             <p className="text-xs text-muted-foreground flex items-center gap-1.5 border-t border-border/40 pt-2">
+              <Info className="h-3 w-3 shrink-0" />
+              GHL leads are a <strong className="text-foreground">separate, special type</strong> — they never mix with scraped leads on the Leads page.
+            </p>
+            <p className="text-xs text-muted-foreground flex items-center gap-1.5">
               <Settings className="h-3 w-3 shrink-0" />
-              Configure webhook URL and bearer secret in{" "}
-              <Link href="/settings" className="font-semibold text-foreground hover:underline">Settings → GHL Integration</Link>.
+              Configure API keys and copy the Call / Appointment / Lead webhook URLs in{" "}
+              <Link href="/settings" className="font-semibold text-foreground hover:underline">Settings → Integrations</Link>.
             </p>
           </Card>
         </Section>
@@ -473,18 +483,28 @@ export default async function HowItWorksPage() {
             <Card className="space-y-3">
               <SubLabel>Agent Performance Heatmap</SubLabel>
               <p className="text-xs text-muted-foreground leading-relaxed">
-                Matrix table: each row is an agent, each column is a metric. Darker cells = stronger relative performance. Agents sorted by total assigned leads.
+                Matrix table: each row is an agent, each column is a metric. Darker cells = stronger relative performance. Agents sorted by leads.
               </p>
               <div className="bg-muted/40 rounded-lg px-3 py-2">
                 <p className="text-xs font-semibold mb-1.5">Columns per agent:</p>
                 <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
-                  {["Total Calls", "Calls (24h)", "Calls / Week", "Avg Duration", "Connect Rate", "Appointments", "Leads Assigned", "Quality Score"].map((c) => (
+                  {["Leads (GHL)", "Appts / Month", "Appts (all-time)", "Calls / Week", "Calls / Month", "Calls (all-time)", "Avg Duration", "Connect %", "Points", "Badges"].map((c) => (
                     <p key={c} className="text-xs text-muted-foreground">· {c}</p>
                   ))}
                 </div>
               </div>
             </Card>
           </div>
+
+          <Card className="space-y-3">
+            <SubLabel>Interact, Manage &amp; Share</SubLabel>
+            <div className="grid grid-cols-2 gap-2.5">
+              <FeatureRow icon={CalendarDays} iconColor="text-sky-500"     title="Clickable Appts cells"  description="Click any agent's Appts number to open their appointments in a popup — with filters and bulk delete (boss/admin)." />
+              <FeatureRow icon={Users}        iconColor="text-emerald-500" title="Clickable Leads cells"  description="Click an agent's Leads number to open their GHL leads — search, source & date filters, bulk delete." />
+              <FeatureRow icon={ClipboardList} iconColor="text-violet-500" title="View / Add buttons"     description="Header buttons to view all appointments/leads, or manually add an appointment or lead tied to a rep." />
+              <FeatureRow icon={Link2}        iconColor="text-blue-500"    title="Shareable link"        description="Share → copy a public, read-only link to the matrix. Anyone with it can view (no login); popups are disabled. Disable anytime." />
+            </div>
+          </Card>
         </Section>
 
         {/* ── WORKSPACE ── */}
@@ -519,7 +539,7 @@ export default async function HowItWorksPage() {
                 <GoLink href="/admin/users" />
               </div>
               <p className="text-xs text-muted-foreground leading-relaxed">
-                Create and manage team accounts. Assign roles, set GHL User IDs for call attribution, view per-agent stats, and import agents from GHL.
+                Create and manage team accounts. Rename any user, assign roles, set GHL User IDs for call attribution, view per-agent stats, and import agents from GHL.
               </p>
               <div className="bg-muted/40 rounded-lg px-3 py-2">
                 <p className="text-xs font-semibold mb-1.5">Assignable roles:</p>
@@ -543,7 +563,8 @@ export default async function HowItWorksPage() {
                 <FeatureRow icon={Bot}           iconColor="text-amber-500"        title="Scraping Defaults"     description="Max leads per job, scraping interval, global pause toggle." />
                 <FeatureRow icon={Star}          iconColor="text-emerald-500"      title="Quality Thresholds"    description="Good (default 70%) and Medium (default 40%) cutoffs for lead quality." />
                 <FeatureRow icon={BadgeDollarSign} iconColor="text-rose-500"       title="Commission Currency"   description="₱ $ € £ ¥ ₩ ₹ A$ C$ R — applies across all commission values." />
-                <FeatureRow icon={Webhook}       iconColor="text-blue-500"         title="GHL Integration"       description="API key, Location ID, webhook bearer secret, and webhook URL." />
+                <FeatureRow icon={Webhook}       iconColor="text-blue-500"         title="GHL Integration"       description="API keys, Location ID, webhook secret, and the Call / Appointment / Lead webhook URLs." />
+                <FeatureRow icon={SlidersHorizontal} iconColor="text-teal-500"     title="Feature Toggles"       description="Turn modules on/off for the whole team — Overview, Notes, Scripts, Badges, Challenges, Commissions, Balloon Pop, Leads, Scraping. Disabled features vanish from the sidebar and their pages are blocked." />
                 <FeatureRow icon={Palette}       iconColor="text-violet-500"       title="UI Theme"              description="7 accent schemes: Neutral, Blue, Violet, Emerald, Rose, Amber, Teal." />
               </div>
             </Card>
@@ -598,6 +619,8 @@ export default async function HowItWorksPage() {
                   ["Bug Reports",           "✓","✓","✓","✓","✓"],
                   ["Users (manage)",        "✓","✓","✗","✗","✗"],
                   ["Settings",             "✓","✗","✗","✗","✗"],
+                  ["Feature Toggles",       "✓","✗","✗","✗","✗"],
+                  ["Reports Share Link",    "✓","✓","✗","✗","✗"],
                   ["How It Works",          "✓","✓","✗","✗","✗"],
                 ].map(([feat, ...vals]) => (
                   <tr key={feat} className="hover:bg-muted/20 transition-colors">
