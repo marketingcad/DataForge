@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { Database } from "lucide-react";
 import { getSharedReportAction } from "@/actions/reports.actions";
 import { getTeamSummary } from "@/lib/marketing/team.service";
 import { AgentHeatmap } from "@/components/reports/AgentHeatmap";
@@ -36,51 +37,59 @@ export default async function SharedReportPage({ params }: { params: Promise<{ t
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <div className="max-w-[1400px] mx-auto p-4 sm:p-8 space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <h1 className="text-lg font-semibold tracking-tight">Reports</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              Agent performance matrix — darker cells indicate stronger relative performance.
-            </p>
+      {/* ── DataForge brand bar ── */}
+      <header className="border-b border-border/60">
+        <div className="max-w-[1500px] mx-auto px-4 sm:px-8 h-16 flex items-center gap-2.5">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600 shrink-0">
+            <Database className="h-5 w-5 text-white" />
           </div>
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
+          <span className="font-bold text-2xl tracking-tight">DataForge</span>
+          <span className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1.5 text-xs font-medium text-muted-foreground">
             🔗 Shared read-only view
           </span>
+        </div>
+      </header>
+
+      <div className="max-w-[1500px] mx-auto p-4 sm:p-8 space-y-7">
+        {/* Header */}
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Reports</h1>
+          <p className="text-base text-muted-foreground mt-1">
+            Agent performance matrix — darker cells indicate stronger relative performance.
+          </p>
         </div>
 
         {/* KPI strip */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
           {kpis.map((k, i) => (
-            <div key={k.label} className="rounded-2xl bg-card shadow-sm p-4 space-y-2">
+            <div key={k.label} className="rounded-2xl bg-card shadow-sm p-5 space-y-2.5">
               <div className="flex items-center gap-1.5">
-                <div className={`h-1 w-4 rounded-full ${accents[i]}`} />
-                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider leading-tight">
+                <div className={`h-1 w-5 rounded-full ${accents[i]}`} />
+                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider leading-tight">
                   {k.label}
                 </p>
               </div>
-              <p className="text-2xl font-black tabular-nums leading-none">{k.value}</p>
+              <p className="text-3xl font-black tabular-nums leading-none">{k.value}</p>
             </div>
           ))}
         </div>
 
-        {/* Agent Matrix Heatmap (read-only — no popups) */}
+        {/* Agent Matrix Heatmap (read-only — no popups), scaled up a bit */}
         <div className="rounded-2xl bg-card shadow-sm">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-border/60 flex-wrap gap-3">
+          <div className="flex items-center justify-between px-6 py-5 border-b border-border/60 flex-wrap gap-3">
             <div>
-              <p className="font-semibold text-sm">Agent Performance Matrix</p>
-              <p className="text-xs text-muted-foreground mt-0.5">
+              <p className="font-semibold text-lg">Agent Performance Matrix</p>
+              <p className="text-sm text-muted-foreground mt-0.5">
                 {rows.length} agent{rows.length !== 1 ? "s" : ""} · sorted by leads assigned
               </p>
             </div>
           </div>
-          <div className="p-5">
+          <div className="p-6 [&_table]:min-w-[900px] [&_th]:!text-[13px] [&_td]:!text-[15px] [&_td]:!py-3.5">
             <AgentHeatmap rows={rows} interactive={false} />
           </div>
         </div>
 
-        <p className="text-xs text-muted-foreground text-center pb-2">
+        <p className="text-sm text-muted-foreground text-center pb-6">
           Connect rate = completed ÷ total calls · Avg duration excludes missed/voicemail calls
         </p>
       </div>
