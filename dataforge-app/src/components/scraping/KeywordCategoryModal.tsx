@@ -123,6 +123,80 @@ function intervalLabel(minutes: number) {
      `Every ${minutes / 1440}d`);
 }
 
+/**
+ * Category search/picker list shared by the "Move to folder" and
+ * "Duplicate to folder" popovers. Defined at module scope (NOT inside
+ * KeywordCategoryModal) so its component identity stays stable across the
+ * modal's frequent re-renders — otherwise the cmdk <CommandInput> remounts on
+ * every parent render and the user's typed search text is wiped.
+ */
+function CategoryPickerList({
+  favorites,
+  allCategories,
+  onPick,
+  onToggleFavorite,
+  currentCat,
+}: {
+  favorites: string[];
+  allCategories: string[];
+  onPick: (cat: string) => void;
+  onToggleFavorite: (e: React.MouseEvent, cat: string) => void;
+  currentCat?: string;
+}) {
+  const favCats = favorites.filter((f) => allCategories.includes(f));
+  const otherCats = allCategories.filter((c) => !favorites.includes(c));
+  return (
+    <Command>
+      <CommandInput placeholder="Search categories…" />
+      <CommandList>
+        <CommandEmpty>No category found.</CommandEmpty>
+        {favCats.length > 0 && (
+          <>
+            <CommandGroup heading="Favorites">
+              {favCats.map((cat) => (
+                <CommandItem
+                  key={cat}
+                  value={cat}
+                  onSelect={() => onPick(cat)}
+                  className="group flex items-center gap-2 pr-1"
+                >
+                  {currentCat !== undefined && (
+                    <Check className={cn("h-4 w-4 shrink-0", currentCat === cat ? "opacity-100" : "opacity-0")} />
+                  )}
+                  <Star className="h-3 w-3 shrink-0 fill-yellow-400 text-yellow-400" />
+                  <span className="flex-1 truncate">{cat}</span>
+                  <button type="button" onClick={(e) => onToggleFavorite(e, cat)} className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-muted" title="Remove from favorites">
+                    <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                  </button>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+            <CommandSeparator />
+          </>
+        )}
+        <CommandGroup heading={favCats.length > 0 ? "All Categories" : undefined}>
+          {otherCats.map((cat) => (
+            <CommandItem
+              key={cat}
+              value={cat}
+              onSelect={() => onPick(cat)}
+              className="group flex items-center gap-2 pr-1"
+            >
+              {currentCat !== undefined && (
+                <Check className={cn("h-4 w-4 shrink-0", currentCat === cat ? "opacity-100" : "opacity-0")} />
+              )}
+              <span className="flex-1 truncate">{cat}</span>
+              <button type="button" onClick={(e) => onToggleFavorite(e, cat)} className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-muted" title="Add to favorites">
+                <Star className="h-3 w-3 text-muted-foreground" />
+              </button>
+            </CommandItem>
+          ))}
+        </CommandGroup>
+      </CommandList>
+    </Command>
+  );
+}
+
 interface KeywordCategoryModalProps {
   category: string;
   keywords: KeywordRow[];
@@ -189,106 +263,6 @@ export function KeywordCategoryModal({
       : [...favorites, cat];
     setFavorites(next);
     localStorage.setItem("kw-favorite-categories", JSON.stringify(next));
-  }
-
-  function MoveCategoryContent({ kwId, currentCat }: { kwId: string; currentCat: string }) {
-    const favCats = favorites.filter((f) => allCategories.includes(f));
-    const otherCats = allCategories.filter((c) => !favorites.includes(c));
-    return (
-      <Command>
-        <CommandInput placeholder="Search categories…" />
-        <CommandList>
-          <CommandEmpty>No category found.</CommandEmpty>
-          {favCats.length > 0 && (
-            <>
-              <CommandGroup heading="Favorites">
-                {favCats.map((cat) => (
-                  <CommandItem
-                    key={cat}
-                    value={cat}
-                    onSelect={() => { onMoveCategory(kwId, cat); setMovingKwId(null); }}
-                    className="group flex items-center gap-2 pr-1"
-                  >
-                    <Check className={cn("h-4 w-4 shrink-0", currentCat === cat ? "opacity-100" : "opacity-0")} />
-                    <Star className="h-3 w-3 shrink-0 fill-yellow-400 text-yellow-400" />
-                    <span className="flex-1 truncate">{cat}</span>
-                    <button type="button" onClick={(e) => toggleFavorite(e, cat)} className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-muted" title="Remove from favorites">
-                      <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                    </button>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-              <CommandSeparator />
-            </>
-          )}
-          <CommandGroup heading={favCats.length > 0 ? "All Categories" : undefined}>
-            {otherCats.map((cat) => (
-              <CommandItem
-                key={cat}
-                value={cat}
-                onSelect={() => { onMoveCategory(kwId, cat); setMovingKwId(null); }}
-                className="group flex items-center gap-2 pr-1"
-              >
-                <Check className={cn("h-4 w-4 shrink-0", currentCat === cat ? "opacity-100" : "opacity-0")} />
-                <span className="flex-1 truncate">{cat}</span>
-                <button type="button" onClick={(e) => toggleFavorite(e, cat)} className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-muted" title="Add to favorites">
-                  <Star className="h-3 w-3 text-muted-foreground" />
-                </button>
-              </CommandItem>
-            ))}
-          </CommandGroup>
-        </CommandList>
-      </Command>
-    );
-  }
-
-  function DuplicateCategoryContent({ kwId }: { kwId: string }) {
-    const favCats = favorites.filter((f) => allCategories.includes(f));
-    const otherCats = allCategories.filter((c) => !favorites.includes(c));
-    return (
-      <Command>
-        <CommandInput placeholder="Search categories…" />
-        <CommandList>
-          <CommandEmpty>No category found.</CommandEmpty>
-          {favCats.length > 0 && (
-            <>
-              <CommandGroup heading="Favorites">
-                {favCats.map((cat) => (
-                  <CommandItem
-                    key={cat}
-                    value={cat}
-                    onSelect={() => { onDuplicate(kwId, cat); setDuplicatingKwId(null); }}
-                    className="group flex items-center gap-2 pr-1"
-                  >
-                    <Star className="h-3 w-3 shrink-0 fill-yellow-400 text-yellow-400" />
-                    <span className="flex-1 truncate">{cat}</span>
-                    <button type="button" onClick={(e) => toggleFavorite(e, cat)} className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-muted">
-                      <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                    </button>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-              <CommandSeparator />
-            </>
-          )}
-          <CommandGroup heading={favCats.length > 0 ? "All Categories" : undefined}>
-            {otherCats.map((cat) => (
-              <CommandItem
-                key={cat}
-                value={cat}
-                onSelect={() => { onDuplicate(kwId, cat); setDuplicatingKwId(null); }}
-                className="group flex items-center gap-2 pr-1"
-              >
-                <span className="flex-1 truncate">{cat}</span>
-                <button type="button" onClick={(e) => toggleFavorite(e, cat)} className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-muted">
-                  <Star className="h-3 w-3 text-muted-foreground" />
-                </button>
-              </CommandItem>
-            ))}
-          </CommandGroup>
-        </CommandList>
-      </Command>
-    );
   }
 
   useEffect(() => {
@@ -636,7 +610,13 @@ export function KeywordCategoryModal({
                           <RefreshCw className="h-3.5 w-3.5" />
                         </PopoverTrigger>
                         <PopoverContent className="p-0 w-[240px]" align="end">
-                          <MoveCategoryContent kwId={kw.id} currentCat={kw.category || "Uncategorized"} />
+                          <CategoryPickerList
+                            favorites={favorites}
+                            allCategories={allCategories}
+                            currentCat={kw.category || "Uncategorized"}
+                            onToggleFavorite={toggleFavorite}
+                            onPick={(cat) => { onMoveCategory(kw.id, cat); setMovingKwId(null); }}
+                          />
                         </PopoverContent>
                       </Popover>
                       {/* Duplicate to folder */}
@@ -652,7 +632,12 @@ export function KeywordCategoryModal({
                             <p className="text-xs font-semibold">Duplicate to folder</p>
                             <p className="text-[11px] text-muted-foreground">Creates a copy in the selected folder</p>
                           </div>
-                          <DuplicateCategoryContent kwId={kw.id} />
+                          <CategoryPickerList
+                            favorites={favorites}
+                            allCategories={allCategories}
+                            onToggleFavorite={toggleFavorite}
+                            onPick={(cat) => { onDuplicate(kw.id, cat); setDuplicatingKwId(null); }}
+                          />
                         </PopoverContent>
                       </Popover>
                       <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-muted-foreground hover:text-rose-500" onClick={() => onDelete(kw.id)}>
@@ -857,7 +842,13 @@ export function KeywordCategoryModal({
                           <RefreshCw className="h-3.5 w-3.5" />
                         </PopoverTrigger>
                         <PopoverContent className="p-0 w-[240px]" align="end">
-                          <MoveCategoryContent kwId={kw.id} currentCat={kw.category || "Uncategorized"} />
+                          <CategoryPickerList
+                            favorites={favorites}
+                            allCategories={allCategories}
+                            currentCat={kw.category || "Uncategorized"}
+                            onToggleFavorite={toggleFavorite}
+                            onPick={(cat) => { onMoveCategory(kw.id, cat); setMovingKwId(null); }}
+                          />
                         </PopoverContent>
                       </Popover>
                       {/* Duplicate to folder */}
@@ -873,7 +864,12 @@ export function KeywordCategoryModal({
                             <p className="text-xs font-semibold">Duplicate to folder</p>
                             <p className="text-[11px] text-muted-foreground">Creates a copy in the selected folder</p>
                           </div>
-                          <DuplicateCategoryContent kwId={kw.id} />
+                          <CategoryPickerList
+                            favorites={favorites}
+                            allCategories={allCategories}
+                            onToggleFavorite={toggleFavorite}
+                            onPick={(cat) => { onDuplicate(kw.id, cat); setDuplicatingKwId(null); }}
+                          />
                         </PopoverContent>
                       </Popover>
                       <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-muted-foreground hover:text-rose-500" onClick={() => onDelete(kw.id)}>
