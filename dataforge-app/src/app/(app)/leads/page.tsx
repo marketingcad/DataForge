@@ -82,6 +82,22 @@ export default async function LeadsPage({
 
       <Separator />
 
+      {/* Leads that aren't in any folder are otherwise invisible on this board —
+          surface them with a link to the list view (filtered to Unfiled) where
+          they can be reviewed and deleted. */}
+      {unfiledResult.total > 0 && (
+        <Link
+          href="/leads/list?folder=unfiled"
+          className="flex items-center justify-between rounded-lg border border-dashed px-4 py-3 text-sm hover:bg-muted/40 transition-colors"
+        >
+          <span className="text-muted-foreground">
+            <strong className="text-foreground">{unfiledResult.total.toLocaleString()}</strong>{" "}
+            lead{unfiledResult.total !== 1 ? "s" : ""} not in any folder
+          </span>
+          <span className="font-medium text-primary">View &amp; manage →</span>
+        </Link>
+      )}
+
       {isEmpty ? (
         <LeadsEmptyState
           userId={session.user.id!}

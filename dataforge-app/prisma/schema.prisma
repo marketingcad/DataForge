@@ -90,7 +90,7 @@ model Lead {
   ghlOpportunities  GhlOpportunity[]
   ghlAppointments   GhlAppointment[]
   assignedTo        User?            @relation("AssignedLeads", fields: [assignedToId], references: [id])
-  folder            Folder?          @relation(fields: [folderId], references: [id])
+  folder            Folder?          @relation(fields: [folderId], references: [id], onDelete: Cascade)
   keyword           ScrapingKeyword? @relation(fields: [keywordId], references: [id], onDelete: Cascade)
   savedBy           User?            @relation("LeadSavedBy", fields: [savedById], references: [id])
   commission        LeadCommission?
