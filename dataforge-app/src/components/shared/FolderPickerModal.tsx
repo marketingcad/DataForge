@@ -19,7 +19,7 @@
 
 import { useState, useEffect } from "react";
 import { getFoldersAction, createFolderAction } from "@/actions/folders.actions";
-import { getIndustriesAction } from "@/actions/industry.actions";
+import { getIndustriesAction, getSubcategoriesByIndustryAction } from "@/actions/industry.actions";
 import {
   Dialog,
   DialogContent,
@@ -97,6 +97,9 @@ export function FolderPickerModal({
   const [newName, setNewName]         = useState("");
   const [newColor, setNewColor]       = useState(PRESET_COLORS[0].value);
   const [newIndustryId, setNewIndustryId] = useState<string | null>(null);
+  const [newSubcategoryId, setNewSubcategoryId] = useState<string | null>(null);
+  const [subcategories, setSubcategories] = useState<IndustryOption[]>([]);
+  const [loadingSubs, setLoadingSubs] = useState(false);
   const [saving, setSaving]           = useState(false);
   const [search, setSearch]           = useState("");
   const [filterIndustryId, setFilterIndustryId] = useState<string | null>(null);
@@ -110,6 +113,8 @@ export function FolderPickerModal({
     setNewName("");
     setNewColor(PRESET_COLORS[0].value);
     setNewIndustryId(null);
+    setNewSubcategoryId(null);
+    setSubcategories([]);
     setSearch("");
     setFilterIndustryId(null);
 
@@ -123,6 +128,18 @@ export function FolderPickerModal({
       .catch(() => {}); // industries are optional
   }, [open]);
 
+  // Load subcategories for the chosen category. Reset any prior subcategory pick
+  // whenever the category changes so we never save a subcategory from another category.
+  useEffect(() => {
+    setNewSubcategoryId(null);
+    if (!newIndustryId) { setSubcategories([]); return; }
+    setLoadingSubs(true);
+    getSubcategoriesByIndustryAction(newIndustryId)
+      .then((subs) => setSubcategories(subs as IndustryOption[]))
+      .catch(() => setSubcategories([]))
+      .finally(() => setLoadingSubs(false));
+  }, [newIndustryId]);
+
   async function handleConfirm() {
     setSaving(true);
     try {
@@ -134,7 +151,7 @@ export function FolderPickerModal({
           setSaving(false);
           return;
         }
-        const created = await createFolderAction(newName.trim(), newColor, newIndustryId) as {
+        const created = await createFolderAction(newName.trim(), newColor, newIndustryId, newSubcategoryId) as {
           id: string; name: string; color: string;
         };
         // Add the new folder to the local list so it appears if the modal stays open
@@ -158,6 +175,7 @@ export function FolderPickerModal({
   }
 
   const selectedIndustry = industries.find((i) => i.id === newIndustryId);
+  const selectedSubcategory = subcategories.find((s) => s.id === newSubcategoryId);
 
   const filteredFolders = folders.filter((f) => {
     const matchSearch   = f.name.toLowerCase().includes(search.toLowerCase());
@@ -381,7 +399,7 @@ export function FolderPickerModal({
 
                   <div className="space-y-1.5">
                     <Label className="text-xs text-muted-foreground">
-                      Industry <span className="text-muted-foreground/60">(optional)</span>
+                      Category <span className="text-muted-foreground/60">(optional)</span>
                     </Label>
                     <DropdownMenu>
                       <DropdownMenuTrigger
@@ -422,6 +440,59 @@ export function FolderPickerModal({
                     </DropdownMenu>
                   </div>
 
+                  {/* Subcategory — only relevant once a category is chosen. If the
+                      user leaves this on "None", the folder sits directly under the
+                      category with no subcategory. */}
+                  {newIndustryId && (
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground">
+                        Subcategory <span className="text-muted-foreground/60">(optional)</span>
+                      </Label>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger
+                          render={
+                            <Button variant="outline" size="sm" className="w-full justify-between h-8 text-sm font-normal" disabled={loadingSubs} />
+                          }
+                        >
+                          <span className="flex items-center gap-2">
+                            {selectedSubcategory ? (
+                              <>
+                                <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: selectedSubcategory.color }} />
+                                {selectedSubcategory.name}
+                              </>
+                            ) : (
+                              <span className="text-muted-foreground">
+                                {loadingSubs ? "Loading…" : "None"}
+                              </span>
+                            )}
+                          </span>
+                          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent className="w-52">
+                          <DropdownMenuItem className="text-sm cursor-pointer" onClick={() => setNewSubcategoryId(null)}>
+                            <span className="text-muted-foreground">None</span>
+                            {!newSubcategoryId && <Check className="ml-auto h-3.5 w-3.5" />}
+                          </DropdownMenuItem>
+                          {subcategories.length > 0 && <DropdownMenuSeparator />}
+                          {subcategories.map((sub) => (
+                            <DropdownMenuItem
+                              key={sub.id}
+                              className="text-sm cursor-pointer gap-2"
+                              onClick={() => setNewSubcategoryId(sub.id)}
+                            >
+                              <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: sub.color }} />
+                              {sub.name}
+                              {newSubcategoryId === sub.id && <Check className="ml-auto h-3.5 w-3.5" />}
+                            </DropdownMenuItem>
+                          ))}
+                          {!loadingSubs && subcategories.length === 0 && (
+                            <p className="px-2 py-1.5 text-xs text-muted-foreground">No subcategories in this category yet.</p>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  )}
+
                   <Button
                     size="sm"
                     variant="ghost"
@@ -429,6 +500,7 @@ export function FolderPickerModal({
                       setCreatingNew(false);
                       setNewName("");
                       setNewIndustryId(null);
+                      setNewSubcategoryId(null);
                       setSelectedFolder("none");
                     }}
                     className="h-7 text-xs"
