@@ -305,17 +305,45 @@ async function getOrCreateDefaultCsvFolder(userId: string): Promise<string> {
   return folder.id;
 }
 
+/**
+ * Resolve the destination folder for a CSV import when the user did NOT pick an
+ * explicit folder:
+ *  - No category chosen → the shared "CSV Imports › General" catch-all.
+ *  - Category (and optionally subcategory) chosen → find or create a "General"
+ *    folder that lives under exactly that category/subcategory, so leads land
+ *    where the user selected instead of the catch-all.
+ */
+async function resolveImportFolder(
+  userId: string,
+  industryId: string | null,
+  subcategoryId: string | null,
+): Promise<string> {
+  if (!industryId) return getOrCreateDefaultCsvFolder(userId);
+
+  const existing = await prisma.folder.findFirst({
+    where: { name: "General", industryId, subcategoryId: subcategoryId ?? null, userId },
+  });
+  if (existing) return existing.id;
+
+  const created = await prisma.folder.create({
+    data: { userId, name: "General", color: "#64748b", industryId, subcategoryId: subcategoryId ?? null },
+  });
+  return created.id;
+}
+
 export async function importLeadsFromCsvAction(
   rows: CsvLeadRow[],
   folderId: string | null,
   categoryOverride: string | null,
   savedById: string,
+  categoryId: string | null = null,
+  subcategoryId: string | null = null,
 ) {
   await requireDepartment("leads");
 
   if (!rows.length) return { created: 0, duplicates: 0, errors: 0 };
 
-  const resolvedFolderId = folderId || await getOrCreateDefaultCsvFolder(savedById);
+  const resolvedFolderId = folderId || await resolveImportFolder(savedById, categoryId, subcategoryId);
 
   // Normalize all rows upfront — no per-row DB calls yet
   type NormalizedRow = Omit<CsvLeadRow, "category"> & { phone: string; email: string; website: string; category: string | null };

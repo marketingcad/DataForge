@@ -147,7 +147,7 @@ export function CsvImportDialog({ open, onClose, folders, userId, industries = [
 
     for (let i = 0; i < rows.length; i += BATCH_SIZE) {
       const batch = rows.slice(i, i + BATCH_SIZE);
-      const res = await importLeadsFromCsvAction(batch, folderId || null, cat, userId);
+      const res = await importLeadsFromCsvAction(batch, folderId || null, cat, userId, selectedCategoryId, selectedSubcategoryId);
       created += res.created;
       duplicates += res.duplicates;
       errors += res.errors;
@@ -376,9 +376,14 @@ export function CsvImportDialog({ open, onClose, folders, userId, industries = [
                     </Command>
                   </PopoverContent>
                 </Popover>
-                {!folderId && selectedSubcategoryId && (
+                {!folderId && (
                   <p className="text-xs text-muted-foreground">
-                    No folder selected — leads will go to <strong>CSV Imports › General</strong>
+                    No folder selected — leads will go to{" "}
+                    <strong>
+                      {selectedCategoryId
+                        ? [selectedCategoryName, selectedSubcategoryName, "General"].filter(Boolean).join(" › ")
+                        : "CSV Imports › General"}
+                    </strong>
                   </p>
                 )}
               </div>
