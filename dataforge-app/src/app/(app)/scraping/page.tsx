@@ -1,5 +1,6 @@
 import { getJobs } from "@/lib/scraping/jobs/service";
 import { getKeywords } from "@/lib/keywords/service";
+import { getGrantedKeywordIds, hasFullKeywordAccess } from "@/lib/keywords/access";
 import { Separator } from "@/components/ui/separator";
 import { withDbRetry } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
@@ -17,9 +18,19 @@ export default async function ScrapingPage() {
   await assertFeatureEnabled("scraping");
   const canUseKeywords = KEYWORD_ROLES.includes(role);
 
+  const fullAccess = hasFullKeywordAccess(role);
+  const userId = session!.user!.id!;
+
   const [{ jobs }, keywords] = await Promise.all([
     withDbRetry(() => getJobs({})).catch(() => ({ jobs: [] })),
-    canUseKeywords ? withDbRetry(() => getKeywords()).catch(() => []) : Promise.resolve([]),
+    canUseKeywords
+      ? withDbRetry(async () => {
+          // Boss/admin see all keywords; specialists only those granted to them.
+          if (fullAccess) return getKeywords();
+          const ids = await getGrantedKeywordIds(userId);
+          return ids.length ? getKeywords({ ids }) : [];
+        }).catch(() => [])
+      : Promise.resolve([]),
   ]);
 
   return (
@@ -38,6 +49,8 @@ export default async function ScrapingPage() {
         canUseKeywords={canUseKeywords}
         keywords={keywords as never[]}
         jobs={jobs}
+        canManageAll={fullAccess}
+        currentUserId={userId}
       />
     </div>
   );

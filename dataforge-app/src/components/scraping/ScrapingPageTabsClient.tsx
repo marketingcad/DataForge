@@ -13,6 +13,8 @@ interface Props {
   keywords: any[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   jobs: any[];
+  canManageAll: boolean;
+  currentUserId: string;
 }
 
 export function ScrapingPageTabsClient(props: Props) {

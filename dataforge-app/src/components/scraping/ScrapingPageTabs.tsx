@@ -18,9 +18,11 @@ interface ScrapingPageTabsProps {
   keywords: any[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   jobs: any[];
+  canManageAll: boolean;
+  currentUserId: string;
 }
 
-export function ScrapingPageTabs({ canUseKeywords, keywords, jobs }: ScrapingPageTabsProps) {
+export function ScrapingPageTabs({ canUseKeywords, keywords, jobs, canManageAll, currentUserId }: ScrapingPageTabsProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -79,7 +81,7 @@ export function ScrapingPageTabs({ canUseKeywords, keywords, jobs }: ScrapingPag
 
       {canUseKeywords && (
         <TabsContent value="keywords" forceMount className="space-y-4 data-[state=inactive]:hidden">
-          <KeywordsManager initial={keywords} />
+          <KeywordsManager initial={keywords} canManageAll={canManageAll} currentUserId={currentUserId} />
         </TabsContent>
       )}
     </Tabs>

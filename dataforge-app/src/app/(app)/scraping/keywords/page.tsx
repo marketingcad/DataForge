@@ -3,7 +3,6 @@ import { redirect } from "next/navigation";
 import { getKeywords } from "@/lib/keywords/service";
 import { getGrantedKeywordIds, hasFullKeywordAccess } from "@/lib/keywords/access";
 import { KeywordsManager } from "@/components/scraping/KeywordsManager";
-import { ManageKeywordAccessButton } from "@/components/scraping/ManageKeywordAccessButton";
 import { Separator } from "@/components/ui/separator";
 import { withDbRetry } from "@/lib/prisma";
 
@@ -27,14 +26,11 @@ export default async function KeywordsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <h1 className="text-lg font-semibold tracking-tight">Auto-Scrape Keywords</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Add keywords and locations to automatically discover leads on a schedule via Google Maps.
-          </p>
-        </div>
-        {fullAccess && <ManageKeywordAccessButton />}
+      <div>
+        <h1 className="text-lg font-semibold tracking-tight">Auto-Scrape Keywords</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">
+          Add keywords and locations to automatically discover leads on a schedule via Google Maps.
+        </p>
       </div>
 
       <Separator />

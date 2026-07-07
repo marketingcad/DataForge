@@ -46,6 +46,7 @@ import {
 import { KeywordLeadsModal } from "@/components/scraping/KeywordLeadsModal";
 import { KeywordHistoryModal } from "@/components/scraping/KeywordHistoryModal";
 import { KeywordCategoryModal } from "@/components/scraping/KeywordCategoryModal";
+import { ManageKeywordAccessButton } from "@/components/scraping/ManageKeywordAccessButton";
 import { CategoryCombobox } from "@/components/scraping/CategoryCombobox";
 import { LocationCombobox } from "@/components/scraping/LocationCombobox";
 import { Slider } from "@/components/ui/slider";
@@ -868,6 +869,7 @@ export function KeywordsManager({ initial, canManageAll = true, currentUserId = 
           {allCategoryNames.length} categor{allCategoryNames.length !== 1 ? "ies" : "y"}
         </p>
         <div className="flex items-center gap-2">
+          {canManageAll && <ManageKeywordAccessButton />}
           <Button size="sm" variant="outline" onClick={() => setCreateCatOpen(true)} className="gap-1.5">
             <Folder className="h-4 w-4" />
             New Category
