@@ -7,6 +7,13 @@ import { processKeywordJob } from "@/lib/scraping/jobs/processor";
 
 export const maxDuration = 300;
 
+// Each keyword job launches its OWN headless Chromium. On a serverless instance
+// (fractional CPU, limited RAM) more than a couple at once starves resources —
+// Google Maps then can't even reach domcontentloaded within the nav timeout, so
+// page.goto times out. Cap concurrency; the /5-min cron picks up the rest on the
+// next tick(s) since their nextRunAt hasn't advanced yet.
+const MAX_CONCURRENT_KEYWORD_JOBS = 2;
+
 async function handleCron(req: NextRequest) {
   // Accept either our CRON_SECRET (GitHub Actions / external services)
   // or Vercel's built-in cron header (when running on Pro plan with vercel.json crons).
@@ -21,9 +28,16 @@ async function handleCron(req: NextRequest) {
 
   const triggered: string[] = [];
 
+  // Jobs already in flight from earlier ticks count against the concurrency cap,
+  // so a slow batch of browsers can't pile up on top of a fresh one.
+  const inFlight = await prisma.scrapingJob.count({
+    where: { keywordId: { not: null }, status: { in: ["pending", "running"] } },
+  });
+  let slots = MAX_CONCURRENT_KEYWORD_JOBS - inFlight;
+
   // 1. Resume any keyword job that got stuck in "pending" (e.g. previous cron was killed
   //    before waitUntil could start). Process at most one stuck job per cron run.
-  const stuckJob = await prisma.scrapingJob.findFirst({
+  const stuckJob = slots > 0 ? await prisma.scrapingJob.findFirst({
     where: {
       status: "pending",
       keywordId: { not: null },
@@ -31,20 +45,24 @@ async function handleCron(req: NextRequest) {
       createdAt: { lte: new Date(Date.now() - 2 * 60 * 1000) },
     },
     orderBy: { createdAt: "asc" },
-  });
+  }) : null;
 
   if (stuckJob) {
     try {
       const job = await getJobById(stuckJob.id);
       waitUntil(processKeywordJob(job));
       triggered.push(`resume:${stuckJob.id}`);
+      slots--; // the resumed job is counted in inFlight, but its status may lag; decrement to be safe
     } catch { /* job may have been deleted */ }
   }
 
-  // 2. Enqueue and immediately process due keyword jobs
-  const dueKeywords = await getDueKeywords();
+  // 2. Enqueue and immediately process due keyword jobs, up to the remaining slots.
+  const dueKeywords = slots > 0 ? await getDueKeywords() : [];
 
+  let deferred = 0;
   for (const kw of dueKeywords) {
+    if (slots <= 0) { deferred++; continue; }
+
     // Skip if this keyword already has a running/pending job
     const active = await prisma.scrapingJob.findFirst({
       where: {
@@ -69,14 +87,19 @@ async function handleCron(req: NextRequest) {
       const job = await getJobById(newJob.id);
       waitUntil(processKeywordJob(job));
       triggered.push(`keyword:${kw.id}→job:${newJob.id}`);
+      slots--;
     } catch { /* ignore per-keyword errors so one failure doesn't block the rest */ }
   }
 
   if (triggered.length === 0) {
-    return NextResponse.json({ message: "Nothing to process" });
+    return NextResponse.json({
+      message: deferred > 0
+        ? `At concurrency cap (${MAX_CONCURRENT_KEYWORD_JOBS}) — ${deferred} keyword(s) deferred to next tick`
+        : "Nothing to process",
+    });
   }
 
-  return NextResponse.json({ triggered });
+  return NextResponse.json({ triggered, deferred });
 }
 
 export const GET  = handleCron;

@@ -137,7 +137,7 @@ export async function extractFromSerp(
       .catch(() => {});
     await sleep(randInt(800, 1400));
     await humanScroll(page);
-    await sleep(randInt(400, 700));
+    await sleep(randInt(300, 550));
 
     const bodyText = await page.evaluate(() => document.body?.innerText?.toLowerCase() ?? "");
     if (
@@ -627,7 +627,7 @@ export async function scrapeGoogleMapsHeadless(
       onLog?.("No results feed appeared — possible CAPTCHA or layout change");
       return leads;
     }
-    await sleep(600);
+    await sleep(randInt(300, 550));
 
     // ── Phase 1: Fast name discovery ───────────────────────────────────────────
     // Read all visible names in one page.evaluate() per scroll — single browser
@@ -636,15 +636,17 @@ export async function scrapeGoogleMapsHeadless(
 
     const allDiscoveredNames: string[] = [];
     const discoveredSet = new Set<string>();
-    // Collect at most 2× maxLeads names — enough buffer for ~50% duplicates.
-    const DISCOVERY_TARGET = Math.max(maxLeads * 2, maxLeads + 20);
+    // Collect at most 1.2× maxLeads names — small buffer for ~17% duplicates.
+    // Phase 1 ends sooner; Phase 2 still scrolls and picks up late-discovered
+    // names, so a tight buffer here mostly just saves discovery time.
+    const DISCOVERY_TARGET = Math.max(Math.ceil(maxLeads * 1.2), maxLeads + 10);
     // Phase 1 cap starts NOW (not from scraper start) so browser launch time
     // doesn't eat into the discovery window.
-    const PHASE1_MAX_MS = 90_000; // phase 1 hard cap: 90 s
+    const PHASE1_MAX_MS = 60_000; // phase 1 hard cap: 60 s
     const phase1StartedAt = Date.now();
     let phase1Stale = 0;
 
-    while (allDiscoveredNames.length < DISCOVERY_TARGET && phase1Stale < 8) {
+    while (allDiscoveredNames.length < DISCOVERY_TARGET && phase1Stale < 5) {
       if (await isCancelled?.()) {
         onLog?.("Cancelled — stopping");
         return leads;
@@ -681,13 +683,14 @@ export async function scrapeGoogleMapsHeadless(
         phase1Stale = 0;
       }
 
-      // Scroll and wait — 700 ms gives Google Maps enough time to lazy-load
-      // the next batch of results before we read again.
+      // Scroll and wait — jittered ~350-550 ms gives Google Maps enough time to
+      // lazy-load the next batch while keeping timing human-like (not a fixed
+      // robotic interval). Faster on average than the old flat 700 ms.
       await page.evaluate(() => {
         const feed = document.querySelector('div[role="feed"]');
         if (feed) feed.scrollTop += 1400;
       });
-      await sleep(700);
+      await sleep(randInt(350, 550));
     }
 
     // Build the target set: names not already in the DB
@@ -711,7 +714,7 @@ export async function scrapeGoogleMapsHeadless(
       const feed = document.querySelector('div[role="feed"]');
       if (feed) feed.scrollTop = 0;
     });
-    await sleep(600);
+    await sleep(randInt(300, 550));
 
     onLog?.(`Phase 2: extracting details for up to ${Math.min(maxLeads, toScrape.size)} businesses…`);
 
@@ -924,7 +927,7 @@ export async function scrapeGoogleMapsHeadless(
           const feed = document.querySelector('div[role="feed"]');
           if (feed) feed.scrollTop += 1400;
         });
-        await sleep(1200);
+        await sleep(randInt(550, 850));
       } else {
         staleRounds = 0;
       }
