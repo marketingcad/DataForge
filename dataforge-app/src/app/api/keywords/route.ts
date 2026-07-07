@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
   if (!ALLOWED_ROLES.includes(role)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const body = await req.json();
-  const { keyword, location, maxLeads, intervalMinutes, extraKeywords, extraKeywordsMode, extraKeywordsMin, extraKeywordsMax, extraKeywordsOrder, category } = body;
+  const { keyword, location, maxLeads, intervalMinutes, extraKeywords, extraKeywordsMode, extraKeywordsMin, extraKeywordsMax, extraKeywordsOrder, category, grabEmail } = body;
 
   if (!keyword?.trim() || !location?.trim()) {
     return NextResponse.json({ error: "keyword and location are required" }, { status: 400 });
@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
 
   const userId = (session.user as unknown as Record<string, unknown>)?.id as string;
   try {
-    const kw = await createKeyword({ keyword, location, maxLeads, intervalMinutes, extraKeywords, extraKeywordsMode, extraKeywordsMin, extraKeywordsMax, extraKeywordsOrder, category, createdById: userId });
+    const kw = await createKeyword({ keyword, location, maxLeads, intervalMinutes, extraKeywords, extraKeywordsMode, extraKeywordsMin, extraKeywordsMax, extraKeywordsOrder, category, grabEmail, createdById: userId });
     return NextResponse.json({ keyword: kw }, { status: 201 });
   } catch (err) {
     console.error("[POST /api/keywords]", err);

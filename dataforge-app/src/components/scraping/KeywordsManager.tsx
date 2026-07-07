@@ -451,7 +451,11 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
         if (job.status === "running") {
           const msg = job.errorMessage || "Searching Google Maps…";
           const prefix = job.leadsDiscovered > 0 ? `[ ${job.leadsDiscovered} found ] — ` : "";
-          setRunningLabels(prev => ({ ...prev, [kwId]: prefix + msg }));
+          // Show the current city (first segment of the resolved location) so the
+          // user sees which city the scraper is in right now.
+          const city = typeof job.location === "string" ? job.location.split(",")[0].trim() : "";
+          const cityPrefix = city ? `📍 ${city} · ` : "";
+          setRunningLabels(prev => ({ ...prev, [kwId]: cityPrefix + prefix + msg }));
 
           // Scraper logged a terminal message but Vercel timed out before writing status="completed"
           if (job.errorMessage?.startsWith("Done") || job.errorMessage?.startsWith("All discovered")) {
@@ -677,6 +681,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
           extraKeywordsMax: source.extraKeywordsMax,
           extraKeywordsOrder: source.extraKeywordsOrder,
           category: targetCategory,
+          grabEmail: source.grabEmail,
         }),
       });
       if (!res.ok) { toast.error("Failed to duplicate keyword"); return; }
@@ -739,7 +744,11 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
         } else if (job.status === "running") {
           const msg = job.errorMessage || "Searching Google Maps…";
           const prefix = job.leadsDiscovered > 0 ? `[ ${job.leadsDiscovered} found ] — ` : "";
-          setRunningLabels(prev => ({ ...prev, [kwId]: prefix + msg }));
+          // Show the current city (first segment of the resolved location) so the
+          // user sees which city the scraper is in right now.
+          const city = typeof job.location === "string" ? job.location.split(",")[0].trim() : "";
+          const cityPrefix = city ? `📍 ${city} · ` : "";
+          setRunningLabels(prev => ({ ...prev, [kwId]: cityPrefix + prefix + msg }));
           if (job.leadsDiscovered > 0) {
             setKeywords((prev) =>
               prev.map((k) =>

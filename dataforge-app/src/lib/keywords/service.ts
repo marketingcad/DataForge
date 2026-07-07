@@ -50,6 +50,7 @@ export async function createKeyword(data: {
   extraKeywordsMax?: number;
   extraKeywordsOrder?: string[];
   category?: string;
+  grabEmail?: boolean;
   createdById?: string;
 }) {
   const nextRunAt = new Date();
@@ -65,6 +66,8 @@ export async function createKeyword(data: {
       extraKeywordsMax: data.extraKeywordsMax ?? 3,
       extraKeywordsOrder: data.extraKeywordsOrder ?? [],
       category: data.category?.trim() || "Uncategorized",
+      // Default ON: visit each lead's website to grab a contact email.
+      grabEmail: data.grabEmail ?? true,
       nextRunAt,
       createdById: data.createdById ?? null,
     },
