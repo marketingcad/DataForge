@@ -17,8 +17,25 @@ model Industry {
   folders       Folder[]
   subcategories Subcategory[]
   user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  access        CategoryAccess[]
 
   @@index([userId])
+}
+
+// Grants a (lead specialist) user visibility into a category on the leads page.
+// industryId = null represents access to the "Uncategorized" bucket (folders
+// with no category + leads in no folder). No row = no access (default deny).
+model CategoryAccess {
+  id         String    @id @default(uuid())
+  userId     String
+  industryId String?
+  createdAt  DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  industry   Industry? @relation(fields: [industryId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, industryId])
+  @@index([userId])
+  @@index([industryId])
 }
 
 model Subcategory {
@@ -151,6 +168,7 @@ model User {
   bookedAppointments      BookedAppointment[] @relation("BookedAppointmentAgent")
   createdAppointments     BookedAppointment[] @relation("BookedAppointmentCreator")
   scrapingKeywords        ScrapingKeyword[]
+  categoryAccess          CategoryAccess[]
   sessions             Session[]
   taskProgress         TaskProgress[]
   userBadges           UserBadge[]

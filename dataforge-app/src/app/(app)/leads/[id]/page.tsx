@@ -16,6 +16,7 @@ import { getLeadCommission } from "@/lib/marketing/lead-commissions.service";
 import { getAllCommissionRules } from "@/lib/marketing/commissions.service";
 import { getSettings } from "@/lib/settings/service";
 import { GhlLeadButton } from "@/components/leads/GhlLeadButton";
+import { getCategoryGrants, hasFullLeadAccess, canSeeCategory } from "@/lib/leads/access";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -30,8 +31,17 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
   const role = (session?.user as unknown as Record<string, unknown>)?.role as string | undefined;
   const isManager = role === "boss" || role === "admin";
 
-  const lead = await prisma.lead.findUnique({ where: { id } });
+  const lead = await prisma.lead.findUnique({
+    where: { id },
+    include: { folder: { select: { industryId: true } } },
+  });
   if (!lead) notFound();
+
+  // Lead specialists may only open leads in a category granted to them.
+  if (!hasFullLeadAccess(role) && session?.user?.id) {
+    const grants = await getCategoryGrants(session.user.id);
+    if (!canSeeCategory(grants, lead.folder?.industryId ?? null)) notFound();
+  }
 
   // Fetch assignment data only for managers (avoid unnecessary queries for reps)
   const [salesReps, rules, existingCommission, settings] = isManager

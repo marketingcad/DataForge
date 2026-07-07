@@ -5,6 +5,8 @@ import { LeadsEmptyState } from "@/components/leads/LeadsEmptyState";
 import { getIndustries } from "@/lib/industry/service";
 import { getFolders } from "@/lib/folders/service";
 import { getLeads } from "@/lib/leads/service";
+import { getCategoryGrants, hasFullLeadAccess, canSeeCategory } from "@/lib/leads/access";
+import { ManageCategoryAccessButton } from "@/components/leads/ManageCategoryAccessButton";
 import { getLeadLocations } from "@/lib/leads/locations";
 import { getUsers } from "@/lib/users/service";
 import { auth } from "@/lib/auth";
@@ -34,15 +36,26 @@ export default async function LeadsPage({
   // All roles see all leads (no userId scoping) but may filter by savedById
   const scopedUserId = undefined;
 
-  const [industries, allFolders, unfiledResult, locations, users] = await withDbRetry(() =>
+  // Lead specialists are restricted to the categories granted to them
+  // (default deny). Boss/admin have full access.
+  const fullAccess = hasFullLeadAccess(role);
+  const grants = fullAccess ? null : await getCategoryGrants(session.user.id!);
+
+  const [industriesRaw, allFoldersRaw, unfiledResult, locations, users] = await withDbRetry(() =>
     Promise.all([
       getIndustries(scopedUserId, savedById),
       getFolders(scopedUserId, savedById),
-      getLeads({ folderId: "unfiled", pageSize: 1, savedById }),
+      getLeads({ folderId: "unfiled", pageSize: 1, savedById, ...(grants ? { access: grants } : {}) }),
       isAdmin ? getLeadLocations() : Promise.resolve([]),
       isAdmin ? getUsers().then((u) => u.filter((x) => x.role === "lead_specialist")) : Promise.resolve([]),
     ])
   );
+
+  // Filter categories + folders to the specialist's grants (no-op for boss/admin).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const industries = grants ? (industriesRaw as any[]).filter((i) => canSeeCategory(grants, i.id)) : industriesRaw;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const allFolders = grants ? (allFoldersRaw as any[]).filter((f) => canSeeCategory(grants, f.industryId ?? null)) : allFoldersRaw;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const unfiledFolders = (allFolders as any[]).filter((f) => !f.industryId);
@@ -67,6 +80,7 @@ export default async function LeadsPage({
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {isAdmin && <ManageCategoryAccessButton />}
           <Link href="/leads/new">
             <Button size="sm" variant="outline" className="gap-1.5">
               Add Lead
@@ -98,7 +112,14 @@ export default async function LeadsPage({
         </Link>
       )}
 
-      {isEmpty ? (
+      {grants && isEmpty ? (
+        <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed py-20 text-center">
+          <p className="text-sm font-medium">No categories assigned yet</p>
+          <p className="text-xs text-muted-foreground max-w-sm">
+            You don&apos;t have access to any lead categories. Ask a boss or admin to grant you access.
+          </p>
+        </div>
+      ) : isEmpty ? (
         <LeadsEmptyState
           userId={session.user.id!}
           savedById={savedById}

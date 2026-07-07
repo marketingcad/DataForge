@@ -183,6 +183,7 @@ export async function getLeads({
   exportStatus,
   exportedFrom,
   exportedTo,
+  access,
 }: {
   search?: string;
   industry?: string;
@@ -213,6 +214,12 @@ export async function getLeads({
   /** yyyy-mm-dd — filters by export date (inclusive) */
   exportedFrom?: string;
   exportedTo?: string;
+  /**
+   * Category-access restriction for scoped (lead specialist) users. When set,
+   * only leads in the user's granted categories are returned. Omit for
+   * full-access roles (boss/admin).
+   */
+  access?: { industryIds: string[]; uncategorized: boolean };
 }) {
   const where: Record<string, unknown> = {};
 
@@ -272,6 +279,19 @@ export async function getLeads({
   if (noContact)  and.push({ OR: [{ contactPerson: null }, { contactPerson: "" }] });
   if (noPhone)    and.push({ OR: [{ phone: null }, { phone: "" }, { phone: "N/A" }] });
   if (noBusiness) and.push({ OR: [{ businessName: null }, { businessName: "" }] });
+
+  // Category-access scoping for lead specialists. Restricts to leads whose
+  // folder is in a granted category (or the Uncategorized bucket if granted).
+  if (access) {
+    const accessOr: AndClause[] = [];
+    if (access.industryIds.length) accessOr.push({ folder: { industryId: { in: access.industryIds } } });
+    if (access.uncategorized) {
+      accessOr.push({ folderId: null });
+      accessOr.push({ folder: { is: { industryId: null } } });
+    }
+    and.push(accessOr.length ? { OR: accessOr } : { id: "__no_category_access__" });
+  }
+
   if (and.length) where.AND = and;
 
   if (savedById) where.savedById = savedById;

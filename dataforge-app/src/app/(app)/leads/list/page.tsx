@@ -8,6 +8,7 @@ import { FolderFilter } from "@/components/leads/FolderFilter";
 import { DeleteAllUnfiledButton } from "@/components/leads/DeleteAllUnfiledButton";
 import { getLeads } from "@/lib/leads/service";
 import { getFolders } from "@/lib/folders/service";
+import { getCategoryGrants, hasFullLeadAccess, canSeeCategory } from "@/lib/leads/access";
 import { auth } from "@/lib/auth";
 import { Separator } from "@/components/ui/separator";
 import { ArrowLeft, Plus } from "lucide-react";
@@ -29,7 +30,10 @@ export default async function LeadsListPage({ searchParams }: PageProps) {
 
   const folderId = getString(params.folder);
 
-  const [result, folders] = await Promise.all([
+  // Lead specialists only see leads in categories granted to them.
+  const grants = hasFullLeadAccess(role) ? null : await getCategoryGrants(session.user.id!);
+
+  const [result, allFolders] = await Promise.all([
     getLeads({
       search: getString(params.search),
       industry: getString(params.industry),
@@ -38,9 +42,15 @@ export default async function LeadsListPage({ searchParams }: PageProps) {
       folderId,
       page: Number(getString(params.page)) || 1,
       pageSize: 20,
+      ...(grants ? { access: grants } : {}),
     }),
     getFolders(),
   ]);
+
+  // Only offer folder filters the user is allowed to see.
+  const folders = grants
+    ? allFolders.filter((f) => canSeeCategory(grants, f.industryId ?? null))
+    : allFolders;
 
   return (
     <div className="space-y-6">
@@ -61,7 +71,7 @@ export default async function LeadsListPage({ searchParams }: PageProps) {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {folderId === "unfiled" && result.total > 0 && (
+          {folderId === "unfiled" && result.total > 0 && hasFullLeadAccess(role) && (
             <DeleteAllUnfiledButton count={result.total} />
           )}
           <Link href="/leads/new">
