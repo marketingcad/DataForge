@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { requireDepartment } from "@/lib/rbac/guards";
 import { normalizePhone, normalizeEmail, normalizeWebsite } from "@/lib/utils/normalize";
 import { calculateDataQualityScore } from "@/lib/utils/scoring";
+import { getCategoryGrants, canSeeCategory, hasFullLeadAccess } from "@/lib/leads/access";
 
 type LeadFilterParams = {
   folderId: string;
@@ -38,7 +39,21 @@ type LeadFilterParams = {
 };
 
 export async function getLeadsForFolderAction(params: LeadFilterParams & { page?: number }) {
-  await requireDepartment("leads");
+  const user = await requireDepartment("leads");
+
+  // Lead specialists may only read leads in a folder whose category they've
+  // been granted (folder-less leads require the Uncategorized grant).
+  if (!hasFullLeadAccess(user.role)) {
+    const grants = await getCategoryGrants(user.id);
+    const empty = { leads: [], total: 0, page: params.page || 1, pageSize: params.pageSize ?? 20, totalPages: 1 };
+    if (!params.folderId || params.folderId === "unfiled") {
+      if (!grants.uncategorized) return empty;
+    } else {
+      const folder = await prisma.folder.findUnique({ where: { id: params.folderId }, select: { industryId: true } });
+      if (!folder || !canSeeCategory(grants, folder.industryId)) return empty;
+    }
+  }
+
   return getLeads({
     folderId: params.folderId,
     search: params.search || "",
