@@ -171,6 +171,15 @@ export async function bulkDeleteLeadsAction(ids: string[]) {
   revalidatePath("/reports");
 }
 
+/** Delete every lead that isn't in any folder (folderId = null), across all pages. */
+export async function deleteAllUnfiledLeadsAction() {
+  await requireDepartment("leads");
+  const res = await prisma.lead.deleteMany({ where: { folderId: null } });
+  revalidatePath("/leads");
+  revalidatePath("/reports");
+  return { count: res.count };
+}
+
 /** Mark the given leads as exported now (overwrites any previous export date). */
 export async function markLeadsExportedAction(ids: string[]) {
   await requireDepartment("leads");

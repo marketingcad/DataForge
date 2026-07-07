@@ -5,6 +5,7 @@ import { LeadTable } from "@/components/leads/LeadTable";
 import { LeadFilters } from "@/components/leads/LeadFilters";
 import { LeadPagination } from "@/components/leads/LeadPagination";
 import { FolderFilter } from "@/components/leads/FolderFilter";
+import { DeleteAllUnfiledButton } from "@/components/leads/DeleteAllUnfiledButton";
 import { getLeads } from "@/lib/leads/service";
 import { getFolders } from "@/lib/folders/service";
 import { auth } from "@/lib/auth";
@@ -59,12 +60,17 @@ export default async function LeadsListPage({ searchParams }: PageProps) {
             </p>
           </div>
         </div>
-        <Link href="/leads/new">
-          <Button size="sm" className="gap-1.5">
-            <Plus className="h-4 w-4" />
-            Add Lead
-          </Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          {folderId === "unfiled" && result.total > 0 && (
+            <DeleteAllUnfiledButton count={result.total} />
+          )}
+          <Link href="/leads/new">
+            <Button size="sm" className="gap-1.5">
+              <Plus className="h-4 w-4" />
+              Add Lead
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <Suspense>
