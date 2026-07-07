@@ -1,17 +1,24 @@
 import { prisma } from "@/lib/prisma";
 import { Country, State, City } from "country-state-city";
 
-export async function getKeywords(createdById?: string) {
+export async function getKeywords(opts?: { createdById?: string; ids?: string[] }) {
+  const where: Record<string, unknown> = {};
+  if (opts?.createdById) where.createdById = opts.createdById;
+  // Restrict to a specific set of keyword IDs (used to scope lead specialists
+  // to the keywords granted to them).
+  if (opts?.ids) where.id = { in: opts.ids };
+
   return prisma.scrapingKeyword.findMany({
-    where: createdById ? { createdById } : undefined,
+    where: Object.keys(where).length ? where : undefined,
     include: {
       // Count only jobs — leads count is fetched on-demand via /api/keywords/[id]/leads
       _count: { select: { jobs: true, leads: { where: { folderId: null } } } },
       jobs: {
         orderBy: { createdAt: "desc" },
         take: 1,
-        // Exclude pendingLeads (large JSON) from the polling payload
-        select: { id: true, status: true, leadsProcessed: true, leadsDiscovered: true, errorMessage: true, createdAt: true },
+        // Exclude pendingLeads (large JSON) from the polling payload.
+        // startedById lets the UI decide who may stop a running job.
+        select: { id: true, status: true, leadsProcessed: true, leadsDiscovered: true, errorMessage: true, createdAt: true, startedById: true },
       },
     },
     orderBy: { createdAt: "desc" },

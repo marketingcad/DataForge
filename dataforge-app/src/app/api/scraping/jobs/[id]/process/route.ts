@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { waitUntil } from "@vercel/functions";
+import { auth } from "@/lib/auth";
 import { getJobById, updateJobStatus, incrementJobMetric } from "@/lib/scraping/jobs/service";
 import { discoverBusinesses } from "@/lib/scraping/google/discovery";
 import { scrapeWebsite } from "@/lib/scraping/crawler/web-scraper";
 import { insertLead } from "@/lib/leads/service";
 import { processKeywordJob, processEmailRegrabJob, processFolderEmailRegrabJob } from "@/lib/scraping/jobs/processor";
+import { canAccessKeyword, hasFullKeywordAccess } from "@/lib/keywords/access";
 
 export const maxDuration = 300;
 
@@ -14,6 +16,11 @@ export async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const role = (session.user as unknown as Record<string, unknown>)?.role as string;
+  const userId = (session.user as unknown as Record<string, unknown>)?.id as string;
+
   const { id } = await params;
 
   let job;
@@ -21,6 +28,13 @@ export async function POST(
     job = await getJobById(id);
   } catch {
     return NextResponse.json({ error: "Job not found" }, { status: 404 });
+  }
+
+  // Lead specialists may only process keyword jobs for keywords granted to them.
+  // Non-keyword jobs (folder re-grab, standard SerpAPI) stay boss/admin-only.
+  if (!hasFullKeywordAccess(role)) {
+    const allowed = !!job.keywordId && (await canAccessKeyword({ id: userId, role }, job.keywordId));
+    if (!allowed) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   if (job.status === "completed" || job.status === "failed") {

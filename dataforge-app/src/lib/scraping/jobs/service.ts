@@ -1,10 +1,16 @@
 import { prisma } from "@/lib/prisma";
 import { ScrapingJobInput } from "@/types/scraping";
 
-export async function createJob(input: ScrapingJobInput & { keywordId?: string }) {
-  const { keywordId, ...rest } = input;
+export async function createJob(input: ScrapingJobInput & { keywordId?: string; startedById?: string }) {
+  const { keywordId, startedById, ...rest } = input;
   return prisma.scrapingJob.create({
-    data: keywordId ? { ...rest, keywordId } : rest,
+    data: {
+      ...rest,
+      ...(keywordId ? { keywordId } : {}),
+      // Who manually started this run — lets us enforce "only the starter (or
+      // boss/admin) may stop it". Cron/auto runs leave this null.
+      ...(startedById ? { startedById } : {}),
+    },
   });
 }
 

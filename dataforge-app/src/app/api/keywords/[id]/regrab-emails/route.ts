@@ -4,8 +4,9 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createJob } from "@/lib/scraping/jobs/service";
 import { processEmailRegrabJob } from "@/lib/scraping/jobs/processor";
+import { canAccessKeyword, hasFullKeywordAccess } from "@/lib/keywords/access";
 
-const ALLOWED_ROLES = ["boss", "admin", "team_lead"];
+const ALLOWED_ROLES = ["boss", "admin", "team_lead", "lead_specialist"];
 
 export async function POST(
   _req: NextRequest,
@@ -15,8 +16,16 @@ export async function POST(
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const role = (session.user as unknown as Record<string, unknown>)?.role as string;
   if (!ALLOWED_ROLES.includes(role)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const userId = (session.user as unknown as Record<string, unknown>)?.id as string;
 
   const { id } = await params;
+
+  // Lead specialists may only re-grab for keywords granted to them.
+  if (!hasFullKeywordAccess(role) && role !== "team_lead") {
+    if (!(await canAccessKeyword({ id: userId, role }, id))) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+  }
 
   // Verify keyword exists
   const kw = await prisma.scrapingKeyword.findUnique({ where: { id }, select: { id: true, location: true } });
@@ -50,6 +59,7 @@ export async function POST(
     maxLeads: count,
     source: "manual",
     keywordId: id,
+    startedById: userId,
   });
 
   // Start processing directly — avoids the unreliable server-to-server HTTP hop

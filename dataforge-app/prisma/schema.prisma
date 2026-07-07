@@ -169,6 +169,7 @@ model User {
   createdAppointments     BookedAppointment[] @relation("BookedAppointmentCreator")
   scrapingKeywords        ScrapingKeyword[]
   categoryAccess          CategoryAccess[]
+  keywordAccess           KeywordAccess[]
   sessions             Session[]
   taskProgress         TaskProgress[]
   userBadges           UserBadge[]
@@ -462,6 +463,7 @@ model ScrapingJob {
   duplicatesFound Int              @default(0)
   failedRecords   Int              @default(0)
   keywordId       String?
+  startedById     String?
   pendingLeads    Json?
   startTime       DateTime?
   completedTime   DateTime?
@@ -610,10 +612,26 @@ model ScrapingKeyword {
   grabEmail           Boolean       @default(false)
   leads               Lead[]
   jobs                ScrapingJob[]
+  access              KeywordAccess[]
   createdBy           User?         @relation(fields: [createdById], references: [id])
 
   @@index([enabled, nextRunAt])
   @@index([createdById])
+}
+
+// Grants a lead specialist access to a specific auto-scrape keyword.
+// No row = no access (boss/admin bypass this and see everything).
+model KeywordAccess {
+  id        String          @id @default(uuid())
+  userId    String
+  keywordId String
+  createdAt DateTime        @default(now())
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  keyword   ScrapingKeyword @relation(fields: [keywordId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, keywordId])
+  @@index([userId])
+  @@index([keywordId])
 }
 
 model CommissionRule {

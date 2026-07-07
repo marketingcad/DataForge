@@ -84,11 +84,16 @@ interface KeywordRow {
     leadsDiscovered: number;
     errorMessage: string | null;
     createdAt: string;
+    startedById?: string | null;
   }[];
 }
 
 interface KeywordsManagerProps {
   initial: KeywordRow[];
+  /** Boss/admin — may stop any run and manage every keyword. */
+  canManageAll?: boolean;
+  /** Current user id — a specialist may stop only runs they started. */
+  currentUserId?: string;
 }
 
 // All values are in minutes
@@ -136,8 +141,11 @@ function intervalLabel(minutes: number) {
      `Every ${minutes / 1440}d`);
 }
 
-export function KeywordsManager({ initial }: KeywordsManagerProps) {
+export function KeywordsManager({ initial, canManageAll = true, currentUserId = "" }: KeywordsManagerProps) {
   const [keywords, setKeywords] = useState<KeywordRow[]>(initial);
+  // kwIds whose current run this user started this session (so the Stop button
+  // shows immediately, before the next poll reports startedById).
+  const startedByMeRef = useRef<Set<string>>(new Set());
 
   // Track in-flight category moves so the background poller doesn't revert them
   const pendingMovesRef = useRef<Map<string, string>>(new Map());
@@ -702,6 +710,7 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
   }
 
   async function handleRunNow(kwId: string) {
+    startedByMeRef.current.add(kwId);
     setRunningIds(prev => ({ ...prev, [kwId]: true }));
     setRunningLabels(prev => ({ ...prev, [kwId]: "Starting…" }));
 
@@ -1001,6 +1010,9 @@ export function KeywordsManager({ initial }: KeywordsManagerProps) {
           runningIds={runningIds}
           runningJobIds={runningJobIds}
           runningLabels={runningLabels}
+          canManageAll={canManageAll}
+          currentUserId={currentUserId}
+          startedByMe={startedByMeRef.current}
           allCategories={allCategoryNames}
           onToggle={handleToggle}
           onRunNow={handleRunNow}

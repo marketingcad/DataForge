@@ -1,19 +1,37 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { getKeywordById, updateKeyword, deleteKeyword } from "@/lib/keywords/service";
+import { canAccessKeyword, hasFullKeywordAccess } from "@/lib/keywords/access";
 
-const ALLOWED_ROLES = ["boss", "admin", "team_lead"];
+const ALLOWED_ROLES = ["boss", "admin", "team_lead", "lead_specialist"];
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+/**
+ * Authorize a keyword request. Returns an error NextResponse to short-circuit,
+ * or null if allowed. Lead specialists must have been granted this keyword.
+ */
+async function authorizeKeyword(id: string): Promise<NextResponse | null> {
   const session = await auth();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const role = (session.user as unknown as Record<string, unknown>)?.role as string;
   if (!ALLOWED_ROLES.includes(role)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
+  if (!hasFullKeywordAccess(role) && role !== "team_lead") {
+    const userId = (session.user as unknown as Record<string, unknown>)?.id as string;
+    if (!(await canAccessKeyword({ id: userId, role }, id))) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+  }
+  return null;
+}
+
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   const { id } = await params;
+  const denied = await authorizeKeyword(id);
+  if (denied) return denied;
+
   try {
     const kw = await getKeywordById(id);
     return NextResponse.json({ keyword: kw });
@@ -26,12 +44,10 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const role = (session.user as unknown as Record<string, unknown>)?.role as string;
-  if (!ALLOWED_ROLES.includes(role)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-
   const { id } = await params;
+  const denied = await authorizeKeyword(id);
+  if (denied) return denied;
+
   const body = await req.json();
   const { keyword, location, maxLeads, intervalMinutes, enabled, extraKeywords, extraKeywordsMode, extraKeywordsMin, extraKeywordsMax, extraKeywordsOrder, category, cityRotationEnabled, grabEmail } = body;
 
@@ -69,12 +85,10 @@ export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const role = (session.user as unknown as Record<string, unknown>)?.role as string;
-  if (!ALLOWED_ROLES.includes(role)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-
   const { id } = await params;
+  const denied = await authorizeKeyword(id);
+  if (denied) return denied;
+
   await deleteKeyword(id);
   return NextResponse.json({ success: true });
 }
