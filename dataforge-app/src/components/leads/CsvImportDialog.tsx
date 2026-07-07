@@ -63,7 +63,7 @@ interface Props {
   categories?: string[];
 }
 
-export function CsvImportDialog({ open, onClose, folders, userId, industries = [], categories = [] }: Props) {
+export function CsvImportDialog({ open, onClose, folders, userId, industries = [] }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [rows, setRows] = useState<CsvLeadRow[]>([]);
   const [skipped, setSkipped] = useState(0);
@@ -74,8 +74,6 @@ export function CsvImportDialog({ open, onClose, folders, userId, industries = [
   const [folderOpen, setFolderOpen] = useState(false);
   const [categoryPickerOpen, setCategoryPickerOpen] = useState(false);
   const [subcategoryPickerOpen, setSubcategoryPickerOpen] = useState(false);
-  const [categoryOverride, setCategoryOverride] = useState("none");
-  const [categoryOpen, setCategoryOpen] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [progress, setProgress] = useState({ imported: 0, total: 0 });
   const [result, setResult] = useState<{ created: number; duplicates: number; errors: number } | null>(null);
@@ -122,8 +120,6 @@ export function CsvImportDialog({ open, onClose, folders, userId, industries = [
   const selectedCategoryName = industries.find((c) => c.id === selectedCategoryId)?.name ?? "";
   const selectedSubcategoryName = subcategoryOptions.find((s) => s.id === selectedSubcategoryId)?.name ?? "";
 
-  const categoryLabel = categoryOverride === "none" ? "Use category from CSV" : categoryOverride;
-
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -146,7 +142,8 @@ export function CsvImportDialog({ open, onClose, folders, userId, industries = [
     setIsImporting(true);
     setProgress({ imported: 0, total: rows.length });
     let created = 0, duplicates = 0, errors = 0;
-    const cat = categoryOverride === "none" ? null : categoryOverride;
+    // Category always comes from the CSV's own Category column.
+    const cat = null;
 
     for (let i = 0; i < rows.length; i += BATCH_SIZE) {
       const batch = rows.slice(i, i + BATCH_SIZE);
@@ -169,7 +166,6 @@ export function CsvImportDialog({ open, onClose, folders, userId, industries = [
     setSelectedCategoryId(null);
     setSelectedSubcategoryId(null);
     setFolderId("");
-    setCategoryOverride("none");
     setResult(null);
     setProgress({ imported: 0, total: 0 });
     if (fileRef.current) fileRef.current.value = "";
@@ -385,51 +381,6 @@ export function CsvImportDialog({ open, onClose, folders, userId, industries = [
                     No folder selected — leads will go to <strong>CSV Imports › General</strong>
                   </p>
                 )}
-              </div>
-
-              {/* Category combobox */}
-              <div className="space-y-1.5">
-                <Label>Category <span className="text-muted-foreground text-xs">(optional override)</span></Label>
-                <Popover open={categoryOpen} onOpenChange={setCategoryOpen}>
-                  <PopoverTrigger
-                    className="inline-flex w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm font-normal shadow-sm hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                    aria-expanded={categoryOpen}
-                  >
-                    <span className="truncate">{categoryLabel}</span>
-                    <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
-                  </PopoverTrigger>
-                  <PopoverContent
-                    className="p-0"
-                    align="start"
-                    style={{ width: "var(--anchor-width)" }}
-                  >
-                    <Command>
-                      <CommandInput placeholder="Search categories…" />
-                      <CommandList>
-                        <CommandEmpty>No category found.</CommandEmpty>
-                        <CommandGroup>
-                          <CommandItem
-                            value="none"
-                            onSelect={() => { setCategoryOverride("none"); setCategoryOpen(false); }}
-                          >
-                            <Check className={cn("mr-2 h-4 w-4 shrink-0", categoryOverride === "none" ? "opacity-100" : "opacity-0")} />
-                            Use category from CSV
-                          </CommandItem>
-                          {categories.map((c) => (
-                            <CommandItem
-                              key={c}
-                              value={c}
-                              onSelect={() => { setCategoryOverride(c); setCategoryOpen(false); }}
-                            >
-                              <Check className={cn("mr-2 h-4 w-4 shrink-0", categoryOverride === c ? "opacity-100" : "opacity-0")} />
-                              {c}
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
               </div>
             </>
           )}
