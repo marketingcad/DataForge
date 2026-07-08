@@ -10,7 +10,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { importLeadsFromCsvAction, type CsvLeadRow } from "@/actions/leads.actions";
-import { getSubcategoriesByIndustryAction } from "@/actions/industry.actions";
+import { getSubcategoriesByIndustryAction, getFoldersByIndustryAction, getFoldersBySubcategoryAction } from "@/actions/industry.actions";
 
 const BATCH_SIZE = 50;
 
@@ -45,7 +45,10 @@ function mapRow(raw: Record<string, string>): CsvLeadRow | null {
     const field = HEADER_MAP[key.toLowerCase().trim()];
     if (field && val) (mapped as Record<string, string>)[field] = val;
   }
-  if (!mapped.businessName || !mapped.phone) return null;
+  // Keep any row that has at least one identifier. Missing business name or phone
+  // is fine — the server fills sensible defaults (phone "N/A", a derived name) and
+  // dedups against the DB. Only a totally empty row is skipped.
+  if (!mapped.businessName && !mapped.phone && !mapped.email && !mapped.website) return null;
   return mapped as CsvLeadRow;
 }
 
@@ -63,7 +66,7 @@ interface Props {
   categories?: string[];
 }
 
-export function CsvImportDialog({ open, onClose, folders, userId, industries = [] }: Props) {
+export function CsvImportDialog({ open, onClose, userId, industries = [] }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [rows, setRows] = useState<CsvLeadRow[]>([]);
   const [skipped, setSkipped] = useState(0);
@@ -93,29 +96,38 @@ export function CsvImportDialog({ open, onClose, folders, userId, industries = [
     return () => { cancelled = true; };
   }, [selectedCategoryId]);
 
-  // Filter folders by selected subcategory → category → all
-  const filteredFolders = folders.filter((f) => {
-    if (selectedSubcategoryId) return f.subcategoryId === selectedSubcategoryId;
-    if (selectedCategoryId) return f.industryId === selectedCategoryId;
-    return true;
-  });
+  // Folders for the chosen subcategory/category, fetched LIVE (not from the stale
+  // page prop) so folders created after the page loaded show up, and only ones
+  // that actually belong to the selection appear.
+  const [liveFolders, setLiveFolders] = useState<Folder[]>([]);
+  const [loadingFolders, setLoadingFolders] = useState(false);
 
-  // Group filtered folders
-  const grouped = filteredFolders.reduce<Record<string, Folder[]>>((acc, f) => {
-    const key = selectedSubcategoryId
-      ? (f.subcategoryName ?? "Folders")
-      : selectedCategoryId
-        ? (f.subcategoryName ?? f.industryName ?? "Folders")
-        : (f.industryName ? (f.subcategoryName ? `${f.industryName} › ${f.subcategoryName}` : f.industryName) : "Uncategorized");
-    if (!acc[key]) acc[key] = [];
-    acc[key].push(f);
-    return acc;
-  }, {});
+  useEffect(() => {
+    if (!selectedCategoryId) { setLiveFolders([]); return; }
+    let cancelled = false;
+    setLoadingFolders(true);
+    const fetcher = selectedSubcategoryId
+      ? getFoldersBySubcategoryAction(selectedSubcategoryId)
+      : getFoldersByIndustryAction(selectedCategoryId);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    fetcher.then((data: any[]) => {
+      if (!cancelled) {
+        setLiveFolders(
+          (data ?? []).map((f) => ({
+            id: f.id, name: f.name,
+            industryId: f.industryId ?? null, subcategoryId: f.subcategoryId ?? null,
+          }))
+        );
+      }
+    }).catch(() => { if (!cancelled) setLiveFolders([]); })
+      .finally(() => { if (!cancelled) setLoadingFolders(false); });
+    return () => { cancelled = true; };
+  }, [selectedCategoryId, selectedSubcategoryId]);
 
-  const selectedFolder = folders.find((f) => f.id === folderId);
-  const folderLabel = selectedFolder
-    ? [selectedFolder.industryName, selectedFolder.subcategoryName, selectedFolder.name].filter(Boolean).join(" › ")
-    : "";
+  const grouped: Record<string, Folder[]> = liveFolders.length ? { Folders: liveFolders } : {};
+
+  const selectedFolder = liveFolders.find((f) => f.id === folderId);
+  const folderLabel = selectedFolder ? selectedFolder.name : "";
 
   const selectedCategoryName = industries.find((c) => c.id === selectedCategoryId)?.name ?? "";
   const selectedSubcategoryName = subcategoryOptions.find((s) => s.id === selectedSubcategoryId)?.name ?? "";
@@ -216,7 +228,7 @@ export function CsvImportDialog({ open, onClose, folders, userId, industries = [
               <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
               <span>
                 <strong>{rows.length}</strong> valid rows ready to import
-                {skipped > 0 && <span className="text-muted-foreground"> · {skipped} skipped (missing name or phone)</span>}
+                {skipped > 0 && <span className="text-muted-foreground"> · {skipped} skipped (empty rows)</span>}
               </span>
             </div>
           )}
@@ -357,7 +369,7 @@ export function CsvImportDialog({ open, onClose, folders, userId, industries = [
                     <Command>
                       <CommandInput placeholder="Search folders…" />
                       <CommandList>
-                        <CommandEmpty>No folder found.</CommandEmpty>
+                        <CommandEmpty>{loadingFolders ? "Loading folders…" : "No folder in this subcategory yet — leave blank to auto-create one."}</CommandEmpty>
                         {Object.entries(grouped).map(([group, flds]) => (
                           <CommandGroup key={group} heading={group}>
                             {flds.map((f) => (

@@ -388,29 +388,37 @@ export async function importLeadsFromCsvAction(
     }
   }
 
-  // ── Bulk dedup: phone is the only reliable unique key per business location ──
-  // Business name and website both produce false positives for chains/franchises
-  // (e.g. "State Farm Insurance" or "mcdonalds.com" shared across hundreds of locations).
-  // We fall back to website-domain only when a row has no phone at all.
-  const phones   = [...new Set(normalized.map(r => r.phone).filter(Boolean))];
-  const noPhoneWebsites = [...new Set(
-    normalized.filter(r => !r.phone).map(r => r.website).filter(Boolean)
+  // ── Dedup against existing DB leads ──────────────────────────────────────
+  // A row is a duplicate only if it already exists. Match strategy per row:
+  //   - has a real phone   → duplicate if that phone already exists
+  //   - no phone, has name → duplicate if that business name already exists
+  //   - no phone, no name  → duplicate if that website already exists
+  // Rows missing name and/or phone are still imported (with safe defaults) as
+  // long as they aren't an existing record.
+  const phones = [...new Set(normalized.map((r) => r.phone).filter(Boolean))];
+  const noPhoneNames = [...new Set(
+    normalized.filter((r) => !r.phone && r.businessName).map((r) => r.businessName)
+  )];
+  const noPhoneNoNameWebsites = [...new Set(
+    normalized.filter((r) => !r.phone && !r.businessName).map((r) => r.website).filter(Boolean)
   )];
 
-  const existingLeads = (phones.length || noPhoneWebsites.length)
+  const existingLeads = (phones.length || noPhoneNames.length || noPhoneNoNameWebsites.length)
     ? await prisma.lead.findMany({
         where: {
           OR: [
-            ...(phones.length         ? [{ phone:   { in: phones         } }] : []),
-            ...(noPhoneWebsites.length ? [{ website: { in: noPhoneWebsites } }] : []),
+            ...(phones.length ? [{ phone: { in: phones } }] : []),
+            ...(noPhoneNames.length ? [{ businessName: { in: noPhoneNames } }] : []),
+            ...(noPhoneNoNameWebsites.length ? [{ website: { in: noPhoneNoNameWebsites } }] : []),
           ],
         },
-        select: { phone: true, website: true },
+        select: { phone: true, businessName: true, website: true },
       })
     : [];
 
-  const existingPhones   = new Set(existingLeads.map(e => e.phone).filter(Boolean) as string[]);
-  const existingWebsites = new Set(existingLeads.map(e => e.website).filter(Boolean) as string[]);
+  const existingPhones   = new Set(existingLeads.map((e) => e.phone).filter(Boolean) as string[]);
+  const existingNames    = new Set(existingLeads.map((e) => e.businessName.trim().toLowerCase()).filter(Boolean));
+  const existingWebsites = new Set(existingLeads.map((e) => e.website).filter(Boolean) as string[]);
 
   // ── Build insert list ──────────────────────────────────────────────────
   let duplicates = 0;
@@ -423,22 +431,31 @@ export async function importLeadsFromCsvAction(
   }[] = [];
 
   for (const row of normalized) {
-    // Duplicate if: phone matches, OR (no phone AND website matches)
     const isDuplicate =
-      (row.phone   && existingPhones.has(row.phone)) ||
-      (!row.phone && row.website && existingWebsites.has(row.website));
+      (row.phone && existingPhones.has(row.phone)) ||
+      (!row.phone && !!row.businessName && existingNames.has(row.businessName.toLowerCase())) ||
+      (!row.phone && !row.businessName && !!row.website && existingWebsites.has(row.website));
 
     if (isDuplicate) { duplicates++; continue; }
 
+    // DB requires businessName + phone. Fill safe defaults so rows missing one
+    // still import: derive a name from website/email, and use "N/A" for phone.
+    const businessName =
+      row.businessName ||
+      row.website ||
+      (row.email ? row.email.split("@")[0] : "") ||
+      "Unknown Business";
+    const phone = row.phone || "N/A";
+
     const industries = row.category ? [row.category] : [];
     const score = calculateDataQualityScore(
-      { ...row, phone: row.phone, email: row.email || undefined, website: row.website || undefined, category: row.category ?? undefined },
+      { ...row, businessName, phone: row.phone, email: row.email || undefined, website: row.website || undefined, category: row.category ?? undefined },
       industries.length,
     );
 
     toCreate.push({
-      businessName: row.businessName,
-      phone:        row.phone,
+      businessName,
+      phone,
       email:        row.email        || null,
       website:      row.website      || null,
       contactPerson: row.contactPerson || null,
