@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { waitUntil } from "@vercel/functions";
 import { auth } from "@/lib/auth";
 import { getKeywordById, updateKeyword, deleteKeyword } from "@/lib/keywords/service";
 import { canAccessKeyword, hasFullKeywordAccess } from "@/lib/keywords/access";
+import { runKeywordAutoLoop } from "@/lib/scraping/jobs/processor";
 
 const ALLOWED_ROLES = ["boss", "admin", "team_lead", "lead_specialist"];
 
@@ -81,6 +83,15 @@ export async function PATCH(
     ...(resetNextRun ? { nextRunAt: new Date() } : {}),
     ...(locationChanged ? { cityIndex: 0 } : {}),
   });
+
+  // Auto-run turned on → start the server-side loop immediately so it doesn't
+  // wait for the next cron tick (essential locally, where the cron never fires).
+  if (autoRunTurnedOn) {
+    const session = await auth();
+    const userId = (session?.user as unknown as Record<string, unknown>)?.id as string | undefined;
+    waitUntil(runKeywordAutoLoop(id, userId));
+  }
+
   return NextResponse.json({ keyword: updated });
 }
 

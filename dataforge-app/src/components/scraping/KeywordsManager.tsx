@@ -515,8 +515,6 @@ export function KeywordsManager({ initial, canManageAll = true, currentUserId = 
       if (!res.ok) throw new Error("failed");
       if (next) {
         toast.success("Auto-run on — this keyword keeps scraping on the server until you turn it off. You can close this page.");
-        // Kick off the first run immediately so it doesn't wait for the next cron tick.
-        handleRunNow(kwId);
       } else {
         toast.info("Auto-run off — it won't start new runs.");
       }

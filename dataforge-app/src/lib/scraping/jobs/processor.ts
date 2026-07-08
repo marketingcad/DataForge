@@ -6,7 +6,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { getJobById, updateJobStatus } from "@/lib/scraping/jobs/service";
+import { getJobById, updateJobStatus, createJob } from "@/lib/scraping/jobs/service";
 import { scrapeGoogleMapsHeadless } from "@/lib/scraping/google/maps-scraper";
 import { insertLead } from "@/lib/leads/service";
 import { normalizePhone } from "@/lib/utils/normalize";
@@ -312,6 +312,54 @@ export async function processKeywordJob(
     await notifyKeywordSuccess(job.keywordId!, savedCount, dupCount, finalLeads.length);
   } else {
     await handleKeywordFailure(job.keywordId!, completionMsg);
+  }
+}
+
+// ─── Server-side auto-run loop ─────────────────────────────────────────────────
+// Keeps scraping a keyword back-to-back while its autoRun flag is on, without
+// depending on the cron. Locally (persistent dev server) this loops until the
+// user turns it off. On Vercel it loops until the function's time limit, and the
+// cron restarts it on the next tick. One loop per keyword per process.
+const activeAutoLoops = new Set<string>();
+
+export async function runKeywordAutoLoop(keywordId: string, startedById?: string) {
+  if (activeAutoLoops.has(keywordId)) return; // a loop for this keyword is already running here
+  activeAutoLoops.add(keywordId);
+  try {
+    for (;;) {
+      let kw: Awaited<ReturnType<typeof getKeywordById>>;
+      try {
+        kw = await getKeywordById(keywordId);
+      } catch {
+        break; // keyword deleted
+      }
+      if (!kw.autoRun) break; // turned off → stop looping
+
+      // Don't double-run: skip this iteration if a job is already active for this
+      // keyword (e.g. the cron or a manual run started one).
+      const active = await prisma.scrapingJob.findFirst({
+        where: { keywordId, status: { in: ["pending", "running"] } },
+        select: { id: true },
+      });
+      if (!active) {
+        try {
+          const newJob = await createJob({
+            industry: pickSearchTerm(kw),
+            location: kw.location,
+            maxLeads: kw.maxLeads,
+            source: "serpapi",
+            keywordId,
+            startedById,
+          });
+          await processKeywordJob(await getJobById(newJob.id));
+        } catch { /* one failed run shouldn't break the loop */ }
+      }
+
+      // Brief pause so DB writes settle and we don't hammer in a tight loop.
+      await new Promise((r) => setTimeout(r, 3000));
+    }
+  } finally {
+    activeAutoLoops.delete(keywordId);
   }
 }
 
