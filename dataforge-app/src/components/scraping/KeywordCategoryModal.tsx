@@ -68,6 +68,7 @@ interface KeywordRow {
   extraKeywordsOrder: string[];
   cityRotationEnabled: boolean;
   grabEmail: boolean;
+  autoRun: boolean;
   _count: { jobs: number; leads: number };
   jobs: {
     id: string;
@@ -207,7 +208,6 @@ interface KeywordCategoryModalProps {
   runningIds: Record<string, true>;
   runningJobIds: Record<string, string>;
   runningLabels: Record<string, string>;
-  autoRunId: string | null;
   /** Boss/admin may stop any run. */
   canManageAll: boolean;
   /** Current user id — a specialist may stop only runs they started. */
@@ -236,7 +236,6 @@ export function KeywordCategoryModal({
   runningIds,
   runningJobIds,
   runningLabels,
-  autoRunId,
   canManageAll,
   currentUserId,
   startedByMe,
@@ -409,7 +408,7 @@ export function KeywordCategoryModal({
                 const hasFailed = kw.failedAttempts > 0;
                 const isDisabledByFailure = !kw.enabled && kw.failedAttempts >= 5;
                 const isRunning = !!runningIds[kw.id] || (job?.status === "running" || job?.status === "pending");
-                const isAutoRunning = autoRunId === kw.id;
+                const isAutoRunning = kw.autoRun;
                 const stopJobId = runningJobIds[kw.id] ?? job?.id ?? "";
                 // Only the person who started this run (or a boss/admin) may stop it.
                 const canStop = canManageAll || startedByMe.has(kw.id) || job?.startedById === currentUserId;
@@ -535,14 +534,24 @@ export function KeywordCategoryModal({
 
                     {/* Actions */}
                     <div className="flex items-center gap-1 pt-1 mt-auto">
-                      {isRunning && canStop ? (
+                      {isAutoRunning ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-1.5 h-8 flex-1 text-rose-600 border-rose-300 hover:bg-rose-50"
+                          onClick={() => onAutoRun(kw.id)}
+                          title="Auto-run keeps scraping on the server until stopped"
+                        >
+                          <Square className="h-3.5 w-3.5" />Stop Auto
+                        </Button>
+                      ) : isRunning && canStop ? (
                         <Button
                           size="sm"
                           variant="outline"
                           className="gap-1.5 h-8 flex-1 text-rose-600 border-rose-300 hover:bg-rose-50"
                           onClick={() => onStop(kw.id, stopJobId)}
                         >
-                          <Square className="h-3.5 w-3.5" />{isAutoRunning ? "Stop Auto" : "Stop"}
+                          <Square className="h-3.5 w-3.5" />Stop
                         </Button>
                       ) : isRunning ? (
                         <Button
@@ -669,7 +678,7 @@ export function KeywordCategoryModal({
                 const hasFailed = kw.failedAttempts > 0;
                 const isDisabledByFailure = !kw.enabled && kw.failedAttempts >= 5;
                 const isRunning = !!runningIds[kw.id] || (job?.status === "running" || job?.status === "pending");
-                const isAutoRunning = autoRunId === kw.id;
+                const isAutoRunning = kw.autoRun;
                 const stopJobId = runningJobIds[kw.id] ?? job?.id ?? "";
                 // Only the person who started this run (or a boss/admin) may stop it.
                 const canStop = canManageAll || startedByMe.has(kw.id) || job?.startedById === currentUserId;
@@ -786,9 +795,13 @@ export function KeywordCategoryModal({
 
                     {/* Action buttons */}
                     <div className="flex items-center gap-1 shrink-0">
-                      {isRunning && canStop ? (
+                      {isAutoRunning ? (
+                        <Button size="sm" variant="outline" className="gap-1.5 h-8 text-rose-600 border-rose-300 hover:bg-rose-50" onClick={() => onAutoRun(kw.id)} title="Auto-run keeps scraping on the server until stopped">
+                          <Square className="h-3.5 w-3.5" />Stop Auto
+                        </Button>
+                      ) : isRunning && canStop ? (
                         <Button size="sm" variant="outline" className="gap-1.5 h-8 text-rose-600 border-rose-300 hover:bg-rose-50" onClick={() => onStop(kw.id, stopJobId)}>
-                          <Square className="h-3.5 w-3.5" />{isAutoRunning ? "Stop Auto" : "Stop"}
+                          <Square className="h-3.5 w-3.5" />Stop
                         </Button>
                       ) : isRunning ? (
                         <Button size="sm" variant="outline" disabled className="gap-1.5 h-8 text-muted-foreground" title="Only the person who started this run, or a boss/admin, can stop it">

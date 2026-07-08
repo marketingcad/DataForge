@@ -49,17 +49,19 @@ export async function PATCH(
   if (denied) return denied;
 
   const body = await req.json();
-  const { keyword, location, maxLeads, intervalMinutes, enabled, extraKeywords, extraKeywordsMode, extraKeywordsMin, extraKeywordsMax, extraKeywordsOrder, category, cityRotationEnabled, grabEmail } = body;
+  const { keyword, location, maxLeads, intervalMinutes, enabled, extraKeywords, extraKeywordsMode, extraKeywordsMin, extraKeywordsMax, extraKeywordsOrder, category, cityRotationEnabled, grabEmail, autoRun } = body;
 
   const existing = await getKeywordById(id).catch(() => null);
 
   // Reset nextRunAt to now when:
   // - intervalMinutes changed (so it runs at the new frequency immediately)
   // - keyword is being re-enabled (so it doesn't wait until the old nextRunAt)
+  // - autoRun is being turned on (so continuous mode starts on the next cron tick)
   const intervalChanged = intervalMinutes !== undefined && existing && existing.intervalMinutes !== intervalMinutes;
   const beingEnabled = enabled === true && existing && !existing.enabled;
+  const autoRunTurnedOn = autoRun === true && existing && !existing.autoRun;
   const locationChanged = location !== undefined && existing && existing.location !== location;
-  const resetNextRun = intervalChanged || beingEnabled;
+  const resetNextRun = intervalChanged || beingEnabled || autoRunTurnedOn;
 
   const updated = await updateKeyword(id, {
     keyword,
@@ -75,6 +77,7 @@ export async function PATCH(
     ...(category !== undefined ? { category: category?.trim() || "Uncategorized" } : {}),
     ...(cityRotationEnabled !== undefined ? { cityRotationEnabled } : {}),
     ...(grabEmail !== undefined ? { grabEmail } : {}),
+    ...(autoRun !== undefined ? { autoRun } : {}),
     ...(resetNextRun ? { nextRunAt: new Date() } : {}),
     ...(locationChanged ? { cityIndex: 0 } : {}),
   });

@@ -99,6 +99,7 @@ export async function updateKeyword(
     cityIndex: number;
     cityRotationEnabled: boolean;
     grabEmail: boolean;
+    autoRun: boolean;
   }>
 ) {
   return prisma.scrapingKeyword.update({ where: { id }, data });
@@ -197,12 +198,22 @@ export async function deleteKeyword(id: string) {
   return prisma.scrapingKeyword.delete({ where: { id } });
 }
 
-/** Returns keywords whose nextRunAt is due (or never set) and are enabled. */
+/**
+ * Keywords the cron should run this tick:
+ *  - autoRun keywords: always due (they loop every tick until turned off), or
+ *  - enabled keywords whose nextRunAt is due (or never set).
+ * The cron's per-keyword active-job check prevents overlapping runs.
+ */
 export async function getDueKeywords() {
   return prisma.scrapingKeyword.findMany({
     where: {
-      enabled: true,
-      OR: [{ nextRunAt: null }, { nextRunAt: { lte: new Date() } }],
+      OR: [
+        { autoRun: true },
+        {
+          enabled: true,
+          OR: [{ nextRunAt: null }, { nextRunAt: { lte: new Date() } }],
+        },
+      ],
     },
     orderBy: { nextRunAt: "asc" },
   });

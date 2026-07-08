@@ -34,6 +34,25 @@ async function handleCron(req: NextRequest) {
   // each) so N concurrent keywords cost ~1 browser process instead of N.
   const jobsToRun: Awaited<ReturnType<typeof getJobById>>[] = [];
 
+  // Reap zombie jobs. A serverless run can't live past ~300s, so any keyword job
+  // still "running"/"pending" but not updated in >6 min was interrupted (function
+  // timeout or crash). Left alone it shows as stuck forever, blocks its keyword
+  // from restarting, and permanently eats a concurrency slot. Mark it failed so
+  // the keyword can run again on this tick.
+  const reaped = await prisma.scrapingJob.updateMany({
+    where: {
+      keywordId: { not: null },
+      status: { in: ["running", "pending"] },
+      updatedAt: { lt: new Date(Date.now() - 6 * 60 * 1000) },
+    },
+    data: {
+      status: "failed",
+      completedTime: new Date(),
+      errorMessage: "Run interrupted (server timeout) — retrying.",
+    },
+  }).catch(() => ({ count: 0 }));
+  if (reaped.count > 0) triggered.push(`reaped:${reaped.count}`);
+
   // Jobs already in flight from earlier ticks count against the concurrency cap,
   // so a slow batch of browsers can't pile up on top of a fresh one.
   const inFlight = await prisma.scrapingJob.count({

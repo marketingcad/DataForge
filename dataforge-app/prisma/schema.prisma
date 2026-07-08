@@ -610,6 +610,10 @@ model ScrapingKeyword {
   cityIndex           Int           @default(0)
   cityRotationEnabled Boolean       @default(true)
   grabEmail           Boolean       @default(false)
+  // Server-side continuous mode: when true, the cron keeps running this keyword
+  // every tick (subject to the concurrency cap) until turned off — independent
+  // of any browser tab, so it survives reloads/navigation.
+  autoRun             Boolean       @default(false)
   leads               Lead[]
   jobs                ScrapingJob[]
   access              KeywordAccess[]

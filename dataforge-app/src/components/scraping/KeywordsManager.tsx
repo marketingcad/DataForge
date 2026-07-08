@@ -77,6 +77,7 @@ interface KeywordRow {
   extraKeywordsOrder: string[];
   cityRotationEnabled: boolean;
   grabEmail: boolean;
+  autoRun: boolean;
   _count: { jobs: number; leads: number };
   jobs: {
     id: string;
@@ -350,11 +351,6 @@ export function KeywordsManager({ initial, canManageAll = true, currentUserId = 
   // Track which job IDs we've already started live-polling to avoid duplicates
   const livePolledJobsRef = useRef<Set<string>>(new Set());
 
-  // Auto-run state — loops handleRunNow until stopped or page leave
-  const autoRunRef = useRef<string | null>(null);
-  const [autoRunId, setAutoRunId] = useState<string | null>(null);
-
-  useEffect(() => () => { autoRunRef.current = null; }, []);
 
   useEffect(() => {
     function isActive(kws: KeywordRow[]) {
@@ -495,37 +491,39 @@ export function KeywordsManager({ initial, canManageAll = true, currentUserId = 
   }
 
   async function doStop(kwId: string, jobId: string) {
-    if (autoRunRef.current === kwId) {
-      autoRunRef.current = null;
-      setAutoRunId(null);
-    }
     setRunningIds(prev => { const n = { ...prev }; delete n[kwId]; return n; });
     setRunningJobIds(prev => { const n = { ...prev }; delete n[kwId]; return n; });
     setForceStopConfirm(null);
     await fetch(`/api/scraping/jobs/${jobId}/cancel`, { method: "POST" }).catch(() => null);
   }
 
+  // Auto-run is a SERVER-SIDE flag: the cron keeps running the keyword every
+  // tick until it's turned off. This survives closing the popup, reloading,
+  // navigating away, or logging out — the browser isn't involved in the loop.
   async function handleAutoRun(kwId: string) {
-    // Toggle off if already auto-running this keyword
-    if (autoRunRef.current === kwId) {
-      autoRunRef.current = null;
-      setAutoRunId(null);
-      return;
-    }
+    const kw = keywords.find((k) => k.id === kwId);
+    const next = !kw?.autoRun;
 
-    autoRunRef.current = kwId;
-    setAutoRunId(kwId);
-
-    while (autoRunRef.current === kwId) {
-      await handleRunNow(kwId);
-      if (autoRunRef.current !== kwId) break;
-      // Brief pause between runs so DB writes settle before next job starts
-      await new Promise((r) => setTimeout(r, 3000));
-    }
-
-    if (autoRunRef.current === kwId) {
-      autoRunRef.current = null;
-      setAutoRunId(null);
+    // Optimistic toggle
+    setKeywords((prev) => prev.map((k) => (k.id === kwId ? { ...k, autoRun: next } : k)));
+    try {
+      const res = await fetch(`/api/keywords/${kwId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ autoRun: next }),
+      });
+      if (!res.ok) throw new Error("failed");
+      if (next) {
+        toast.success("Auto-run on — this keyword keeps scraping on the server until you turn it off. You can close this page.");
+        // Kick off the first run immediately so it doesn't wait for the next cron tick.
+        handleRunNow(kwId);
+      } else {
+        toast.info("Auto-run off — it won't start new runs.");
+      }
+    } catch {
+      // Revert on failure
+      setKeywords((prev) => prev.map((k) => (k.id === kwId ? { ...k, autoRun: !next } : k)));
+      toast.error("Failed to update auto-run. Please try again.");
     }
   }
 
@@ -1019,7 +1017,6 @@ export function KeywordsManager({ initial, canManageAll = true, currentUserId = 
           onToggle={handleToggle}
           onRunNow={handleRunNow}
           onStop={handleStop}
-          autoRunId={autoRunId}
           onAutoRun={handleAutoRun}
           onUpdateSetting={handleUpdateSetting}
           onEdit={openEdit}
