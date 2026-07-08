@@ -7,12 +7,14 @@ import { processKeywordJob } from "@/lib/scraping/jobs/processor";
 
 export const maxDuration = 300;
 
-// Each keyword job launches its OWN headless Chromium. On a serverless instance
-// (fractional CPU, limited RAM) more than a couple at once starves resources —
-// Google Maps then can't even reach domcontentloaded within the nav timeout, so
-// page.goto times out. Cap concurrency; the /5-min cron picks up the rest on the
-// next tick(s) since their nextRunAt hasn't advanced yet.
-const MAX_CONCURRENT_KEYWORD_JOBS = 2;
+// Each keyword job launches its OWN headless Chromium. Running several at once
+// is fine on a capable host but can starve a small serverless instance (leading
+// to page.goto timeouts). Cap concurrency; the /5-min cron picks up the rest on
+// the next tick(s) since their nextRunAt hasn't advanced yet.
+//
+// Tune with the KEYWORD_SCRAPER_CONCURRENCY env var (default 3). Raise it if the
+// host has spare CPU/RAM; lower it to 1–2 if scrapes start timing out.
+const MAX_CONCURRENT_KEYWORD_JOBS = Math.max(1, Number(process.env.KEYWORD_SCRAPER_CONCURRENCY) || 3);
 
 async function handleCron(req: NextRequest) {
   // Accept either our CRON_SECRET (GitHub Actions / external services)
@@ -52,7 +54,9 @@ async function handleCron(req: NextRequest) {
       const job = await getJobById(stuckJob.id);
       waitUntil(processKeywordJob(job));
       triggered.push(`resume:${stuckJob.id}`);
-      slots--; // the resumed job is counted in inFlight, but its status may lag; decrement to be safe
+      // NOTE: do NOT decrement slots here — this pending job is already included
+      // in the inFlight count above, so decrementing would double-count it and
+      // needlessly block a fresh keyword from starting this tick.
     } catch { /* job may have been deleted */ }
   }
 
