@@ -31,8 +31,8 @@ const APPT_COLUMNS: Column[] = [
 // Call-performance columns.
 const CALL_COLUMNS: Column[] = [
   { key: "callsToday",  label: "Today",    format: (v) => v.toString() },
-  { key: "callsWeek",   label: "Calls/Wk", format: (v) => v.toString() },
-  { key: "callsMonth",  label: "Calls/Mo", format: (v) => v.toString() },
+  { key: "callsWeek",   label: "Week",     format: (v) => v.toString() },
+  { key: "callsMonth",  label: "Month",    format: (v) => v.toString() },
   { key: "totalCalls",  label: "All-Time", format: (v) => v.toString() },
   { key: "avgDuration", label: "Avg Dur",  format: durationFormat },
   { key: "connectRate", label: "Connect%", format: (v) => `${v}%` },
