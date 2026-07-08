@@ -430,6 +430,14 @@ export async function importLeadsFromCsvAction(
     folderId: string; savedById: string;
   }[] = [];
 
+  // Also dedupe rows against EACH OTHER within this import, so a business listed
+  // twice in the CSV is inserted once (the DB check only catches pre-existing
+  // leads). Batches run sequentially, so earlier batches are already in the DB
+  // check by the time later ones run.
+  const seenPhones = new Set<string>();
+  const seenNames = new Set<string>();
+  const seenWebsites = new Set<string>();
+
   for (const row of normalized) {
     const isDuplicate =
       (row.phone && existingPhones.has(row.phone)) ||
@@ -437,6 +445,17 @@ export async function importLeadsFromCsvAction(
       (!row.phone && !row.businessName && !!row.website && existingWebsites.has(row.website));
 
     if (isDuplicate) { duplicates++; continue; }
+
+    // In-file duplicate (same lead appears earlier in this CSV)?
+    const nameKey = row.businessName.toLowerCase();
+    const inFileDup =
+      (row.phone && seenPhones.has(row.phone)) ||
+      (!row.phone && !!row.businessName && seenNames.has(nameKey)) ||
+      (!row.phone && !row.businessName && !!row.website && seenWebsites.has(row.website));
+    if (inFileDup) { duplicates++; continue; }
+    if (row.phone) seenPhones.add(row.phone);
+    else if (row.businessName) seenNames.add(nameKey);
+    else if (row.website) seenWebsites.add(row.website);
 
     // DB requires businessName + phone. Fill safe defaults so rows missing one
     // still import: derive a name from website/email, and use "N/A" for phone.
