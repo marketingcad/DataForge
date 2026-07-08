@@ -355,24 +355,20 @@ async function resolveImportFolder(
   return created.id;
 }
 
-export async function importLeadsFromCsvAction(
-  rows: CsvLeadRow[],
-  folderId: string | null,
-  categoryOverride: string | null,
-  savedById: string,
-  categoryId: string | null = null,
-  subcategoryId: string | null = null,
-) {
-  await requireDepartment("leads");
+type NormalizedCsvRow = Omit<CsvLeadRow, "category"> & { phone: string; email: string; website: string; category: string | null };
 
-  if (!rows.length) return { created: 0, duplicates: 0, errors: 0 };
-
-  const resolvedFolderId = folderId || await resolveImportFolder(savedById, categoryId, subcategoryId);
-
-  // Normalize all rows upfront — no per-row DB calls yet
-  type NormalizedRow = Omit<CsvLeadRow, "category"> & { phone: string; email: string; website: string; category: string | null };
+/**
+ * Normalize CSV rows and split them into the ones to keep vs duplicates, using
+ * ONE set of rules shared by the import and the pre-import preview (so the
+ * preview count always matches what the import will actually do). A row is a
+ * duplicate if it already exists in the DB OR repeats earlier in the same file:
+ *   - has a real phone   → matches on phone
+ *   - no phone, has name → matches on business name
+ *   - no phone, no name  → matches on website
+ */
+async function partitionCsvRows(rows: CsvLeadRow[], categoryOverride: string | null) {
   let errors = 0;
-  const normalized: NormalizedRow[] = [];
+  const normalized: NormalizedCsvRow[] = [];
   for (const row of rows) {
     try {
       normalized.push({
@@ -388,13 +384,6 @@ export async function importLeadsFromCsvAction(
     }
   }
 
-  // ── Dedup against existing DB leads ──────────────────────────────────────
-  // A row is a duplicate only if it already exists. Match strategy per row:
-  //   - has a real phone   → duplicate if that phone already exists
-  //   - no phone, has name → duplicate if that business name already exists
-  //   - no phone, no name  → duplicate if that website already exists
-  // Rows missing name and/or phone are still imported (with safe defaults) as
-  // long as they aren't an existing record.
   const phones = [...new Set(normalized.map((r) => r.phone).filter(Boolean))];
   const noPhoneNames = [...new Set(
     normalized.filter((r) => !r.phone && r.businessName).map((r) => r.businessName)
@@ -420,76 +409,88 @@ export async function importLeadsFromCsvAction(
   const existingNames    = new Set(existingLeads.map((e) => e.businessName.trim().toLowerCase()).filter(Boolean));
   const existingWebsites = new Set(existingLeads.map((e) => e.website).filter(Boolean) as string[]);
 
-  // ── Build insert list ──────────────────────────────────────────────────
-  let duplicates = 0;
-  const toCreate: {
-    businessName: string; phone: string; email: string | null; website: string | null;
-    contactPerson: string | null; address: string | null; city: string | null;
-    state: string | null; country: string | null; category: string | null;
-    source: string; industriesFoundIn: string[]; dataQualityScore: number;
-    folderId: string; savedById: string;
-  }[] = [];
-
-  // Also dedupe rows against EACH OTHER within this import, so a business listed
-  // twice in the CSV is inserted once (the DB check only catches pre-existing
-  // leads). Batches run sequentially, so earlier batches are already in the DB
-  // check by the time later ones run.
   const seenPhones = new Set<string>();
   const seenNames = new Set<string>();
   const seenWebsites = new Set<string>();
 
+  let duplicates = 0;
+  const toKeep: NormalizedCsvRow[] = [];
   for (const row of normalized) {
-    const isDuplicate =
-      (row.phone && existingPhones.has(row.phone)) ||
-      (!row.phone && !!row.businessName && existingNames.has(row.businessName.toLowerCase())) ||
-      (!row.phone && !row.businessName && !!row.website && existingWebsites.has(row.website));
-
-    if (isDuplicate) { duplicates++; continue; }
-
-    // In-file duplicate (same lead appears earlier in this CSV)?
     const nameKey = row.businessName.toLowerCase();
+    const dbDup =
+      (row.phone && existingPhones.has(row.phone)) ||
+      (!row.phone && !!row.businessName && existingNames.has(nameKey)) ||
+      (!row.phone && !row.businessName && !!row.website && existingWebsites.has(row.website));
     const inFileDup =
       (row.phone && seenPhones.has(row.phone)) ||
       (!row.phone && !!row.businessName && seenNames.has(nameKey)) ||
       (!row.phone && !row.businessName && !!row.website && seenWebsites.has(row.website));
-    if (inFileDup) { duplicates++; continue; }
+    if (dbDup || inFileDup) { duplicates++; continue; }
     if (row.phone) seenPhones.add(row.phone);
     else if (row.businessName) seenNames.add(nameKey);
     else if (row.website) seenWebsites.add(row.website);
+    toKeep.push(row);
+  }
 
-    // DB requires businessName + phone. Fill safe defaults so rows missing one
-    // still import: derive a name from website/email, and use "N/A" for phone.
+  return { toKeep, duplicates, errors, total: rows.length };
+}
+
+/** Pre-import preview: how many rows are new vs already-in-DB / duplicate. */
+export async function previewCsvImportAction(rows: CsvLeadRow[]) {
+  await requireDepartment("leads");
+  if (!rows.length) return { total: 0, newCount: 0, duplicates: 0, errors: 0 };
+  const { toKeep, duplicates, errors, total } = await partitionCsvRows(rows, null);
+  return { total, newCount: toKeep.length, duplicates, errors };
+}
+
+export async function importLeadsFromCsvAction(
+  rows: CsvLeadRow[],
+  folderId: string | null,
+  categoryOverride: string | null,
+  savedById: string,
+  categoryId: string | null = null,
+  subcategoryId: string | null = null,
+) {
+  await requireDepartment("leads");
+
+  if (!rows.length) return { created: 0, duplicates: 0, errors: 0 };
+
+  const resolvedFolderId = folderId || await resolveImportFolder(savedById, categoryId, subcategoryId);
+
+  const { toKeep, duplicates, errors } = await partitionCsvRows(rows, categoryOverride);
+
+  // DB requires businessName + phone. Fill safe defaults for rows missing one:
+  // derive a name from website/email, and use "N/A" for phone.
+  const toCreate = toKeep.map((row) => {
     const businessName =
       row.businessName ||
       row.website ||
       (row.email ? row.email.split("@")[0] : "") ||
       "Unknown Business";
     const phone = row.phone || "N/A";
-
     const industries = row.category ? [row.category] : [];
     const score = calculateDataQualityScore(
       { ...row, businessName, phone: row.phone, email: row.email || undefined, website: row.website || undefined, category: row.category ?? undefined },
       industries.length,
     );
-
-    toCreate.push({
+    return {
       businessName,
       phone,
-      email:        row.email        || null,
-      website:      row.website      || null,
+      email:         row.email         || null,
+      website:       row.website       || null,
       contactPerson: row.contactPerson || null,
-      address:      row.address      || null,
-      city:         row.city         || null,
-      state:        row.state        || null,
-      country:      row.country      || null,
-      category:     row.category     ?? null,
-      source:       "CSV Import",
+      address:       row.address       || null,
+      city:          row.city          || null,
+      state:         row.state         || null,
+      country:       row.country       || null,
+      category:      row.category      ?? null,
+      source:        "CSV Import",
       industriesFoundIn: industries,
       dataQualityScore:  score,
-      folderId:    resolvedFolderId,
+      folderId:      resolvedFolderId,
       savedById,
-    });
-  }
+    };
+  });
 
   // ── Bulk insert in batches of 500 ──────────────────────────────────────
   let created = 0;

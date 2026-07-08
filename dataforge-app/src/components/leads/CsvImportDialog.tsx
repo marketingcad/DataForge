@@ -9,7 +9,7 @@ import { Progress } from "@/components/ui/progress";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { importLeadsFromCsvAction, type CsvLeadRow } from "@/actions/leads.actions";
+import { importLeadsFromCsvAction, previewCsvImportAction, type CsvLeadRow } from "@/actions/leads.actions";
 import { getSubcategoriesByIndustryAction, getFoldersByIndustryAction, getFoldersBySubcategoryAction } from "@/actions/industry.actions";
 
 const BATCH_SIZE = 50;
@@ -71,6 +71,9 @@ export function CsvImportDialog({ open, onClose, userId, industries = [] }: Prop
   const [rows, setRows] = useState<CsvLeadRow[]>([]);
   const [skipped, setSkipped] = useState(0);
   const [fileName, setFileName] = useState("");
+  // Pre-import DB check: how many parsed rows are new vs already-in-DB/duplicate.
+  const [preview, setPreview] = useState<{ newCount: number; duplicates: number } | null>(null);
+  const [checkingDupes, setCheckingDupes] = useState(false);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [selectedSubcategoryId, setSelectedSubcategoryId] = useState<string | null>(null);
   const [folderId, setFolderId] = useState("");
@@ -145,6 +148,16 @@ export function CsvImportDialog({ open, onClose, userId, industries = [] }: Prop
       const valid = mapped.filter((r): r is CsvLeadRow => r !== null);
       setRows(valid);
       setSkipped(rawRows.length - valid.length);
+
+      // Check against the database now so we can show how many are actually new.
+      setPreview(null);
+      if (valid.length) {
+        setCheckingDupes(true);
+        previewCsvImportAction(valid)
+          .then((p) => setPreview({ newCount: p.newCount, duplicates: p.duplicates }))
+          .catch(() => setPreview(null))
+          .finally(() => setCheckingDupes(false));
+      }
     };
     reader.readAsText(file);
   }
@@ -174,6 +187,7 @@ export function CsvImportDialog({ open, onClose, userId, industries = [] }: Prop
     if (isImporting) return;
     setRows([]);
     setSkipped(0);
+    setPreview(null);
     setFileName("");
     setSelectedCategoryId(null);
     setSelectedSubcategoryId(null);
@@ -206,7 +220,7 @@ export function CsvImportDialog({ open, onClose, userId, industries = [] }: Prop
                 <span className="font-medium">{fileName}</span>
                 {!isImporting && (
                   <button
-                    onClick={(e) => { e.stopPropagation(); setRows([]); setFileName(""); setSkipped(0); if (fileRef.current) fileRef.current.value = ""; }}
+                    onClick={(e) => { e.stopPropagation(); setRows([]); setFileName(""); setSkipped(0); setPreview(null); if (fileRef.current) fileRef.current.value = ""; }}
                     className="text-muted-foreground hover:text-foreground"
                   >
                     <X className="h-3.5 w-3.5" />
@@ -222,14 +236,34 @@ export function CsvImportDialog({ open, onClose, userId, industries = [] }: Prop
             )}
           </div>
 
-          {/* Row preview */}
+          {/* Row preview — checked against the database */}
           {rows.length > 0 && !isImporting && !result && (
             <div className="flex items-center gap-2 text-sm">
-              <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
-              <span>
-                <strong>{rows.length}</strong> valid rows ready to import
-                {skipped > 0 && <span className="text-muted-foreground"> · {skipped} skipped (empty rows)</span>}
-              </span>
+              {checkingDupes ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground shrink-0" />
+                  <span className="text-muted-foreground">Checking {rows.length} rows against the database…</span>
+                </>
+              ) : preview ? (
+                <>
+                  <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
+                  <span>
+                    <strong>{preview.newCount}</strong> new to import
+                    {preview.duplicates > 0 && (
+                      <span className="text-muted-foreground"> · {preview.duplicates} already in DB (skipped)</span>
+                    )}
+                    {skipped > 0 && <span className="text-muted-foreground"> · {skipped} empty rows</span>}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
+                  <span>
+                    <strong>{rows.length}</strong> valid rows ready
+                    {skipped > 0 && <span className="text-muted-foreground"> · {skipped} empty rows</span>}
+                  </span>
+                </>
+              )}
             </div>
           )}
           {fileName && rows.length === 0 && !result && !isImporting && (
@@ -408,10 +442,18 @@ export function CsvImportDialog({ open, onClose, userId, industries = [] }: Prop
           <Button variant="outline" onClick={handleClose} disabled={isImporting}>Cancel</Button>
           <Button
             onClick={result ? handleClose : handleImport}
-            disabled={isImporting || (!result && rows.length === 0)}
+            disabled={isImporting || checkingDupes || (!result && rows.length === 0) || (!result && !!preview && preview.newCount === 0)}
           >
             {isImporting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            {result ? "Done" : isImporting ? "Importing…" : `Import ${rows.length > 0 ? rows.length : ""} Leads`}
+            {result
+              ? "Done"
+              : isImporting
+                ? "Importing…"
+                : checkingDupes
+                  ? "Checking…"
+                  : preview
+                    ? (preview.newCount > 0 ? `Import ${preview.newCount} new` : "Nothing new to import")
+                    : `Import ${rows.length > 0 ? rows.length : ""} Leads`}
           </Button>
         </DialogFooter>
       </DialogContent>
