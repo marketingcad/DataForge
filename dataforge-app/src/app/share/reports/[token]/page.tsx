@@ -13,6 +13,7 @@ export default async function SharedReportPage({ params }: { params: Promise<{ t
 
   const { rows } = result;
   const team = await getTeamSummary();
+  const monthLabel = new Date().toLocaleString("en-US", { month: "long", timeZone: "Asia/Manila" });
 
   const totalCallsWeek  = rows.reduce((s, r) => s + r.callsWeek, 0);
   const totalCallsMonth = rows.reduce((s, r) => s + r.callsMonth, 0);
@@ -74,18 +75,29 @@ export default async function SharedReportPage({ params }: { params: Promise<{ t
           ))}
         </div>
 
-        {/* Agent Matrix Heatmap (read-only — no popups), scaled up a bit */}
+        {/* Appointment performance (read-only) */}
         <div className="rounded-2xl bg-card shadow-sm">
-          <div className="flex items-center justify-between px-6 py-5 border-b border-border/60 flex-wrap gap-3">
-            <div>
-              <p className="font-semibold text-lg">Agent Performance Matrix</p>
-              <p className="text-sm text-muted-foreground mt-0.5">
-                {rows.length} agent{rows.length !== 1 ? "s" : ""} · sorted by leads assigned
-              </p>
-            </div>
+          <div className="px-6 py-5 border-b border-border/60">
+            <p className="font-semibold text-lg">Appointment Performance</p>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              {rows.length} agent{rows.length !== 1 ? "s" : ""} · sorted by {monthLabel}
+            </p>
           </div>
-          <div className="p-6 [&_table]:min-w-[900px] [&_th]:!text-[13px] [&_td]:!text-[15px] [&_td]:!py-3.5">
-            <AgentHeatmap rows={rows} interactive={false} />
+          <div className="p-6 [&_table]:min-w-[720px] [&_th]:!text-[13px] [&_td]:!text-[15px] [&_td]:!py-3.5">
+            <AgentHeatmap rows={rows} variant="appts" monthLabel={monthLabel} interactive={false} />
+          </div>
+        </div>
+
+        {/* Call performance (read-only) */}
+        <div className="rounded-2xl bg-card shadow-sm">
+          <div className="px-6 py-5 border-b border-border/60">
+            <p className="font-semibold text-lg">Call Performance</p>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              {rows.length} agent{rows.length !== 1 ? "s" : ""}
+            </p>
+          </div>
+          <div className="p-6 [&_table]:min-w-[720px] [&_th]:!text-[13px] [&_td]:!text-[15px] [&_td]:!py-3.5">
+            <AgentHeatmap rows={rows} variant="calls" interactive={false} />
           </div>
         </div>
 

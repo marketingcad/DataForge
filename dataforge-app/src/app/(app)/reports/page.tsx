@@ -34,6 +34,9 @@ export default async function ReportsPage() {
     ? Math.round(rows.reduce((s, r) => s + r.connectRate, 0) / rows.length)
     : 0;
 
+  // Live month name (PHT) for the "appointments this month" column header.
+  const monthLabel = new Date().toLocaleString("en-US", { month: "long", timeZone: "Asia/Manila" });
+
   const kpis = [
     { label: "Active Agents",     value: team.agentCount.toString() },
     { label: "Appts This Month",  value: totalApptsMonth.toString() },
@@ -95,43 +98,36 @@ export default async function ReportsPage() {
         })}
       </div>
 
-      {/* Agent Matrix Heatmap */}
+      {/* Appointment performance */}
       <div className="rounded-2xl bg-card shadow-sm">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border/60 flex-wrap gap-3">
-          <div>
-            <p className="font-semibold text-sm">Agent Performance Matrix</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {rows.length} agent{rows.length !== 1 ? "s" : ""} · sorted by leads assigned
-            </p>
-          </div>
-          {/* Legend */}
-          <div className="flex items-center gap-3 text-xs text-muted-foreground">
-            <div className="flex items-center gap-1.5">
-              <span
-                className="inline-block h-3 w-3 rounded-sm"
-                style={{ background: "rgba(124,58,237,0.08)" }}
-              />
-              Low
-            </div>
-            <div className="h-4 border-r border-border/40" />
-            <div className="flex items-center gap-1.5">
-              <span
-                className="inline-block h-3 w-3 rounded-sm"
-                style={{ background: "rgba(124,58,237,0.80)" }}
-              />
-              High
-            </div>
-          </div>
+        <div className="px-5 py-4 border-b border-border/60">
+          <p className="font-semibold text-sm">Appointment Performance</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Appointments set per agent · click a number to see them. Sorted by {monthLabel}.
+          </p>
         </div>
         <div className="p-5">
-          {/* Only boss/admin reach this page (guarded above), so appointment deletion is enabled. */}
-          <AgentHeatmap rows={rows} canDelete />
+          {/* Only boss/admin reach this page (guarded above), so deletion is enabled. */}
+          <AgentHeatmap rows={rows} variant="appts" monthLabel={monthLabel} canDelete />
+        </div>
+      </div>
+
+      {/* Call performance */}
+      <div className="rounded-2xl bg-card shadow-sm">
+        <div className="px-5 py-4 border-b border-border/60">
+          <p className="font-semibold text-sm">Call Performance</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Calls logged per agent · darker cells indicate stronger relative performance.
+          </p>
+        </div>
+        <div className="p-5">
+          <AgentHeatmap rows={rows} variant="calls" canDelete />
         </div>
       </div>
 
       {/* Footer note */}
       <p className="text-xs text-muted-foreground text-center pb-2">
-        Connect rate = completed ÷ total calls · Avg duration excludes missed/voicemail calls
+        Connect rate = completed ÷ total calls · Avg duration excludes missed/voicemail calls · &ldquo;Today&rdquo; and &ldquo;{monthLabel}&rdquo; reset at Philippine-time midnight
       </p>
     </div>
   );

@@ -21,9 +21,23 @@ interface Props {
   agentName?: string;
   /** Whether the current user can delete */
   canDelete?: boolean;
+  /**
+   * Limit to appointments SET within a window (by createdAt, PHT), matching the
+   * report counts: "month" = this calendar month, "today" = today. Default "all".
+   */
+  scope?: "all" | "month" | "today";
   /** Controlled open state — pass your own useState pair */
   open: boolean;
   onOpenChange: (open: boolean) => void;
+}
+
+/** Start (ms) of the current PHT month/day, or null for "all". */
+function phtScopeStart(scope: "all" | "month" | "today"): number | null {
+  if (scope === "all") return null;
+  const PHT = 8 * 60 * 60 * 1000;
+  const inPHT = new Date(Date.now() + PHT);
+  if (scope === "month") return Date.UTC(inPHT.getUTCFullYear(), inPHT.getUTCMonth(), 1) - PHT;
+  return Date.UTC(inPHT.getUTCFullYear(), inPHT.getUTCMonth(), inPHT.getUTCDate()) - PHT;
 }
 
 function DeleteButton({ id, onDeleted }: { id: string; onDeleted: () => void }) {
@@ -59,7 +73,7 @@ function DeleteButton({ id, onDeleted }: { id: string; onDeleted: () => void }) 
 const SELECT_CLASS =
   "h-8 rounded-md border border-input bg-background px-2 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-ring";
 
-export function AppointmentsModal({ agentId, agentName, canDelete = false, open, onOpenChange }: Props) {
+export function AppointmentsModal({ agentId, agentName, canDelete = false, scope = "all", open, onOpenChange }: Props) {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading]           = useState(false);
 
@@ -79,11 +93,14 @@ export function AppointmentsModal({ agentId, agentName, canDelete = false, open,
     setLoading(true);
     try {
       const data = await getAppointmentsAction(agentId);
-      setAppointments(data);
+      const start = phtScopeStart(scope);
+      // Scope by when the appointment was SET (createdAt) so the modal matches
+      // the "this month"/"today" counts shown in the report table.
+      setAppointments(start === null ? data : data.filter((a) => new Date(a.createdAt).getTime() >= start));
     } finally {
       setLoading(false);
     }
-  }, [agentId]);
+  }, [agentId, scope]);
 
   useEffect(() => {
     if (open) load();
@@ -169,6 +186,7 @@ export function AppointmentsModal({ agentId, agentName, canDelete = false, open,
           <DialogTitle className="flex items-center gap-2 text-sm font-semibold">
             <CalendarDays className="h-4 w-4 text-muted-foreground" />
             {agentName ? `${agentName}'s Appointments` : "Appointments"}
+            {scope === "month" ? " · this month" : scope === "today" ? " · today" : ""}
             {!loading && (
               <Badge variant="secondary" className="ml-1 rounded-full text-[11px] px-2 py-0">
                 {hasFilters ? `${filtered.length} / ${appointments.length}` : appointments.length}

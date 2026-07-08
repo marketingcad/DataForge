@@ -4,8 +4,10 @@ export type AgentReportRow = {
   id: string;
   name: string;
   leadsCount: number;
-  apptsMonth: number;  // GHL appointments set this month
-  apptsTotal: number;  // GHL appointments set all-time
+  apptsToday: number;  // appointments set today (PHT)
+  apptsMonth: number;  // appointments set this month
+  apptsTotal: number;  // appointments set all-time
+  callsToday: number;  // calls made today (PHT)
   callsWeek: number;
   callsMonth: number;
   avgDuration: number; // seconds
@@ -23,6 +25,8 @@ export async function getAgentReportMatrix(): Promise<AgentReportRow[]> {
   const PHT_OFFSET_MS = 8 * 60 * 60 * 1000;
   const inPHT = new Date(now.getTime() + PHT_OFFSET_MS);
   const monthStart = new Date(Date.UTC(inPHT.getUTCFullYear(), inPHT.getUTCMonth(), 1) - PHT_OFFSET_MS);
+  // Start of the current PHT day (so "today" resets at PHT midnight).
+  const dayStart = new Date(Date.UTC(inPHT.getUTCFullYear(), inPHT.getUTCMonth(), inPHT.getUTCDate()) - PHT_OFFSET_MS);
 
   const agents = await prisma.user.findMany({
     where: { role: "sales_rep" },
@@ -61,8 +65,10 @@ export async function getAgentReportMatrix(): Promise<AgentReportRow[]> {
       id:          a.id,
       name:        a.name ?? a.email,
       leadsCount:  a._count.savedLeads,
+      apptsToday:  a.bookedAppointments.filter((p) => p.createdAt >= dayStart).length,
       apptsMonth:  a.bookedAppointments.filter((p) => p.createdAt >= monthStart).length,
       apptsTotal:  a.bookedAppointments.length,
+      callsToday:  a.callLogs.filter((c) => c.calledAt >= dayStart).length,
       callsWeek:   weekCalls.length,
       callsMonth:  monthCalls.length,
       avgDuration: avgDur,
