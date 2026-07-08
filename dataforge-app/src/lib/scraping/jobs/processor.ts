@@ -326,6 +326,29 @@ export async function processKeywordJob(
 // cron restarts it on the next tick. One loop per keyword per process.
 const activeAutoLoops = new Set<string>();
 
+// Global cap on how many auto-run scrapes execute AT ONCE. Each scrape launches
+// a Chromium browser holding a heavy Google Maps page in memory, so without this
+// gate turning on auto-run for many keywords spawns N browsers at once and can
+// exhaust the Node heap (OOM). Extra loops queue here and run as slots free up.
+const MAX_CONCURRENT_SCRAPES = Math.max(1, Number(process.env.KEYWORD_SCRAPER_CONCURRENCY) || 3);
+let activeScrapes = 0;
+const scrapeWaiters: Array<() => void> = [];
+
+function acquireScrapeSlot(): Promise<void> {
+  if (activeScrapes < MAX_CONCURRENT_SCRAPES) {
+    activeScrapes++;
+    return Promise.resolve();
+  }
+  // Slot is handed directly to the next waiter on release (count stays bounded).
+  return new Promise<void>((resolve) => scrapeWaiters.push(resolve));
+}
+
+function releaseScrapeSlot() {
+  const next = scrapeWaiters.shift();
+  if (next) next();          // hand this slot to the next queued scrape
+  else activeScrapes--;      // no one waiting → free the slot
+}
+
 export async function runKeywordAutoLoop(keywordId: string, startedById?: string) {
   if (activeAutoLoops.has(keywordId)) return; // a loop for this keyword is already running here
   activeAutoLoops.add(keywordId);
@@ -346,6 +369,9 @@ export async function runKeywordAutoLoop(keywordId: string, startedById?: string
         select: { id: true },
       });
       if (!active) {
+        // Wait for a concurrency slot before launching a browser — caps how many
+        // auto-run scrapes run simultaneously so we don't OOM the machine.
+        await acquireScrapeSlot();
         try {
           const newJob = await createJob({
             industry: pickSearchTerm(kw),
@@ -356,7 +382,9 @@ export async function runKeywordAutoLoop(keywordId: string, startedById?: string
             startedById,
           });
           await processKeywordJob(await getJobById(newJob.id));
-        } catch { /* one failed run shouldn't break the loop */ }
+        } catch { /* one failed run shouldn't break the loop */ } finally {
+          releaseScrapeSlot();
+        }
       }
 
       // Brief pause so DB writes settle and we don't hammer in a tight loop.
