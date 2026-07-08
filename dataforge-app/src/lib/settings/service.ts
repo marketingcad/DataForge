@@ -14,6 +14,7 @@ export async function updateSettings(data: {
   scrapingDefaultMaxLeads?: number;
   scrapingDefaultInterval?: number;
   scrapingGlobalPause?: boolean;
+  scrapingBoost?: boolean;
   leadQualityGoodThreshold?: number;
   leadQualityMediumThreshold?: number;
   ghlWebhookUrl?: string | null;

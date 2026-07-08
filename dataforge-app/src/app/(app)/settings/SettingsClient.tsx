@@ -61,6 +61,7 @@ interface Settings {
   scrapingDefaultMaxLeads: number;
   scrapingDefaultInterval: number;
   scrapingGlobalPause: boolean;
+  scrapingBoost: boolean;
   leadQualityGoodThreshold: number;
   leadQualityMediumThreshold: number;
   ghlWebhookUrl: string | null;
@@ -335,6 +336,12 @@ export function SettingsClient({ settings, isAdmin, isBoss = false, isLeadSpecia
               defaultChecked={settings.scrapingGlobalPause}
               description="Pauses all scheduled keyword scraping runs across the app."
             />
+            <Separator />
+            <AutoSwitch
+              name="scrapingBoost" label="Boost scraping (faster)"
+              defaultChecked={settings.scrapingBoost}
+              description="Cuts the scraper's delays for noticeably faster runs. Higher risk of Google CAPTCHAs/blocks, especially with several keywords at once."
+            />
           </CardContent>
         </Card>
 
@@ -456,6 +463,12 @@ export function SettingsClient({ settings, isAdmin, isBoss = false, isLeadSpecia
               name="scrapingGlobalPause" label="Global Scraping Pause"
               defaultChecked={settings.scrapingGlobalPause}
               description="Pauses all scheduled keyword scraping runs across the app."
+            />
+            <Separator />
+            <AutoSwitch
+              name="scrapingBoost" label="Boost scraping (faster)"
+              defaultChecked={settings.scrapingBoost}
+              description="Cuts the scraper's delays for noticeably faster runs. Higher risk of Google CAPTCHAs/blocks, especially with several keywords at once."
             />
           </CardContent>
         </Card>

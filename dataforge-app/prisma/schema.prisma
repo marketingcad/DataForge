@@ -482,6 +482,9 @@ model AppSettings {
   scrapingDefaultMaxLeads     Int      @default(50)
   scrapingDefaultInterval     Int      @default(1440)
   scrapingGlobalPause         Boolean  @default(false)
+  // When on, the Google Maps scraper uses much shorter human-like delays —
+  // noticeably faster, but higher risk of Google CAPTCHAs/blocks.
+  scrapingBoost               Boolean  @default(false)
   leadQualityGoodThreshold    Int      @default(70)
   leadQualityMediumThreshold  Int      @default(40)
   ghlWebhookUrl               String?

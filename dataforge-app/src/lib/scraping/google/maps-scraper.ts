@@ -551,9 +551,14 @@ export async function scrapeGoogleMapsHeadless(
   // When provided, this scrape runs in its OWN context inside the shared browser
   // (one tab-set per keyword) instead of launching a dedicated browser. The
   // caller owns the browser lifecycle; we only close our context here.
-  sharedBrowser?: import("playwright-core").Browser
+  sharedBrowser?: import("playwright-core").Browser,
+  // Boost mode — cut the human-like delays for a faster scrape (higher block risk).
+  boost?: boolean
 ): Promise<SerpLead[]> {
   const leads: SerpLead[] = [];
+  // Scales every pacing delay. Boost ≈ 40% of normal; floor keeps a little jitter
+  // so it isn't perfectly robotic.
+  const paced = (ms: number) => (boost ? Math.max(60, Math.round(ms * 0.4)) : ms);
   // Shuffle the 3 semantic parts (main keyword, extras, location) so the query
   // order varies each run — reduces pattern detection by Google Maps.
   const searchQuery = location.trim()
@@ -594,7 +599,7 @@ export async function scrapeGoogleMapsHeadless(
       `/@${coords.latitude},${coords.longitude},11z/`;
     onLog?.(`Searching Google Maps for: "${searchQuery}" (pinned to ${coords.latitude.toFixed(2)}, ${coords.longitude.toFixed(2)})`);
     await page.goto(searchUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
-    await sleep(800);
+    await sleep(paced(800));
 
     // Log the final URL in case Google redirected (useful for debugging location issues)
     const finalUrl = page.url();
@@ -638,7 +643,7 @@ export async function scrapeGoogleMapsHeadless(
       onLog?.("No results feed appeared — possible CAPTCHA or layout change");
       return leads;
     }
-    await sleep(randInt(300, 550));
+    await sleep(randInt(paced(300), paced(550)));
 
     // ── Phase 1: Fast name discovery ───────────────────────────────────────────
     // Read all visible names in one page.evaluate() per scroll — single browser
@@ -701,7 +706,7 @@ export async function scrapeGoogleMapsHeadless(
         const feed = document.querySelector('div[role="feed"]');
         if (feed) feed.scrollTop += 1400;
       });
-      await sleep(randInt(350, 550));
+      await sleep(randInt(paced(350), paced(550)));
     }
 
     // Build the target set: names not already in the DB
@@ -725,7 +730,7 @@ export async function scrapeGoogleMapsHeadless(
       const feed = document.querySelector('div[role="feed"]');
       if (feed) feed.scrollTop = 0;
     });
-    await sleep(randInt(300, 550));
+    await sleep(randInt(paced(300), paced(550)));
 
     onLog?.(`Phase 2: extracting details for up to ${Math.min(maxLeads, toScrape.size)} businesses…`);
 
@@ -938,7 +943,7 @@ export async function scrapeGoogleMapsHeadless(
           const feed = document.querySelector('div[role="feed"]');
           if (feed) feed.scrollTop += 1400;
         });
-        await sleep(randInt(550, 850));
+        await sleep(randInt(paced(550), paced(850)));
       } else {
         staleRounds = 0;
       }

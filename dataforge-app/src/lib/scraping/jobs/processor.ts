@@ -14,6 +14,7 @@ import { calculateDataQualityScore } from "@/lib/utils/scoring";
 import { onKeywordJobSuccess, onKeywordJobFailure, getKeywordById, pickSearchTerm, resolveRunLocation } from "@/lib/keywords/service";
 import { createNotification, createNotificationsForRole } from "@/lib/notifications/service";
 import { grabEmailFromWebsite } from "@/lib/scraping/crawler/email-grabber";
+import { getSettings } from "@/lib/settings/service";
 
 const MAX_KEYWORD_FAILURES = 5;
 
@@ -70,6 +71,8 @@ export async function processKeywordJob(
 
   const MAX_RETRIES = 2;
   const MAX_SCRAPE_MS = 270 * 1000;
+  // "Boost scraping" setting — shorter delays, faster but higher block risk.
+  const boost = (await getSettings().catch(() => null))?.scrapingBoost ?? false;
   let wasCancelled = false;
   let fatalError: string | null = null;
   let leads: Awaited<ReturnType<typeof scrapeGoogleMapsHeadless>> = [];
@@ -172,6 +175,7 @@ export async function processKeywordJob(
         () => cancelledFlag,
         runCoords,
         sharedBrowser,
+        boost,
       );
       leads = [...leads, ...attemptLeads];
     } catch (err) {
