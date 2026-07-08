@@ -126,10 +126,14 @@ const STEALTH_SCRIPT = `
   window.chrome = { runtime: {}, loadTimes: () => ({}), csi: () => ({}), app: {} };
 `;
 
-export async function createBrowserContext() {
+/**
+ * Launch a single headless Chromium process. Expensive — one OS process, a few
+ * hundred MB. Prefer launching ONE browser and giving each concurrent scrape its
+ * own lightweight context via createScraperContext() rather than one browser each.
+ */
+export async function launchScraperBrowser(): Promise<import("playwright-core").Browser> {
   const isVercel = !!process.env.VERCEL;
-
-  const browser: import("playwright-core").Browser = await serialisedLaunch(async () => {
+  return serialisedLaunch(async () => {
     if (isVercel) {
       const chromium = await import("@sparticuz/chromium-min");
       const { chromium: playwrightChromium } = await import("playwright-core");
@@ -155,6 +159,14 @@ export async function createBrowserContext() {
       });
     }
   });
+}
+
+/**
+ * Create an isolated, stealthed browsing context (its own cookies, geolocation,
+ * tabs) inside an already-launched browser. Cheap relative to a whole browser,
+ * so multiple concurrent scrapes can share one browser via separate contexts.
+ */
+export async function createScraperContext(browser: import("playwright-core").Browser) {
   const context = await browser.newContext({
     userAgent:
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
@@ -164,6 +176,13 @@ export async function createBrowserContext() {
     extraHTTPHeaders: { "Accept-Language": "en-US,en;q=0.9" },
   });
   await context.addInitScript(STEALTH_SCRIPT);
+  return context;
+}
+
+/** Convenience: launch a dedicated browser + one context (own-browser mode). */
+export async function createBrowserContext() {
+  const browser = await launchScraperBrowser();
+  const context = await createScraperContext(browser);
   return { browser, context };
 }
 

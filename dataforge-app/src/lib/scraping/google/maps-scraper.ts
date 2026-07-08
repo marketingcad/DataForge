@@ -1,6 +1,6 @@
 import {
   sleep, randInt,
-  createBrowserContext,
+  createBrowserContext, createScraperContext,
   humanMouseMove, humanScroll,
 } from "@/lib/scraping/crawler/core";
 
@@ -547,7 +547,11 @@ export async function scrapeGoogleMapsHeadless(
   isDuplicate?: (lead: SerpLead) => boolean,
   skipNames?: Set<string>,
   isCancelled?: () => boolean | Promise<boolean>,
-  overrideCoords?: { latitude: number; longitude: number }
+  overrideCoords?: { latitude: number; longitude: number },
+  // When provided, this scrape runs in its OWN context inside the shared browser
+  // (one tab-set per keyword) instead of launching a dedicated browser. The
+  // caller owns the browser lifecycle; we only close our context here.
+  sharedBrowser?: import("playwright-core").Browser
 ): Promise<SerpLead[]> {
   const leads: SerpLead[] = [];
   // Shuffle the 3 semantic parts (main keyword, extras, location) so the query
@@ -557,13 +561,20 @@ export async function scrapeGoogleMapsHeadless(
     : keyword;
   const startedAt = Date.now();
 
-  let browser: import("playwright").Browser | null = null;
+  let browser: import("playwright-core").Browser | null = null;
   let context: import("playwright").BrowserContext | null = null;
+  // Own the browser only when we launched it. A shared browser is closed by the caller.
+  const ownsBrowser = !sharedBrowser;
 
   try {
-    const bc = await createBrowserContext();
-    browser = bc.browser;
-    context = bc.context;
+    if (sharedBrowser) {
+      browser = sharedBrowser;
+      context = await createScraperContext(sharedBrowser) as import("playwright").BrowserContext;
+    } else {
+      const bc = await createBrowserContext();
+      browser = bc.browser;
+      context = bc.context as import("playwright").BrowserContext;
+    }
 
     // Pin the browser's geolocation to the searched location so Google Maps
     // doesn't bias results toward the server's physical IP location.
@@ -936,8 +947,9 @@ export async function scrapeGoogleMapsHeadless(
     onLog?.(`Done — saving ${leads.length} lead${leads.length !== 1 ? "s" : ""}…`);
     await page.close();
   } finally {
+    // Always close our own context; only close the browser if we launched it.
     await context?.close().catch(() => {});
-    await browser?.close().catch(() => {});
+    if (ownsBrowser) await browser?.close().catch(() => {});
   }
 
   return leads;

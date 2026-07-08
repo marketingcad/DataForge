@@ -19,7 +19,12 @@ const MAX_KEYWORD_FAILURES = 5;
 
 // ─── Keyword job: browser-based Google Maps scraping ──────────────────────────
 
-export async function processKeywordJob(job: Awaited<ReturnType<typeof getJobById>>) {
+export async function processKeywordJob(
+  job: Awaited<ReturnType<typeof getJobById>>,
+  // When provided, the scrape runs in its own context inside this shared browser
+  // instead of launching a dedicated one. Caller owns the browser's lifecycle.
+  sharedBrowser?: import("playwright-core").Browser,
+) {
   const id = job.id;
 
   await updateJobStatus(id, "running", { startTime: new Date() });
@@ -166,6 +171,7 @@ export async function processKeywordJob(job: Awaited<ReturnType<typeof getJobByI
         skipNames,
         () => cancelledFlag,
         runCoords,
+        sharedBrowser,
       );
       leads = [...leads, ...attemptLeads];
     } catch (err) {

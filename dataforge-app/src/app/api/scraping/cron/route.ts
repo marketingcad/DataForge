@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { createJob, getJobById } from "@/lib/scraping/jobs/service";
 import { getDueKeywords, pickSearchTerm } from "@/lib/keywords/service";
 import { processKeywordJob } from "@/lib/scraping/jobs/processor";
+import { launchScraperBrowser } from "@/lib/scraping/crawler/core";
 
 export const maxDuration = 300;
 
@@ -29,6 +30,9 @@ async function handleCron(req: NextRequest) {
   }
 
   const triggered: string[] = [];
+  // Jobs to run this tick — all share ONE Chromium browser (one context/tab-set
+  // each) so N concurrent keywords cost ~1 browser process instead of N.
+  const jobsToRun: Awaited<ReturnType<typeof getJobById>>[] = [];
 
   // Jobs already in flight from earlier ticks count against the concurrency cap,
   // so a slow batch of browsers can't pile up on top of a fresh one.
@@ -52,7 +56,7 @@ async function handleCron(req: NextRequest) {
   if (stuckJob) {
     try {
       const job = await getJobById(stuckJob.id);
-      waitUntil(processKeywordJob(job));
+      jobsToRun.push(job);
       triggered.push(`resume:${stuckJob.id}`);
       // NOTE: do NOT decrement slots here — this pending job is already included
       // in the inFlight count above, so decrementing would double-count it and
@@ -85,14 +89,32 @@ async function handleCron(req: NextRequest) {
         keywordId: kw.id,
       });
 
-      // Call processKeywordJob directly via waitUntil — no HTTP hop.
-      // The cron returns its response immediately; Vercel keeps this function
-      // alive (up to maxDuration) until the scraping promise resolves.
       const job = await getJobById(newJob.id);
-      waitUntil(processKeywordJob(job));
+      jobsToRun.push(job);
       triggered.push(`keyword:${kw.id}→job:${newJob.id}`);
       slots--;
     } catch { /* ignore per-keyword errors so one failure doesn't block the rest */ }
+  }
+
+  // Run the whole batch under a single shared browser. The cron returns its
+  // response immediately; Vercel keeps the function alive (up to maxDuration)
+  // via waitUntil until every scrape resolves, then we close the browser.
+  if (jobsToRun.length > 0) {
+    waitUntil((async () => {
+      let browser: Awaited<ReturnType<typeof launchScraperBrowser>> | null = null;
+      try {
+        browser = await launchScraperBrowser();
+      } catch {
+        browser = null; // fall back to per-job own-browser mode below
+      }
+      try {
+        await Promise.all(
+          jobsToRun.map((job) => processKeywordJob(job, browser ?? undefined).catch(() => {})),
+        );
+      } finally {
+        await browser?.close().catch(() => {});
+      }
+    })());
   }
 
   if (triggered.length === 0) {
