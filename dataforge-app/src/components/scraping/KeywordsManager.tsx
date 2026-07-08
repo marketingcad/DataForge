@@ -354,7 +354,9 @@ export function KeywordsManager({ initial, canManageAll = true, currentUserId = 
 
   useEffect(() => {
     function isActive(kws: KeywordRow[]) {
-      return kws.some((k) => k.jobs[0]?.status === "pending" || k.jobs[0]?.status === "running");
+      // Poll fast while anything is running OR auto-running (so the UI catches
+      // the next auto-run cycle promptly even with all popups closed).
+      return kws.some((k) => k.jobs[0]?.status === "pending" || k.jobs[0]?.status === "running" || k.autoRun);
     }
 
     async function refresh() {
@@ -899,7 +901,13 @@ export function KeywordsManager({ initial, canManageAll = true, currentUserId = 
             const kwsInCat = keywords.filter((k) => (k.category || "Uncategorized") === cat);
             const color = getCategoryColor(cat, idx);
             const activeCount = kwsInCat.filter((k) => k.enabled).length;
-            const hasRunning = kwsInCat.some((k) => runningIds[k.id]);
+            // Base the card status on the SERVER job status (kept fresh by the
+            // background poll), not just client runningIds — so it's accurate even
+            // when every keyword popup is closed.
+            const hasRunning = kwsInCat.some(
+              (k) => runningIds[k.id] || k.jobs[0]?.status === "running" || k.jobs[0]?.status === "pending"
+            );
+            const hasAutoRun = kwsInCat.some((k) => k.autoRun);
             const totalLeads = kwsInCat.reduce((sum, k) => sum + k._count.leads, 0);
             const isUncategorized = cat === "Uncategorized";
 
@@ -978,6 +986,11 @@ export function KeywordsManager({ initial, canManageAll = true, currentUserId = 
                       <div className="flex items-center gap-2 text-[11px] text-blue-600 dark:text-blue-400">
                         <Loader2 className="h-3 w-3 animate-spin shrink-0" />
                         <span>Scraping in progress…</span>
+                      </div>
+                    ) : hasAutoRun ? (
+                      <div className="flex items-center gap-2 text-[11px] text-emerald-600 dark:text-emerald-400">
+                        <Loader2 className="h-3 w-3 animate-spin shrink-0" />
+                        <span>Auto-running…</span>
                       </div>
                     ) : (
                       <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
