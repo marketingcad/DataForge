@@ -176,6 +176,21 @@ export async function createScraperContext(browser: import("playwright-core").Br
     extraHTTPHeaders: { "Accept-Language": "en-US,en;q=0.9" },
   });
   await context.addInitScript(STEALTH_SCRIPT);
+
+  // Speed boost: abort heavy resources we never read. Google Maps pulls in a lot
+  // of imagery/map tiles/fonts; the business data we scrape lives in the DOM, so
+  // blocking these cuts page-load time substantially without changing results.
+  // We keep documents, scripts and stylesheets (the SPA needs them to build the
+  // feed DOM and for visibility checks).
+  await context.route("**/*", (route) => {
+    const type = route.request().resourceType();
+    if (type === "image" || type === "media" || type === "font") {
+      route.abort().catch(() => {});
+    } else {
+      route.continue().catch(() => {});
+    }
+  });
+
   return context;
 }
 
