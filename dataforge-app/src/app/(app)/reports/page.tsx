@@ -98,6 +98,19 @@ export default async function ReportsPage() {
         })}
       </div>
 
+      {/* Leads */}
+      <div className="rounded-2xl bg-card shadow-sm">
+        <div className="px-5 py-4 border-b border-border/60">
+          <p className="font-semibold text-sm">Leads</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Leads assigned per agent · click a number to see them. Sorted by leads.
+          </p>
+        </div>
+        <div className="p-5">
+          <AgentHeatmap rows={rows} variant="leads" canDelete />
+        </div>
+      </div>
+
       {/* Appointment performance */}
       <div className="rounded-2xl bg-card shadow-sm">
         <div className="px-5 py-4 border-b border-border/60">

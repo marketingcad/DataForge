@@ -17,15 +17,19 @@ type Column = {
 const durationFormat = (v: number) =>
   v > 0 ? `${Math.floor(v / 60)}m${v % 60 > 0 ? ` ${v % 60}s` : ""}` : "—";
 
+// Leads-performance columns (leads assigned + agent standing).
+const LEADS_COLUMNS: Column[] = [
+  { key: "leadsCount", label: "Leads",  format: (v) => v.toString(), click: "leads" },
+  { key: "points",     label: "Points", format: (v) => v.toLocaleString() },
+  { key: "badges",     label: "Badges", format: (v) => v.toString() },
+];
+
 // Appointment-performance columns. The apptsMonth label is replaced with the
 // live month name (e.g. "July") passed via `monthLabel`.
 const APPT_COLUMNS: Column[] = [
-  { key: "leadsCount", label: "Leads",    format: (v) => v.toString(), click: "leads" },
   { key: "apptsToday", label: "Today",    format: (v) => v.toString(), click: "appts-today" },
   { key: "apptsMonth", label: "Appts/Mo", format: (v) => v.toString(), click: "appts-month" },
   { key: "apptsTotal", label: "All-Time", format: (v) => v.toString(), click: "appts-all" },
-  { key: "points",     label: "Points",   format: (v) => v.toLocaleString() },
-  { key: "badges",     label: "Badges",   format: (v) => v.toString() },
 ];
 
 // Call-performance columns.
@@ -58,8 +62,8 @@ export function AgentHeatmap({
   interactive = true,
 }: {
   rows: AgentReportRow[];
-  /** Which table to render: appointment metrics or call metrics. */
-  variant: "appts" | "calls";
+  /** Which table to render: leads, appointment, or call metrics. */
+  variant: "leads" | "appts" | "calls";
   /** Live month name (e.g. "July") for the "Appts this month" column header. */
   monthLabel?: string;
   canDelete?: boolean;
@@ -77,7 +81,8 @@ export function AgentHeatmap({
     );
   }
 
-  const columns = (variant === "appts" ? APPT_COLUMNS : CALL_COLUMNS).map((c) =>
+  const columnSet = variant === "leads" ? LEADS_COLUMNS : variant === "appts" ? APPT_COLUMNS : CALL_COLUMNS;
+  const columns = columnSet.map((c) =>
     c.key === "apptsMonth" && monthLabel ? { ...c, label: monthLabel } : c
   );
 
@@ -85,8 +90,9 @@ export function AgentHeatmap({
     columns.map((col) => [col.key, Math.max(...rows.map((r) => Number(r[col.key])))])
   );
 
-  // Sort by the table's headline metric (this-month appts / this-month calls).
-  const primary: keyof AgentReportRow = variant === "appts" ? "apptsMonth" : "callsMonth";
+  // Sort by the table's headline metric.
+  const primary: keyof AgentReportRow =
+    variant === "appts" ? "apptsMonth" : variant === "calls" ? "callsMonth" : "leadsCount";
   const sorted = [...rows].sort((a, b) => Number(b[primary]) - Number(a[primary]));
 
   function handleClick(row: { id: string; name: string }, click: ClickKind) {

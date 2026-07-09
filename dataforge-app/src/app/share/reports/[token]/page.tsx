@@ -75,6 +75,19 @@ export default async function SharedReportPage({ params }: { params: Promise<{ t
           ))}
         </div>
 
+        {/* Leads (read-only) */}
+        <div className="rounded-2xl bg-card shadow-sm">
+          <div className="px-6 py-5 border-b border-border/60">
+            <p className="font-semibold text-lg">Leads</p>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              {rows.length} agent{rows.length !== 1 ? "s" : ""} · sorted by leads assigned
+            </p>
+          </div>
+          <div className="p-6 [&_table]:min-w-[720px] [&_th]:!text-[13px] [&_td]:!text-[15px] [&_td]:!py-3.5">
+            <AgentHeatmap rows={rows} variant="leads" interactive={false} />
+          </div>
+        </div>
+
         {/* Appointment performance (read-only) */}
         <div className="rounded-2xl bg-card shadow-sm">
           <div className="px-6 py-5 border-b border-border/60">
