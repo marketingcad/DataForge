@@ -137,3 +137,27 @@ export async function updateSubcategory(id: string, name: string, color: string,
 export async function deleteSubcategory(id: string, userId?: string) {
   return prisma.subcategory.deleteMany({ where: { id, ...(userId ? { userId } : {}) } });
 }
+
+/**
+ * Move a subcategory to a different category (industry). Its folders move with
+ * it — their industryId is updated to the new category so they don't end up
+ * split between the old category and the moved subcategory.
+ */
+export async function moveSubcategoryToIndustry(
+  id: string,
+  targetIndustryId: string,
+  userId?: string,
+) {
+  // Ownership guard: scoped users may only move their own subcategories.
+  const sub = await prisma.subcategory.findFirst({
+    where: { id, ...(userId ? { userId } : {}) },
+    select: { id: true },
+  });
+  if (!sub) return { moved: false };
+
+  await prisma.$transaction([
+    prisma.subcategory.update({ where: { id }, data: { industryId: targetIndustryId } }),
+    prisma.folder.updateMany({ where: { subcategoryId: id }, data: { industryId: targetIndustryId } }),
+  ]);
+  return { moved: true };
+}

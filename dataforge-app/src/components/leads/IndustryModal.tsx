@@ -7,6 +7,7 @@ import {
   createSubcategoryAction,
   updateSubcategoryAction,
   deleteSubcategoryAction,
+  moveSubcategoryToIndustryAction,
 } from "@/actions/industry.actions";
 import { FolderLeadsModal } from "./FolderLeadsModal";
 import { SubcategoryModal } from "./SubcategoryModal";
@@ -30,6 +31,7 @@ import {
   Pencil,
   Trash2,
   MoreVertical,
+  ArrowRightLeft,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -153,17 +155,21 @@ function SubcategoryCard({
   sub,
   onClick,
   onEdit,
+  onMove,
   onDelete,
+  canMove,
   deleting,
 }: {
   sub: SubcategoryData;
   onClick: () => void;
   onEdit: () => void;
+  onMove: () => void;
   onDelete: () => void;
+  canMove: boolean;
   deleting?: boolean;
 }) {
   return (
-    <div className="group relative w-56 shrink-0 rounded-xl border bg-card hover:border-border hover:shadow-md transition-all duration-150 overflow-hidden">
+    <div className="group relative w-full rounded-xl border bg-card hover:border-border hover:shadow-md transition-all duration-150 overflow-hidden">
       {/* three-dot menu */}
       <div className="absolute top-3 right-2 z-10" onClick={(e) => e.stopPropagation()}>
         <DropdownMenu>
@@ -180,15 +186,20 @@ function SubcategoryCard({
               ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
               : <MoreVertical className="h-3.5 w-3.5" />}
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" side="bottom" className="min-w-0 w-9 p-1">
-            <DropdownMenuItem className="cursor-pointer" onClick={onEdit}>
-              <Pencil className="h-3.5 w-3.5" />
+          <DropdownMenuContent align="end" side="bottom" className="w-44">
+            <DropdownMenuItem className="cursor-pointer gap-2" onClick={onEdit}>
+              <Pencil className="h-3.5 w-3.5" /> Rename
             </DropdownMenuItem>
+            {canMove && (
+              <DropdownMenuItem className="cursor-pointer gap-2" onClick={onMove}>
+                <ArrowRightLeft className="h-3.5 w-3.5" /> Move to category
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem
-              className="text-destructive focus:text-destructive cursor-pointer"
+              className="text-destructive focus:text-destructive cursor-pointer gap-2"
               onClick={onDelete}
             >
-              <Trash2 className="h-3.5 w-3.5" />
+              <Trash2 className="h-3.5 w-3.5" /> Delete
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -227,7 +238,7 @@ function UngroupedSubcategoryCard({
   onClick: () => void;
 }) {
   return (
-    <div className="w-56 shrink-0 rounded-xl border bg-card hover:border-border hover:shadow-md transition-all duration-150 overflow-hidden">
+    <div className="w-full rounded-xl border bg-card hover:border-border hover:shadow-md transition-all duration-150 overflow-hidden">
       <button onClick={onClick} className="w-full text-left p-4 space-y-3 focus:outline-none">
         <div className="flex items-start justify-between gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg shrink-0 bg-muted">
@@ -274,6 +285,28 @@ export function IndustryModal({ industry, open, onOpenChange, unfiledFolders, al
   // Deleting
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [showUngrouped, setShowUngrouped] = useState(false);
+
+  // Move subcategory to another category
+  const [movingSub, setMovingSub] = useState<SubcategoryData | null>(null);
+  const [moving, startMoving] = useTransition();
+  // Categories this subcategory can be moved to (everything except the current one).
+  const moveTargets = allIndustries.filter((c) => c.id !== industry?.id);
+
+  function handleMoveSub(targetIndustryId: string) {
+    const sub = movingSub;
+    if (!sub) return;
+    startMoving(async () => {
+      try {
+        await moveSubcategoryToIndustryAction(sub.id, targetIndustryId);
+        setSubcategories((prev) => prev.filter((s) => s.id !== sub.id));
+        setMovingSub(null);
+        const target = allIndustries.find((c) => c.id === targetIndustryId);
+        toast.success(`Moved "${sub.name}"${target ? ` to ${target.name}` : ""}`);
+      } catch {
+        toast.error("Failed to move subcategory");
+      }
+    });
+  }
 
   const load = useCallback(async () => {
     if (!industry) return;
@@ -537,14 +570,16 @@ export function IndustryModal({ industry, open, onOpenChange, unfiledFolders, al
                     Add your first subcategory
                   </button>
                 ) : viewMode === "grid" ? (
-                  <div className="flex flex-wrap gap-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
                     {subcategories.map((sub) => (
                       <SubcategoryCard
                         key={sub.id}
                         sub={sub}
                         onClick={() => setSelectedSubcategory(sub)}
                         onEdit={() => openEditSub(sub)}
+                        onMove={() => setMovingSub(sub)}
                         onDelete={() => handleDeleteSub(sub)}
+                        canMove={moveTargets.length > 0}
                         deleting={deletingId === sub.id}
                       />
                     ))}
@@ -569,10 +604,15 @@ export function IndustryModal({ industry, open, onOpenChange, unfiledFolders, al
                             <p className="text-xs text-muted-foreground">{sub._count.folders} folder{sub._count.folders !== 1 ? "s" : ""} · {sub.totalLeads.toLocaleString()} leads</p>
                           </div>
                         </button>
-                        <button onClick={() => openEditSub(sub)} className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground">
+                        <button onClick={() => openEditSub(sub)} className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground" title="Rename">
                           <Pencil className="h-3.5 w-3.5" />
                         </button>
-                        <button onClick={() => handleDeleteSub(sub)} disabled={deletingId === sub.id} className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive">
+                        {moveTargets.length > 0 && (
+                          <button onClick={() => setMovingSub(sub)} className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground" title="Move to category">
+                            <ArrowRightLeft className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                        <button onClick={() => handleDeleteSub(sub)} disabled={deletingId === sub.id} className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive" title="Delete">
                           {deletingId === sub.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                         </button>
                       </div>
@@ -689,6 +729,36 @@ export function IndustryModal({ industry, open, onOpenChange, unfiledFolders, al
               {savingEdit && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
               Save Changes
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Move subcategory to another category */}
+      <Dialog open={!!movingSub} onOpenChange={(v) => { if (!v && !moving) setMovingSub(null); }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-base">Move &ldquo;{movingSub?.name}&rdquo; to…</DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-muted-foreground">
+            The subcategory and all its folders move to the category you pick.
+          </p>
+          <div className="max-h-[50vh] overflow-y-auto space-y-1 py-1">
+            {moveTargets.length === 0 ? (
+              <p className="py-6 text-center text-sm text-muted-foreground">No other categories to move to.</p>
+            ) : (
+              moveTargets.map((c) => (
+                <button
+                  key={c.id}
+                  disabled={moving}
+                  onClick={() => handleMoveSub(c.id)}
+                  className="w-full flex items-center gap-2.5 rounded-lg border px-3 py-2.5 text-left hover:bg-muted/50 transition-colors disabled:opacity-50"
+                >
+                  <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: c.color }} />
+                  <span className="text-sm font-medium truncate flex-1">{c.name}</span>
+                  {moving && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+                </button>
+              ))
+            )}
           </div>
         </DialogContent>
       </Dialog>

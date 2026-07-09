@@ -12,6 +12,7 @@ import {
   createSubcategory,
   updateSubcategory,
   deleteSubcategory,
+  moveSubcategoryToIndustry,
 } from "@/lib/industry/service";
 import { requireDepartment } from "@/lib/rbac/guards";
 import { revalidatePath } from "next/cache";
@@ -109,4 +110,11 @@ export async function deleteSubcategoryAction(id: string) {
   const user = await requireDepartment("leads");
   await deleteSubcategory(id, scopedUserId(user));
   revalidatePath("/leads");
+}
+
+export async function moveSubcategoryToIndustryAction(id: string, targetIndustryId: string) {
+  const user = await requireDepartment("leads");
+  const res = await moveSubcategoryToIndustry(id, targetIndustryId, scopedUserId(user));
+  revalidatePath("/leads");
+  return res;
 }
