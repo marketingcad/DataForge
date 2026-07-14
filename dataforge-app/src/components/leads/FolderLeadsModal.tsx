@@ -93,7 +93,7 @@ interface Props {
   onCategoryChanged?: (id: string) => void;
 }
 
-function CopyCell({ value, className, children }: { value: string | null | undefined; className?: string; children?: React.ReactNode }) {
+function CopyCell({ value, className, children, wrap }: { value: string | null | undefined; className?: string; children?: React.ReactNode; wrap?: boolean }) {
   const [copied, setCopied] = useState(false);
   if (!value) return <span className="text-muted-foreground select-none">—</span>;
   function handleCopy(e: React.MouseEvent) {
@@ -104,15 +104,15 @@ function CopyCell({ value, className, children }: { value: string | null | undef
     });
   }
   return (
-    <div className={cn("group/copy flex items-center gap-1 min-w-0 max-w-full", className)}>
+    <div className={cn("group/copy flex items-start gap-1 min-w-0 max-w-full", className)}>
       <div
-        className="relative flex-1 overflow-hidden min-w-0"
-        style={{
+        className={cn("relative flex-1 min-w-0", !wrap && "overflow-hidden")}
+        style={wrap ? undefined : {
           maskImage: "linear-gradient(to right, black 82%, transparent 100%)",
           WebkitMaskImage: "linear-gradient(to right, black 82%, transparent 100%)",
         }}
       >
-        {children ?? <span className="whitespace-nowrap text-sm">{value}</span>}
+        {children ?? <span className={cn("text-sm", wrap ? "whitespace-normal break-words" : "whitespace-nowrap")}>{value}</span>}
       </div>
       <button
         type="button"
@@ -1364,7 +1364,7 @@ export function FolderLeadsModal({
                     <TableHead className="sticky top-0 bg-background w-8 text-center">#</TableHead>
                     <TableHead className="sticky top-0 bg-background">Business</TableHead>
                     <TableHead className="sticky top-0 bg-background">Contact</TableHead>
-                    <TableHead className="sticky top-0 bg-background w-36">Address</TableHead>
+                    <TableHead className="sticky top-0 bg-background w-40">Address</TableHead>
                     <TableHead className="sticky top-0 bg-background">Phone</TableHead>
                     <TableHead className="sticky top-0 bg-background">Email</TableHead>
                     <TableHead className="sticky top-0 bg-background">Website</TableHead>
@@ -1387,9 +1387,9 @@ export function FolderLeadsModal({
                       <TableCell className="text-xs text-muted-foreground font-mono text-center">
                         {(page - 1) * pageSize + idx + 1}
                       </TableCell>
-                      <TableCell className="font-medium max-w-[200px]">
-                        <div className=" justify-between gap-1.5 min-w-0">
-                          <CopyCell value={lead.businessName} />
+                      <TableCell className="font-medium max-w-[240px] align-top">
+                        <div className="flex items-start justify-between gap-1.5 min-w-0">
+                          <CopyCell value={lead.businessName} wrap />
                           {lead.migratedToGhl && (
                             <span
                               className="shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-violet-500/10 text-violet-600 border border-violet-200/50 dark:border-violet-800/50 whitespace-nowrap"
@@ -1403,8 +1403,8 @@ export function FolderLeadsModal({
                       <TableCell className="text-sm text-muted-foreground max-w-[120px]">
                         <CopyCell value={lead.contactPerson} />
                       </TableCell>
-                      <TableCell className="text-sm text-muted-foreground w-36">
-                        <CopyCell value={lead.address ?? ([lead.city, lead.state, lead.country].filter(Boolean).join(", ") || null)} />
+                      <TableCell className="text-sm text-muted-foreground w-40 max-w-[170px] align-top">
+                        <CopyCell value={lead.address ?? ([lead.city, lead.state, lead.country].filter(Boolean).join(", ") || null)} wrap />
                       </TableCell>
                       <TableCell className="text-sm font-mono whitespace-nowrap">
                         <CopyCell value={lead.phone}>

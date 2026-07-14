@@ -83,7 +83,7 @@ interface Props {
   onLeadsDeleted?: (count: number) => void;
 }
 
-function CopyCell({ value, className, children }: { value: string | null | undefined; className?: string; children?: React.ReactNode }) {
+function CopyCell({ value, className, children, wrap }: { value: string | null | undefined; className?: string; children?: React.ReactNode; wrap?: boolean }) {
   const [copied, setCopied] = useState(false);
   if (!value) return <span className="text-muted-foreground select-none">—</span>;
   function handleCopy(e: React.MouseEvent) {
@@ -94,15 +94,15 @@ function CopyCell({ value, className, children }: { value: string | null | undef
     });
   }
   return (
-    <div className={cn("group/copy flex items-center gap-1 min-w-0 max-w-full", className)}>
+    <div className={cn("group/copy flex items-start gap-1 min-w-0 max-w-full", className)}>
       <div
-        className="relative flex-1 overflow-hidden min-w-0"
-        style={{
+        className={cn("relative flex-1 min-w-0", !wrap && "overflow-hidden")}
+        style={wrap ? undefined : {
           maskImage: "linear-gradient(to right, black 82%, transparent 100%)",
           WebkitMaskImage: "linear-gradient(to right, black 82%, transparent 100%)",
         }}
       >
-        {children ?? <span className="whitespace-nowrap text-sm">{value}</span>}
+        {children ?? <span className={cn("text-sm", wrap ? "whitespace-normal break-words" : "whitespace-nowrap")}>{value}</span>}
       </div>
       <button
         type="button"
@@ -1014,8 +1014,8 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
                       <TableCell className="text-xs text-muted-foreground font-mono text-center">
                         {(page - 1) * pageSize + idx + 1}
                       </TableCell>
-                      <TableCell className="font-medium max-w-[180px]">
-                        <CopyCell value={lead.businessName} />
+                      <TableCell className="font-medium max-w-[220px] align-top">
+                        <CopyCell value={lead.businessName} wrap />
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground w-36">
                         <CopyCell value={lead.address ?? ([lead.city, lead.state].filter(Boolean).join(", ") || null)} />
