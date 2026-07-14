@@ -992,7 +992,7 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
                     </TableHead>
                     <TableHead className="sticky top-0 bg-background w-8 text-center">#</TableHead>
                     <TableHead className="sticky top-0 bg-background">Business</TableHead>
-                    <TableHead className="sticky top-0 bg-background w-36">Address</TableHead>
+                    <TableHead className="sticky top-0 bg-background w-72">Address</TableHead>
                     <TableHead className="sticky top-0 bg-background">Phone</TableHead>
                     <TableHead className="sticky top-0 bg-background">Email</TableHead>
                     <TableHead className="sticky top-0 bg-background">Website</TableHead>
@@ -1014,11 +1014,11 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
                       <TableCell className="text-xs text-muted-foreground font-mono text-center">
                         {(page - 1) * pageSize + idx + 1}
                       </TableCell>
-                      <TableCell className="font-medium max-w-[220px] align-top">
+                      <TableCell className="font-medium max-w-[150px] align-top">
                         <CopyCell value={lead.businessName} wrap />
                       </TableCell>
-                      <TableCell className="text-sm text-muted-foreground w-36">
-                        <CopyCell value={lead.address ?? ([lead.city, lead.state].filter(Boolean).join(", ") || null)} />
+                      <TableCell className="text-sm text-muted-foreground w-72 max-w-[300px] align-top">
+                        <CopyCell value={lead.address ?? ([lead.city, lead.state].filter(Boolean).join(", ") || null)} wrap />
                       </TableCell>
                       <TableCell className="text-sm font-mono whitespace-nowrap">
                         <CopyCell value={lead.phone}>

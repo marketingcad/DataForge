@@ -1364,7 +1364,7 @@ export function FolderLeadsModal({
                     <TableHead className="sticky top-0 bg-background w-8 text-center">#</TableHead>
                     <TableHead className="sticky top-0 bg-background">Business</TableHead>
                     <TableHead className="sticky top-0 bg-background">Contact</TableHead>
-                    <TableHead className="sticky top-0 bg-background w-40">Address</TableHead>
+                    <TableHead className="sticky top-0 bg-background w-72">Address</TableHead>
                     <TableHead className="sticky top-0 bg-background">Phone</TableHead>
                     <TableHead className="sticky top-0 bg-background">Email</TableHead>
                     <TableHead className="sticky top-0 bg-background">Website</TableHead>
@@ -1387,7 +1387,7 @@ export function FolderLeadsModal({
                       <TableCell className="text-xs text-muted-foreground font-mono text-center">
                         {(page - 1) * pageSize + idx + 1}
                       </TableCell>
-                      <TableCell className="font-medium max-w-[240px] align-top">
+                      <TableCell className="font-medium max-w-[150px] align-top">
                         <div className="flex items-start justify-between gap-1.5 min-w-0">
                           <CopyCell value={lead.businessName} wrap />
                           {lead.migratedToGhl && (
@@ -1403,7 +1403,7 @@ export function FolderLeadsModal({
                       <TableCell className="text-sm text-muted-foreground max-w-[120px]">
                         <CopyCell value={lead.contactPerson} />
                       </TableCell>
-                      <TableCell className="text-sm text-muted-foreground w-40 max-w-[170px] align-top">
+                      <TableCell className="text-sm text-muted-foreground w-72 max-w-[300px] align-top">
                         <CopyCell value={lead.address ?? ([lead.city, lead.state, lead.country].filter(Boolean).join(", ") || null)} wrap />
                       </TableCell>
                       <TableCell className="text-sm font-mono whitespace-nowrap">
