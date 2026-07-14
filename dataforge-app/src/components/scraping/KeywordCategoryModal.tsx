@@ -199,6 +199,88 @@ function CategoryPickerList({
   );
 }
 
+/**
+ * Multi-select category picker for the "Duplicate to folders" popover — lets the
+ * user tick several categories and duplicate into all of them at once.
+ */
+function MultiCategoryPickerList({
+  favorites,
+  allCategories,
+  selected,
+  onToggle,
+  onToggleFavorite,
+  onConfirm,
+}: {
+  favorites: string[];
+  allCategories: string[];
+  selected: Set<string>;
+  onToggle: (cat: string) => void;
+  onToggleFavorite: (e: React.MouseEvent, cat: string) => void;
+  onConfirm: () => void;
+}) {
+  const favCats = favorites.filter((f) => allCategories.includes(f));
+  const otherCats = allCategories.filter((c) => !favorites.includes(c));
+
+  const row = (cat: string, fav: boolean) => (
+    <CommandItem
+      key={cat}
+      value={cat}
+      onSelect={() => onToggle(cat)}
+      className="group flex items-center gap-2 pr-1"
+    >
+      <span
+        className={cn(
+          "flex h-4 w-4 shrink-0 items-center justify-center rounded border",
+          selected.has(cat) ? "bg-primary border-primary text-primary-foreground" : "border-input"
+        )}
+      >
+        {selected.has(cat) && <Check className="h-3 w-3" />}
+      </span>
+      {fav && <Star className="h-3 w-3 shrink-0 fill-yellow-400 text-yellow-400" />}
+      <span className="flex-1 truncate">{cat}</span>
+      <button
+        type="button"
+        onClick={(e) => onToggleFavorite(e, cat)}
+        className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-muted"
+        title={fav ? "Remove from favorites" : "Add to favorites"}
+      >
+        <Star className={cn("h-3 w-3", fav ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground")} />
+      </button>
+    </CommandItem>
+  );
+
+  return (
+    <div className="flex flex-col">
+      <Command>
+        <CommandInput placeholder="Search categories…" />
+        <CommandList>
+          <CommandEmpty>No category found.</CommandEmpty>
+          {favCats.length > 0 && (
+            <>
+              <CommandGroup heading="Favorites">{favCats.map((c) => row(c, true))}</CommandGroup>
+              <CommandSeparator />
+            </>
+          )}
+          <CommandGroup heading={favCats.length > 0 ? "All Categories" : undefined}>
+            {otherCats.map((c) => row(c, false))}
+          </CommandGroup>
+        </CommandList>
+      </Command>
+      <div className="flex items-center gap-2 border-t p-2">
+        <span className="text-[11px] text-muted-foreground">{selected.size} selected</span>
+        <Button
+          size="sm"
+          className="ml-auto h-7 text-xs"
+          disabled={selected.size === 0}
+          onClick={onConfirm}
+        >
+          {selected.size ? `Duplicate to ${selected.size} folder${selected.size !== 1 ? "s" : ""}` : "Duplicate"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 interface KeywordCategoryModalProps {
   category: string;
   keywords: KeywordRow[];
@@ -224,7 +306,7 @@ interface KeywordCategoryModalProps {
   onViewLeads: (kw: KeywordRow) => void;
   onHistory: (kw: KeywordRow) => void;
   onMoveCategory: (kwId: string, newCategory: string) => void;
-  onDuplicate: (kwId: string, targetCategory: string) => void;
+  onDuplicateMany: (kwId: string, targetCategories: string[]) => void;
 }
 
 export function KeywordCategoryModal({
@@ -249,11 +331,12 @@ export function KeywordCategoryModal({
   onViewLeads,
   onHistory,
   onMoveCategory,
-  onDuplicate,
+  onDuplicateMany,
 }: KeywordCategoryModalProps) {
   const [view, setView] = useState<"grid" | "list">("grid");
   const [movingKwId, setMovingKwId] = useState<string | null>(null);
   const [duplicatingKwId, setDuplicatingKwId] = useState<string | null>(null);
+  const [dupSelected, setDupSelected] = useState<Set<string>>(new Set());
   const [favorites, setFavorites] = useState<string[]>([]);
   const [kwSearch, setKwSearch] = useState("");
   const [kwStatusFilter, setKwStatusFilter] = useState<"all" | "active" | "paused" | "disabled">("all");
@@ -641,24 +724,26 @@ export function KeywordCategoryModal({
                           />
                         </PopoverContent>
                       </Popover>
-                      {/* Duplicate to folder */}
-                      <Popover open={duplicatingKwId === kw.id} onOpenChange={(o) => setDuplicatingKwId(o ? kw.id : null)}>
+                      {/* Duplicate to folders (multi-select) */}
+                      <Popover open={duplicatingKwId === kw.id} onOpenChange={(o) => { setDuplicatingKwId(o ? kw.id : null); setDupSelected(new Set()); }}>
                         <PopoverTrigger
                           className="inline-flex h-8 w-8 items-center justify-center rounded-md p-0 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
-                          title="Duplicate to another folder"
+                          title="Duplicate to other folders"
                         >
                           <Copy className="h-3.5 w-3.5" />
                         </PopoverTrigger>
-                        <PopoverContent className="p-0 w-[240px]" align="end">
+                        <PopoverContent className="p-0 w-[260px]" align="end">
                           <div className="px-3 py-2 border-b">
-                            <p className="text-xs font-semibold">Duplicate to folder</p>
-                            <p className="text-[11px] text-muted-foreground">Creates a copy in the selected folder</p>
+                            <p className="text-xs font-semibold">Duplicate to folders</p>
+                            <p className="text-[11px] text-muted-foreground">Pick one or more — a copy is made in each</p>
                           </div>
-                          <CategoryPickerList
+                          <MultiCategoryPickerList
                             favorites={favorites}
                             allCategories={allCategories}
+                            selected={dupSelected}
                             onToggleFavorite={toggleFavorite}
-                            onPick={(cat) => { onDuplicate(kw.id, cat); setDuplicatingKwId(null); }}
+                            onToggle={(cat) => setDupSelected((prev) => { const s = new Set(prev); s.has(cat) ? s.delete(cat) : s.add(cat); return s; })}
+                            onConfirm={() => { onDuplicateMany(kw.id, [...dupSelected]); setDuplicatingKwId(null); setDupSelected(new Set()); }}
                           />
                         </PopoverContent>
                       </Popover>
@@ -879,24 +964,26 @@ export function KeywordCategoryModal({
                           />
                         </PopoverContent>
                       </Popover>
-                      {/* Duplicate to folder */}
-                      <Popover open={duplicatingKwId === kw.id} onOpenChange={(o) => setDuplicatingKwId(o ? kw.id : null)}>
+                      {/* Duplicate to folders (multi-select) */}
+                      <Popover open={duplicatingKwId === kw.id} onOpenChange={(o) => { setDuplicatingKwId(o ? kw.id : null); setDupSelected(new Set()); }}>
                         <PopoverTrigger
                           className="inline-flex h-8 w-8 items-center justify-center rounded-md p-0 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
-                          title="Duplicate to another folder"
+                          title="Duplicate to other folders"
                         >
                           <Copy className="h-3.5 w-3.5" />
                         </PopoverTrigger>
-                        <PopoverContent className="p-0 w-[240px]" align="end">
+                        <PopoverContent className="p-0 w-[260px]" align="end">
                           <div className="px-3 py-2 border-b">
-                            <p className="text-xs font-semibold">Duplicate to folder</p>
-                            <p className="text-[11px] text-muted-foreground">Creates a copy in the selected folder</p>
+                            <p className="text-xs font-semibold">Duplicate to folders</p>
+                            <p className="text-[11px] text-muted-foreground">Pick one or more — a copy is made in each</p>
                           </div>
-                          <CategoryPickerList
+                          <MultiCategoryPickerList
                             favorites={favorites}
                             allCategories={allCategories}
+                            selected={dupSelected}
                             onToggleFavorite={toggleFavorite}
-                            onPick={(cat) => { onDuplicate(kw.id, cat); setDuplicatingKwId(null); }}
+                            onToggle={(cat) => setDupSelected((prev) => { const s = new Set(prev); s.has(cat) ? s.delete(cat) : s.add(cat); return s; })}
+                            onConfirm={() => { onDuplicateMany(kw.id, [...dupSelected]); setDuplicatingKwId(null); setDupSelected(new Set()); }}
                           />
                         </PopoverContent>
                       </Popover>

@@ -657,54 +657,67 @@ export function KeywordsManager({ initial, canManageAll = true, currentUserId = 
     }
   }
 
-  async function handleDuplicate(kwId: string, targetCategory: string) {
+  async function handleDuplicateMany(kwId: string, targetCategories: string[]) {
     const source = keywords.find((k) => k.id === kwId);
-    if (!source) return;
+    if (!source || targetCategories.length === 0) return;
 
-    const conflict = keywords.find(
-      (k) =>
-        k.id !== kwId &&
-        k.category === targetCategory &&
-        k.keyword.trim().toLowerCase() === source.keyword.trim().toLowerCase() &&
-        k.location.trim().toLowerCase() === source.location.trim().toLowerCase()
-    );
-    if (conflict) {
-      toast.warning(`"${source.keyword}" in ${source.location} already exists in "${targetCategory}" — duplicate not created.`);
-      return;
+    const sameKw = (k: typeof source) =>
+      k.keyword.trim().toLowerCase() === source.keyword.trim().toLowerCase() &&
+      k.location.trim().toLowerCase() === source.location.trim().toLowerCase();
+
+    let created = 0, skipped = 0, failed = 0;
+    const newRows: typeof keywords = [];
+
+    for (const targetCategory of targetCategories) {
+      // Skip if a copy already exists in that category
+      if (keywords.some((k) => k.id !== kwId && k.category === targetCategory && sameKw(k))) {
+        skipped++;
+        continue;
+      }
+      try {
+        const res = await fetch("/api/keywords", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            keyword: source.keyword,
+            location: source.location,
+            maxLeads: source.maxLeads,
+            intervalMinutes: source.intervalMinutes,
+            extraKeywords: source.extraKeywords,
+            extraKeywordsMode: source.extraKeywordsMode,
+            extraKeywordsMin: source.extraKeywordsMin,
+            extraKeywordsMax: source.extraKeywordsMax,
+            extraKeywordsOrder: source.extraKeywordsOrder,
+            category: targetCategory,
+            grabEmail: source.grabEmail,
+          }),
+        });
+        if (!res.ok) { failed++; continue; }
+        const data = await res.json();
+        newRows.push({
+          ...data.keyword,
+          lastRunAt: null,
+          nextRunAt: data.keyword.nextRunAt ?? null,
+          failedAttempts: 0,
+          lastError: null,
+          _count: { jobs: 0, leads: 0 },
+          jobs: [],
+        });
+        created++;
+      } catch { failed++; }
     }
 
-    try {
-      const res = await fetch("/api/keywords", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          keyword: source.keyword,
-          location: source.location,
-          maxLeads: source.maxLeads,
-          intervalMinutes: source.intervalMinutes,
-          extraKeywords: source.extraKeywords,
-          extraKeywordsMode: source.extraKeywordsMode,
-          extraKeywordsMin: source.extraKeywordsMin,
-          extraKeywordsMax: source.extraKeywordsMax,
-          extraKeywordsOrder: source.extraKeywordsOrder,
-          category: targetCategory,
-          grabEmail: source.grabEmail,
-        }),
-      });
-      if (!res.ok) { toast.error("Failed to duplicate keyword"); return; }
-      const data = await res.json();
-      setKeywords((prev) => [...prev, {
-        ...data.keyword,
-        lastRunAt: null,
-        nextRunAt: data.keyword.nextRunAt ?? null,
-        failedAttempts: 0,
-        lastError: null,
-        _count: { jobs: 0, leads: 0 },
-        jobs: [],
-      }]);
-      toast.success(`Keyword duplicated to "${targetCategory}"`);
-    } catch {
-      toast.error("Failed to duplicate keyword");
+    if (newRows.length) setKeywords((prev) => [...prev, ...newRows]);
+
+    const parts: string[] = [];
+    if (created) parts.push(`${created} created`);
+    if (skipped) parts.push(`${skipped} already existed`);
+    if (failed)  parts.push(`${failed} failed`);
+    const summary = parts.join(" · ");
+    if (created > 0) {
+      toast.success(`Duplicated "${source.keyword}" → ${created} folder${created !== 1 ? "s" : ""}${skipped || failed ? ` (${summary})` : ""}`);
+    } else {
+      toast.warning(`No copies created — ${summary || "nothing selected"}`);
     }
   }
 
@@ -1035,7 +1048,7 @@ export function KeywordsManager({ initial, canManageAll = true, currentUserId = 
           onViewLeads={(kw) => setViewLeadsKw(kw)}
           onHistory={(kw) => setHistoryKw(kw)}
           onMoveCategory={handleMoveCategory}
-          onDuplicate={handleDuplicate}
+          onDuplicateMany={handleDuplicateMany}
         />
       )}
 
