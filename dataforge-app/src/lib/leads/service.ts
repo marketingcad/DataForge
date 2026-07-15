@@ -267,8 +267,10 @@ export async function getLeads({
   if (hasEmail)    where.email         = { not: null, notIn: [""] };
   if (hasWebsite)  where.website       = { not: null, notIn: [""] };
   if (hasContact)  where.contactPerson = { not: null, notIn: [""] };
-  if (hasPhone)    where.phone         = { not: null, notIn: ["", "N/A"] };
-  if (hasBusiness) where.businessName  = { not: null, notIn: [""] };
+  // phone & businessName are required (non-null) columns — Prisma rejects a `null`
+  // filter on them (it throws), so match empty / "N/A" strings only, never null.
+  if (hasPhone)    where.phone         = { notIn: ["", "N/A"] };
+  if (hasBusiness) where.businessName  = { notIn: [""] };
   if (hasScore)    where.dataQualityScore = { gt: 0 };
   if (noScore)     where.dataQualityScore = { equals: 0 };
 
@@ -277,8 +279,9 @@ export async function getLeads({
   if (noEmail)    and.push({ OR: [{ email: null }, { email: "" }] });
   if (noWebsite)  and.push({ OR: [{ website: null }, { website: "" }] });
   if (noContact)  and.push({ OR: [{ contactPerson: null }, { contactPerson: "" }] });
-  if (noPhone)    and.push({ OR: [{ phone: null }, { phone: "" }, { phone: "N/A" }] });
-  if (noBusiness) and.push({ OR: [{ businessName: null }, { businessName: "" }] });
+  // Required columns — match empty / "N/A" only (a `null` filter would throw).
+  if (noPhone)    and.push({ phone: { in: ["", "N/A"] } });
+  if (noBusiness) and.push({ businessName: { in: [""] } });
 
   // Category-access scoping for lead specialists. Restricts to leads whose
   // folder is in a granted category (or the Uncategorized bucket if granted).
