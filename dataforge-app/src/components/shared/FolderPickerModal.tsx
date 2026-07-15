@@ -17,7 +17,7 @@
  * creation. The caller only needs to provide the action to run once a folder is chosen.
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { getFoldersAction, createFolderAction } from "@/actions/folders.actions";
 import { getIndustriesAction, getSubcategoriesByIndustryAction } from "@/actions/industry.actions";
 import {
@@ -116,6 +116,10 @@ export function FolderPickerModal({
   const [filterSubcategories, setFilterSubcategories] = useState<IndustryOption[]>([]);
   const [filterSubcategoryId, setFilterSubcategoryId] = useState<string | null>(null);
   const [loadingFilterSubs, setLoadingFilterSubs] = useState(false);
+  // When creating a new folder that should inherit the active subcategory filter,
+  // we can't set it immediately (the category-change effect resets it). Stash it
+  // here and apply it once that category's subcategories have loaded.
+  const pendingSubRef = useRef<string | null>(null);
 
   // Load folders + industries whenever the modal opens
   useEffect(() => {
@@ -150,7 +154,15 @@ export function FolderPickerModal({
     if (!newIndustryId) { setSubcategories([]); return; }
     setLoadingSubs(true);
     getSubcategoriesByIndustryAction(newIndustryId)
-      .then((subs) => setSubcategories(subs as IndustryOption[]))
+      .then((subs) => {
+        setSubcategories(subs as IndustryOption[]);
+        // Apply an inherited subcategory (from the folder-grid filter) once its
+        // category's subcategories exist, so a new folder lands in the right place.
+        if (pendingSubRef.current && (subs as IndustryOption[]).some((s) => s.id === pendingSubRef.current)) {
+          setNewSubcategoryId(pendingSubRef.current);
+        }
+        pendingSubRef.current = null;
+      })
       .catch(() => setSubcategories([]))
       .finally(() => setLoadingSubs(false));
   }, [newIndustryId]);
@@ -428,7 +440,15 @@ export function FolderPickerModal({
               {!creatingNew ? (
                 <button
                   type="button"
-                  onClick={() => { setCreatingNew(true); setSelectedFolder("new"); setNewName(suggestedName?.trim() ?? ""); }}
+                  onClick={() => {
+                    setCreatingNew(true);
+                    setSelectedFolder("new");
+                    setNewName(suggestedName?.trim() ?? "");
+                    // Inherit whatever category/subcategory is selected in the folder-grid
+                    // filter so the new folder lands there (not "Uncategorized").
+                    pendingSubRef.current = filterSubcategoryId;
+                    setNewIndustryId(filterIndustryId);
+                  }}
                   className="w-full flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border hover:border-primary hover:bg-primary/5 transition-all py-8 text-muted-foreground hover:text-primary"
                 >
                   <FolderPlus className="h-8 w-8" />
