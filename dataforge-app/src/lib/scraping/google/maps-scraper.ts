@@ -556,9 +556,11 @@ export async function scrapeGoogleMapsHeadless(
   boost?: boolean
 ): Promise<SerpLead[]> {
   const leads: SerpLead[] = [];
-  // Scales every pacing delay. Boost ≈ 40% of normal; floor keeps a little jitter
-  // so it isn't perfectly robotic.
-  const paced = (ms: number) => (boost ? Math.max(60, Math.round(ms * 0.4)) : ms);
+  // Scales every pacing delay. Boost ≈ 40% of normal; even without boost we run
+  // at ~60% of the old delays to cut function-time/cost. Floors keep a little
+  // jitter so it isn't perfectly robotic.
+  const paced = (ms: number) =>
+    boost ? Math.max(60, Math.round(ms * 0.4)) : Math.max(120, Math.round(ms * 0.6));
   // Shuffle the 3 semantic parts (main keyword, extras, location) so the query
   // order varies each run — reduces pattern detection by Google Maps.
   const searchQuery = location.trim()
@@ -655,10 +657,10 @@ export async function scrapeGoogleMapsHeadless(
     // Collect at most 1.2× maxLeads names — small buffer for ~17% duplicates.
     // Phase 1 ends sooner; Phase 2 still scrolls and picks up late-discovered
     // names, so a tight buffer here mostly just saves discovery time.
-    const DISCOVERY_TARGET = Math.max(Math.ceil(maxLeads * 1.2), maxLeads + 10);
+    const DISCOVERY_TARGET = Math.max(Math.ceil(maxLeads * 1.1), maxLeads + 6);
     // Phase 1 cap starts NOW (not from scraper start) so browser launch time
     // doesn't eat into the discovery window.
-    const PHASE1_MAX_MS = 60_000; // phase 1 hard cap: 60 s
+    const PHASE1_MAX_MS = 35_000; // phase 1 hard cap: 35 s
     const phase1StartedAt = Date.now();
     let phase1Stale = 0;
 
@@ -803,7 +805,7 @@ export async function scrapeGoogleMapsHeadless(
 
         onLog?.(`Scraping ${leads.length + 1}/${Math.min(maxLeads, toScrape.size)}: "${businessName}"…`);
 
-        const LEAD_TIMEOUT_MS = 25_000;
+        const LEAD_TIMEOUT_MS = 12_000;
         let leadTimedOut = false;
 
         await Promise.race([
@@ -826,7 +828,7 @@ export async function scrapeGoogleMapsHeadless(
                 );
               }
               return false;
-            }, businessName, { timeout: 6000 }).catch(() => null);
+            }, businessName, { timeout: 4000 }).catch(() => null);
 
             if (leadTimedOut) return;
 
@@ -926,7 +928,7 @@ export async function scrapeGoogleMapsHeadless(
         ]);
 
         if (leadTimedOut) {
-          onLog?.(`Lead took over 1 minute — skipping`);
+          onLog?.(`Lead took too long (>12s) — skipping`);
           continue;
         }
 

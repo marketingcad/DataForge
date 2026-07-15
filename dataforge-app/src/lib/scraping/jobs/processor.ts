@@ -70,7 +70,7 @@ export async function processKeywordJob(
   try { kw = await getKeywordById(job.keywordId!); } catch { /* keyword deleted */ }
 
   const MAX_RETRIES = 2;
-  const MAX_SCRAPE_MS = 270 * 1000;
+  const MAX_SCRAPE_MS = 200 * 1000;
   // "Boost scraping" setting — shorter delays, faster but higher block risk.
   const boost = (await getSettings().catch(() => null))?.scrapingBoost ?? false;
   let wasCancelled = false;
@@ -388,7 +388,7 @@ export async function runKeywordAutoLoop(keywordId: string, startedById?: string
       }
 
       // Brief pause so DB writes settle and we don't hammer in a tight loop.
-      await new Promise((r) => setTimeout(r, 3000));
+      await new Promise((r) => setTimeout(r, 1500));
     }
   } finally {
     activeAutoLoops.delete(keywordId);
