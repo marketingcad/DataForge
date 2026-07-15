@@ -485,6 +485,10 @@ model AppSettings {
   // When on, the Google Maps scraper uses much shorter human-like delays —
   // noticeably faster, but higher risk of Google CAPTCHAs/blocks.
   scrapingBoost               Boolean  @default(false)
+  // Auto-stop guard: a keyword that has been auto-running continuously for this
+  // many minutes is force-stopped (autoRun turned off + its live job cancelled).
+  // 0 = disabled (no time limit). Caps runaway Vercel compute cost.
+  scrapingMaxRunMinutes       Int      @default(0)
   leadQualityGoodThreshold    Int      @default(70)
   leadQualityMediumThreshold  Int      @default(40)
   ghlWebhookUrl               String?
@@ -617,6 +621,9 @@ model ScrapingKeyword {
   // every tick (subject to the concurrency cap) until turned off — independent
   // of any browser tab, so it survives reloads/navigation.
   autoRun             Boolean       @default(false)
+  // When autoRun was last switched on. Used by the max-run-time guard to force-stop
+  // a keyword that has been auto-running longer than scrapingMaxRunMinutes. Null when off.
+  autoRunStartedAt    DateTime?
   leads               Lead[]
   jobs                ScrapingJob[]
   access              KeywordAccess[]

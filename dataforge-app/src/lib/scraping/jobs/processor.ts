@@ -27,6 +27,11 @@ export async function processKeywordJob(
   sharedBrowser?: import("playwright-core").Browser,
 ) {
   const id = job.id;
+  // Wall-clock start of this invocation. A Vercel function is killed at ~300s, so
+  // the whole job (scrape + email grab) must finish before then or it's left
+  // frozen at "running". We use this to give the email-grab phase a hard deadline.
+  const jobStartMs = Date.now();
+  const FN_BUDGET_MS = 285 * 1000; // leave ~15s margin under the 300s function limit
 
   await updateJobStatus(id, "running", { startTime: new Date() });
 
@@ -216,9 +221,24 @@ export async function processKeywordJob(
       const cur = await prisma.scrapingJob.findUnique({ where: { id }, select: { status: true } });
       if (cur && cur.status !== "running") { wasCancelled = true; break; }
 
+      // Hard deadline: if we're about to run past the function's time limit, stop
+      // grabbing and let the job complete cleanly. Otherwise the function gets
+      // killed mid-grab and the job is left frozen at "running" (looks stuck).
+      if (Date.now() - jobStartMs > FN_BUDGET_MS) {
+        prisma.scrapingJob.updateMany({
+          where: { id, status: "running" },
+          data: { errorMessage: `Grabbed ${emailsGrabbed}/${pendingEmailGrabs.length} emails — stopped at time limit (rest keep their websites; use Re-grab emails later).` },
+        }).catch(() => {});
+        break;
+      }
+
       const { leadId, website } = pendingEmailGrabs[gi];
       try {
-        const email = await grabEmailFromWebsite(website);
+        // Per-lead hard cap so one slow/hanging site can't stall the whole phase.
+        const email = await Promise.race([
+          grabEmailFromWebsite(website),
+          new Promise<null>((r) => setTimeout(() => r(null), 15_000)),
+        ]);
         if (email) {
           // Recalculate score with the newly found email so it reflects the improved completeness
           const existing = await prisma.lead.findUnique({
@@ -362,6 +382,24 @@ export async function runKeywordAutoLoop(keywordId: string, startedById?: string
       }
       if (!kw.autoRun) break; // turned off → stop looping
 
+      // Max-run-time guard (mirrors the cron; essential locally where no cron fires).
+      // Force-stop this keyword once it has been auto-running past the configured limit.
+      const maxMinutes = (await getSettings().catch(() => null))?.scrapingMaxRunMinutes ?? 0;
+      if (maxMinutes > 0 && kw.autoRunStartedAt &&
+          Date.now() - new Date(kw.autoRunStartedAt).getTime() > maxMinutes * 60 * 1000) {
+        await prisma.scrapingKeyword.update({
+          where: { id: keywordId },
+          data: { autoRun: false, autoRunStartedAt: null },
+        }).catch(() => {});
+        const title = "Keyword auto-stopped (time limit)";
+        const message = `"${kw.keyword} in ${kw.location}" hit the ${maxMinutes}-minute run limit and auto-run was turned off. Turn it back on to resume.`;
+        if (kw.createdById) {
+          await createNotification({ userId: kw.createdById, type: "warning", title, message, link: "/scraping" }).catch(() => {});
+        }
+        await createNotificationsForRole(["boss", "admin"], { type: "warning", title, message, link: "/scraping" }, kw.createdById ?? undefined).catch(() => {});
+        break;
+      }
+
       // Don't double-run: skip this iteration if a job is already active for this
       // keyword (e.g. the cron or a manual run started one).
       const active = await prisma.scrapingJob.findFirst({
@@ -445,7 +483,10 @@ export async function processEmailRegrabJob(job: Awaited<ReturnType<typeof getJo
 
     const lead = leads[i];
     try {
-      const email = await grabEmailFromWebsite(lead.website!);
+      const email = await Promise.race([
+        grabEmailFromWebsite(lead.website!),
+        new Promise<null>((r) => setTimeout(() => r(null), 15_000)),
+      ]);
       if (email) {
         const full = await prisma.lead.findUnique({
           where: { id: lead.id },
@@ -554,7 +595,10 @@ export async function processFolderEmailRegrabJob(job: Awaited<ReturnType<typeof
 
     const lead = leads[i];
     try {
-      const email = await grabEmailFromWebsite(lead.website!);
+      const email = await Promise.race([
+        grabEmailFromWebsite(lead.website!),
+        new Promise<null>((r) => setTimeout(() => r(null), 15_000)),
+      ]);
       if (email) {
         const full = await prisma.lead.findUnique({
           where: { id: lead.id },

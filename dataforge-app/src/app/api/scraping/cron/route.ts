@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { waitUntil } from "@vercel/functions";
 import { prisma } from "@/lib/prisma";
 import { createJob, getJobById } from "@/lib/scraping/jobs/service";
-import { getDueKeywords, pickSearchTerm } from "@/lib/keywords/service";
+import { getDueKeywords, pickSearchTerm, enforceMaxAutoRunTime } from "@/lib/keywords/service";
 import { processKeywordJob } from "@/lib/scraping/jobs/processor";
 import { launchScraperBrowser } from "@/lib/scraping/crawler/core";
+import { createNotification, createNotificationsForRole } from "@/lib/notifications/service";
 
 export const maxDuration = 300;
 
@@ -52,6 +53,20 @@ async function handleCron(req: NextRequest) {
     },
   }).catch(() => ({ count: 0 }));
   if (reaped.count > 0) triggered.push(`reaped:${reaped.count}`);
+
+  // Max-run-time guard: force-stop keywords that have been auto-running longer than
+  // the configured limit (auto-run off + live job cancelled). Runs before enqueuing
+  // so a just-stopped keyword isn't picked up again this tick.
+  const stopped = await enforceMaxAutoRunTime().catch(() => []);
+  for (const kw of stopped) {
+    triggered.push(`autostop:${kw.id}`);
+    const title = "Keyword auto-stopped (time limit)";
+    const message = `"${kw.keyword} in ${kw.location}" hit the ${kw.minutes}-minute run limit and auto-run was turned off. Turn it back on to resume.`;
+    if (kw.createdById) {
+      await createNotification({ userId: kw.createdById, type: "warning", title, message, link: "/scraping" }).catch(() => {});
+    }
+    await createNotificationsForRole(["boss", "admin"], { type: "warning", title, message, link: "/scraping" }, kw.createdById ?? undefined).catch(() => {});
+  }
 
   // Jobs already in flight from earlier ticks count against the concurrency cap,
   // so a slow batch of browsers can't pile up on top of a fresh one.

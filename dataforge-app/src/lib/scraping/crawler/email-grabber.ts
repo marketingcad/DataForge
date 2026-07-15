@@ -250,7 +250,7 @@ export async function grabEmailFromWebsite(rawUrl: string): Promise<string | nul
   let siteDomain: string | undefined;
   try { siteDomain = getRootDomain(new URL(primary).hostname); } catch { /* keep undefined */ }
 
-  const PAGE_TIMEOUT = 10_000;
+  const PAGE_TIMEOUT = 6_000;
 
   async function scanPages(base: string): Promise<{ domainEmails: string[]; freeEmails: string[]; otherEmails: string[] }> {
     const pages = [

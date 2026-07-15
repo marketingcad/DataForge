@@ -62,6 +62,7 @@ interface Settings {
   scrapingDefaultInterval: number;
   scrapingGlobalPause: boolean;
   scrapingBoost: boolean;
+  scrapingMaxRunMinutes: number;
   leadQualityGoodThreshold: number;
   leadQualityMediumThreshold: number;
   ghlWebhookUrl: string | null;
@@ -342,6 +343,17 @@ export function SettingsClient({ settings, isAdmin, isBoss = false, isLeadSpecia
               defaultChecked={settings.scrapingBoost}
               description="Cuts the scraper's delays for noticeably faster runs. Higher risk of Google CAPTCHAs/blocks, especially with several keywords at once."
             />
+            <Separator />
+            <AutoInput
+              id="scrapingMaxRunMinutes" name="scrapingMaxRunMinutes"
+              label="Auto-stop after (minutes)" type="number"
+              defaultValue={settings.scrapingMaxRunMinutes} min={0}
+              description={
+                settings.scrapingMaxRunMinutes > 0
+                  ? `A keyword auto-running continuously for ${settings.scrapingMaxRunMinutes} min is force-stopped (auto-run off + current run cancelled). Caps runaway cost.`
+                  : "0 = no limit. Set a value (e.g. 60) to force-stop any keyword that has been auto-running that long."
+              }
+            />
           </CardContent>
         </Card>
 
@@ -469,6 +481,17 @@ export function SettingsClient({ settings, isAdmin, isBoss = false, isLeadSpecia
               name="scrapingBoost" label="Boost scraping (faster)"
               defaultChecked={settings.scrapingBoost}
               description="Cuts the scraper's delays for noticeably faster runs. Higher risk of Google CAPTCHAs/blocks, especially with several keywords at once."
+            />
+            <Separator />
+            <AutoInput
+              id="ls-scrapingMaxRunMinutes" name="scrapingMaxRunMinutes"
+              label="Auto-stop after (minutes)" type="number"
+              defaultValue={settings.scrapingMaxRunMinutes} min={0}
+              description={
+                settings.scrapingMaxRunMinutes > 0
+                  ? `A keyword auto-running continuously for ${settings.scrapingMaxRunMinutes} min is force-stopped (auto-run off + current run cancelled). Caps runaway cost.`
+                  : "0 = no limit. Set a value (e.g. 60) to force-stop any keyword that has been auto-running that long."
+              }
             />
           </CardContent>
         </Card>

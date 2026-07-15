@@ -1,4 +1,7 @@
 {
   "buildCommand": "prisma generate && prisma db push --accept-data-loss && next build",
-  "regions": ["sin1"]
+  "regions": ["sin1"],
+  "crons": [
+    { "path": "/api/scraping/cron", "schedule": "* * * * *" }
+  ]
 }

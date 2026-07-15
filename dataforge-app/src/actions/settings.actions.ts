@@ -8,7 +8,8 @@ import type { FeatureKey } from "@/lib/features";
 
 type SettingKey =
   | "companyName" | "scrapingDefaultMaxLeads" | "scrapingDefaultInterval"
-  | "scrapingGlobalPause" | "scrapingBoost" | "leadQualityGoodThreshold" | "leadQualityMediumThreshold"
+  | "scrapingGlobalPause" | "scrapingBoost" | "scrapingMaxRunMinutes"
+  | "leadQualityGoodThreshold" | "leadQualityMediumThreshold"
   | "ghlWebhookUrl" | "ghlApiKey" | "ghlSubAccountApiKey" | "ghlLocationId"
   | "commissionCurrency" | "ghlInboundSecret";
 
@@ -41,9 +42,11 @@ export async function updateSettingFieldAction(key: SettingKey, value: string | 
     let parsed: string | number | boolean | null = value;
 
     if (key === "scrapingDefaultMaxLeads" || key === "scrapingDefaultInterval" ||
+        key === "scrapingMaxRunMinutes" ||
         key === "leadQualityGoodThreshold" || key === "leadQualityMediumThreshold") {
       parsed = typeof value === "string" ? parseInt(value, 10) : Number(value);
       if (isNaN(parsed as number)) return { error: "Invalid number" };
+      if ((parsed as number) < 0) return { error: "Must be 0 or greater" };
     }
 
     if (key === "scrapingGlobalPause" || key === "scrapingBoost") {

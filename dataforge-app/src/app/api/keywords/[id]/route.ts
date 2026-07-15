@@ -62,6 +62,7 @@ export async function PATCH(
   const intervalChanged = intervalMinutes !== undefined && existing && existing.intervalMinutes !== intervalMinutes;
   const beingEnabled = enabled === true && existing && !existing.enabled;
   const autoRunTurnedOn = autoRun === true && existing && !existing.autoRun;
+  const autoRunTurnedOff = autoRun === false && existing && existing.autoRun;
   const locationChanged = location !== undefined && existing && existing.location !== location;
   const resetNextRun = intervalChanged || beingEnabled || autoRunTurnedOn;
 
@@ -80,6 +81,9 @@ export async function PATCH(
     ...(cityRotationEnabled !== undefined ? { cityRotationEnabled } : {}),
     ...(grabEmail !== undefined ? { grabEmail } : {}),
     ...(autoRun !== undefined ? { autoRun } : {}),
+    // Stamp when auto-run starts (for the max-run-time guard); clear it when it stops.
+    ...(autoRunTurnedOn ? { autoRunStartedAt: new Date() } : {}),
+    ...(autoRunTurnedOff ? { autoRunStartedAt: null } : {}),
     ...(resetNextRun ? { nextRunAt: new Date() } : {}),
     ...(locationChanged ? { cityIndex: 0 } : {}),
   });

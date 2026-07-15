@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { Country, State, City } from "country-state-city";
+import { getSettings } from "@/lib/settings/service";
 
 export async function getKeywords(opts?: { createdById?: string; ids?: string[] }) {
   const where: Record<string, unknown> = {};
@@ -100,6 +101,7 @@ export async function updateKeyword(
     cityRotationEnabled: boolean;
     grabEmail: boolean;
     autoRun: boolean;
+    autoRunStartedAt: Date | null;
   }>
 ) {
   return prisma.scrapingKeyword.update({ where: { id }, data });
@@ -217,6 +219,39 @@ export async function getDueKeywords() {
     },
     orderBy: { nextRunAt: "asc" },
   });
+}
+
+/**
+ * Force-stop any keyword that has been auto-running continuously longer than the
+ * configured `scrapingMaxRunMinutes` guard. Turns auto-run off, clears the timer,
+ * and cancels the live job (status → "paused", which the processor polls and stops).
+ * Returns the stopped keywords so the caller can notify. No-op when the setting is 0.
+ */
+export async function enforceMaxAutoRunTime(): Promise<
+  { id: string; keyword: string; location: string; createdById: string | null; minutes: number }[]
+> {
+  const settings = await getSettings().catch(() => null);
+  const maxMinutes = settings?.scrapingMaxRunMinutes ?? 0;
+  if (!maxMinutes || maxMinutes <= 0) return [];
+
+  const cutoff = new Date(Date.now() - maxMinutes * 60 * 1000);
+  const expired = await prisma.scrapingKeyword.findMany({
+    where: { autoRun: true, autoRunStartedAt: { not: null, lte: cutoff } },
+    select: { id: true, keyword: true, location: true, createdById: true },
+  });
+  if (expired.length === 0) return [];
+
+  const ids = expired.map((k) => k.id);
+  await prisma.scrapingKeyword.updateMany({
+    where: { id: { in: ids } },
+    data: { autoRun: false, autoRunStartedAt: null },
+  }).catch(() => {});
+  await prisma.scrapingJob.updateMany({
+    where: { keywordId: { in: ids }, status: { in: ["pending", "running"] } },
+    data: { status: "paused", errorMessage: `Auto-stopped — reached the ${maxMinutes}-minute run limit.` },
+  }).catch(() => {});
+
+  return expired.map((k) => ({ ...k, minutes: maxMinutes }));
 }
 
 /** Called after a keyword-linked job completes successfully. */
