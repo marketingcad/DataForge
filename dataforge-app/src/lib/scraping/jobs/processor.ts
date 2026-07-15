@@ -347,26 +347,34 @@ export async function processKeywordJob(
 const activeAutoLoops = new Set<string>();
 
 // Global cap on how many auto-run scrapes execute AT ONCE. Each scrape launches
-// a Chromium browser holding a heavy Google Maps page in memory, so without this
-// gate turning on auto-run for many keywords spawns N browsers at once and can
-// exhaust the Node heap (OOM). Extra loops queue here and run as slots free up.
-const MAX_CONCURRENT_SCRAPES = Math.max(1, Number(process.env.KEYWORD_SCRAPER_CONCURRENCY) || 3);
+// a Chromium browser holding a heavy Google Maps page in memory AND hammers the DB
+// connection pool, so without this gate turning on auto-run for many keywords
+// spawns N browsers at once and thrashes the machine (OOM / pool exhaustion),
+// which makes scrapes stall. Extra loops queue here and run as slots free up.
+//
+// The cap is dynamic: read from AppSettings.scraperMaxConcurrency each loop so it
+// can be tuned live per machine (8 GB → ~2-3, 32 GB → ~6-8). Env var is a fallback.
+const DEFAULT_CONCURRENCY = Math.max(1, Number(process.env.KEYWORD_SCRAPER_CONCURRENCY) || 3);
+let currentMaxConcurrency = DEFAULT_CONCURRENCY;
 let activeScrapes = 0;
 const scrapeWaiters: Array<() => void> = [];
 
 function acquireScrapeSlot(): Promise<void> {
-  if (activeScrapes < MAX_CONCURRENT_SCRAPES) {
+  if (activeScrapes < currentMaxConcurrency) {
     activeScrapes++;
     return Promise.resolve();
   }
-  // Slot is handed directly to the next waiter on release (count stays bounded).
   return new Promise<void>((resolve) => scrapeWaiters.push(resolve));
 }
 
 function releaseScrapeSlot() {
-  const next = scrapeWaiters.shift();
-  if (next) next();          // hand this slot to the next queued scrape
-  else activeScrapes--;      // no one waiting → free the slot
+  activeScrapes = Math.max(0, activeScrapes - 1);
+  // Admit as many queued scrapes as the (possibly newly-lowered) cap allows.
+  while (scrapeWaiters.length > 0 && activeScrapes < currentMaxConcurrency) {
+    const next = scrapeWaiters.shift();
+    activeScrapes++;
+    next?.();
+  }
 }
 
 export async function runKeywordAutoLoop(keywordId: string, startedById?: string) {
@@ -382,9 +390,14 @@ export async function runKeywordAutoLoop(keywordId: string, startedById?: string
       }
       if (!kw.autoRun) break; // turned off → stop looping
 
+      // Refresh runtime settings each iteration so concurrency + run-time limits can
+      // be tuned live without a restart.
+      const settings = await getSettings().catch(() => null);
+      currentMaxConcurrency = Math.max(1, settings?.scraperMaxConcurrency ?? DEFAULT_CONCURRENCY);
+
       // Max-run-time guard (mirrors the cron; essential locally where no cron fires).
       // Force-stop this keyword once it has been auto-running past the configured limit.
-      const maxMinutes = (await getSettings().catch(() => null))?.scrapingMaxRunMinutes ?? 0;
+      const maxMinutes = settings?.scrapingMaxRunMinutes ?? 0;
       if (maxMinutes > 0 && kw.autoRunStartedAt &&
           Date.now() - new Date(kw.autoRunStartedAt).getTime() > maxMinutes * 60 * 1000) {
         await prisma.scrapingKeyword.update({
@@ -400,6 +413,19 @@ export async function runKeywordAutoLoop(keywordId: string, startedById?: string
         break;
       }
 
+      // Self-heal: reap this keyword's stale jobs. A healthy job writes progress
+      // every ≤~40s, so a running/pending job untouched for >3 min was interrupted
+      // (crashed/hung browser). Without a cron reaper on desktop, a leftover
+      // "running" row would block this keyword from ever scraping again.
+      await prisma.scrapingJob.updateMany({
+        where: {
+          keywordId,
+          status: { in: ["running", "pending"] },
+          updatedAt: { lt: new Date(Date.now() - 3 * 60 * 1000) },
+        },
+        data: { status: "failed", completedTime: new Date(), errorMessage: "Run interrupted — retrying." },
+      }).catch(() => {});
+
       // Don't double-run: skip this iteration if a job is already active for this
       // keyword (e.g. the cron or a manual run started one).
       const active = await prisma.scrapingJob.findFirst({
@@ -410,6 +436,11 @@ export async function runKeywordAutoLoop(keywordId: string, startedById?: string
         // Wait for a concurrency slot before launching a browser — caps how many
         // auto-run scrapes run simultaneously so we don't OOM the machine.
         await acquireScrapeSlot();
+        // Watchdog: a healthy job finishes in well under 10 min. If one stalls
+        // (hung browser or exhausted DB pool under load), abandon it after this
+        // ceiling so it can't hold its concurrency slot forever and starve the
+        // other keywords — the failure that has been biting large batches.
+        const WATCHDOG_MS = 12 * 60 * 1000;
         try {
           const newJob = await createJob({
             industry: pickSearchTerm(kw),
@@ -419,8 +450,26 @@ export async function runKeywordAutoLoop(keywordId: string, startedById?: string
             keywordId,
             startedById,
           });
-          await processKeywordJob(await getJobById(newJob.id));
-        } catch { /* one failed run shouldn't break the loop */ } finally {
+          await Promise.race([
+            processKeywordJob(await getJobById(newJob.id)),
+            new Promise((_, reject) =>
+              setTimeout(() => reject(new Error("__WATCHDOG__" + newJob.id)), WATCHDOG_MS)
+            ),
+          ]);
+        } catch (err) {
+          // Watchdog fired — mark the stalled job failed so it doesn't linger, and
+          // signal the (still-running) scrape to cancel + close its browser via the
+          // DB-status poll inside processKeywordJob.
+          const msg = err instanceof Error ? err.message : "";
+          if (msg.startsWith("__WATCHDOG__")) {
+            const stalledId = msg.slice("__WATCHDOG__".length);
+            await prisma.scrapingJob.updateMany({
+              where: { id: stalledId, status: { in: ["running", "pending"] } },
+              data: { status: "failed", completedTime: new Date(), errorMessage: "Auto-stopped — scrape stalled (watchdog)." },
+            }).catch(() => {});
+          }
+          /* one failed run shouldn't break the loop */
+        } finally {
           releaseScrapeSlot();
         }
       }

@@ -63,6 +63,7 @@ interface Settings {
   scrapingGlobalPause: boolean;
   scrapingBoost: boolean;
   scrapingMaxRunMinutes: number;
+  scraperMaxConcurrency: number;
   leadQualityGoodThreshold: number;
   leadQualityMediumThreshold: number;
   ghlWebhookUrl: string | null;
@@ -354,6 +355,13 @@ export function SettingsClient({ settings, isAdmin, isBoss = false, isLeadSpecia
                   : "0 = no limit. Set a value (e.g. 60) to force-stop any keyword that has been auto-running that long."
               }
             />
+            <Separator />
+            <AutoInput
+              id="scraperMaxConcurrency" name="scraperMaxConcurrency"
+              label="Max concurrent scrapers" type="number"
+              defaultValue={settings.scraperMaxConcurrency} min={1} max={16}
+              description="How many keyword scrapers run at once (each is a browser tab using RAM + CPU). Extra keywords queue and take turns. Rough guide: 2–3 on an 8GB machine, 6–8 on 32GB. Too high causes stalls."
+            />
           </CardContent>
         </Card>
 
@@ -492,6 +500,13 @@ export function SettingsClient({ settings, isAdmin, isBoss = false, isLeadSpecia
                   ? `A keyword auto-running continuously for ${settings.scrapingMaxRunMinutes} min is force-stopped (auto-run off + current run cancelled). Caps runaway cost.`
                   : "0 = no limit. Set a value (e.g. 60) to force-stop any keyword that has been auto-running that long."
               }
+            />
+            <Separator />
+            <AutoInput
+              id="ls-scraperMaxConcurrency" name="scraperMaxConcurrency"
+              label="Max concurrent scrapers" type="number"
+              defaultValue={settings.scraperMaxConcurrency} min={1} max={16}
+              description="How many keyword scrapers run at once (each is a browser tab using RAM + CPU). Extra keywords queue and take turns. Rough guide: 2–3 on an 8GB machine, 6–8 on 32GB. Too high causes stalls."
             />
           </CardContent>
         </Card>

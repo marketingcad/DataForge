@@ -151,6 +151,10 @@ export function KeywordsManager({ initial, canManageAll = true, currentUserId = 
 
   // Track in-flight category moves so the background poller doesn't revert them
   const pendingMovesRef = useRef<Map<string, string>>(new Map());
+  // Same idea as pendingMovesRef but for the auto-run toggle: hold the intended
+  // value while the PATCH is in flight so the background poll can't revert it
+  // (which made the Stop-Auto button flicker on/off).
+  const pendingAutoRunRef = useRef<Map<string, boolean>>(new Map());
 
   // Category folder state
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -373,6 +377,13 @@ export function KeywordsManager({ initial, canManageAll = true, currentUserId = 
             return pending !== undefined ? { ...k, category: pending } : k;
           });
         }
+        // Same for in-flight auto-run toggles, so the poll doesn't flip the button back.
+        if (pendingAutoRunRef.current.size > 0) {
+          fresh = fresh.map((k) => {
+            const pending = pendingAutoRunRef.current.get(k.id);
+            return pending !== undefined ? { ...k, autoRun: pending } : k;
+          });
+        }
         setKeywords(fresh);
 
         // If the cron fired a job we're not already tracking, start live polling for it
@@ -513,8 +524,16 @@ export function KeywordsManager({ initial, canManageAll = true, currentUserId = 
     const kw = keywords.find((k) => k.id === kwId);
     const next = !kw?.autoRun;
 
-    // Optimistic toggle
+    // Hold the intended value + optimistic toggle (the guard stops the poll from
+    // flipping it back while the PATCH is in flight).
+    pendingAutoRunRef.current.set(kwId, next);
     setKeywords((prev) => prev.map((k) => (k.id === kwId ? { ...k, autoRun: next } : k)));
+
+    // Stop-Auto should also stop the run that's happening NOW — find its live job.
+    const runningJobId =
+      runningJobIds[kwId] ??
+      (["running", "pending"].includes(kw?.jobs?.[0]?.status ?? "") ? kw?.jobs?.[0]?.id : undefined);
+
     try {
       const res = await fetch(`/api/keywords/${kwId}`, {
         method: "PATCH",
@@ -522,15 +541,26 @@ export function KeywordsManager({ initial, canManageAll = true, currentUserId = 
         body: JSON.stringify({ autoRun: next }),
       });
       if (!res.ok) throw new Error("failed");
+
       if (next) {
         toast.success("Auto-run on — this keyword keeps scraping on the server until you turn it off. You can close this page.");
       } else {
-        toast.info("Auto-run off — it won't start new runs.");
+        // Turning OFF: cancel the in-flight scrape so it stops immediately instead
+        // of finishing the current run, and clear the local "running" state.
+        if (runningJobId) {
+          await fetch(`/api/scraping/jobs/${runningJobId}/cancel`, { method: "POST" }).catch(() => null);
+          setRunningIds((prev) => { const n = { ...prev }; delete n[kwId]; return n; });
+          setRunningJobIds((prev) => { const n = { ...prev }; delete n[kwId]; return n; });
+          setRunningLabels((prev) => { const n = { ...prev }; delete n[kwId]; return n; });
+        }
+        toast.info("Auto-run off — current run stopped, no new runs will start.");
       }
     } catch {
-      // Revert on failure
       setKeywords((prev) => prev.map((k) => (k.id === kwId ? { ...k, autoRun: !next } : k)));
       toast.error("Failed to update auto-run. Please try again.");
+    } finally {
+      // Release the guard after the server has settled so the next poll shows truth.
+      setTimeout(() => pendingAutoRunRef.current.delete(kwId), 4000);
     }
   }
 

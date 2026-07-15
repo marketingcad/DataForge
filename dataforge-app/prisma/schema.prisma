@@ -489,6 +489,9 @@ model AppSettings {
   // many minutes is force-stopped (autoRun turned off + its live job cancelled).
   // 0 = disabled (no time limit). Caps runaway Vercel compute cost.
   scrapingMaxRunMinutes       Int      @default(0)
+  // Max auto-run scrapes running AT ONCE (each is a Chromium browser). Too many
+  // thrash memory + the DB pool and cause stalls; tune per machine's RAM.
+  scraperMaxConcurrency       Int      @default(3)
   leadQualityGoodThreshold    Int      @default(70)
   leadQualityMediumThreshold  Int      @default(40)
   ghlWebhookUrl               String?
