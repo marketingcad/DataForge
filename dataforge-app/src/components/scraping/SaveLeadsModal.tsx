@@ -9,9 +9,11 @@ interface SaveLeadsModalProps {
   onOpenChange: (v: boolean) => void;
   leads: LeadRow[];
   onSaved: (result: { saved: number; duplicates: number; failed: number }) => void;
+  /** Optional name to prefill when creating a new folder (e.g. the search term). */
+  suggestedName?: string;
 }
 
-export function SaveLeadsModal({ open, onOpenChange, leads, onSaved }: SaveLeadsModalProps) {
+export function SaveLeadsModal({ open, onOpenChange, leads, onSaved, suggestedName }: SaveLeadsModalProps) {
   const { add: addNotif } = useNotifications();
 
   async function handleConfirm(folderId: string | null) {
@@ -31,6 +33,7 @@ export function SaveLeadsModal({ open, onOpenChange, leads, onSaved }: SaveLeads
       title={`Save ${leads.length} lead${leads.length !== 1 ? "s" : ""}`}
       confirmLabel={`Save ${leads.length} lead${leads.length !== 1 ? "s" : ""} →`}
       onConfirm={handleConfirm}
+      suggestedName={suggestedName}
     />
   );
 }

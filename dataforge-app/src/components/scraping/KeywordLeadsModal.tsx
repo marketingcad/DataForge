@@ -1230,6 +1230,7 @@ export function KeywordLeadsModal({ kwId, keyword, location, open, onOpenChange,
         title={folderPickerLabel}
         confirmLabel={`${folderPickerLabel} →`}
         onConfirm={handleMoveToFolder}
+        suggestedName={keyword}
       />
     </>
   );

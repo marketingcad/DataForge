@@ -80,6 +80,12 @@ export interface FolderPickerModalProps {
    * Should throw on failure so the modal can show an error.
    */
   onConfirm: (folderId: string | null) => Promise<void>;
+  /**
+   * Optional name to prefill when the user creates a new folder (e.g. the keyword
+   * or search term the leads were scraped from). The user can keep it as-is or edit
+   * it to a custom name.
+   */
+  suggestedName?: string;
 }
 
 export function FolderPickerModal({
@@ -89,6 +95,7 @@ export function FolderPickerModal({
   description = "Choose a folder to keep your leads organized, or save them unfiled.",
   confirmLabel,
   onConfirm,
+  suggestedName,
 }: FolderPickerModalProps) {
   const [folders, setFolders]         = useState<FolderItem[]>([]);
   const [industries, setIndustries]   = useState<IndustryOption[]>([]);
@@ -421,7 +428,7 @@ export function FolderPickerModal({
               {!creatingNew ? (
                 <button
                   type="button"
-                  onClick={() => { setCreatingNew(true); setSelectedFolder("new"); }}
+                  onClick={() => { setCreatingNew(true); setSelectedFolder("new"); setNewName(suggestedName?.trim() ?? ""); }}
                   className="w-full flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border hover:border-primary hover:bg-primary/5 transition-all py-8 text-muted-foreground hover:text-primary"
                 >
                   <FolderPlus className="h-8 w-8" />
@@ -437,13 +444,22 @@ export function FolderPickerModal({
                   <div className="space-y-1.5">
                     <Label className="text-xs text-muted-foreground">Name</Label>
                     <Input
-                      placeholder="e.g. HVAC Houston 2025"
+                      placeholder={suggestedName?.trim() ? suggestedName : "e.g. HVAC Houston 2025"}
                       value={newName}
                       onChange={(e) => setNewName(e.target.value)}
                       onKeyDown={(e) => e.key === "Enter" && handleConfirm()}
                       autoFocus
                       className="h-8 text-sm"
                     />
+                    {suggestedName?.trim() && newName.trim() !== suggestedName.trim() && (
+                      <button
+                        type="button"
+                        onClick={() => setNewName(suggestedName.trim())}
+                        className="text-xs text-primary hover:underline text-left"
+                      >
+                        Use existing name: “{suggestedName.trim()}”
+                      </button>
+                    )}
                   </div>
 
                   <div className="space-y-1.5">
