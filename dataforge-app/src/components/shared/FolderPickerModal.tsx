@@ -50,6 +50,7 @@ type FolderItem = {
   color: string;
   _count: { leads: number };
   industry: { id: string; name: string; color: string } | null;
+  subcategory: { id: string; name: string; color: string } | null;
 };
 
 type IndustryOption = { id: string; name: string; color: string };
@@ -103,6 +104,11 @@ export function FolderPickerModal({
   const [saving, setSaving]           = useState(false);
   const [search, setSearch]           = useState("");
   const [filterIndustryId, setFilterIndustryId] = useState<string | null>(null);
+  // Subcategory drill-down for the folder grid: when a category chip is active,
+  // its subcategories appear as a second chip row to narrow the folders further.
+  const [filterSubcategories, setFilterSubcategories] = useState<IndustryOption[]>([]);
+  const [filterSubcategoryId, setFilterSubcategoryId] = useState<string | null>(null);
+  const [loadingFilterSubs, setLoadingFilterSubs] = useState(false);
 
   // Load folders + industries whenever the modal opens
   useEffect(() => {
@@ -117,6 +123,8 @@ export function FolderPickerModal({
     setSubcategories([]);
     setSearch("");
     setFilterIndustryId(null);
+    setFilterSubcategories([]);
+    setFilterSubcategoryId(null);
 
     getFoldersAction()
       .then((f) => setFolders(f as unknown as FolderItem[]))
@@ -140,6 +148,18 @@ export function FolderPickerModal({
       .finally(() => setLoadingSubs(false));
   }, [newIndustryId]);
 
+  // When a category filter chip is (de)selected, load that category's subcategories
+  // for the drill-down row and reset any active subcategory filter.
+  useEffect(() => {
+    setFilterSubcategoryId(null);
+    if (!filterIndustryId) { setFilterSubcategories([]); return; }
+    setLoadingFilterSubs(true);
+    getSubcategoriesByIndustryAction(filterIndustryId)
+      .then((subs) => setFilterSubcategories(subs as IndustryOption[]))
+      .catch(() => setFilterSubcategories([]))
+      .finally(() => setLoadingFilterSubs(false));
+  }, [filterIndustryId]);
+
   async function handleConfirm() {
     setSaving(true);
     try {
@@ -156,9 +176,15 @@ export function FolderPickerModal({
         };
         // Add the new folder to the local list so it appears if the modal stays open
         const ind = industries.find((i) => i.id === newIndustryId) ?? null;
+        const sub = subcategories.find((s) => s.id === newSubcategoryId) ?? null;
         setFolders((prev) => [
           ...prev,
-          { ...created, _count: { leads: 0 }, industry: ind ? { id: ind.id, name: ind.name, color: ind.color } : null },
+          {
+            ...created,
+            _count: { leads: 0 },
+            industry: ind ? { id: ind.id, name: ind.name, color: ind.color } : null,
+            subcategory: sub ? { id: sub.id, name: sub.name, color: sub.color } : null,
+          },
         ]);
         folderId = created.id;
       } else {
@@ -178,9 +204,10 @@ export function FolderPickerModal({
   const selectedSubcategory = subcategories.find((s) => s.id === newSubcategoryId);
 
   const filteredFolders = folders.filter((f) => {
-    const matchSearch   = f.name.toLowerCase().includes(search.toLowerCase());
-    const matchIndustry = filterIndustryId === null || f.industry?.id === filterIndustryId;
-    return matchSearch && matchIndustry;
+    const matchSearch      = f.name.toLowerCase().includes(search.toLowerCase());
+    const matchIndustry    = filterIndustryId === null || f.industry?.id === filterIndustryId;
+    const matchSubcategory = filterSubcategoryId === null || f.subcategory?.id === filterSubcategoryId;
+    return matchSearch && matchIndustry && matchSubcategory;
   });
 
   return (
@@ -248,6 +275,49 @@ export function FolderPickerModal({
                         {ind.name}
                       </button>
                     ))}
+                  </div>
+                )}
+
+                {/* Subcategory drill-down — appears under the selected category so
+                    you can narrow the folders to a specific subcategory. */}
+                {filterIndustryId && (loadingFilterSubs || filterSubcategories.length > 0) && (
+                  <div className="flex flex-wrap items-center gap-1.5 pl-2 ml-0.5 border-l-2 border-blue-600/40">
+                    {loadingFilterSubs ? (
+                      <span className="text-xs text-muted-foreground flex items-center gap-1.5 py-1">
+                        <Loader2 className="h-3 w-3 animate-spin" /> Loading subcategories…
+                      </span>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setFilterSubcategoryId(null)}
+                          className={cn(
+                            "text-xs px-2.5 py-1 rounded-full border transition-colors",
+                            filterSubcategoryId === null
+                              ? "bg-blue-600 text-white border-blue-600"
+                              : "border-border hover:bg-muted"
+                          )}
+                        >
+                          All
+                        </button>
+                        {filterSubcategories.map((sub) => (
+                          <button
+                            key={sub.id}
+                            type="button"
+                            onClick={() => setFilterSubcategoryId(sub.id === filterSubcategoryId ? null : sub.id)}
+                            className={cn(
+                              "text-xs px-2.5 py-1 rounded-full border transition-colors flex items-center gap-1.5",
+                              filterSubcategoryId === sub.id
+                                ? "bg-blue-600 text-white border-blue-600"
+                                : "border-border hover:bg-muted"
+                            )}
+                          >
+                            <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: sub.color }} />
+                            {sub.name}
+                          </button>
+                        ))}
+                      </>
+                    )}
                   </div>
                 )}
               </div>
