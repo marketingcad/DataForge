@@ -462,7 +462,14 @@ export function KeywordsManager({ initial, canManageAll = true, currentUserId = 
           // user sees which city the scraper is in right now.
           const city = typeof job.location === "string" ? job.location.split(",")[0].trim() : "";
           const cityPrefix = city ? `📍 ${city} · ` : "";
-          setRunningLabels(prev => ({ ...prev, [kwId]: cityPrefix + prefix + msg }));
+          // Staleness guard: a live job writes progress every ≤~40s. If it says
+          // "running" but hasn't updated in >90s, its server-side browser is almost
+          // certainly dead (Vercel killed the function) and this text is frozen.
+          // Show a stalled indicator instead of a lie; the cron reaper fails it within
+          // ~3 min and the keyword restarts.
+          const staleMs = job.updatedAt ? Date.now() - new Date(job.updatedAt).getTime() : 0;
+          const label = staleMs > 90_000 ? "⚠ Stalled — restarting shortly…" : cityPrefix + prefix + msg;
+          setRunningLabels(prev => ({ ...prev, [kwId]: label }));
 
           // Scraper logged a terminal message but Vercel timed out before writing status="completed"
           if (job.errorMessage?.startsWith("Done") || job.errorMessage?.startsWith("All discovered")) {
@@ -769,7 +776,11 @@ export function KeywordsManager({ initial, canManageAll = true, currentUserId = 
           // user sees which city the scraper is in right now.
           const city = typeof job.location === "string" ? job.location.split(",")[0].trim() : "";
           const cityPrefix = city ? `📍 ${city} · ` : "";
-          setRunningLabels(prev => ({ ...prev, [kwId]: cityPrefix + prefix + msg }));
+          // Staleness guard: see resumePolling — >90s without a progress write means
+          // the server-side browser died; show a stalled indicator, not frozen text.
+          const staleMs = job.updatedAt ? Date.now() - new Date(job.updatedAt).getTime() : 0;
+          const label = staleMs > 90_000 ? "⚠ Stalled — restarting shortly…" : cityPrefix + prefix + msg;
+          setRunningLabels(prev => ({ ...prev, [kwId]: label }));
           if (job.leadsDiscovered > 0) {
             setKeywords((prev) =>
               prev.map((k) =>

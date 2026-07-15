@@ -36,15 +36,17 @@ async function handleCron(req: NextRequest) {
   const jobsToRun: Awaited<ReturnType<typeof getJobById>>[] = [];
 
   // Reap zombie jobs. A serverless run can't live past ~300s, so any keyword job
-  // still "running"/"pending" but not updated in >6 min was interrupted (function
-  // timeout or crash). Left alone it shows as stuck forever, blocks its keyword
-  // from restarting, and permanently eats a concurrency slot. Mark it failed so
-  // the keyword can run again on this tick.
+  // still "running"/"pending" but not updated in >3 min was interrupted (function
+  // timeout or crash) — the server-side Chromium is already dead, but the DB row
+  // is frozen at its last progress text so the UI keeps showing e.g. "grabbing
+  // emails 10/16" for a browser that no longer exists. A live job writes progress
+  // (a heartbeat) after every lead (≤~40s apart), so >3 min stale reliably means
+  // dead. Reaping fast unblocks the keyword and stops the misleading stale text.
   const reaped = await prisma.scrapingJob.updateMany({
     where: {
       keywordId: { not: null },
       status: { in: ["running", "pending"] },
-      updatedAt: { lt: new Date(Date.now() - 6 * 60 * 1000) },
+      updatedAt: { lt: new Date(Date.now() - 3 * 60 * 1000) },
     },
     data: {
       status: "failed",
