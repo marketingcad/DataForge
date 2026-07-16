@@ -381,7 +381,15 @@ export function KeywordsManager({ initial, canManageAll = true, currentUserId = 
         if (pendingAutoRunRef.current.size > 0) {
           fresh = fresh.map((k) => {
             const pending = pendingAutoRunRef.current.get(k.id);
-            return pending !== undefined ? { ...k, autoRun: pending } : k;
+            if (pending === undefined) return k;
+            // When stopping (pending === false), also suppress the still-winding-down
+            // job so the card doesn't flash the "Stop" (force-stop) button between
+            // "Stop Auto" and the scrape actually ending.
+            const jobs =
+              pending === false && k.jobs[0] && ["running", "pending"].includes(k.jobs[0].status)
+                ? k.jobs.map((j, i) => (i === 0 ? { ...j, status: "completed" } : j))
+                : k.jobs;
+            return { ...k, autoRun: pending, jobs };
           });
         }
         setKeywords(fresh);
@@ -527,7 +535,16 @@ export function KeywordsManager({ initial, canManageAll = true, currentUserId = 
     // Hold the intended value + optimistic toggle (the guard stops the poll from
     // flipping it back while the PATCH is in flight).
     pendingAutoRunRef.current.set(kwId, next);
-    setKeywords((prev) => prev.map((k) => (k.id === kwId ? { ...k, autoRun: next } : k)));
+    setKeywords((prev) => prev.map((k) => {
+      if (k.id !== kwId) return k;
+      if (next) return { ...k, autoRun: true };
+      // Turning off: also clear the live job locally so the card goes straight to
+      // idle (no "Stop" force-stop button flash) while the cancel takes effect.
+      const jobs = k.jobs[0] && ["running", "pending"].includes(k.jobs[0].status)
+        ? k.jobs.map((j, i) => (i === 0 ? { ...j, status: "completed" } : j))
+        : k.jobs;
+      return { ...k, autoRun: false, jobs };
+    }));
 
     // Stop-Auto should also stop the run that's happening NOW — find its live job.
     const runningJobId =
