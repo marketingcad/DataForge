@@ -221,6 +221,9 @@ export function FolderPickerModal({
 
   const selectedIndustry = industries.find((i) => i.id === newIndustryId);
   const selectedSubcategory = subcategories.find((s) => s.id === newSubcategoryId);
+  // Active folder-grid filter selections (shown in the filter dropdowns).
+  const filterIndustry = industries.find((i) => i.id === filterIndustryId);
+  const filterSubcategory = filterSubcategories.find((s) => s.id === filterSubcategoryId);
 
   const filteredFolders = folders.filter((f) => {
     const matchSearch      = f.name.toLowerCase().includes(search.toLowerCase());
@@ -265,77 +268,65 @@ export function FolderPickerModal({
                   />
                 </div>
                 {industries.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => setFilterIndustryId(null)}
-                      className={cn(
-                        "text-xs px-2.5 py-1 rounded-full border transition-colors",
-                        filterIndustryId === null
-                          ? "bg-blue-600 text-white border-blue-600"
-                          : "border-border hover:bg-muted"
-                      )}
-                    >
-                      All
-                    </button>
-                    {industries.map((ind) => (
-                      <button
-                        key={ind.id}
-                        type="button"
-                        onClick={() => setFilterIndustryId(ind.id === filterIndustryId ? null : ind.id)}
-                        className={cn(
-                          "text-xs px-2.5 py-1 rounded-full border transition-colors flex items-center gap-1.5",
-                          filterIndustryId === ind.id
-                            ? "bg-blue-600 text-white border-blue-600"
-                            : "border-border hover:bg-muted"
-                        )}
-                      >
-                        <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: ind.color }} />
-                        {ind.name}
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                {/* Subcategory drill-down — appears under the selected category so
-                    you can narrow the folders to a specific subcategory. */}
-                {filterIndustryId && (loadingFilterSubs || filterSubcategories.length > 0) && (
-                  <div className="flex flex-wrap items-center gap-1.5 pl-2 ml-0.5 border-l-2 border-blue-600/40">
-                    {loadingFilterSubs ? (
-                      <span className="text-xs text-muted-foreground flex items-center gap-1.5 py-1">
-                        <Loader2 className="h-3 w-3 animate-spin" /> Loading subcategories…
-                      </span>
-                    ) : (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => setFilterSubcategoryId(null)}
-                          className={cn(
-                            "text-xs px-2.5 py-1 rounded-full border transition-colors",
-                            filterSubcategoryId === null
-                              ? "bg-blue-600 text-white border-blue-600"
-                              : "border-border hover:bg-muted"
-                          )}
-                        >
-                          All
-                        </button>
-                        {filterSubcategories.map((sub) => (
-                          <button
-                            key={sub.id}
-                            type="button"
-                            onClick={() => setFilterSubcategoryId(sub.id === filterSubcategoryId ? null : sub.id)}
-                            className={cn(
-                              "text-xs px-2.5 py-1 rounded-full border transition-colors flex items-center gap-1.5",
-                              filterSubcategoryId === sub.id
-                                ? "bg-blue-600 text-white border-blue-600"
-                                : "border-border hover:bg-muted"
-                            )}
-                          >
-                            <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: sub.color }} />
-                            {sub.name}
-                          </button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* Category filter — dropdown so many categories don't overflow */}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger render={<Button variant="outline" size="sm" className="h-8 gap-1.5 text-sm font-normal" />}>
+                        <span className="flex items-center gap-1.5 truncate">
+                          {filterIndustry ? (
+                            <>
+                              <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: filterIndustry.color }} />
+                              {filterIndustry.name}
+                            </>
+                          ) : "All categories"}
+                        </span>
+                        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" className="w-56 max-h-72 overflow-y-auto">
+                        <DropdownMenuItem className="text-sm cursor-pointer" onClick={() => setFilterIndustryId(null)}>
+                          All categories
+                          {filterIndustryId === null && <Check className="ml-auto h-3.5 w-3.5" />}
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        {industries.map((ind) => (
+                          <DropdownMenuItem key={ind.id} className="text-sm cursor-pointer gap-2" onClick={() => setFilterIndustryId(ind.id)}>
+                            <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: ind.color }} />
+                            {ind.name}
+                            {filterIndustryId === ind.id && <Check className="ml-auto h-3.5 w-3.5" />}
+                          </DropdownMenuItem>
                         ))}
-                      </>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+
+                    {/* Subcategory filter — dropdown, only once a category is chosen */}
+                    {filterIndustryId && (loadingFilterSubs || filterSubcategories.length > 0) && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger render={<Button variant="outline" size="sm" className="h-8 gap-1.5 text-sm font-normal" disabled={loadingFilterSubs} />}>
+                          <span className="flex items-center gap-1.5 truncate">
+                            {filterSubcategory ? (
+                              <>
+                                <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: filterSubcategory.color }} />
+                                {filterSubcategory.name}
+                              </>
+                            ) : (loadingFilterSubs ? "Loading…" : "All subcategories")}
+                          </span>
+                          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" className="w-56 max-h-72 overflow-y-auto">
+                          <DropdownMenuItem className="text-sm cursor-pointer" onClick={() => setFilterSubcategoryId(null)}>
+                            All subcategories
+                            {filterSubcategoryId === null && <Check className="ml-auto h-3.5 w-3.5" />}
+                          </DropdownMenuItem>
+                          {filterSubcategories.length > 0 && <DropdownMenuSeparator />}
+                          {filterSubcategories.map((sub) => (
+                            <DropdownMenuItem key={sub.id} className="text-sm cursor-pointer gap-2" onClick={() => setFilterSubcategoryId(sub.id)}>
+                              <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: sub.color }} />
+                              {sub.name}
+                              {filterSubcategoryId === sub.id && <Check className="ml-auto h-3.5 w-3.5" />}
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     )}
                   </div>
                 )}

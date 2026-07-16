@@ -63,8 +63,10 @@ export async function GET(
   if (fAddress === "has") base.address = { not: null, notIn: [""] };
   if (fAddress === "no")  base.AND = [...(base.AND ?? []), { OR: [{ address: null }, { address: "" }] }];
 
-  if (fPhone === "has") base.phone = { not: null, notIn: ["", "N/A"] };
-  if (fPhone === "no")  base.AND = [...(base.AND ?? []), { OR: [{ phone: null }, { phone: "" }, { phone: "N/A" }] }];
+  // phone is a required (non-null) column — a `null` filter throws in Prisma, so
+  // match empty / "N/A" strings only.
+  if (fPhone === "has") base.phone = { notIn: ["", "N/A"] };
+  if (fPhone === "no")  base.AND = [...(base.AND ?? []), { phone: { in: ["", "N/A"] } }];
 
   if (fScore === "has") base.dataQualityScore = { gt: 0 };
   if (fScore === "no")  base.dataQualityScore = { equals: 0 };
@@ -79,8 +81,9 @@ export async function GET(
     base.dataQualityScore = { lte: maxVal };
   }
 
-  if (fName === "has") base.businessName = { not: null, notIn: [""] };
-  if (fName === "no")  base.AND = [...(base.AND ?? []), { OR: [{ businessName: null }, { businessName: "" }] }];
+  // businessName is required (non-null) — same treatment as phone.
+  if (fName === "has") base.businessName = { notIn: [""] };
+  if (fName === "no")  base.AND = [...(base.AND ?? []), { businessName: { in: [""] } }];
 
   if (state) base.state = { contains: state, mode: "insensitive" };
 
