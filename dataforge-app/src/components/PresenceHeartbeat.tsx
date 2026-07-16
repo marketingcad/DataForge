@@ -46,9 +46,12 @@ function webDeviceName(): string {
 export function PresenceHeartbeat() {
   useEffect(() => {
     const deviceId = getDeviceId();
-    const desktop = (window as unknown as { dataforgeDesktop?: { isDesktop?: boolean; deviceName?: string } }).dataforgeDesktop;
+    const desktop = (window as unknown as { dataforgeDesktop?: { isDesktop?: boolean; deviceName?: string; lanIp?: string } }).dataforgeDesktop;
     const kind = desktop?.isDesktop ? "desktop" : "web";
     const deviceName = desktop?.isDesktop ? (desktop.deviceName || "Desktop") : webDeviceName();
+    // Desktop reports its LAN IP (the server only sees localhost for a desktop's
+    // own requests). For web, the server reads the public IP from headers.
+    const reportedIp = desktop?.isDesktop ? (desktop.lanIp || null) : null;
 
     let stopped = false;
 
@@ -60,7 +63,7 @@ export function PresenceHeartbeat() {
         await fetch(`/api/keywords/${cmd.keywordId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ autoRun: cmd.action === "start" }),
+          body: JSON.stringify({ autoRun: cmd.action === "start", deviceId }),
         });
       } catch { /* transient — boss can re-issue */ }
     }
@@ -71,7 +74,7 @@ export function PresenceHeartbeat() {
         const res = await fetch("/api/instances/heartbeat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ deviceId, kind, deviceName }),
+          body: JSON.stringify({ deviceId, kind, deviceName, reportedIp }),
           keepalive: true,
         });
         const data = await res.json().catch(() => null);

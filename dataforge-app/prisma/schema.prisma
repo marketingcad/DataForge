@@ -464,6 +464,7 @@ model ScrapingJob {
   failedRecords   Int              @default(0)
   keywordId       String?
   startedById     String?
+  deviceId        String?          // which fleet device is running this scrape
   pendingLeads    Json?
   startTime       DateTime?
   completedTime   DateTime?
@@ -524,6 +525,7 @@ model AppInstance {
   role       String
   kind       String   @default("web") // "web" | "desktop"
   deviceName String?  // hostname (desktop) or "Chrome on Windows" (web)
+  ipAddress  String?  // public IP (web) or LAN IP (desktop)
   lastSeen   DateTime @updatedAt
   createdAt  DateTime @default(now())
 

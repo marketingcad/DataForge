@@ -377,7 +377,7 @@ function releaseScrapeSlot() {
   }
 }
 
-export async function runKeywordAutoLoop(keywordId: string, startedById?: string) {
+export async function runKeywordAutoLoop(keywordId: string, startedById?: string, deviceId?: string) {
   if (activeAutoLoops.has(keywordId)) return; // a loop for this keyword is already running here
   activeAutoLoops.add(keywordId);
   try {
@@ -449,6 +449,7 @@ export async function runKeywordAutoLoop(keywordId: string, startedById?: string
             source: "serpapi",
             keywordId,
             startedById,
+            deviceId,
           });
           await Promise.race([
             processKeywordJob(await getJobById(newJob.id)),

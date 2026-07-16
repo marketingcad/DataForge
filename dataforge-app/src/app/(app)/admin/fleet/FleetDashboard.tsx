@@ -8,7 +8,9 @@ import { Loader2, Monitor, Globe, Play, Square, Search, ChevronDown, ChevronRigh
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
-const isScraping = (k: FleetKeyword) => k.autoRun || k.jobStatus === "running" || k.jobStatus === "pending";
+// Per-device: a keyword is "scraping" on a device only if that device has a
+// running/pending job for it (jobStatus is attributed per device server-side).
+const isScraping = (k: FleetKeyword) => k.jobStatus === "running" || k.jobStatus === "pending";
 
 export function FleetDashboard() {
   const [instances, setInstances] = useState<FleetInstance[]>([]);
@@ -92,6 +94,7 @@ export function FleetDashboard() {
                     {" · "}
                     <span className="font-medium">{inst.kind === "desktop" ? "Desktop" : "Website"}</span>
                     {inst.deviceName ? ` · ${inst.deviceName}` : ""}
+                    {inst.ipAddress ? ` · ${inst.ipAddress}` : ""}
                   </p>
                 </div>
               </div>

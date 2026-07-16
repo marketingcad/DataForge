@@ -52,7 +52,7 @@ export async function PATCH(
   if (denied) return denied;
 
   const body = await req.json();
-  const { keyword, location, maxLeads, intervalMinutes, enabled, extraKeywords, extraKeywordsMode, extraKeywordsMin, extraKeywordsMax, extraKeywordsOrder, category, cityRotationEnabled, grabEmail, autoRun } = body;
+  const { keyword, location, maxLeads, intervalMinutes, enabled, extraKeywords, extraKeywordsMode, extraKeywordsMin, extraKeywordsMax, extraKeywordsOrder, category, cityRotationEnabled, grabEmail, autoRun, deviceId } = body;
 
   const existing = await getKeywordById(id).catch(() => null);
 
@@ -94,7 +94,9 @@ export async function PATCH(
   if (autoRunTurnedOn) {
     const session = await auth();
     const userId = (session?.user as unknown as Record<string, unknown>)?.id as string | undefined;
-    waitUntil(runKeywordAutoLoop(id, userId));
+    // deviceId (from the client) tags the jobs this loop creates, so the boss
+    // fleet view shows the scrape on the device that's actually running it.
+    waitUntil(runKeywordAutoLoop(id, userId, typeof deviceId === "string" ? deviceId : undefined));
   }
 
   // Auto-run turned off → also cancel the current run so it stops now (not after

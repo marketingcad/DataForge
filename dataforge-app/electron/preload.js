@@ -5,9 +5,21 @@
 const { contextBridge } = require("electron");
 const os = require("os");
 
+function firstLanIp() {
+  try {
+    for (const addrs of Object.values(os.networkInterfaces())) {
+      for (const a of addrs ?? []) {
+        if (a.family === "IPv4" && !a.internal) return a.address;
+      }
+    }
+  } catch { /* ignore */ }
+  return null;
+}
+
 contextBridge.exposeInMainWorld("dataforgeDesktop", {
   isDesktop: true,
   platform: process.platform,
-  // Machine hostname so the boss fleet view can tell devices apart.
+  // Machine hostname + LAN IP so the boss fleet view can tell devices apart.
   deviceName: (() => { try { return os.hostname(); } catch { return null; } })(),
+  lanIp: firstLanIp(),
 });

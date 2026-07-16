@@ -23,6 +23,7 @@ export type FleetInstance = {
   role: string;
   kind: string;          // "web" | "desktop"
   deviceName: string | null;
+  ipAddress: string | null;
   lastSeen: string;      // ISO
   keywords: FleetKeyword[];
 };
@@ -41,38 +42,25 @@ export async function getFleetAction(): Promise<{ instances: FleetInstance[] }> 
     orderBy: { lastSeen: "desc" },
   });
 
-  // Cache keyword lookups per user so multiple devices for the same user don't re-query.
-  const cache = new Map<string, FleetKeyword[]>();
+  // Cache the accessible-keyword LIST per user (device-independent). The scraping
+  // status is computed per device below, since a keyword can be scraped on one
+  // device but not another.
+  type BaseKeyword = { id: string; keyword: string; location: string; autoRun: boolean; leads: number };
+  const cache = new Map<string, BaseKeyword[]>();
 
-  async function keywordsForUser(userId: string, role: string): Promise<FleetKeyword[]> {
+  async function keywordsForUser(userId: string, role: string): Promise<BaseKeyword[]> {
     const cacheKey = `${role}:${userId}`;
     const cached = cache.get(cacheKey);
     if (cached) return cached;
 
-    const where = hasFullKeywordAccess(role)
-      ? {}
-      : { id: { in: await getGrantedKeywordIds(userId) } };
-
+    const where = hasFullKeywordAccess(role) ? {} : { id: { in: await getGrantedKeywordIds(userId) } };
     const rows = await prisma.scrapingKeyword.findMany({
       where,
       orderBy: { createdAt: "asc" },
-      select: {
-        id: true,
-        keyword: true,
-        location: true,
-        autoRun: true,
-        jobs: { orderBy: { createdAt: "desc" }, take: 1, select: { status: true } },
-        _count: { select: { leads: true } },
-      },
+      select: { id: true, keyword: true, location: true, autoRun: true, _count: { select: { leads: true } } },
     });
-
-    const mapped: FleetKeyword[] = rows.map((k) => ({
-      id: k.id,
-      keyword: k.keyword,
-      location: k.location,
-      autoRun: k.autoRun,
-      jobStatus: k.jobs[0]?.status ?? null,
-      leads: k._count.leads,
+    const mapped = rows.map((k) => ({
+      id: k.id, keyword: k.keyword, location: k.location, autoRun: k.autoRun, leads: k._count.leads,
     }));
     cache.set(cacheKey, mapped);
     return mapped;
@@ -80,6 +68,15 @@ export async function getFleetAction(): Promise<{ instances: FleetInstance[] }> 
 
   const result: FleetInstance[] = [];
   for (const inst of instances) {
+    const base = await keywordsForUser(inst.userId, inst.role);
+
+    // Keywords actively being scraped BY THIS device (job tagged with its deviceId).
+    const runningJobs = await prisma.scrapingJob.findMany({
+      where: { deviceId: inst.id, status: { in: ["running", "pending"] } },
+      select: { keywordId: true },
+    });
+    const scrapingHere = new Set(runningJobs.map((j) => j.keywordId).filter(Boolean) as string[]);
+
     result.push({
       deviceId: inst.id,
       userName: inst.userName,
@@ -87,8 +84,12 @@ export async function getFleetAction(): Promise<{ instances: FleetInstance[] }> 
       role: inst.role,
       kind: inst.kind,
       deviceName: inst.deviceName,
+      ipAddress: inst.ipAddress,
       lastSeen: inst.lastSeen.toISOString(),
-      keywords: await keywordsForUser(inst.userId, inst.role),
+      keywords: base.map((k) => ({
+        ...k,
+        jobStatus: scrapingHere.has(k.id) ? "running" : null,
+      })),
     });
   }
 

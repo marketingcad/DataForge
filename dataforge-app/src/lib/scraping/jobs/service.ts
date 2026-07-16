@@ -1,8 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { ScrapingJobInput } from "@/types/scraping";
 
-export async function createJob(input: ScrapingJobInput & { keywordId?: string; startedById?: string }) {
-  const { keywordId, startedById, ...rest } = input;
+export async function createJob(input: ScrapingJobInput & { keywordId?: string; startedById?: string; deviceId?: string }) {
+  const { keywordId, startedById, deviceId, ...rest } = input;
   return prisma.scrapingJob.create({
     data: {
       ...rest,
@@ -10,6 +10,8 @@ export async function createJob(input: ScrapingJobInput & { keywordId?: string; 
       // Who manually started this run — lets us enforce "only the starter (or
       // boss/admin) may stop it". Cron/auto runs leave this null.
       ...(startedById ? { startedById } : {}),
+      // Which fleet device is running this scrape (for the boss fleet view).
+      ...(deviceId ? { deviceId } : {}),
     },
   });
 }

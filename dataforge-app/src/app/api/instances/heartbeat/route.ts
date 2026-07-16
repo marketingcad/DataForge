@@ -13,12 +13,19 @@ export async function POST(req: NextRequest) {
   const userId = (u?.id as string) ?? "";
   if (!userId) return NextResponse.json({ error: "No user" }, { status: 401 });
 
-  let body: { deviceId?: string; kind?: string; deviceName?: string } = {};
+  let body: { deviceId?: string; kind?: string; deviceName?: string; reportedIp?: string | null } = {};
   try { body = await req.json(); } catch { /* empty body */ }
 
   const deviceId = (body.deviceId ?? "").trim();
   if (!deviceId) return NextResponse.json({ error: "Missing deviceId" }, { status: 400 });
   const kind = body.kind === "desktop" ? "desktop" : "web";
+
+  // Server-observed IP (real public IP on Vercel via x-forwarded-for). A desktop
+  // app hits its own localhost server, so that reads as ::1/127.0.0.1 — in that
+  // case fall back to the LAN IP the client reported.
+  const observed = (req.headers.get("x-forwarded-for")?.split(",")[0] ?? req.headers.get("x-real-ip") ?? "").trim();
+  const isLocal = !observed || observed === "::1" || observed.startsWith("127.");
+  const ipAddress = (isLocal ? (body.reportedIp ?? observed) : observed) || null;
 
   const data = {
     userId,
@@ -27,6 +34,7 @@ export async function POST(req: NextRequest) {
     role: (u?.role as string) ?? "lead_specialist",
     kind,
     deviceName: (body.deviceName ?? "").trim() || null,
+    ipAddress,
   };
 
   await prisma.appInstance.upsert({

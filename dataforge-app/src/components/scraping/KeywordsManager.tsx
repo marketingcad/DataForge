@@ -552,10 +552,13 @@ export function KeywordsManager({ initial, canManageAll = true, currentUserId = 
       (["running", "pending"].includes(kw?.jobs?.[0]?.status ?? "") ? kw?.jobs?.[0]?.id : undefined);
 
     try {
+      // Tag the run with this device so the boss fleet view attributes it correctly.
+      let deviceId: string | null = null;
+      try { deviceId = localStorage.getItem("dataforge:deviceId"); } catch { /* ignore */ }
       const res = await fetch(`/api/keywords/${kwId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ autoRun: next }),
+        body: JSON.stringify({ autoRun: next, deviceId }),
       });
       if (!res.ok) throw new Error("failed");
 
