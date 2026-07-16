@@ -66,16 +66,28 @@ export async function getFleetAction(): Promise<{ instances: FleetInstance[] }> 
     return mapped;
   }
 
+  // Running jobs that aren't tagged to any device yet (legacy runs, cron runs, or
+  // scrapers on an app build from before device tagging). We surface these so the
+  // boss can still SEE active scraping; once devices run the tagged build, their
+  // jobs attribute precisely to the right card instead.
+  const untaggedJobs = await prisma.scrapingJob.findMany({
+    where: { deviceId: null, status: { in: ["running", "pending"] }, keywordId: { not: null } },
+    select: { keywordId: true },
+  });
+  const untaggedScraping = new Set(untaggedJobs.map((j) => j.keywordId).filter(Boolean) as string[]);
+
   const result: FleetInstance[] = [];
   for (const inst of instances) {
     const base = await keywordsForUser(inst.userId, inst.role);
 
-    // Keywords actively being scraped BY THIS device (job tagged with its deviceId).
+    // Keywords actively being scraped BY THIS device (job tagged with its deviceId)…
     const runningJobs = await prisma.scrapingJob.findMany({
       where: { deviceId: inst.id, status: { in: ["running", "pending"] } },
       select: { keywordId: true },
     });
     const scrapingHere = new Set(runningJobs.map((j) => j.keywordId).filter(Boolean) as string[]);
+    // …plus untagged running jobs the device's account can access, so nothing is invisible.
+    untaggedScraping.forEach((id) => scrapingHere.add(id));
 
     result.push({
       deviceId: inst.id,
