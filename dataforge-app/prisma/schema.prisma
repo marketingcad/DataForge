@@ -517,17 +517,34 @@ model AppSettings {
 // and (via their user) what they can scrape. A row is considered "online" when
 // lastSeen is recent (~within 30s). id is a stable per-install deviceId.
 model AppInstance {
-  id        String   @id
-  userId    String
-  userName  String?
-  userEmail String?
-  role      String
-  kind      String   @default("web") // "web" | "desktop"
-  lastSeen  DateTime @updatedAt
-  createdAt DateTime @default(now())
+  id         String   @id
+  userId     String
+  userName   String?
+  userEmail  String?
+  role       String
+  kind       String   @default("web") // "web" | "desktop"
+  deviceName String?  // hostname (desktop) or "Chrome on Windows" (web)
+  lastSeen   DateTime @updatedAt
+  createdAt  DateTime @default(now())
 
   @@index([lastSeen])
   @@index([userId])
+}
+
+// A remote start/stop instruction the boss issues to a specific device. The target
+// device polls for its pending commands (via heartbeat) and executes them locally,
+// so the scrape runs on THAT device, not the boss's.
+model RemoteCommand {
+  id             String    @id @default(uuid())
+  targetDeviceId String
+  action         String    // "start" | "stop"
+  keywordId      String
+  status         String    @default("pending") // pending | done | failed
+  createdById    String
+  createdAt      DateTime  @default(now())
+  processedAt    DateTime?
+
+  @@index([targetDeviceId, status])
 }
 
 model BalloonAuditLog {

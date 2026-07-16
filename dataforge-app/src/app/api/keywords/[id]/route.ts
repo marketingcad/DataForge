@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { getKeywordById, updateKeyword, deleteKeyword } from "@/lib/keywords/service";
 import { canAccessKeyword, hasFullKeywordAccess } from "@/lib/keywords/access";
 import { runKeywordAutoLoop } from "@/lib/scraping/jobs/processor";
+import { prisma } from "@/lib/prisma";
 
 const ALLOWED_ROLES = ["boss", "admin", "team_lead", "lead_specialist"];
 
@@ -94,6 +95,16 @@ export async function PATCH(
     const session = await auth();
     const userId = (session?.user as unknown as Record<string, unknown>)?.id as string | undefined;
     waitUntil(runKeywordAutoLoop(id, userId));
+  }
+
+  // Auto-run turned off → also cancel the current run so it stops now (not after
+  // finishing). The processor polls job status and stops when it's no longer
+  // "running". Makes both the UI Stop-Auto and remote stop fully halt the scrape.
+  if (autoRunTurnedOff) {
+    await prisma.scrapingJob.updateMany({
+      where: { keywordId: id, status: { in: ["running", "pending"] } },
+      data: { status: "paused", errorMessage: "Stopped — auto-run turned off." },
+    }).catch(() => {});
   }
 
   return NextResponse.json({ keyword: updated });

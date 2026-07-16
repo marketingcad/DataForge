@@ -22,6 +22,7 @@ export type FleetInstance = {
   userEmail: string | null;
   role: string;
   kind: string;          // "web" | "desktop"
+  deviceName: string | null;
   lastSeen: string;      // ISO
   keywords: FleetKeyword[];
 };
@@ -85,10 +86,39 @@ export async function getFleetAction(): Promise<{ instances: FleetInstance[] }> 
       userEmail: inst.userEmail,
       role: inst.role,
       kind: inst.kind,
+      deviceName: inst.deviceName,
       lastSeen: inst.lastSeen.toISOString(),
       keywords: await keywordsForUser(inst.userId, inst.role),
     });
   }
 
   return { instances: result };
+}
+
+/**
+ * Boss-only. Queue a start/stop command for a keyword on a specific device. The
+ * target device picks it up on its next heartbeat and runs it locally. Validated
+ * so the boss can only command keywords the device's own account can access.
+ */
+export async function issueRemoteCommandAction(
+  deviceId: string,
+  keywordId: string,
+  action: "start" | "stop"
+): Promise<{ ok: true } | { error: string }> {
+  const boss = await requireRole("boss");
+
+  const inst = await prisma.appInstance.findUnique({ where: { id: deviceId } });
+  if (!inst) return { error: "Device is not online." };
+
+  // The command must target a keyword the device's own account can access.
+  if (!hasFullKeywordAccess(inst.role)) {
+    const granted = await getGrantedKeywordIds(inst.userId);
+    if (!granted.includes(keywordId)) return { error: "That account can't access this keyword." };
+  }
+
+  await prisma.remoteCommand.create({
+    data: { targetDeviceId: deviceId, keywordId, action, createdById: boss.id },
+  });
+
+  return { ok: true };
 }
