@@ -18,6 +18,7 @@ import {
   CalendarDays,
   BarChart2,
   UserCog,
+  MonitorSmartphone,
   Settings,
   Bookmark,
   UserCircle,
@@ -98,6 +99,7 @@ function buildSections(role: Role): Section[] {
           title: "Admin",
           items: [
             { label: "Users",        href: "/admin/users",    icon: UserCog  },
+            ...(role === "boss" ? [{ label: "Fleet", href: "/admin/fleet", icon: MonitorSmartphone }] : []),
             ...(role === "boss" ? [{ label: "Settings", href: "/settings", icon: Settings }] : []),
             { label: "How It Works", href: "/how-it-works",  icon: BookOpen },
           ],

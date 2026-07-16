@@ -512,6 +512,24 @@ model AppSettings {
   disabledFeatures            String[] @default([])
 }
 
+// A running DataForge instance (a browser tab or a desktop app) reporting in via
+// heartbeat. Powers the boss "fleet" view: who is online, on what kind of device,
+// and (via their user) what they can scrape. A row is considered "online" when
+// lastSeen is recent (~within 30s). id is a stable per-install deviceId.
+model AppInstance {
+  id        String   @id
+  userId    String
+  userName  String?
+  userEmail String?
+  role      String
+  kind      String   @default("web") // "web" | "desktop"
+  lastSeen  DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  @@index([lastSeen])
+  @@index([userId])
+}
+
 model BalloonAuditLog {
   id        String   @id @default(uuid())
   actorId   String

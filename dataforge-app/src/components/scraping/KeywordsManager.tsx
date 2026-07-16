@@ -928,11 +928,16 @@ export function KeywordsManager({ initial, canManageAll = true, currentUserId = 
     }
   }
 
+  // Total leads scraped across all keywords (each lead belongs to one keyword, so
+  // summing per-keyword counts is accurate — no double counting).
+  const totalScrapedLeads = keywords.reduce((sum, k) => sum + (k._count?.leads ?? 0), 0);
+
   return (
     <div className="space-y-4">
       {/* Toolbar */}
       <div className="flex items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">
+          <span className="font-semibold text-foreground">{totalScrapedLeads.toLocaleString()}</span> scraped lead{totalScrapedLeads !== 1 ? "s" : ""} ·{" "}
           {keywords.length} keyword{keywords.length !== 1 ? "s" : ""} ·{" "}
           {keywords.filter((k) => k.enabled).length} active ·{" "}
           {allCategoryNames.length} categor{allCategoryNames.length !== 1 ? "ies" : "y"}

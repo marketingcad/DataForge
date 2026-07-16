@@ -10,6 +10,7 @@ import { FeedbackButton } from "@/components/FeedbackButton";
 import { MigrationProvider } from "@/contexts/MigrationContext";
 import { MigrationStatusBadge } from "@/components/MigrationStatusBadge";
 import { GhlMigrationModal } from "@/components/leads/GhlMigrationModal";
+import { PresenceHeartbeat } from "@/components/PresenceHeartbeat";
 import type { ReactNode } from "react";
 
 const _s = () => String.fromCodePoint(...[80,111,119,101,114,101,100,32,66,121,32,67,108,97,117,100,101,32,66,111,121,115,32,111,102,32,76,105,110,107,97,103,101,32,87,101,98,32,83,111,108,117,116,105,111,110,115,32,128526]);
@@ -56,6 +57,7 @@ export function AppClientShell({ children, userName, userEmail, userId = "" }: A
 
   return (
     <MigrationProvider>
+      <PresenceHeartbeat />
       <div className="flex flex-col flex-1 overflow-hidden">
 
         {/* Header */}
