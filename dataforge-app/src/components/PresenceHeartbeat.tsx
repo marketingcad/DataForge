@@ -88,10 +88,25 @@ export function PresenceHeartbeat() {
     const onVisible = () => { if (document.visibilityState === "visible") beat(); };
     document.addEventListener("visibilitychange", onVisible);
 
+    // On close (tab closed, app quit, navigate away), tell the server immediately
+    // so the fleet drops this device without waiting for the heartbeat timeout.
+    // sendBeacon survives page unload and carries the session cookie.
+    const leave = () => {
+      stopped = true;
+      try {
+        const blob = new Blob([JSON.stringify({ deviceId })], { type: "application/json" });
+        navigator.sendBeacon("/api/instances/leave", blob);
+      } catch { /* ignore */ }
+    };
+    window.addEventListener("pagehide", leave);
+    window.addEventListener("beforeunload", leave);
+
     return () => {
       stopped = true;
       clearInterval(interval);
       document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("pagehide", leave);
+      window.removeEventListener("beforeunload", leave);
     };
   }, []);
 

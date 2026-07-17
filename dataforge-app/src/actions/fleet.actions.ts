@@ -4,8 +4,10 @@ import { requireRole } from "@/lib/rbac/guards";
 import { prisma } from "@/lib/prisma";
 import { hasFullKeywordAccess, getGrantedKeywordIds } from "@/lib/keywords/access";
 
-// An instance is "online" if it has beaten within this window.
-const ONLINE_MS = 30_000;
+// An instance is "online" if it has beaten within this window. Graceful closes
+// remove the row instantly via the leave-beacon; this is the fallback for hard
+// kills/crashes. Heartbeat is every 8s, so 24s tolerates ~2 missed beats.
+const ONLINE_MS = 24_000;
 
 export type FleetKeyword = {
   id: string;
