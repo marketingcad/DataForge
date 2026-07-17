@@ -107,8 +107,9 @@ function buildSections(role: Role): Section[] {
         {
           title: "Account",
           items: [
-            { label: "My Profile", href: "/profile",  icon: UserCircle },
-            { label: "Settings",   href: "/settings", icon: Settings   },
+            { label: "My Profile",   href: "/profile",       icon: UserCircle },
+            { label: "How It Works", href: "/how-it-works",  icon: BookOpen   },
+            { label: "Settings",     href: "/settings",      icon: Settings   },
           ],
         },
       ];
@@ -138,8 +139,9 @@ function buildSections(role: Role): Section[] {
         {
           title: "Account",
           items: [
-            { label: "My Profile", href: "/profile",  icon: UserCircle },
-            { label: "Settings",   href: "/settings", icon: Settings   },
+            { label: "My Profile",   href: "/profile",       icon: UserCircle },
+            { label: "How It Works", href: "/how-it-works",  icon: BookOpen   },
+            { label: "Settings",     href: "/settings",      icon: Settings   },
           ],
         },
       ];
@@ -166,8 +168,9 @@ function buildSections(role: Role): Section[] {
         {
           title: "Account",
           items: [
-            { label: "My Profile", href: "/profile",  icon: UserCircle },
-            { label: "Settings",   href: "/settings", icon: Settings   },
+            { label: "My Profile",   href: "/profile",       icon: UserCircle },
+            { label: "How It Works", href: "/how-it-works",  icon: BookOpen   },
+            { label: "Settings",     href: "/settings",      icon: Settings   },
           ],
         },
       ];

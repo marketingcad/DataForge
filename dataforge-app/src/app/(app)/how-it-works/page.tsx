@@ -18,7 +18,8 @@ export const metadata = { title: "How It Works — DataForge" };
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
-function Section({ id, children }: { id: string; children: React.ReactNode }) {
+function Section({ id, show = true, children }: { id: string; show?: boolean; children: React.ReactNode }) {
+  if (!show) return null;
   return <section id={id} className="scroll-mt-4 space-y-3">{children}</section>;
 }
 
@@ -120,7 +121,33 @@ export default async function HowItWorksPage() {
   const session = await auth();
   if (!session) redirect("/sign-in");
   const role = (session.user as unknown as Record<string, unknown>)?.role as string;
-  if (!["boss", "admin"].includes(role)) redirect("/unauthorized");
+
+  // Scope the guide to what this role can actually use.
+  const isAdmin      = role === "boss" || role === "admin";
+  const canLeads     = isAdmin || role === "lead_specialist";      // leads department
+  const canMarketing = isAdmin || role === "team_lead" || role === "sales_rep"; // marketing dept
+
+  // Per-section visibility (matches sidebar access for the role).
+  const vis: Record<string, boolean> = {
+    overview:     true,
+    workflow:     true,
+    dashboard:    isAdmin,
+    leads:        canLeads,
+    scraping:     canLeads,
+    marketing:    canMarketing,
+    achievements: canMarketing,
+    reports:      isAdmin || role === "team_lead",
+    workspace:    canMarketing,
+    admin:        isAdmin,
+    roles:        true,
+  };
+
+  const roleLabel =
+    role === "boss" ? "Boss Guide" :
+    role === "admin" ? "Admin Guide" :
+    role === "team_lead" ? "Team Lead Guide" :
+    role === "sales_rep" ? "Sales Rep Guide" :
+    role === "lead_specialist" ? "Lead Specialist Guide" : "Guide";
 
   const toc = [
     { id: "overview",     label: "Overview",       icon: Layers },
@@ -134,7 +161,7 @@ export default async function HowItWorksPage() {
     { id: "workspace",    label: "Workspace",       icon: LayoutGrid },
     { id: "admin",        label: "Admin Tools",     icon: Settings },
     { id: "roles",        label: "Role Reference",  icon: Key },
-  ];
+  ].filter((item) => vis[item.id]);
 
   return (
     <div className="flex gap-8">
@@ -165,7 +192,7 @@ export default async function HowItWorksPage() {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <BookOpen className="h-4 w-4 text-muted-foreground" />
-            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Boss &amp; Admin Guide</span>
+            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{roleLabel}</span>
           </div>
           <h1 className="text-lg font-semibold tracking-tight">How DataForge Works</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
@@ -238,7 +265,7 @@ export default async function HowItWorksPage() {
         </Section>
 
         {/* ── DASHBOARD ── */}
-        <Section id="dashboard">
+        <Section id="dashboard" show={vis.dashboard}>
           <SectionHeader icon={LayoutDashboard} iconColor="bg-indigo-500/15 text-indigo-500" title="Dashboard" subtitle="Organisation-wide snapshot — metrics, charts, and quick actions" href="/dashboard" />
           <div className="grid grid-cols-2 gap-3">
             <Card className="space-y-3">
@@ -273,7 +300,7 @@ export default async function HowItWorksPage() {
         </Section>
 
         {/* ── LEADS ── */}
-        <Section id="leads">
+        <Section id="leads" show={vis.leads}>
           <SectionHeader icon={Users} iconColor="bg-emerald-500/15 text-emerald-500" title="Leads" subtitle="The central database of all business contacts" href="/leads" />
           <div className="grid grid-cols-2 gap-3">
             <Card className="space-y-3">
@@ -307,7 +334,7 @@ export default async function HowItWorksPage() {
         </Section>
 
         {/* ── SCRAPING ── */}
-        <Section id="scraping">
+        <Section id="scraping" show={vis.scraping}>
           <SectionHeader icon={ScanSearch} iconColor="bg-amber-500/15 text-amber-500" title="Lead Scraping" subtitle="Three ways to automatically discover new leads" href="/scraping?tab=domain" />
           <div className="grid grid-cols-3 gap-3">
             {[
@@ -352,7 +379,7 @@ export default async function HowItWorksPage() {
         </Section>
 
         {/* ── MARKETING ── */}
-        <Section id="marketing">
+        <Section id="marketing" show={vis.marketing}>
           <SectionHeader icon={Megaphone} iconColor="bg-rose-500/15 text-rose-500" title="Marketing Overview" subtitle="Team performance hub — calls, appointments, leaderboard, and commissions" href="/marketing" />
           <div className="grid grid-cols-2 gap-3">
             <Card className="space-y-3">
@@ -410,7 +437,7 @@ export default async function HowItWorksPage() {
         </Section>
 
         {/* ── ACHIEVEMENTS ── */}
-        <Section id="achievements">
+        <Section id="achievements" show={vis.achievements}>
           <SectionHeader icon={Trophy} iconColor="bg-amber-500/15 text-amber-500" title="Achievements &amp; Gamification" subtitle="Keep agents motivated with badges, challenges, commissions, and prizes" />
           <div className="grid grid-cols-2 gap-3">
             <Card className="space-y-2">
@@ -467,7 +494,7 @@ export default async function HowItWorksPage() {
         </Section>
 
         {/* ── REPORTS ── */}
-        <Section id="reports">
+        <Section id="reports" show={vis.reports}>
           <SectionHeader icon={BarChart2} iconColor="bg-sky-500/15 text-sky-500" title="Reports" subtitle="Deep-dive agent performance analytics for coaching" href="/reports" />
           <div className="grid grid-cols-2 gap-3">
             <Card className="space-y-3">
@@ -508,7 +535,7 @@ export default async function HowItWorksPage() {
         </Section>
 
         {/* ── WORKSPACE ── */}
-        <Section id="workspace">
+        <Section id="workspace" show={vis.workspace}>
           <SectionHeader icon={LayoutGrid} iconColor="bg-teal-500/15 text-teal-500" title="Workspace" subtitle="Kanban, Calendar, and team collaboration tools" />
           <div className="grid grid-cols-3 gap-3">
             {[
@@ -529,7 +556,7 @@ export default async function HowItWorksPage() {
         </Section>
 
         {/* ── ADMIN TOOLS ── */}
-        <Section id="admin">
+        <Section id="admin" show={vis.admin}>
           <SectionHeader icon={Settings} iconColor="bg-slate-500/15 text-slate-500" title="Admin Tools" subtitle="User management and global configuration" href="/admin/users" />
           <div className="grid grid-cols-2 gap-3">
             <Card className="space-y-3">
