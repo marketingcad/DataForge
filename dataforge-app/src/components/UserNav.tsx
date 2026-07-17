@@ -65,7 +65,12 @@ export function UserNav({ name, email }: UserNavProps) {
         <DropdownMenuSeparator />
         <DropdownMenuItem
           className="text-destructive focus:text-destructive cursor-pointer"
-          onClick={() => signOutAction()}
+          onClick={async () => {
+            try { await signOutAction(); } catch { /* ignore */ }
+            // Hard navigation so middleware re-evaluates and the login page shows
+            // immediately (no manual reload needed).
+            window.location.href = "/sign-in";
+          }}
         >
           <LogOut className="h-4 w-4 mr-2" />
           Sign out

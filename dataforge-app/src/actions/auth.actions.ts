@@ -6,7 +6,10 @@ import { signIn, signOut } from "@/lib/auth";
 import { redirect } from "next/navigation";
 
 export async function signOutAction() {
-  await signOut({ redirectTo: "/" });
+  // Clear the session WITHOUT a server-side redirect — the client navigates
+  // itself after this resolves (a server redirect from a plain onClick action
+  // doesn't reliably move the browser, which left users stuck until a reload).
+  await signOut({ redirect: false });
 }
 
 export async function registerAction(formData: FormData) {
