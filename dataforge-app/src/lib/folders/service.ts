@@ -60,6 +60,40 @@ export async function createFolder(
   });
 }
 
+/**
+ * Return the shared "Ungrouped" folder for a category (optionally a subcategory),
+ * creating it once if it doesn't exist. This is where leads saved to a category
+ * WITHOUT choosing a specific folder land — so they stay inside the category as an
+ * openable bucket instead of becoming globally unfiled. One bucket per
+ * (industry, subcategory) pair, shared across users (visibility is category-based).
+ */
+export async function getOrCreateUngroupedFolder(
+  userId: string,
+  industryId: string,
+  subcategoryId?: string | null,
+) {
+  const where = {
+    name: "Ungrouped",
+    industryId,
+    subcategoryId: subcategoryId ?? null,
+  };
+  const existing = await prisma.folder.findFirst({
+    where,
+    select: { id: true, name: true, color: true },
+  });
+  if (existing) return existing;
+  return prisma.folder.create({
+    data: {
+      userId,
+      name: "Ungrouped",
+      color: "#64748b",
+      industryId,
+      ...(subcategoryId ? { subcategoryId } : {}),
+    },
+    select: { id: true, name: true, color: true },
+  });
+}
+
 export async function deleteFolder(id: string, userId?: string) {
   return prisma.folder.deleteMany({ where: { id, ...(userId ? { userId } : {}) } });
 }

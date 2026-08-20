@@ -1,0 +1,156 @@
+import { Button } from "@/components/ui/button";
+import { IndustryBoard } from "@/components/leads/IndustryBoard";
+import { GlobeSection } from "@/components/leads/GlobeSection";
+import { LeadsEmptyState } from "@/components/leads/LeadsEmptyState";
+import { getIndustries } from "@/lib/industry/service";
+import { getFolders } from "@/lib/folders/service";
+import { getLeads } from "@/lib/leads/service";
+import { getCategoryGrants, hasFullLeadAccess, canSeeCategory } from "@/lib/leads/access";
+import { ManageCategoryAccessButton } from "@/components/leads/ManageCategoryAccessButton";
+import { getUsers } from "@/lib/users/service";
+import { auth } from "@/lib/auth";
+import { withDbRetry } from "@/lib/prisma";
+import { assertFeatureEnabled } from "@/lib/features-guard";
+import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
+import { Separator } from "@/components/ui/separator";
+import Link from "next/link";
+
+export default async function LeadsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const session = await auth();
+  if (!session) redirect("/sign-in");
+  const role = (session.user as unknown as Record<string, unknown>)?.role as string;
+  if (!["boss", "admin", "lead_specialist"].includes(role)) redirect("/unauthorized");
+  await assertFeatureEnabled("leads");
+
+  const isAdmin = role === "boss" || role === "admin";
+  const sp = await searchParams;
+  const filterUserId = typeof sp.filter === "string" ? sp.filter : undefined;
+  const savedById = filterUserId || undefined;
+
+  // All roles see all leads (no userId scoping) but may filter by savedById
+  const scopedUserId = undefined;
+
+  // Lead specialists are restricted to the categories granted to them
+  // (default deny). Boss/admin have full access.
+  const fullAccess = hasFullLeadAccess(role);
+  const grants = fullAccess ? null : await getCategoryGrants(session.user.id!);
+
+  const [industriesRaw, allFoldersRaw, unfiledResult, users] = await withDbRetry(() =>
+    Promise.all([
+      getIndustries(scopedUserId, savedById),
+      getFolders(scopedUserId, savedById),
+      getLeads({ folderId: "unfiled", pageSize: 1, savedById, ...(grants ? { access: grants } : {}) }),
+      isAdmin ? getUsers().then((u) => u.filter((x) => x.role === "lead_specialist")) : Promise.resolve([]),
+    ])
+  );
+
+  // Filter categories + folders to the specialist's grants (no-op for boss/admin).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const industries = grants ? (industriesRaw as any[]).filter((i) => canSeeCategory(grants, i.id)) : industriesRaw;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const allFolders = grants ? (allFoldersRaw as any[]).filter((f) => canSeeCategory(grants, f.industryId ?? null)) : allFoldersRaw;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const unfiledFolders = (allFolders as any[]).filter((f) => !f.industryId);
+
+  const totalLeads =
+    allFolders.reduce((sum: number, f: { _count: { leads: number } }) => sum + f._count.leads, 0) +
+    unfiledResult.total;
+
+  const isEmpty = industries.length === 0 && allFolders.length === 0 && unfiledResult.total === 0;
+
+  const cookieStore = await cookies();
+  // Hidden by default — only shown if the user explicitly toggled it on.
+  const globeVisible = cookieStore.get("df-globe-visible")?.value === "true";
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-lg font-semibold tracking-tight">Leads</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            {totalLeads.toLocaleString()} total leads · {industries.length} industr{industries.length !== 1 ? "ies" : "y"} · {allFolders.length} folder{allFolders.length !== 1 ? "s" : ""}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {isAdmin && <ManageCategoryAccessButton />}
+          <Link href="/leads/new">
+            <Button size="sm" variant="outline" className="gap-1.5">
+              Add Lead
+            </Button>
+          </Link>
+        </div>
+      </div>
+
+      {/* Globe — boss/admin only. Data is loaded ON DEMAND when the user opens
+          the globe (see GlobeSection), so navigating to Leads no longer pulls
+          every lead's coordinates into memory — the old RAM spike. */}
+      {isAdmin && <GlobeSection defaultVisible={globeVisible} />}
+
+      <Separator />
+
+      {/* Leads that aren't in any folder are otherwise invisible on this board —
+          surface them with a link to the list view (filtered to Unfiled) where
+          they can be reviewed and deleted. */}
+      {unfiledResult.total > 0 && (
+        <Link
+          href="/leads/list?folder=unfiled"
+          className="flex items-center justify-between rounded-lg border border-dashed px-4 py-3 text-sm hover:bg-muted/40 transition-colors"
+        >
+          <span className="text-muted-foreground">
+            <strong className="text-foreground">{unfiledResult.total.toLocaleString()}</strong>{" "}
+            lead{unfiledResult.total !== 1 ? "s" : ""} not in any folder
+          </span>
+          <span className="font-medium text-primary">View &amp; manage →</span>
+        </Link>
+      )}
+
+      {grants && isEmpty ? (
+        <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed py-20 text-center">
+          <p className="text-sm font-medium">No categories assigned yet</p>
+          <p className="text-xs text-muted-foreground max-w-sm">
+            You don&apos;t have access to any lead categories. Ask a boss or admin to grant you access.
+          </p>
+        </div>
+      ) : isEmpty ? (
+        <LeadsEmptyState
+          userId={session.user.id!}
+          savedById={savedById}
+          folders={(allFolders as { id: string; name: string; industry?: { name: string } | null }[]).map((f) => ({
+            id: f.id,
+            name: f.name,
+            industryName: f.industry?.name ?? null,
+            subcategoryName: (f as { subcategory?: { name: string } | null }).subcategory?.name ?? null,
+          }))}
+          categories={(industries as { name: string }[]).map((ind) => ind.name)}
+        />
+      ) : (
+        <IndustryBoard
+          key={filterUserId ?? "all"}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          industries={industries as any}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          unfiledFolders={unfiledFolders as any}
+          filterUserId={filterUserId}
+          filterUsers={isAdmin && users.length > 0 ? users.map((u) => ({ id: u.id, name: u.name, email: u.email })) : undefined}
+          userId={session.user.id!}
+          csvFolders={(allFolders as { id: string; name: string; industry?: { id: string; name: string } | null; subcategory?: { id: string; name: string } | null }[]).map((f) => ({
+            id: f.id,
+            name: f.name,
+            industryId: f.industry?.id ?? null,
+            industryName: f.industry?.name ?? null,
+            subcategoryId: f.subcategory?.id ?? null,
+            subcategoryName: f.subcategory?.name ?? null,
+          }))}
+          csvCategories={(industries as { name: string }[]).map((ind) => ind.name)}
+        />
+      )}
+    </div>
+  );
+}

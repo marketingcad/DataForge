@@ -1,0 +1,933 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Industry {
+  id            String        @id @default(uuid())
+  name          String
+  color         String        @default("#6366f1")
+  userId        String
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  folders       Folder[]
+  subcategories Subcategory[]
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  access        CategoryAccess[]
+
+  @@index([userId])
+}
+
+// Grants a (lead specialist) user visibility into a category on the leads page.
+// industryId = null represents access to the "Uncategorized" bucket (folders
+// with no category + leads in no folder). No row = no access (default deny).
+model CategoryAccess {
+  id         String    @id @default(uuid())
+  userId     String
+  industryId String?
+  createdAt  DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  industry   Industry? @relation(fields: [industryId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, industryId])
+  @@index([userId])
+  @@index([industryId])
+}
+
+model Subcategory {
+  id         String   @id @default(uuid())
+  name       String
+  color      String   @default("#6366f1")
+  userId     String
+  industryId String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  industry   Industry @relation(fields: [industryId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  folders    Folder[]
+
+  @@index([userId])
+  @@index([industryId])
+}
+
+model Folder {
+  id            String       @id @default(uuid())
+  name          String
+  color         String       @default("#6366f1")
+  userId        String
+  industryId    String?
+  subcategoryId String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  industry      Industry?    @relation(fields: [industryId], references: [id])
+  subcategory   Subcategory? @relation(fields: [subcategoryId], references: [id], onDelete: SetNull)
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  leads         Lead[]
+
+  @@index([userId])
+  @@index([industryId])
+  @@index([subcategoryId])
+}
+
+model Lead {
+  id                String           @id @default(uuid())
+  businessName      String
+  phone             String
+  email             String?
+  website           String?
+  contactPerson     String?
+  address           String?
+  city              String?
+  state             String?
+  country           String?
+  category          String?
+  source            String
+  dateCollected     DateTime         @default(now())
+  recordStatus      RecordStatus     @default(active)
+  duplicateFlag     Boolean          @default(false)
+  dataQualityScore  Int              @default(0)
+  industriesFoundIn String[]
+  lastUpdated       DateTime         @updatedAt
+  folderId          String?
+  savedById         String?
+  keywordId         String?
+  assignedToId      String?
+  assignedAt        DateTime?
+  latitude          Float?
+  longitude         Float?
+  migratedToGhl     Boolean          @default(false)
+  migratedToGhlAt   DateTime?
+  ghlContactId      String?
+  exportedAt        DateTime?
+  callLogs          CallLog[]
+  ghlOpportunities  GhlOpportunity[]
+  ghlAppointments   GhlAppointment[]
+  assignedTo        User?            @relation("AssignedLeads", fields: [assignedToId], references: [id])
+  folder            Folder?          @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  keyword           ScrapingKeyword? @relation(fields: [keywordId], references: [id], onDelete: Cascade)
+  savedBy           User?            @relation("LeadSavedBy", fields: [savedById], references: [id])
+  commission        LeadCommission?
+
+  @@index([phone])
+  @@index([email])
+  @@index([website])
+  @@index([city, state])
+  @@index([folderId])
+  @@index([savedById])
+  @@index([keywordId])
+  @@index([assignedToId])
+  @@index([exportedAt])
+}
+
+model User {
+  id                   String              @id @default(uuid())
+  name                 String?
+  nickname             String?
+  email                String              @unique
+  emailVerified        DateTime?
+  image                String?
+  password             String?
+  role                 UserRole            @default(lead_specialist)
+  points               Int                 @default(0)
+  isBanned             Boolean             @default(false)
+  bannedUntil          DateTime?
+  banReason            String?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  ghlUserId            String?             @unique
+  accounts             Account[]
+  calendarEvents       CalendarEvent[]
+  callLogs             CallLog[]
+  chatMessages         ChatMessage[]
+  chatRoomsCreated     ChatRoom[]          @relation("ChatRoomCreator")
+  chatRoomMembers      ChatRoomMember[]
+  commissionEarnings   CommissionEarning[]
+  notifications        DbNotification[]
+  feedbackComments     FeedbackComment[]   @relation("FeedbackCommentAuthor")
+  feedbackReports      FeedbackReport[]
+  folders              Folder[]
+  industries           Industry[]
+  subcategories        Subcategory[]
+  kanbanComments       KanbanComment[]     @relation("KanbanCommentAuthor")
+  kanbanAssigned       KanbanTask[]        @relation("KanbanAssigned")
+  kanbanCreated        KanbanTask[]        @relation("KanbanCreated")
+  assignedLeads        Lead[]              @relation("AssignedLeads")
+  savedLeads           Lead[]              @relation("LeadSavedBy")
+  agentLeadCommissions LeadCommission[]    @relation("AgentLeadCommissions")
+  paidLeadCommissions  LeadCommission[]    @relation("PaidLeadCommissions")
+  createdTasks         MarketingTask[]     @relation("TaskCreatedBy")
+  earnedRepCommissions RepCommission[]     @relation("EarnedRepCommissions")
+  repCommissions       RepCommission[]     @relation("RepCommissions")
+  ghlOpportunities        GhlOpportunity[]
+  ghlAppointments         GhlAppointment[]
+  ghlBookedContacts       GhlBookedContact[]
+  bookedAppointments      BookedAppointment[] @relation("BookedAppointmentAgent")
+  createdAppointments     BookedAppointment[] @relation("BookedAppointmentCreator")
+  scrapingKeywords        ScrapingKeyword[]
+  categoryAccess          CategoryAccess[]
+  keywordAccess           KeywordAccess[]
+  sessions             Session[]
+  taskProgress         TaskProgress[]
+  userBadges           UserBadge[]
+  balloonPoints            Int               @default(0)
+  balloonSuspendedUntil    DateTime?
+  balloonDailyApptCount    Int               @default(0)
+  balloonDailyWindowStart  DateTime?
+  balloons              Balloon[]         @relation("BalloonPoppedBy")
+  balloonPayments       Balloon[]         @relation("BalloonPaidBy")
+  balloonAuditLogs      BalloonAuditLog[]
+  notes                 Note[]            @relation("UserNotes")
+  scripts               Script[]          @relation("UserScripts")
+}
+
+model Balloon {
+  id          String    @id @default(uuid())
+  position    Int       @unique
+  prize       String    @default("")
+  isPopped    Boolean   @default(false)
+  poppedById  String?
+  poppedAt    DateTime?
+  isPaid      Boolean   @default(false)
+  paidAt      DateTime?
+  paidById    String?
+  paymentNote String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  poppedBy    User?     @relation("BalloonPoppedBy", fields: [poppedById], references: [id], onDelete: SetNull)
+  paidBy      User?     @relation("BalloonPaidBy",   fields: [paidById],   references: [id], onDelete: SetNull)
+
+  @@index([position])
+  @@index([poppedById])
+  @@index([paidById])
+}
+
+model CallLog {
+  id           String        @id @default(uuid())
+  agentId      String
+  contactName  String?
+  contactPhone String?
+  direction    CallDirection @default(outbound)
+  durationSecs Int           @default(0)
+  status       CallStatus    @default(completed)
+  calledAt     DateTime      @default(now())
+  notes        String?
+  ghlMessageId String?       @unique
+  leadId       String?
+  agent        User          @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  lead         Lead?         @relation(fields: [leadId], references: [id])
+
+  @@index([agentId])
+  @@index([calledAt])
+  @@index([leadId])
+}
+
+model Badge {
+  id            String      @id @default(uuid())
+  key           String      @unique
+  name          String
+  description   String
+  icon          String
+  color         String      @default("#6366f1")
+  imageUrl      String?
+  criteriaType  String?
+  criteriaValue Int?
+  userBadges    UserBadge[]
+}
+
+model UserBadge {
+  id       String   @id @default(uuid())
+  userId   String
+  badgeId  String
+  earnedAt DateTime @default(now())
+  badge    Badge    @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, badgeId])
+  @@index([userId])
+}
+
+model MarketingTask {
+  id          String         @id @default(uuid())
+  title       String
+  description String?
+  targetCalls Int
+  pointReward Int
+  startDate   DateTime
+  endDate     DateTime
+  createdAt   DateTime       @default(now())
+  createdById String?
+  createdBy   User?          @relation("TaskCreatedBy", fields: [createdById], references: [id])
+  progress    TaskProgress[]
+
+  @@index([createdById])
+}
+
+model TaskProgress {
+  id          String        @id @default(uuid())
+  userId      String
+  taskId      String
+  callCount   Int           @default(0)
+  completed   Boolean       @default(false)
+  completedAt DateTime?
+  task        MarketingTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, taskId])
+  @@index([userId])
+}
+
+model Account {
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([provider, providerAccountId])
+}
+
+model Session {
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@id([identifier, token])
+}
+
+model FeedbackReport {
+  id          String            @id @default(uuid())
+  type        FeedbackType
+  title       String
+  description String
+  status      FeedbackStatus    @default(open)
+  priority    String            @default("medium")
+  submittedBy String
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  comments    FeedbackComment[]
+  user        User              @relation(fields: [submittedBy], references: [id], onDelete: Cascade)
+
+  @@index([submittedBy])
+  @@index([status])
+}
+
+model FeedbackComment {
+  id        String         @id @default(uuid())
+  reportId  String
+  authorId  String
+  content   String
+  createdAt DateTime       @default(now())
+  author    User           @relation("FeedbackCommentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  report    FeedbackReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+  @@index([authorId])
+}
+
+model KanbanTask {
+  id          String          @id @default(uuid())
+  title       String
+  description String?
+  column      KanbanColumn    @default(backlog)
+  priority    KanbanPriority  @default(medium)
+  dueDate     DateTime?
+  tags        String[]
+  position    Int             @default(0)
+  createdById String
+  assigneeId  String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  comments    KanbanComment[]
+  assignee    User?           @relation("KanbanAssigned", fields: [assigneeId], references: [id])
+  createdBy   User            @relation("KanbanCreated", fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([column])
+  @@index([createdById])
+  @@index([assigneeId])
+}
+
+model CalendarEvent {
+  id          String    @id @default(uuid())
+  title       String
+  description String?
+  startDate   DateTime
+  endDate     DateTime?
+  allDay      Boolean   @default(true)
+  color       String    @default("#6366f1")
+  createdById String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdBy   User      @relation(fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([startDate])
+  @@index([createdById])
+}
+
+model KanbanComment {
+  id        String     @id @default(uuid())
+  taskId    String
+  authorId  String
+  content   String
+  createdAt DateTime   @default(now())
+  author    User       @relation("KanbanCommentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  task      KanbanTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+  @@index([authorId])
+}
+
+model DbNotification {
+  id        String    @id @default(uuid())
+  userId    String
+  type      NotifType @default(info)
+  title     String
+  message   String?
+  link      String?
+  read      Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, read])
+}
+
+model ChatRoom {
+  id          String           @id @default(uuid())
+  name        String
+  type        ChatRoomType     @default(group)
+  createdById String
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  messages    ChatMessage[]
+  createdBy   User             @relation("ChatRoomCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  members     ChatRoomMember[]
+
+  @@index([createdById])
+}
+
+model ChatRoomMember {
+  id       String   @id @default(uuid())
+  roomId   String
+  userId   String
+  joinedAt DateTime @default(now())
+  room     ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, userId])
+  @@index([roomId])
+  @@index([userId])
+}
+
+model ChatMessage {
+  id        String   @id @default(uuid())
+  content   String
+  senderId  String
+  roomId    String
+  createdAt DateTime @default(now())
+  room      ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  sender    User     @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([senderId])
+  @@index([roomId])
+  @@index([createdAt])
+}
+
+model ScrapingJob {
+  id              String           @id @default(uuid())
+  industry        String
+  location        String
+  maxLeads        Int              @default(50)
+  source          JobSource        @default(serpapi)
+  status          JobStatus        @default(pending)
+  errorMessage    String?
+  leadsDiscovered Int              @default(0)
+  leadsProcessed  Int              @default(0)
+  duplicatesFound Int              @default(0)
+  failedRecords   Int              @default(0)
+  keywordId       String?
+  startedById     String?
+  deviceId        String?          // which fleet device is running this scrape
+  pendingLeads    Json?
+  startTime       DateTime?
+  completedTime   DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  keyword         ScrapingKeyword? @relation(fields: [keywordId], references: [id])
+
+  @@index([status])
+  @@index([createdAt])
+  @@index([keywordId])
+}
+
+model AppSettings {
+  id                          String   @id @default("singleton")
+  companyName                 String   @default("DataForge")
+  scrapingDefaultMaxLeads     Int      @default(50)
+  scrapingDefaultInterval     Int      @default(1440)
+  scrapingGlobalPause         Boolean  @default(false)
+  // When on, the Google Maps scraper uses much shorter human-like delays —
+  // noticeably faster, but higher risk of Google CAPTCHAs/blocks.
+  scrapingBoost               Boolean  @default(false)
+  // Auto-stop guard: a keyword that has been auto-running continuously for this
+  // many minutes is force-stopped (autoRun turned off + its live job cancelled).
+  // 0 = disabled (no time limit). Caps runaway Vercel compute cost.
+  scrapingMaxRunMinutes       Int      @default(0)
+  // Max auto-run scrapes running AT ONCE (each is a Chromium browser). Too many
+  // thrash memory + the DB pool and cause stalls; tune per machine's RAM.
+  scraperMaxConcurrency       Int      @default(3)
+  leadQualityGoodThreshold    Int      @default(70)
+  leadQualityMediumThreshold  Int      @default(40)
+  ghlWebhookUrl               String?
+  commissionCurrency          String   @default("₱")
+  // IANA timezone (e.g. "America/New_York") used to align DataForge's day/week/
+  // month boundaries with GHL. Boss-configurable.
+  timezone                    String   @default("America/New_York")
+  updatedAt                   DateTime @updatedAt
+  ghlApiKey                   String?
+  ghlSubAccountApiKey         String?
+  ghlLocationId               String?
+  ghlCallsLastSyncedAt        DateTime?
+  ghlOppsLastSyncedAt         DateTime?
+  ghlAppsLastSyncedAt         DateTime?
+  balloonEnabled              Boolean  @default(true)
+  balloonApptsPerPoint        Int      @default(1)
+  ghlInboundSecret            String?
+  webhookLastPayload          String?
+  webhookLastOutcome          String?
+  reportsShareToken           String?  @unique
+  disabledFeatures            String[] @default([])
+  // Forger AI assistant — boss-registered Anthropic API key + optional model id.
+  forgerApiKey                String?
+  forgerModel                 String?
+  // Max tokens allowed for a single user request; over this, Forger refuses
+  // before calling the API (cost guard). Boss-configurable.
+  forgerMaxRequestTokens      Int      @default(6000)
+}
+
+// ── Forger (in-app AI assistant) chat history — saved by DataForge, not the
+// model, so we can keep conversations without re-sending everything each turn. ──
+model ForgerConversation {
+  id        String          @id @default(uuid())
+  userId    String
+  title     String          @default("New chat")
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  messages  ForgerMessage[]
+
+  @@index([userId])
+}
+
+model ForgerMessage {
+  id             String             @id @default(uuid())
+  conversationId String
+  role           String             // "user" | "assistant"
+  content        String
+  createdAt      DateTime           @default(now())
+  conversation   ForgerConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+}
+
+// A running DataForge instance (a browser tab or a desktop app) reporting in via
+// heartbeat. Powers the boss "fleet" view: who is online, on what kind of device,
+// and (via their user) what they can scrape. A row is considered "online" when
+// lastSeen is recent (~within 30s). id is a stable per-install deviceId.
+model AppInstance {
+  id         String   @id
+  userId     String
+  userName   String?
+  userEmail  String?
+  role       String
+  kind       String   @default("web") // "web" | "desktop"
+  deviceName String?  // hostname (desktop) or "Chrome on Windows" (web)
+  ipAddress  String?  // public IP (web) or LAN IP (desktop)
+  lastSeen   DateTime @updatedAt
+  createdAt  DateTime @default(now())
+
+  @@index([lastSeen])
+  @@index([userId])
+}
+
+// A remote start/stop instruction the boss issues to a specific device. The target
+// device polls for its pending commands (via heartbeat) and executes them locally,
+// so the scrape runs on THAT device, not the boss's.
+model RemoteCommand {
+  id             String    @id @default(uuid())
+  targetDeviceId String
+  action         String    // "start" | "stop"
+  keywordId      String
+  status         String    @default("pending") // pending | done | failed
+  createdById    String
+  createdAt      DateTime  @default(now())
+  processedAt    DateTime?
+
+  @@index([targetDeviceId, status])
+}
+
+model BalloonAuditLog {
+  id        String   @id @default(uuid())
+  actorId   String
+  detail    String
+  createdAt DateTime @default(now())
+  actor     User     @relation(fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@index([actorId])
+  @@index([createdAt])
+}
+
+model GhlOpportunity {
+  id            String   @id @default(uuid())
+  ghlId         String   @unique
+  agentId       String
+  status        String   // open, won, lost, abandoned
+  monetaryValue Float    @default(0)
+  source        String?
+  contactId     String?
+  leadId        String?
+  createdAt     DateTime
+  updatedAt     DateTime @updatedAt
+  agent         User     @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  lead          Lead?    @relation(fields: [leadId], references: [id], onDelete: SetNull)
+
+  @@index([agentId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// Contacts in GHL that have the "appointment-booked" tag, attributed to their contact owner
+model GhlBookedContact {
+  id        String   @id @default(uuid())
+  ghlId     String   @unique
+  agentId   String
+  createdAt DateTime @default(now())
+  agent     User     @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([agentId])
+  @@index([createdAt])
+}
+
+model GhlAppointment {
+  id         String   @id @default(uuid())
+  ghlId      String   @unique  // GHL calendar event ID
+  agentId    String            // contact owner → DataForge user
+  contactId  String?           // GHL contact ID
+  leadId     String?           // linked DataForge lead (if any)
+  status     String            // confirmed, showed, no_show, new, etc.
+  title      String?
+  startTime  DateTime
+  endTime    DateTime?
+  calendarId String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  agent      User     @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  lead       Lead?    @relation(fields: [leadId], references: [id], onDelete: SetNull)
+
+  @@index([agentId])
+  @@index([status])
+  @@index([startTime])
+}
+
+model BookedAppointment {
+  id          String   @id @default(uuid())
+  agentId     String
+  clientName  String
+  clientPhone String?
+  bookedAt    DateTime
+  source      String   @default("manual") // "manual" | "webhook"
+  createdById String?
+  ghlId       String?  @unique
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  agent     User  @relation("BookedAppointmentAgent",   fields: [agentId],     references: [id], onDelete: Cascade)
+  createdBy User? @relation("BookedAppointmentCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([clientPhone, bookedAt])
+  @@index([agentId])
+  @@index([bookedAt])
+}
+
+model ScrapingKeyword {
+  id                  String        @id @default(uuid())
+  keyword             String
+  location            String
+  maxLeads            Int           @default(50)
+  enabled             Boolean       @default(true)
+  intervalMinutes     Int           @default(1440)
+  lastRunAt           DateTime?
+  nextRunAt           DateTime?
+  failedAttempts      Int           @default(0)
+  lastError           String?
+  extraKeywords       String[]
+  extraKeywordsMode   String        @default("random")
+  extraKeywordsMin    Int           @default(1)
+  extraKeywordsMax    Int           @default(3)
+  extraKeywordsIndex  Int           @default(0)
+  extraKeywordsOrder  String[]
+  category            String        @default("Uncategorized")
+  createdById         String?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  cityIndex           Int           @default(0)
+  cityRotationEnabled Boolean       @default(true)
+  grabEmail           Boolean       @default(false)
+  // Server-side continuous mode: when true, the cron keeps running this keyword
+  // every tick (subject to the concurrency cap) until turned off — independent
+  // of any browser tab, so it survives reloads/navigation.
+  autoRun             Boolean       @default(false)
+  // When autoRun was last switched on. Used by the max-run-time guard to force-stop
+  // a keyword that has been auto-running longer than scrapingMaxRunMinutes. Null when off.
+  autoRunStartedAt    DateTime?
+  leads               Lead[]
+  jobs                ScrapingJob[]
+  access              KeywordAccess[]
+  createdBy           User?         @relation(fields: [createdById], references: [id])
+
+  @@index([enabled, nextRunAt])
+  @@index([createdById])
+}
+
+// Grants a lead specialist access to a specific auto-scrape keyword.
+// No row = no access (boss/admin bypass this and see everything).
+model KeywordAccess {
+  id        String          @id @default(uuid())
+  userId    String
+  keywordId String
+  createdAt DateTime        @default(now())
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  keyword   ScrapingKeyword @relation(fields: [keywordId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, keywordId])
+  @@index([userId])
+  @@index([keywordId])
+}
+
+model CommissionRule {
+  id              String              @id @default(uuid())
+  name            String
+  description     String?
+  type            String
+  amount          Float
+  milestoneTarget Int?
+  period          String
+  active          Boolean             @default(true)
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  earnings        CommissionEarning[]
+  leadCommissions LeadCommission[]
+  repCommissions  RepCommission[]
+}
+
+model CommissionEarning {
+  id           String         @id @default(uuid())
+  userId       String
+  ruleId       String
+  amount       Float
+  period       String
+  calculatedAt DateTime       @default(now())
+  paidOut      Boolean        @default(false)
+  paidAt       DateTime?
+  rule         CommissionRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, ruleId, period])
+  @@index([userId])
+  @@index([ruleId])
+  @@index([period])
+}
+
+model LeadCommission {
+  id          String          @id @default(uuid())
+  leadId      String          @unique
+  agentId     String
+  ruleId      String?
+  amount      Float
+  note        String?
+  status      String          @default("pending")
+  paidAt      DateTime?
+  paidById    String?
+  confirmedAt DateTime?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  agent       User            @relation("AgentLeadCommissions", fields: [agentId], references: [id], onDelete: Cascade)
+  lead        Lead            @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  paidBy      User?           @relation("PaidLeadCommissions", fields: [paidById], references: [id])
+  rule        CommissionRule? @relation(fields: [ruleId], references: [id])
+
+  @@index([agentId])
+  @@index([status])
+  @@index([paidById])
+}
+
+model RepCommission {
+  id         String          @id @default(uuid())
+  repId      String
+  ruleId     String?
+  amount     Float
+  note       String?
+  status     String          @default("pending")
+  earnedAt   DateTime?
+  earnedById String?
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+  earnedBy   User?           @relation("EarnedRepCommissions", fields: [earnedById], references: [id])
+  rep        User            @relation("RepCommissions", fields: [repId], references: [id], onDelete: Cascade)
+  rule       CommissionRule? @relation(fields: [ruleId], references: [id])
+
+  @@index([repId])
+  @@index([status])
+  @@index([earnedById])
+}
+
+enum UserRole {
+  boss
+  admin
+  team_lead
+  sales_rep
+  lead_specialist
+}
+
+enum CallDirection {
+  inbound
+  outbound
+}
+
+enum CallStatus {
+  completed
+  missed
+  voicemail
+  no_answer
+}
+
+enum RecordStatus {
+  active
+  flagged
+  invalid
+}
+
+enum JobStatus {
+  pending
+  running
+  completed
+  failed
+  paused
+}
+
+enum JobSource {
+  serpapi
+  manual
+}
+
+enum FeedbackType {
+  bug
+  feature
+}
+
+enum FeedbackStatus {
+  open
+  in_review
+  resolved
+  closed
+}
+
+enum KanbanColumn {
+  backlog
+  in_progress
+  in_review
+  done
+}
+
+enum KanbanPriority {
+  low
+  medium
+  high
+}
+
+enum NotifType {
+  success
+  info
+  warning
+  error
+}
+
+enum ChatRoomType {
+  general
+  group
+  direct
+  announcement
+}
+
+model Note {
+  id         String     @id @default(uuid())
+  title      String     @default("Untitled")
+  content    Json       @default("{}")
+  userId     String
+  shareToken String?    @unique
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  user       User       @relation("UserNotes", fields: [userId], references: [id], onDelete: Cascade)
+  files      NoteFile[]
+
+  @@index([userId])
+}
+
+model NoteFile {
+  id          String   @id @default(uuid())
+  noteId      String
+  name        String
+  url         String
+  storagePath String
+  size        Int
+  mimeType    String
+  createdAt   DateTime @default(now())
+  note        Note     @relation(fields: [noteId], references: [id], onDelete: Cascade)
+
+  @@index([noteId])
+}
+
+model Script {
+  id          String       @id @default(uuid())
+  title       String       @default("Untitled Script")
+  content     Json         @default("{}")
+  createdById String
+  shareToken  String?      @unique
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  createdBy   User         @relation("UserScripts", fields: [createdById], references: [id], onDelete: Cascade)
+  files       ScriptFile[]
+
+  @@index([createdById])
+}
+
+model ScriptFile {
+  id          String   @id @default(uuid())
+  scriptId    String
+  name        String
+  url         String
+  storagePath String
+  size        Int
+  mimeType    String
+  createdAt   DateTime @default(now())
+  script      Script   @relation(fields: [scriptId], references: [id], onDelete: Cascade)
+
+  @@index([scriptId])
+}

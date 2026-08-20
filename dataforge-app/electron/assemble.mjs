@@ -51,6 +51,24 @@ if (existsSync(pwCache)) {
   console.warn("⚠ ms-playwright cache not found — scraping won't work until browsers are bundled.");
 }
 
+// Verify the FULL Chromium binary made it into the bundle. The runtime launches
+// this exe directly (see findBundledChromium) so it doesn't need the separate
+// chrome-headless-shell. If it's missing, fail the build LOUDLY rather than
+// shipping an app whose scraper can't start.
+const bundledDirs = existsSync(pwDest) ? readdirSync(pwDest) : [];
+const fullChromiumDir = bundledDirs.find((d) => /^chromium-\d+$/i.test(d))
+  ?? bundledDirs.find((d) => /^chromium/i.test(d) && !/headless/i.test(d));
+const chromiumExe = fullChromiumDir && join(pwDest, fullChromiumDir, "chrome-win", "chrome.exe");
+if (!chromiumExe || !existsSync(chromiumExe)) {
+  console.error(
+    "\n✗ Full Chromium binary not found in the bundle.\n" +
+    "  The packaged scraper needs playwright-browser/chromium-<rev>/chrome-win/chrome.exe.\n" +
+    "  Run `npx playwright install chromium` (matching this repo's playwright version), then rebuild.",
+  );
+  process.exit(1);
+}
+console.log(`✓ verified bundled Chromium: ${fullChromiumDir}`);
+
 // 4. Env file so the packaged app can reach the database.
 //    ⚠ SECURITY: this embeds your DB connection string in the shipped app.
 //    Fine for a trusted internal team; do NOT distribute publicly.

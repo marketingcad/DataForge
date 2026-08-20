@@ -7,7 +7,6 @@ import { getFolders } from "@/lib/folders/service";
 import { getLeads } from "@/lib/leads/service";
 import { getCategoryGrants, hasFullLeadAccess, canSeeCategory } from "@/lib/leads/access";
 import { ManageCategoryAccessButton } from "@/components/leads/ManageCategoryAccessButton";
-import { getLeadLocations } from "@/lib/leads/locations";
 import { getUsers } from "@/lib/users/service";
 import { auth } from "@/lib/auth";
 import { withDbRetry } from "@/lib/prisma";
@@ -41,12 +40,11 @@ export default async function LeadsPage({
   const fullAccess = hasFullLeadAccess(role);
   const grants = fullAccess ? null : await getCategoryGrants(session.user.id!);
 
-  const [industriesRaw, allFoldersRaw, unfiledResult, locations, users] = await withDbRetry(() =>
+  const [industriesRaw, allFoldersRaw, unfiledResult, users] = await withDbRetry(() =>
     Promise.all([
       getIndustries(scopedUserId, savedById),
       getFolders(scopedUserId, savedById),
       getLeads({ folderId: "unfiled", pageSize: 1, savedById, ...(grants ? { access: grants } : {}) }),
-      isAdmin ? getLeadLocations() : Promise.resolve([]),
       isAdmin ? getUsers().then((u) => u.filter((x) => x.role === "lead_specialist")) : Promise.resolve([]),
     ])
   );
@@ -67,7 +65,8 @@ export default async function LeadsPage({
   const isEmpty = industries.length === 0 && allFolders.length === 0 && unfiledResult.total === 0;
 
   const cookieStore = await cookies();
-  const globeVisible = cookieStore.get("df-globe-visible")?.value !== "false";
+  // Hidden by default — only shown if the user explicitly toggled it on.
+  const globeVisible = cookieStore.get("df-globe-visible")?.value === "true";
 
   return (
     <div className="space-y-6">
@@ -89,10 +88,10 @@ export default async function LeadsPage({
         </div>
       </div>
 
-      {/* Globe — boss/admin only */}
-      {isAdmin && locations.length > 0 && (
-        <GlobeSection points={locations} defaultVisible={globeVisible} />
-      )}
+      {/* Globe — boss/admin only. Data loads ON DEMAND when the globe is opened
+          (see GlobeSection), so navigating to Leads no longer pulls every lead's
+          coordinates into memory — the old RAM spike. */}
+      {isAdmin && <GlobeSection defaultVisible={globeVisible} />}
 
       <Separator />
 

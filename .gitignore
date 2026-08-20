@@ -18,3 +18,6 @@ dataforge-app/src/generated/
 *.pem
 dataforge-app/.vercel
 dataforge-app/next-env.d.ts
+
+# Playwright MCP session logs (contain internal hosts) — never commit
+.playwright-mcp/

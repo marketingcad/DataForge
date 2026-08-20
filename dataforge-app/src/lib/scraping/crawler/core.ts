@@ -4,6 +4,8 @@
  */
 
 import * as cheerio from "cheerio";
+import { existsSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import { normalizeWebsite } from "@/lib/utils/normalize";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -127,6 +129,37 @@ const STEALTH_SCRIPT = `
 `;
 
 /**
+ * Locate the FULL Chromium binary inside the bundled browsers directory
+ * (PLAYWRIGHT_BROWSERS_PATH, set by the desktop app). We deliberately target the
+ * `chromium-<rev>` build — NOT `chromium_headless_shell-<rev>` — so we can launch
+ * it with an explicit executablePath. Doing so avoids Playwright's dependency on
+ * the separate `chrome-headless-shell` download, which is easy to miss when
+ * packaging and causes "Executable doesn't exist … chromium_headless_shell".
+ */
+function findBundledChromium(): string | undefined {
+  const base = process.env.PLAYWRIGHT_BROWSERS_PATH;
+  if (!base || !existsSync(base)) return undefined;
+  try {
+    const dirs = readdirSync(base);
+    // Full chromium only — explicitly exclude the headless-shell build.
+    const dir = dirs.find((d) => /^chromium-\d+$/i.test(d))
+      ?? dirs.find((d) => /^chromium/i.test(d) && !/headless/i.test(d));
+    if (!dir) return undefined;
+    // Windows layout: chromium-<rev>/chrome-win/chrome.exe
+    // Linux:          chromium-<rev>/chrome-linux/chrome
+    // macOS:          chromium-<rev>/chrome-mac/Chromium.app/Contents/MacOS/Chromium
+    const candidates = [
+      join(base, dir, "chrome-win", "chrome.exe"),
+      join(base, dir, "chrome-linux", "chrome"),
+      join(base, dir, "chrome-mac", "Chromium.app", "Contents", "MacOS", "Chromium"),
+    ];
+    return candidates.find((p) => existsSync(p));
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * Launch a single headless Chromium process. Expensive — one OS process, a few
  * hundred MB. Prefer launching ONE browser and giving each concurrent scrape its
  * own lightweight context via createScraperContext() rather than one browser each.
@@ -147,8 +180,12 @@ export async function launchScraperBrowser(): Promise<import("playwright-core").
       });
     } else {
       const { chromium } = await import("playwright");
+      // When we're running the bundled desktop browser, point Playwright straight
+      // at the full Chromium exe so it never looks for chrome-headless-shell.
+      const bundled = findBundledChromium();
       return chromium.launch({
         headless: true,
+        ...(bundled ? { executablePath: bundled } : {}),
         args: [
           "--disable-blink-features=AutomationControlled",
           "--disable-dev-shm-usage",

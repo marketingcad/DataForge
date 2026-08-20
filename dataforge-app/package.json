@@ -10,17 +10,26 @@
     "lint": "eslint",
     "desktop": "electron .",
     "desktop:build-web": "prisma generate && cross-env BUILD_TARGET=desktop NODE_OPTIONS=--max-old-space-size=4096 next build --webpack",
+    "desktop:browsers": "playwright install chromium",
     "desktop:assemble": "node electron/assemble.mjs",
     "desktop:pack": "electron-builder --win",
-    "desktop:dist": "npm run desktop:build-web && npm run desktop:assemble && electron-builder --win"
+    "desktop:dist": "npm run desktop:browsers && npm run desktop:build-web && npm run desktop:assemble && electron-builder --win"
   },
   "build": {
     "appId": "com.murphyconsulting.dataforge",
     "productName": "DataForge",
-    "directories": { "output": "dist" },
-    "files": ["electron/**/*", "package.json"],
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "electron/**/*",
+      "package.json"
+    ],
     "afterPack": "electron/after-pack.js",
-    "win": { "target": "nsis" },
+    "win": {
+      "target": "nsis",
+      "signExecutable": false
+    },
     "nsis": {
       "oneClick": false,
       "perMachine": false,
@@ -56,6 +65,7 @@
     "axios": "^1.13.6",
     "bcryptjs": "^3.0.3",
     "cheerio": "^1.2.0",
+    "chromium": "^3.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",

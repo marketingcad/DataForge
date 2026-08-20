@@ -1,0 +1,17 @@
+// style.scss
+// Global overrides — imported after globals.css so these rules take precedence.
+// Use this file for custom styles, theme tweaks, and component overrides.
+
+* {
+    font-family: "Google Sans", sans-serif;
+    font-optical-sizing: auto;
+    font-style: normal;
+}
+
+aside {
+    button {
+        span {
+            // font-weight: 600!important;
+        }
+    }
+}

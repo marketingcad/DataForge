@@ -1,0 +1,156 @@
+import { auth } from "@/lib/auth";
+import { redirect } from "next/navigation";
+import { prisma, withDbRetry } from "@/lib/prisma";
+import { getAgentReportMatrix } from "@/lib/reports/service";
+import { getTeamSummary } from "@/lib/marketing/team.service";
+import { getSalesReps } from "@/actions/appointments.actions";
+import { AgentHeatmap } from "@/components/reports/AgentHeatmap";
+import { AppointmentsModalButton } from "@/components/marketing/AppointmentsModal";
+import { AddAppointmentModal } from "@/components/marketing/AddAppointmentModal";
+import { LeadsModalButton } from "@/components/reports/AgentLeadsModal";
+import { AddLeadModal } from "@/components/reports/AddLeadModal";
+import { ShareReportButton } from "@/components/reports/ShareReportButton";
+import Link from "next/link";
+
+export default async function ReportsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const session = await auth();
+  const role = (session?.user as unknown as Record<string, unknown>)?.role as string | undefined;
+  if (role !== "boss" && role !== "admin") redirect("/dashboard");
+
+  const sp = await searchParams;
+  const callDate = typeof sp.callDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(sp.callDate) ? sp.callDate : undefined;
+
+  const [rows, team, salesReps, settings] = await withDbRetry(() =>
+    Promise.all([
+      getAgentReportMatrix(callDate),
+      getTeamSummary(),
+      getSalesReps(),
+      prisma.appSettings.findUnique({ where: { id: "singleton" }, select: { reportsShareToken: true, timezone: true } }),
+    ])
+  );
+
+  const tz = settings?.timezone || "America/New_York";
+
+  /* Derive summary stats */
+  const totalCallsWeek  = rows.reduce((s, r) => s + r.callsWeek, 0);
+  const totalCallsMonth = rows.reduce((s, r) => s + r.callsMonth, 0);
+  const totalApptsMonth = rows.reduce((s, r) => s + r.apptsMonth, 0);
+  const avgConnect      = rows.length
+    ? Math.round(rows.reduce((s, r) => s + r.connectRate, 0) / rows.length)
+    : 0;
+
+  // Live month name (in the configured timezone) for the "appts this month" header.
+  const monthLabel = new Date().toLocaleString("en-US", { month: "long", timeZone: tz });
+
+  const kpis = [
+    { label: "Active Agents",     value: team.agentCount.toString() },
+    { label: "Appts This Month",  value: totalApptsMonth.toString() },
+    { label: "Calls (24h)",        value: team.callsToday.toString() },
+    { label: "Calls This Week",   value: totalCallsWeek.toString() },
+    { label: "Calls This Month",  value: totalCallsMonth.toString() },
+    { label: "Avg Connect Rate",  value: `${avgConnect}%` },
+    { label: "Total Agents",      value: rows.length.toString() },
+  ];
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-lg font-semibold tracking-tight">Reports</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Agent performance matrix — darker cells indicate stronger relative performance.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <ShareReportButton initialToken={settings?.reportsShareToken ?? null} />
+          <AppointmentsModalButton canDelete={true} />
+          <AddAppointmentModal reps={salesReps} />
+          <LeadsModalButton canDelete={true} />
+          <AddLeadModal reps={salesReps} />
+          <Link
+            href="/dashboard"
+            className="ml-1 text-xs text-muted-foreground hover:text-foreground font-medium transition-colors"
+          >
+            ← Dashboard
+          </Link>
+        </div>
+      </div>
+
+      {/* KPI strip */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
+        {kpis.map((k, i) => {
+          const accents = [
+            "bg-violet-500",
+            "bg-sky-500",
+            "bg-indigo-500",
+            "bg-teal-500",
+            "bg-emerald-500",
+            "bg-amber-500",
+            "bg-rose-500",
+          ];
+          return (
+            <div key={k.label} className="rounded-2xl bg-card shadow-sm p-4 space-y-2">
+              <div className="flex items-center gap-1.5">
+                <div className={`h-1 w-4 rounded-full ${accents[i]}`} />
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider leading-tight">
+                  {k.label}
+                </p>
+              </div>
+              <p className="text-2xl font-black tabular-nums leading-none">{k.value}</p>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Leads */}
+      <div className="rounded-2xl bg-card shadow-sm">
+        <div className="px-5 py-4 border-b border-border/60">
+          <p className="font-semibold text-sm">Leads</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Leads assigned per agent · click a number to see them. Sorted by leads.
+          </p>
+        </div>
+        <div className="p-5">
+          <AgentHeatmap rows={rows} variant="leads" canDelete />
+        </div>
+      </div>
+
+      {/* Appointment performance */}
+      <div className="rounded-2xl bg-card shadow-sm">
+        <div className="px-5 py-4 border-b border-border/60">
+          <p className="font-semibold text-sm">Appointment Performance</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Appointments set per agent · click a number to see them. Sorted by {monthLabel}.
+          </p>
+        </div>
+        <div className="p-5">
+          {/* Only boss/admin reach this page (guarded above), so deletion is enabled. */}
+          <AgentHeatmap rows={rows} variant="appts" monthLabel={monthLabel} canDelete />
+        </div>
+      </div>
+
+      {/* Call performance */}
+      <div className="rounded-2xl bg-card shadow-sm">
+        <div className="px-5 py-4 border-b border-border/60">
+          <p className="font-semibold text-sm">Call Performance</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Calls logged per agent · darker cells indicate stronger relative performance.
+          </p>
+        </div>
+        <div className="p-5">
+          <AgentHeatmap rows={rows} variant="calls" canDelete selectedCallDate={callDate} />
+        </div>
+      </div>
+
+      {/* Footer note */}
+      <p className="text-xs text-muted-foreground text-center pb-2">
+        Connect rate = completed ÷ total calls · Avg duration excludes missed/voicemail calls · &ldquo;Today&rdquo; and &ldquo;{monthLabel}&rdquo; reset at midnight in {tz}
+      </p>
+    </div>
+  );
+}

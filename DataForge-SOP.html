@@ -1,0 +1,472 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>DataForge — Standard Operating Procedure</title>
+<style>
+  :root { --ink:#1f2937; --muted:#6b7280; --line:#e5e7eb; --brand:#2563eb; --brand2:#1e3a8a; --soft:#f8fafc; }
+  * { box-sizing: border-box; }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { font-family: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif; color: var(--ink); font-size: 11pt; line-height: 1.5; margin: 0; }
+  h1,h2,h3,h4 { color: var(--brand2); line-height: 1.25; }
+  h2 { font-size: 16.5pt; border-bottom: 2px solid var(--brand); padding-bottom: 5px; margin: 0 0 12px; }
+  h3 { font-size: 12.5pt; margin: 16px 0 5px; }
+  h4 { font-size: 11pt; margin: 12px 0 3px; color: var(--brand); }
+  p { margin: 6px 0; }
+  ul, ol { margin: 6px 0 6px 0; padding-left: 20px; }
+  li { margin: 3px 0; }
+  code { background: #eef2ff; color: #3730a3; padding: 1px 5px; border-radius: 4px; font-family: "Cascadia Code", Consolas, monospace; font-size: 9.5pt; }
+  table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 9.8pt; }
+  th, td { border: 1px solid var(--line); padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { background: var(--soft); color: var(--brand2); }
+  .tag { display:inline-block; background:var(--brand); color:#fff; border-radius:5px; padding:1px 7px; font-size:8.5pt; font-weight:600; }
+  .note { background:#f0f9ff; border-left:4px solid var(--brand); padding:8px 12px; margin:10px 0; border-radius:0 6px 6px 0; }
+  .warn { background:#fff7ed; border-left:4px solid #f59e0b; padding:8px 12px; margin:10px 0; border-radius:0 6px 6px 0; }
+  .section { page-break-before: always; padding: 8px 0; }
+  .cover { display:flex; flex-direction:column; justify-content:center; height: 96vh; text-align:center; }
+  .cover .logo { font-size: 42pt; font-weight: 900; color: var(--brand2); letter-spacing:-1px; }
+  .cover .sub { font-size: 16pt; color: var(--muted); margin-top: 6px; }
+  .cover .meta { margin-top: 40px; font-size: 10pt; color: var(--muted); }
+  .toc li { margin: 4px 0; }
+  header.pg { font-size: 8pt; color: var(--muted); border-bottom:1px solid var(--line); padding-bottom:4px; margin-bottom:14px; }
+  .lead { color: var(--muted); font-size: 10.5pt; margin-bottom: 14px; }
+  .kbd { background:#111827; color:#fff; border-radius:4px; padding:1px 6px; font-size:9pt; }
+</style>
+</head>
+<body>
+
+<!-- COVER -->
+<div class="cover">
+  <div class="logo">DataForge</div>
+  <div class="sub">Standard Operating Procedure</div>
+  <div class="meta">
+    Sales-Operations Platform — Lead Scraping, Organization &amp; Performance Tracking<br/>
+    Version 1.0 · Desktop Application (Electron) · Last updated: 20 August 2026
+  </div>
+</div>
+
+<!-- TOC -->
+<div class="section">
+  <h2>Table of Contents</h2>
+  <ol class="toc">
+    <li>Overview &amp; Architecture</li>
+    <li>Roles &amp; Access Control</li>
+    <li>Getting Started (Install, Login, Tray)</li>
+    <li>Navigation (Sidebar, Tabs, Breadcrumb, Lite Mode)</li>
+    <li>Dashboard</li>
+    <li>Leads Management</li>
+    <li>Scraping (Website &amp; Auto Keywords)</li>
+    <li>Reports &amp; Performance</li>
+    <li>GHL Integration (Calls, Appointments, Sync)</li>
+    <li>Marketing Suite</li>
+    <li>Forger — AI Assistant</li>
+    <li>Administration (Users &amp; Fleet)</li>
+    <li>Settings &amp; Feature Toggles</li>
+    <li>How the Code Works (Technical)</li>
+    <li>Desktop Build &amp; Deployment</li>
+    <li>Troubleshooting</li>
+    <li>Appendix — Route Reference</li>
+  </ol>
+</div>
+
+<!-- 1 OVERVIEW -->
+<div class="section">
+  <header class="pg">DataForge SOP · 1. Overview</header>
+  <h2>1. Overview &amp; Architecture</h2>
+  <p class="lead">DataForge is a desktop sales-operations application that scrapes business leads, organizes them into a searchable database, and tracks agent performance — with an optional AI assistant and a live integration to GoHighLevel (GHL).</p>
+  <h3>What it does</h3>
+  <ul>
+    <li><b>Scrapes leads</b> from the web (by website domain or by keyword + location).</li>
+    <li><b>Organizes leads</b> into Categories → Subcategories → Folders, with quality scoring and de-duplication.</li>
+    <li><b>Tracks performance</b> — per-agent call/appointment/lead metrics, leaderboards, commissions.</li>
+    <li><b>Integrates with GHL</b> — syncs calls and appointments from the connected sub-account.</li>
+    <li><b>Assists via "Forger"</b> — an in-app AI helper (boss/admin) for finding data and running tasks.</li>
+  </ul>
+  <h3>Technical architecture</h3>
+  <ul>
+    <li><b>Desktop app (Electron):</b> installs on each device and runs a local Next.js server. Closing the window keeps it running in the system tray; a single-instance lock prevents duplicate app states.</li>
+    <li><b>Database:</b> a shared hosted PostgreSQL (Supabase) — all installs read/write the same data.</li>
+    <li><b>Scraper:</b> a dedicated headless Chromium (Playwright) is downloaded automatically on the first scrape (one time, per device) — it is not bundled in the installer, keeping the download small.</li>
+  </ul>
+  <div class="note"><b>Key idea:</b> the app is one window into a shared database. What one user changes (leads, settings, folders) is visible to everyone, subject to their role.</div>
+</div>
+
+<!-- 2 ROLES -->
+<div class="section">
+  <header class="pg">DataForge SOP · 2. Roles</header>
+  <h2>2. Roles &amp; Access Control</h2>
+  <p>Every user has one role that determines what they can see and do. Roles are assigned in <b>Admin → Users</b>.</p>
+  <table>
+    <tr><th>Role</th><th>Access</th></tr>
+    <tr><td><b>boss</b></td><td>Full access, plus <b>Settings</b>, <b>Feature Toggles</b>, and <b>How It Works</b>. The only role that can change global configuration.</td></tr>
+    <tr><td><b>admin</b></td><td>Full access <i>except</i> boss-only Settings and Feature Toggles.</td></tr>
+    <tr><td><b>team_lead / sales_rep</b></td><td>Marketing department: Dashboard, Marketing suite, Kanban, Calendar, Reports (view), Profile.</td></tr>
+    <tr><td><b>lead_specialist</b></td><td>Leads department: Leads and Scraping — but only for the <b>categories/keywords explicitly granted</b> to them (see Administration).</td></tr>
+  </table>
+  <div class="note">Access is enforced on the server, not just hidden in the UI. A disabled feature (via Feature Toggles) is hidden from the sidebar and its page is blocked for everyone.</div>
+</div>
+
+<!-- 3 GETTING STARTED -->
+<div class="section">
+  <header class="pg">DataForge SOP · 3. Getting Started</header>
+  <h2>3. Getting Started</h2>
+  <h3>3.1 Installing &amp; launching</h3>
+  <ol>
+    <li>Run the DataForge installer on the device. Launch <b>DataForge</b>.</li>
+    <li>The window opens maximized. Sign in with your email and password.</li>
+    <li>Closing the window does <b>not</b> quit the app — it minimizes to the <b>system tray</b> and keeps running. Re-opening focuses the existing instance (no duplicate state).</li>
+    <li>To fully quit, right-click the tray icon and choose Quit.</li>
+  </ol>
+  <h3>3.2 Signing in</h3>
+  <ul>
+    <li>Use the email/password provided by your boss/admin.</li>
+    <li>Change your display name, photo, and password anytime in <b>My Profile</b> (<code>/profile</code>).</li>
+    <li>Signing out returns you to the sign-in screen immediately.</li>
+  </ul>
+  <div class="warn"><b>Shared reports exception:</b> pages under <code>/share</code> (shared reports) are public — anyone with the link can view them without signing in.</div>
+</div>
+
+<!-- 4 NAVIGATION -->
+<div class="section">
+  <header class="pg">DataForge SOP · 4. Navigation</header>
+  <h2>4. Navigation</h2>
+  <ul>
+    <li><b>Left sidebar</b> reaches every page you have access to. It can be collapsed; the collapsed state is remembered across restarts.</li>
+    <li><b>Browser-style tabs:</b> double-click a sidebar item (or click its hover "open in new tab" icon) to open it in a tab. Tabs persist across app restarts.</li>
+    <li><b>Breadcrumb:</b> the header shows the trail of pages visited in the current tab. Use the back arrow or <span class="kbd">Backspace</span> to go back. It shows up to 5 crumbs; older ones fade and the trail scrolls.</li>
+    <li><b>Lite Mode:</b> the feather icon in the top bar toggles Lite Mode — fewer animations, lighter on RAM. It is per-user and remembered. Recommended on lower-spec devices.</li>
+    <li><b>Theme:</b> toggle light/dark from the top bar.</li>
+  </ul>
+</div>
+
+<!-- 5 DASHBOARD -->
+<div class="section">
+  <header class="pg">DataForge SOP · 5. Dashboard</header>
+  <h2>5. Dashboard</h2>
+  <p>Route: <code>/dashboard</code>. The landing page after login.</p>
+  <ul>
+    <li>Org-wide metrics: total leads, quality distribution, leads by industry/category.</li>
+    <li>Charts and recent-leads table for a quick pulse of activity.</li>
+    <li>For marketing roles it also surfaces the leaderboard and period metrics (Today / Week / Month).</li>
+  </ul>
+</div>
+
+<!-- 6 LEADS -->
+<div class="section">
+  <header class="pg">DataForge SOP · 6. Leads Management</header>
+  <h2>6. Leads Management</h2>
+  <p>Route: <code>/leads</code>. The central lead database.</p>
+  <h3>6.1 Structure</h3>
+  <p>Leads are organized in a hierarchy:</p>
+  <p style="text-align:center; font-weight:600; color:var(--brand2)">Categories → Subcategories → Folders → Leads</p>
+  <ul>
+    <li><b>Category</b> (a.k.a. Industry): top-level grouping. Opening a category shows its subcategories and folders.</li>
+    <li><b>Subcategory:</b> optional grouping inside a category.</li>
+    <li><b>Folder:</b> holds the actual leads. A category shows an <b>"Ungrouped"</b> bucket for folders that have no subcategory.</li>
+    <li>Leads saved to a category <i>without</i> choosing a specific folder land in that category's automatic <b>"Ungrouped"</b> folder.</li>
+    <li>There is also a global <b>"Unfiled"</b> list for leads that belong to no folder at all (<code>/leads/list?folder=unfiled</code>).</li>
+  </ul>
+  <h3>6.2 Folder cards &amp; export indicator</h3>
+  <ul>
+    <li>Each folder card shows its lead count, owner, and created/updated dates.</li>
+    <li>An <b>export progress bar</b> (battery-style) sits by the "Click to view leads →" hint, showing the <b>percentage of that folder's leads already exported</b>. If nothing has been exported, no bar is shown.</li>
+  </ul>
+  <h3>6.3 Lead quality &amp; de-duplication</h3>
+  <ul>
+    <li>Every lead is <b>quality-scored 0–100%</b> by completeness: business name, phone, email, address, website, and category.</li>
+    <li><b>De-duplication:</b> incoming leads are matched by phone / business name and discarded if already present.</li>
+  </ul>
+  <h3>6.4 Viewing &amp; exporting</h3>
+  <ul>
+    <li>Open a folder to search, filter, and export leads. Filters include has-phone, has-email, has-website, quality, etc.</li>
+    <li><b>All Leads (list view):</b> <code>/leads/list</code> — a flat, filterable table across everything.</li>
+    <li><b>Add Lead manually:</b> <code>/leads/new</code>.</li>
+    <li><b>CSV export:</b> from a folder, export <b>all</b> filtered leads or only the <b>not-yet-exported ("unexported")</b> ones. Exported leads get an export-date stamp, which feeds the folder's export percentage bar.</li>
+  </ul>
+  <div class="note">Scraped leads and GHL-webhook leads are stored separately. The Leads board shows <b>scraped</b> leads.</div>
+</div>
+
+<!-- 7 SCRAPING -->
+<div class="section">
+  <header class="pg">DataForge SOP · 7. Scraping</header>
+  <h2>7. Scraping</h2>
+  <p>Route: <code>/scraping</code>. Two methods (tabs):</p>
+  <h3>7.1 Scrape a Website</h3>
+  <p>Tab: <code>/scraping?tab=domain</code>. Crawl a single domain for contact details (emails, phones). Enter the domain and run; results are captured as leads. Email grabbing loads each page (running its JavaScript) and scans the rendered HTML for thorough contact extraction.</p>
+  <h3>7.2 Auto Keywords</h3>
+  <p>Tab: <code>/scraping?tab=keywords</code>. Saved <b>keyword + location</b> pairs, organized in category folders.</p>
+  <ul>
+    <li>Each keyword belongs to a <b>category folder</b>; the leads it finds save into that category.</li>
+    <li><b>Run now</b> — scrapes the keyword once.</li>
+    <li><b>Auto run</b> — repeats scraping until you stop it. (There is <b>no</b> scheduling/cron.)</li>
+    <li><b>City rotation</b> and <b>extra-keyword variations</b> help surface fresh leads; the location picker sorts/cycles cities by population.</li>
+    <li><b>Adaptive backoff</b> throttles keywords that keep returning duplicates, so effort concentrates where new leads exist.</li>
+    <li>Sort keyword folders alphabetically or by lead count; the choice is remembered across restarts.</li>
+  </ul>
+  <div class="note">Keyword access can be scoped per user: a lead_specialist only sees the categories/keywords a boss/admin has granted them (see Administration).</div>
+</div>
+
+<!-- 8 REPORTS -->
+<div class="section">
+  <header class="pg">DataForge SOP · 8. Reports</header>
+  <h2>8. Reports &amp; Performance</h2>
+  <p>Route: <code>/reports</code> (boss/admin). A per-agent performance matrix.</p>
+  <ul>
+    <li><b>Heatmaps</b> for Leads, Appointment Performance, and Call Performance — darker cells mean stronger relative performance.</li>
+    <li><b>Call Performance "Today" column is clickable</b> — a calendar opens so you can view calls for any chosen date.</li>
+    <li><b>KPI strip:</b> active agents, appointments this month, calls (24h / week / month), average connect rate.</li>
+    <li><b>Shareable public link:</b> generate a link that anyone can open (no login). On the desktop app the link uses the production domain so external recipients can view it.</li>
+    <li><b>Timezone-aware:</b> "Today"/month boundaries are computed in the boss-configured timezone (Settings → set to match GHL) so day counts line up.</li>
+  </ul>
+</div>
+
+<!-- 9 GHL -->
+<div class="section">
+  <header class="pg">DataForge SOP · 9. GHL Integration</header>
+  <h2>9. GHL Integration (GoHighLevel)</h2>
+  <p>DataForge connects to one GHL sub-account (configured in Settings → Integrations: API key, Location ID).</p>
+  <h3>9.1 What syncs</h3>
+  <ul>
+    <li><b>Calls</b> — imported from GHL via the API and attributed to the agent who made each call.</li>
+    <li><b>Appointments</b> — synced from GHL calendars and attributed to the booking agent.</li>
+    <li>Agents are matched to GHL by their <b>GHL User ID</b> (set per user in Admin → Users).</li>
+  </ul>
+  <h3>9.2 Call counts — source of truth</h3>
+  <ul>
+    <li>Call data comes from the <b>GHL API sync</b> — one row per real call. The GHL webhooks no longer write call rows (they over-counted).</li>
+    <li>Trigger a sync from <b>Marketing → Sync GHL Calls</b>. The circular-arrow (↺) button does a full <b>"Rebuild from GHL"</b>: it deletes existing call logs and re-imports fresh.</li>
+    <li><b>Timezone:</b> set the app timezone (Settings) to match GHL so per-day counts align.</li>
+  </ul>
+  <div class="warn"><b>Note on GHL's dashboard "Agent Report":</b> GHL's dashboard call number is a proprietary, filtered metric that GHL does <b>not</b> expose over its API. DataForge counts actual call activity from the GHL conversations API; this can legitimately differ from GHL's dashboard figure. There is no API that returns the dashboard number.</div>
+  <h3>9.3 Requirements</h3>
+  <ul>
+    <li>The GHL API token must be a Private Integration Token with the <b>Conversations</b> read scopes (<code>conversations.readonly</code>, <code>conversations/message.readonly</code>).</li>
+  </ul>
+</div>
+
+<!-- 10 MARKETING -->
+<div class="section">
+  <header class="pg">DataForge SOP · 10. Marketing Suite</header>
+  <h2>10. Marketing Suite</h2>
+  <table>
+    <tr><th>Feature</th><th>Route</th><th>Purpose</th></tr>
+    <tr><td>Overview</td><td><code>/marketing</code></td><td>Marketing metrics + leaderboard.</td></tr>
+    <tr><td>Notes</td><td><code>/marketing/notes</code></td><td>Shared team notes.</td></tr>
+    <tr><td>Scripts</td><td><code>/marketing/scripts</code></td><td>Call scripts.</td></tr>
+    <tr><td>My Leads</td><td><code>/marketing/my-leads</code></td><td>Leads assigned to the current agent.</td></tr>
+    <tr><td>Badges</td><td><code>/marketing/manage/badges</code></td><td>Achievement badge management.</td></tr>
+    <tr><td>Challenges</td><td><code>/marketing/manage/tasks</code></td><td>Marketing tasks / challenges.</td></tr>
+    <tr><td>Commissions</td><td><code>/marketing/manage/commissions</code></td><td>Commission management (boss/admin).</td></tr>
+    <tr><td>My Commissions</td><td><code>/my-commissions</code></td><td>An agent's own commissions.</td></tr>
+    <tr><td>Balloon Pop</td><td><code>/balloons</code></td><td>Gamified team activity.</td></tr>
+  </table>
+  <p>Each of these is a <b>toggleable feature</b> — a boss can hide any of them for the whole team (Settings → Features).</p>
+</div>
+
+<!-- 11 FORGER -->
+<div class="section">
+  <header class="pg">DataForge SOP · 11. Forger AI</header>
+  <h2>11. Forger — AI Assistant</h2>
+  <p>Forger is an in-app AI helper (boss/admin only) that helps you <b>use</b> DataForge — find pages, look up data, export CSVs, and (on desktop) start/stop scrapers. It is a product helper, not a coding tool, and it can only <b>read</b> the database (plus CSV export and scraper control).</p>
+  <h3>11.1 Opening Forger</h3>
+  <ul>
+    <li>Click the floating <b>"Ask Forger"</b> button (bottom-right). It opens a resizable chat panel (drag the left edge; toggle full-screen).</li>
+    <li>Chat history is saved; you can delete a conversation or clear all.</li>
+  </ul>
+  <h3>11.2 Setup (boss)</h3>
+  <ul>
+    <li>Forger needs an <b>Anthropic API key</b>, set once in <b>Settings → Forger</b>. With a key set, Forger works for everyone on every device with no per-user setup.</li>
+    <li>Alternatively, on a device that has Claude Code installed and logged in, Forger can use that — but a single central API key is the recommended, zero-setup path.</li>
+    <li>A <b>request size guard</b> (max tokens, configurable in Settings → Forger) blocks oversized prompts to control cost.</li>
+  </ul>
+  <h3>11.3 What Forger can do</h3>
+  <ul>
+    <li>Answer "where is X" and "how do I…" with clickable in-app links.</li>
+    <li>Look up overview stats, list categories/keywords, search leads, export leads to CSV.</li>
+    <li>On the desktop app only: start a keyword scrape or stop all scrapers.</li>
+    <li>It will refuse to write/modify data or discuss source code.</li>
+  </ul>
+</div>
+
+<!-- 12 ADMIN -->
+<div class="section">
+  <header class="pg">DataForge SOP · 12. Administration</header>
+  <h2>12. Administration</h2>
+  <h3>12.1 Users — <code>/admin/users</code></h3>
+  <ul>
+    <li>Create users, set their <b>role</b>, reset details.</li>
+    <li>Set each agent's <b>GHL User ID</b> so GHL calls/appointments attribute correctly.</li>
+    <li><b>Keyword access grants:</b> scope which categories/keywords a <b>lead_specialist</b> can see and work.</li>
+  </ul>
+  <h3>12.2 Fleet — <code>/admin/fleet</code></h3>
+  <ul>
+    <li>See connected devices and running scrapes in real time.</li>
+    <li>A device drops from the fleet immediately when its app closes.</li>
+  </ul>
+</div>
+
+<!-- 13 SETTINGS -->
+<div class="section">
+  <header class="pg">DataForge SOP · 13. Settings</header>
+  <h2>13. Settings &amp; Feature Toggles</h2>
+  <p>Route: <code>/settings</code> (boss for global config; other roles see Profile/Appearance/Security).</p>
+  <table>
+    <tr><th>Tab</th><th>Contents</th></tr>
+    <tr><td>General</td><td>Company name, scraping defaults (max leads, concurrency, run limits), global pause / boost.</td></tr>
+    <tr><td>Leads</td><td>Lead quality thresholds (good/medium).</td></tr>
+    <tr><td>Integrations</td><td>GHL API key, sub-account key, Location ID, webhook/inbound settings, commission currency, <b>timezone</b> (searchable — set to match GHL).</td></tr>
+    <tr><td>Features</td><td>Turn app modules on/off for the whole team (see below). Boss only.</td></tr>
+    <tr><td>Forger</td><td>Anthropic API key, model, max request tokens, and the Forger enable toggle.</td></tr>
+    <tr><td>Maintenance</td><td>Housekeeping / data operations.</td></tr>
+    <tr><td>Profile</td><td>Display name, nickname, photo, password.</td></tr>
+    <tr><td>Appearance</td><td>Theme and accent.</td></tr>
+    <tr><td>Security</td><td>Account security settings.</td></tr>
+  </table>
+  <h3>13.1 Feature Toggles</h3>
+  <p>Boss-only. Each toggle hides a module from the sidebar and blocks its page for the whole team: <b>Marketing Overview, Notes, Scripts, Badges, Challenges, Commissions, Balloon Pop, Leads, Scraping</b>.</p>
+  <div class="note">Settings save automatically when you change a field or flip a toggle; saves auto-retry once on a transient database hiccup.</div>
+</div>
+
+<!-- 14 HOW CODE WORKS -->
+<div class="section">
+  <header class="pg">DataForge SOP · 14. How the Code Works</header>
+  <h2>14. How the Code Works (Technical)</h2>
+  <p class="lead">This section is for developers/maintainers. The active codebase is the <code>dataforge-app-lite</code> project; <code>dataforge-app</code> is a frozen backup and must not be edited.</p>
+
+  <h3>14.1 Technology stack</h3>
+  <table>
+    <tr><th>Layer</th><th>Technology</th></tr>
+    <tr><td>UI &amp; server</td><td>Next.js 16 (App Router, React Server Components, Server Actions, <code>output: "standalone"</code>)</td></tr>
+    <tr><td>Database</td><td>PostgreSQL (hosted on Supabase) via Prisma 7 with the pg adapter</td></tr>
+    <tr><td>Auth</td><td>NextAuth (Credentials provider; middleware enforces login, server code enforces roles)</td></tr>
+    <tr><td>Desktop shell</td><td>Electron (wraps the Next standalone server; system tray; single-instance lock)</td></tr>
+    <tr><td>Scraper</td><td>Playwright + Chromium (downloaded on first scrape into a per-user path; headless page load, renders JS, extracts contacts)</td></tr>
+    <tr><td>AI (Forger)</td><td>Anthropic API SDK (primary) or the Claude Agent SDK via local Claude Code (fallback)</td></tr>
+    <tr><td>Real-time</td><td>Socket.IO (custom <code>server.ts</code>) for fleet/live updates</td></tr>
+  </table>
+
+  <h3>14.2 Project structure</h3>
+  <table>
+    <tr><th>Path</th><th>Purpose</th></tr>
+    <tr><td><code>src/app/</code></td><td>Routes (App Router). <code>(app)/</code> = authenticated pages, <code>(auth)/</code> = sign-in, <code>api/</code> = API routes &amp; webhooks. <code>error.tsx</code>/<code>global-error.tsx</code> render friendly error screens.</td></tr>
+    <tr><td><code>src/lib/</code></td><td>Server-side services &amp; helpers — e.g. <code>ghl/</code> (sync + client), <code>folders/</code>, <code>industry/</code>, <code>leads/</code>, <code>reports/</code>, <code>marketing/</code>, <code>forger/</code>, <code>settings/</code>, <code>utils/timezone.ts</code>, <code>prisma.ts</code>.</td></tr>
+    <tr><td><code>src/actions/</code></td><td>Server Actions — the write path called from the client (settings, folders, keyword access, auth, etc.).</td></tr>
+    <tr><td><code>src/components/</code></td><td>React components (client &amp; shared UI). <code>ui/</code> = base-ui/shadcn primitives.</td></tr>
+    <tr><td><code>prisma/schema.prisma</code></td><td>Database schema (models: User, Lead, Folder, Industry/Subcategory, CallLog, GhlAppointment, AppSettings, Forger*, etc.).</td></tr>
+    <tr><td><code>electron/</code></td><td>Desktop shell: <code>main.js</code> (boots the server + window + tray), <code>assemble.mjs</code>, <code>after-pack.js</code>.</td></tr>
+    <tr><td><code>server.ts</code></td><td>Custom Node server (Next + Socket.IO) — the entry the desktop app runs.</td></tr>
+  </table>
+
+  <h3>14.3 Request &amp; data flow</h3>
+  <ol>
+    <li>A <b>page</b> (server component in <code>src/app/(app)/…/page.tsx</code>) runs on the server, checks the session/role, and calls a <b>service</b> in <code>src/lib/…</code>.</li>
+    <li>The service uses the <b>Prisma client</b> (<code>src/lib/prisma.ts</code>) to query PostgreSQL and returns typed data to the page, which renders HTML.</li>
+    <li><b>Mutations</b> (saving settings, toggling features, creating folders) go through <b>Server Actions</b> in <code>src/actions/…</code>, which re-check the role (<code>requireRole</code>), write via Prisma, then <code>revalidatePath</code>. Transient DB blips auto-retry via <code>withDbRetry</code>.</li>
+    <li><b>Errors</b> bubble to the nearest <code>error.tsx</code>; uncaught ones hit <code>global-error.tsx</code> — both show a friendly "Something went wrong" screen instead of a raw stack.</li>
+  </ol>
+
+  <h3>14.4 How the desktop app runs</h3>
+  <ul>
+    <li><code>electron/main.js</code> acquires a <b>single-instance lock</b>, starts the bundled <b>Next standalone server</b> (from <code>resources/standalone</code>) as a child process, then opens a window pointed at <code>http://localhost:3000</code>.</li>
+    <li>Closing the window hides to the <b>tray</b>; the server keeps running so re-opening is instant.</li>
+    <li>On the first scrape the app <b>downloads Chromium</b> into a persistent per-user folder (<code>PLAYWRIGHT_BROWSERS_PATH</code> under the app's user-data dir) and reuses it thereafter.</li>
+    <li>The DB connection string lives in <code>.env.local</code>, which is copied into the bundle at assemble time.</li>
+  </ul>
+
+  <h3>14.5 Key subsystems (where the logic lives)</h3>
+  <table>
+    <tr><th>Feature</th><th>Code</th></tr>
+    <tr><td>GHL call/appointment sync</td><td><code>src/lib/ghl/sync.ts</code> + <code>src/lib/ghl/client.ts</code> (one CallLog per real call message, attributed by the caller's GHL userId).</td></tr>
+    <tr><td>GHL webhooks</td><td><code>src/app/api/ghl/{inbound,outbound}-call/route.ts</code> (CallLog writes disabled — API sync is the source of truth).</td></tr>
+    <tr><td>Sync trigger + rebuild</td><td><code>src/app/api/ghl/sync-calls/route.ts</code> (supports a <code>wipe</code> full-rebuild) + <code>SyncGhlCallsButton.tsx</code>.</td></tr>
+    <tr><td>Folder export % bar</td><td><code>src/lib/folders/service.ts</code> (<code>attachExportedCounts</code>) + <code>FolderExportBar.tsx</code>.</td></tr>
+    <tr><td>Timezone-aware dates</td><td><code>src/lib/utils/timezone.ts</code> (used by reports &amp; marketing services).</td></tr>
+    <tr><td>Forger AI</td><td><code>src/app/api/forger/chat/route.ts</code> (API-key-first), <code>src/lib/forger/*</code> (tools, agent, knowledge).</td></tr>
+  </table>
+</div>
+
+<!-- 15 BUILD -->
+<div class="section">
+  <header class="pg">DataForge SOP · 15. Build &amp; Deployment</header>
+  <h2>15. Desktop Build &amp; Deployment</h2>
+  <p>The desktop app is built from the active project (<code>dataforge-app-lite</code>) with <b>three commands, in this exact order</b>:</p>
+
+  <h3>Step 1 — Build the web bundle</h3>
+  <p><code>npm run desktop:build-web</code></p>
+  <ul>
+    <li>Runs <code>prisma generate</code> then <code>next build --webpack</code> with <code>BUILD_TARGET=desktop</code>.</li>
+    <li>Produces <code>.next/standalone/</code> — a self-contained Node server (<code>server.js</code>) with traced dependencies.</li>
+    <li><b>Note:</b> Next intentionally does <i>not</i> include static assets, <code>public/</code>, or env files in the standalone output — Step 2 adds them.</li>
+  </ul>
+
+  <h3>Step 2 — Assemble the bundle</h3>
+  <p><code>npm run desktop:assemble</code> (runs <code>electron/assemble.mjs</code>)</p>
+  <ul>
+    <li>Copies <code>.next/static/</code> → <code>.next/standalone/.next/static/</code> (the JS/CSS chunks the pages load).</li>
+    <li>Copies <code>public/</code> and <code>.env.local</code> (the DB connection string) into the bundle.</li>
+    <li>Ensures the Playwright install machinery (<code>playwright</code> / <code>playwright-core</code>) is present. Chromium itself is <b>not</b> bundled — it is downloaded on the first scrape (see §14.4), which keeps the installer ~60% smaller.</li>
+  </ul>
+
+  <h3>Step 3 — Package the installer</h3>
+  <p><code>npm run desktop:pack</code> (runs <code>electron-builder --win</code>)</p>
+  <ul>
+    <li>Builds the Windows NSIS installer into <code>dist/</code>.</li>
+    <li>The <code>afterPack</code> hook (<code>electron/after-pack.js</code>) copies the assembled <code>.next/standalone</code> into the app's <code>resources/standalone</code> (a plain recursive copy, so dot-folders like <code>.next</code> and <code>.env.local</code> are included).</li>
+  </ul>
+
+  <p><b>First time only:</b> <code>npm run desktop:browsers</code> (installs the Chromium that gets bundled). <b>All-in-one:</b> <code>npm run desktop:dist</code> runs browsers → build-web → assemble → pack.</p>
+
+  <div class="warn"><b>Critical ordering:</b> <code>assemble</code> must run <b>after</b> <code>build-web</code> and <b>before</b> <code>pack</code>. Re-running <code>build-web</code> after assemble regenerates <code>.next/standalone</code> and wipes the copied static/env. Before packing, verify both exist:
+  <br/>• <code>.next/standalone/.next/static/chunks</code> — else the packaged app is blank / all JS &amp; CSS 404.
+  <br/>• <code>.next/standalone/.env.local</code> — else pages throw a server-side database error.</div>
+  <div class="warn"><b>Disk space:</b> since Chromium is no longer bundled, the app bundle is now much smaller (~450 MB). Packaging still needs a few GB free for the app copy + compressed installer + temp. The error <code>can't write ... bytes to output</code> means the drive is out of space — free space and retry.</div>
+  <div class="note"><b>First-run browser download:</b> the first time a device runs a scrape, DataForge downloads Chromium once (~1–2 min, needs internet) into a per-user folder; subsequent scrapes reuse it. The install is idempotent, so it is a fast no-op thereafter.</div>
+</div>
+
+<!-- 15 TROUBLESHOOTING -->
+<div class="section">
+  <header class="pg">DataForge SOP · 16. Troubleshooting</header>
+  <h2>16. Troubleshooting</h2>
+  <table>
+    <tr><th>Symptom</th><th>Cause &amp; Fix</th></tr>
+    <tr><td>"Something went wrong" screen / pages fail to load</td><td>Usually a temporary database connection drop (hosted Supabase). Click <b>Try again</b>. If persistent, the network/DB region connection is unstable — stabilize the connection or move the DB region.</td></tr>
+    <tr><td>Settings toggles won't save</td><td>Same transient DB drop — the save auto-retries once; try again after a moment. The toggle logic itself is fine.</td></tr>
+    <tr><td>Packaged app is blank / JS &amp; CSS 404</td><td>The build was packaged without static assets — <code>assemble</code> didn't run (or <code>build-web</code> ran after it). Rebuild in order and verify <code>.next/standalone/.next/static</code>.</td></tr>
+    <tr><td>Packaged app: server-side exception on load</td><td>The bundle is missing <code>.env.local</code> (no DB connection). Re-run <code>assemble</code> and verify the file before packing.</td></tr>
+    <tr><td>Installer fails: "can't write N bytes to output"</td><td>Disk full. Free several GB and re-run <code>desktop:pack</code>.</td></tr>
+    <tr><td>Forger says it can't reach Claude Code</td><td>No AI credential set. Boss adds an <b>Anthropic API key</b> in Settings → Forger (works for everyone, no per-device setup).</td></tr>
+    <tr><td>GHL calls not importing (401)</td><td>The GHL token lacks the Conversations read scopes. Recreate/edit the Private Integration Token with <code>conversations.readonly</code> and <code>conversations/message.readonly</code>.</td></tr>
+    <tr><td>Call counts differ from GHL dashboard</td><td>Expected — GHL's dashboard number is a private, filtered metric not available via API. DataForge counts real call activity from the GHL API.</td></tr>
+    <tr><td>Duplicate app state on reopen</td><td>Prevented by the single-instance lock. If odd, fully quit via the tray and relaunch.</td></tr>
+  </table>
+</div>
+
+<!-- 16 APPENDIX -->
+<div class="section">
+  <header class="pg">DataForge SOP · 17. Route Reference</header>
+  <h2>17. Appendix — Route Reference</h2>
+  <table>
+    <tr><th>Page</th><th>Route</th><th>Who</th></tr>
+    <tr><td>Dashboard</td><td>/dashboard</td><td>All</td></tr>
+    <tr><td>Leads</td><td>/leads</td><td>Leads dept</td></tr>
+    <tr><td>All Leads (list)</td><td>/leads/list</td><td>Leads dept</td></tr>
+    <tr><td>Add Lead</td><td>/leads/new</td><td>Leads dept</td></tr>
+    <tr><td>Scraping</td><td>/scraping</td><td>Leads dept</td></tr>
+    <tr><td>Reports</td><td>/reports</td><td>boss/admin</td></tr>
+    <tr><td>Kanban</td><td>/kanban</td><td>Marketing</td></tr>
+    <tr><td>Calendar</td><td>/calendar</td><td>Marketing</td></tr>
+    <tr><td>Bug Reports</td><td>/feedback</td><td>All</td></tr>
+    <tr><td>Marketing Overview</td><td>/marketing</td><td>Marketing</td></tr>
+    <tr><td>Notes / Scripts</td><td>/marketing/notes · /marketing/scripts</td><td>Marketing</td></tr>
+    <tr><td>Badges / Challenges / Commissions</td><td>/marketing/manage/*</td><td>Marketing / boss</td></tr>
+    <tr><td>Balloon Pop</td><td>/balloons</td><td>Marketing</td></tr>
+    <tr><td>Users / Fleet</td><td>/admin/users · /admin/fleet</td><td>boss/admin</td></tr>
+    <tr><td>My Profile</td><td>/profile</td><td>All</td></tr>
+    <tr><td>Settings</td><td>/settings</td><td>boss (full)</td></tr>
+    <tr><td>How It Works</td><td>/how-it-works</td><td>boss/admin</td></tr>
+  </table>
+  <p style="margin-top:24px; text-align:center; color:var(--muted); font-size:9pt;">— End of Standard Operating Procedure · DataForge v1.0 —</p>
+</div>
+
+</body>
+</html>

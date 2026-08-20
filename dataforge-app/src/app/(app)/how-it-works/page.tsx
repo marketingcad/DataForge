@@ -122,6 +122,9 @@ export default async function HowItWorksPage() {
   if (!session) redirect("/sign-in");
   const role = (session.user as unknown as Record<string, unknown>)?.role as string;
 
+  // How It Works is a boss/admin-only guide — everyone else is sent home.
+  if (role !== "boss" && role !== "admin") redirect("/dashboard");
+
   // Scope the guide to what this role can actually use.
   const isAdmin      = role === "boss" || role === "admin";
   const canLeads     = isAdmin || role === "lead_specialist";      // leads department

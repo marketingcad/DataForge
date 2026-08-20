@@ -19,7 +19,9 @@ export const authConfig: NextAuthConfig = {
         return Response.redirect(new URL("/dashboard", nextUrl));
       }
 
-      const publicPaths = ["/", "/sign-in", "/sign-up", "/api/auth", "/api/scraping/cron", "/api/webhooks", "/api/ghl/outbound-call", "/api/ghl/inbound-call"];
+      // "/share" holds token-gated, read-only public pages (e.g. shared reports)
+      // — anyone with the link can view them without signing in.
+      const publicPaths = ["/", "/sign-in", "/sign-up", "/share", "/api/auth", "/api/scraping/cron", "/api/webhooks", "/api/ghl/outbound-call", "/api/ghl/inbound-call"];
       const isPublic = publicPaths.some(
         (p) => pathname === p || pathname.startsWith(p + "/")
       );

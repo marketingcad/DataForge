@@ -302,3 +302,80 @@
   from { transform: translateX(0); }
   to   { transform: translateX(calc(-100% - 100cqi)); }
 }
+
+/* ── Motion system ──────────────────────────────────────────────────────────
+   A single, app-wide layer of motion primitives so every screen feels
+   consistent and polished. Individual components can opt into the entrance
+   utilities (.animate-*, .stagger); interaction feedback + reduced-motion are
+   global. Uses a smooth ease-out curve everywhere for a modern, snappy feel. */
+
+/* Accessibility: honour users who ask the OS for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Consistent, snappy feedback on every interactive element. */
+@media (prefers-reduced-motion: no-preference) {
+  button, a, summary,
+  [role="button"], [role="tab"], [role="menuitem"], [role="option"],
+  [role="switch"], [role="checkbox"], [role="radio"] {
+    transition:
+      color .18s ease, background-color .18s ease, border-color .18s ease,
+      box-shadow .18s ease, opacity .18s ease, transform .12s ease;
+  }
+  /* Subtle "press" feedback — the control dips slightly when clicked. */
+  button:not(:disabled):active,
+  [role="button"]:not([aria-disabled="true"]):active,
+  [role="tab"]:active,
+  [role="menuitem"]:active {
+    transform: scale(0.97);
+  }
+}
+
+/* Entrance keyframes. */
+@keyframes df-fade-in  { from { opacity: 0 } to { opacity: 1 } }
+@keyframes df-rise-in  { from { opacity: 0; transform: translateY(10px) } to { opacity: 1; transform: none } }
+@keyframes df-scale-in { from { opacity: 0; transform: scale(.96) }        to { opacity: 1; transform: none } }
+@keyframes df-shimmer  { 100% { transform: translateX(100%) } }
+
+.animate-fade-in  { animation: df-fade-in  .35s ease both; }
+.animate-rise-in  { animation: df-rise-in  .45s cubic-bezier(.22, .61, .36, 1) both; }
+.animate-scale-in { animation: df-scale-in .30s cubic-bezier(.22, .61, .36, 1) both; }
+
+/* Per-route page/content entrance (applied in the app shell). */
+.page-enter { animation: df-rise-in .45s cubic-bezier(.22, .61, .36, 1) both; }
+
+/* Opt-in stagger for grids/lists: add `.stagger` to the container and its
+   direct children fade/rise in sequence. */
+.stagger > *              { animation: df-rise-in .5s cubic-bezier(.22, .61, .36, 1) both; }
+.stagger > *:nth-child(1) { animation-delay: .03s }
+.stagger > *:nth-child(2) { animation-delay: .06s }
+.stagger > *:nth-child(3) { animation-delay: .09s }
+.stagger > *:nth-child(4) { animation-delay: .12s }
+.stagger > *:nth-child(5) { animation-delay: .15s }
+.stagger > *:nth-child(6) { animation-delay: .18s }
+.stagger > *:nth-child(7) { animation-delay: .21s }
+.stagger > *:nth-child(8) { animation-delay: .24s }
+.stagger > *:nth-child(9) { animation-delay: .27s }
+
+/* Shimmering skeletons — a moving sheen instead of a flat pulse. Used by the
+   <Skeleton/> primitive, so every loading state upgrades at once. */
+.df-skeleton { position: relative; overflow: hidden; }
+.df-skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in oklab, var(--foreground) 9%, transparent),
+    transparent
+  );
+  animation: df-shimmer 1.6s ease-in-out infinite;
+}

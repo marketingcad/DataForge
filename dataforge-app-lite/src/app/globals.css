@@ -1,0 +1,409 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans, ui-sans-serif, system-ui, sans-serif);
+  --font-mono: var(--font-geist-mono);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: 5px;
+  --radius-md: 5px;
+  --radius-lg: 5px;
+  --radius-xl: 5px;
+  --radius-2xl: 5px;
+  --radius-3xl: 5px;
+  --radius-4xl: 5px;
+}
+
+:root {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.809 0.105 251.813);
+  --chart-2: oklch(0.623 0.214 259.815);
+  --chart-3: oklch(0.546 0.245 262.881);
+  --chart-4: oklch(0.488 0.243 264.376);
+  --chart-5: oklch(0.424 0.199 265.638);
+  --radius: 5px;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.809 0.105 251.813);
+  --chart-2: oklch(0.623 0.214 259.815);
+  --chart-3: oklch(0.546 0.245 262.881);
+  --chart-4: oklch(0.488 0.243 264.376);
+  --chart-5: oklch(0.424 0.199 265.638);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+}
+
+/* ── Accent colour system ─────────────────────────────────────────────────── */
+/* --heatmap-accent holds the OKLCH triplet (L C H) used by AgentHeatmap.   */
+/* data-accent="X" on <html> activates a named colour scheme.               */
+
+:root {
+  /* Default: neutral theme → use blue for heatmap so it doesn't look gray  */
+  --heatmap-accent: 0.623 0.214 259.815;
+}
+
+[data-accent="blue"] {
+  --primary: oklch(0.50 0.24 232);
+  --primary-foreground: oklch(0.985 0 0);
+  --ring: oklch(0.623 0.214 232);
+  --sidebar-primary: oklch(0.50 0.24 232);
+  --heatmap-accent: 0.50 0.24 232;
+}
+.dark[data-accent="blue"] {
+  --primary: oklch(0.65 0.22 232);
+  --primary-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.50 0.24 232);
+}
+
+[data-accent="violet"] {
+  --primary: oklch(0.50 0.245 262);
+  --primary-foreground: oklch(0.985 0 0);
+  --ring: oklch(0.60 0.23 262);
+  --sidebar-primary: oklch(0.50 0.245 262);
+  --heatmap-accent: 0.50 0.245 262;
+}
+.dark[data-accent="violet"] {
+  --primary: oklch(0.65 0.22 262);
+  --primary-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.50 0.245 262);
+}
+
+[data-accent="emerald"] {
+  --primary: oklch(0.50 0.19 155);
+  --primary-foreground: oklch(0.985 0 0);
+  --ring: oklch(0.60 0.18 155);
+  --sidebar-primary: oklch(0.50 0.19 155);
+  --heatmap-accent: 0.50 0.19 155;
+}
+.dark[data-accent="emerald"] {
+  --primary: oklch(0.65 0.18 155);
+  --primary-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.50 0.19 155);
+}
+
+[data-accent="rose"] {
+  --primary: oklch(0.52 0.24 7);
+  --primary-foreground: oklch(0.985 0 0);
+  --ring: oklch(0.62 0.22 7);
+  --sidebar-primary: oklch(0.52 0.24 7);
+  --heatmap-accent: 0.52 0.24 7;
+}
+.dark[data-accent="rose"] {
+  --primary: oklch(0.66 0.22 7);
+  --primary-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.52 0.24 7);
+}
+
+[data-accent="amber"] {
+  --primary: oklch(0.60 0.20 65);
+  --primary-foreground: oklch(0.985 0 0);
+  --ring: oklch(0.70 0.18 65);
+  --sidebar-primary: oklch(0.60 0.20 65);
+  --heatmap-accent: 0.60 0.20 65;
+}
+.dark[data-accent="amber"] {
+  --primary: oklch(0.74 0.18 65);
+  --primary-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.60 0.20 65);
+}
+
+[data-accent="teal"] {
+  --primary: oklch(0.50 0.16 195);
+  --primary-foreground: oklch(0.985 0 0);
+  --ring: oklch(0.60 0.15 195);
+  --sidebar-primary: oklch(0.50 0.16 195);
+  --heatmap-accent: 0.50 0.16 195;
+}
+.dark[data-accent="teal"] {
+  --primary: oklch(0.65 0.15 195);
+  --primary-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.50 0.16 195);
+}
+
+/* ── Sonner toast customisation ── */
+[data-sonner-toast] {
+  border-left-width: 3px !important;
+}
+[data-sonner-toast] [data-icon] {
+  align-self: flex-start;
+  margin-top: 2px;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+    font-family: var(--font-sans);
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-sans);
+  }
+  html {
+    @apply font-sans;
+  }
+}
+
+/* ── TipTap editor prose styles ───────────────────────────────────────────── */
+.tiptap.ProseMirror {
+  outline: none;
+}
+.tiptap.ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: hsl(var(--muted-foreground) / 0.5);
+  pointer-events: none;
+  height: 0;
+}
+.tiptap.ProseMirror h1 { font-size: 1.6rem; font-weight: 900; margin: 0.75em 0 0.4em; line-height: 1.2; }
+.tiptap.ProseMirror h2 { font-size: 1.3rem; font-weight: 800; margin: 0.7em 0 0.35em; }
+.tiptap.ProseMirror h3 { font-size: 1.1rem; font-weight: 700; margin: 0.6em 0 0.3em; }
+.tiptap.ProseMirror p  { margin: 0.35em 0; line-height: 1.65; }
+.tiptap.ProseMirror ul, .tiptap.ProseMirror ol { padding-left: 1.4em; margin: 0.4em 0; }
+.tiptap.ProseMirror li { margin: 0.15em 0; }
+.tiptap.ProseMirror blockquote {
+  border-left: 3px solid hsl(var(--primary) / 0.5);
+  padding-left: 1em;
+  margin: 0.6em 0;
+  color: hsl(var(--muted-foreground));
+  font-style: italic;
+}
+.tiptap.ProseMirror code {
+  background: hsl(var(--muted));
+  border-radius: 4px;
+  padding: 0.15em 0.4em;
+  font-size: 0.85em;
+  font-family: var(--font-mono);
+}
+.tiptap.ProseMirror pre {
+  background: hsl(var(--muted));
+  border-radius: 8px;
+  padding: 0.8em 1em;
+  margin: 0.6em 0;
+  overflow-x: auto;
+}
+.tiptap.ProseMirror pre code { background: none; padding: 0; }
+.tiptap.ProseMirror a { color: hsl(var(--primary)); text-decoration: underline; }
+.tiptap.ProseMirror img { max-width: 100%; border-radius: 8px; margin: 0.5em 0; }
+.tiptap.ProseMirror strong { font-weight: 700; }
+.tiptap.ProseMirror em { font-style: italic; }
+.tiptap.ProseMirror u { text-decoration: underline; }
+.tiptap.ProseMirror s { text-decoration: line-through; }
+
+/* ── Thin scrollbars app-wide ─────────────────────────────────────────────── */
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--border)) transparent;
+}
+/* Chrome / Edge / Safari */
+*::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--border));
+  border-radius: 999px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: hsl(var(--muted-foreground) / 0.5);
+}
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* ── Secret Easter egg marquee ── */
+@keyframes marquee-scroll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(calc(-100% - 100cqi)); }
+}
+
+/* ── Motion system ──────────────────────────────────────────────────────────
+   A single, app-wide layer of motion primitives so every screen feels
+   consistent and polished. Individual components can opt into the entrance
+   utilities (.animate-*, .stagger); interaction feedback + reduced-motion are
+   global. Uses a smooth ease-out curve everywhere for a modern, snappy feel. */
+
+/* Accessibility: honour users who ask the OS for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Consistent, snappy feedback on every interactive element. */
+@media (prefers-reduced-motion: no-preference) {
+  button, a, summary,
+  [role="button"], [role="tab"], [role="menuitem"], [role="option"],
+  [role="switch"], [role="checkbox"], [role="radio"] {
+    transition:
+      color .18s ease, background-color .18s ease, border-color .18s ease,
+      box-shadow .18s ease, opacity .18s ease, transform .12s ease;
+  }
+  /* Subtle "press" feedback — the control dips slightly when clicked. */
+  button:not(:disabled):active,
+  [role="button"]:not([aria-disabled="true"]):active,
+  [role="tab"]:active,
+  [role="menuitem"]:active {
+    transform: scale(0.97);
+  }
+}
+
+/* Entrance keyframes. */
+@keyframes df-fade-in  { from { opacity: 0 } to { opacity: 1 } }
+@keyframes df-rise-in  { from { opacity: 0; transform: translateY(10px) } to { opacity: 1; transform: none } }
+@keyframes df-scale-in { from { opacity: 0; transform: scale(.96) }        to { opacity: 1; transform: none } }
+@keyframes df-shimmer  { 100% { transform: translateX(100%) } }
+
+.animate-fade-in  { animation: df-fade-in  .35s ease both; }
+.animate-rise-in  { animation: df-rise-in  .45s cubic-bezier(.22, .61, .36, 1) both; }
+.animate-scale-in { animation: df-scale-in .30s cubic-bezier(.22, .61, .36, 1) both; }
+
+/* Per-route page/content entrance (applied in the app shell). */
+.page-enter { animation: df-rise-in .45s cubic-bezier(.22, .61, .36, 1) both; }
+
+/* Opt-in stagger for grids/lists: add `.stagger` to the container and its
+   direct children fade/rise in sequence. */
+.stagger > *              { animation: df-rise-in .5s cubic-bezier(.22, .61, .36, 1) both; }
+.stagger > *:nth-child(1) { animation-delay: .03s }
+.stagger > *:nth-child(2) { animation-delay: .06s }
+.stagger > *:nth-child(3) { animation-delay: .09s }
+.stagger > *:nth-child(4) { animation-delay: .12s }
+.stagger > *:nth-child(5) { animation-delay: .15s }
+.stagger > *:nth-child(6) { animation-delay: .18s }
+.stagger > *:nth-child(7) { animation-delay: .21s }
+.stagger > *:nth-child(8) { animation-delay: .24s }
+.stagger > *:nth-child(9) { animation-delay: .27s }
+
+/* Shimmering skeletons — a moving sheen instead of a flat pulse. Used by the
+   <Skeleton/> primitive, so every loading state upgrades at once. */
+.df-skeleton { position: relative; overflow: hidden; }
+.df-skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in oklab, var(--foreground) 9%, transparent),
+    transparent
+  );
+  animation: df-shimmer 1.6s ease-in-out infinite;
+}
+
+/* ── Lite Mode ───────────────────────────────────────────────────────────────
+   When the user turns on Lite Mode (data-lite on <html>), strip all motion for a
+   snappier, lower-CPU/RAM experience: no page transitions, entrance animations,
+   shimmer, or hover/press transitions. Same idea as reduced-motion, but a
+   user-facing toggle regardless of the OS setting. */
+:root[data-lite] *,
+:root[data-lite] *::before,
+:root[data-lite] *::after {
+  animation-duration: 0.001ms !important;
+  animation-delay: 0ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  transition-delay: 0ms !important;
+  scroll-behavior: auto !important;
+}
+/* Entrance utilities snap straight to their final state. */
+:root[data-lite] .page-enter,
+:root[data-lite] .animate-fade-in,
+:root[data-lite] .animate-rise-in,
+:root[data-lite] .animate-scale-in,
+:root[data-lite] .stagger > * {
+  animation: none !important;
+  opacity: 1 !important;
+  transform: none !important;
+}
+/* Skeletons: flat placeholder, no moving sheen. */
+:root[data-lite] .df-skeleton::after { display: none !important; }

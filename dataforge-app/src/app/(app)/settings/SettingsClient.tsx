@@ -269,20 +269,30 @@ export function SettingsClient({ settings, isAdmin, isBoss = false, isLeadSpecia
     try { localStorage.setItem(ACCENT_LS_KEY, id); } catch { /* ignore */ }
   }
 
+  // Nav-rail styling for each tab: full-width, left-aligned pills that fill the
+  // vertical sidebar instead of a cramped horizontal strip.
+  const triggerCls = "justify-start md:w-full data-[state=active]:bg-muted data-[state=active]:shadow-none";
+
   return (
-    <Tabs defaultValue={isAdmin ? "general" : "profile"} className="space-y-4">
-      <TabsList className="w-full justify-start flex-wrap">
-        {isAdmin && <TabsTrigger value="general">General</TabsTrigger>}
-        {isAdmin && <TabsTrigger value="leads">Leads</TabsTrigger>}
-        {isAdmin && <TabsTrigger value="integrations">Integrations</TabsTrigger>}
-        {isBoss && <TabsTrigger value="features">Features</TabsTrigger>}
-        {isAdmin && <TabsTrigger value="maintenance">Maintenance</TabsTrigger>}
-        {isLeadSpecialist && <TabsTrigger value="scraping">Scraping</TabsTrigger>}
-        {isLeadSpecialist && <TabsTrigger value="geocoding">Geocoding</TabsTrigger>}
-        <TabsTrigger value="profile">Profile</TabsTrigger>
-        {isAdmin && <TabsTrigger value="appearance">Appearance</TabsTrigger>}
-        <TabsTrigger value="security">Security</TabsTrigger>
+    <Tabs
+      defaultValue={isAdmin ? "general" : "profile"}
+      orientation="vertical"
+      className="flex flex-col gap-6 md:flex-row md:items-start"
+    >
+      <TabsList className="flex h-auto w-full shrink-0 flex-row flex-wrap items-stretch justify-start gap-1 overflow-x-auto bg-transparent p-0 md:w-48 md:flex-col md:overflow-visible md:rounded-xl md:border md:bg-card md:p-2">
+        {isAdmin && <TabsTrigger value="general" className={triggerCls}>General</TabsTrigger>}
+        {isAdmin && <TabsTrigger value="leads" className={triggerCls}>Leads</TabsTrigger>}
+        {isAdmin && <TabsTrigger value="integrations" className={triggerCls}>Integrations</TabsTrigger>}
+        {isBoss && <TabsTrigger value="features" className={triggerCls}>Features</TabsTrigger>}
+        {isAdmin && <TabsTrigger value="maintenance" className={triggerCls}>Maintenance</TabsTrigger>}
+        {isLeadSpecialist && <TabsTrigger value="scraping" className={triggerCls}>Scraping</TabsTrigger>}
+        {isLeadSpecialist && <TabsTrigger value="geocoding" className={triggerCls}>Geocoding</TabsTrigger>}
+        <TabsTrigger value="profile" className={triggerCls}>Profile</TabsTrigger>
+        {isAdmin && <TabsTrigger value="appearance" className={triggerCls}>Appearance</TabsTrigger>}
+        <TabsTrigger value="security" className={triggerCls}>Security</TabsTrigger>
       </TabsList>
+
+      <div className="min-w-0 flex-1">
 
       {/* ── General tab ── */}
       {isAdmin && settings && <TabsContent value="general" className="space-y-6 mt-0">
@@ -291,18 +301,19 @@ export function SettingsClient({ settings, isAdmin, isBoss = false, isLeadSpecia
             <CardTitle className="text-base">General</CardTitle>
             <CardDescription>Basic application configuration.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <AutoInput
-              id="companyName" name="companyName" label="Company Name"
-              defaultValue={settings.companyName} placeholder="DataForge"
-            />
-            <Separator />
-            <AutoSelect
-              id="commissionCurrency" name="commissionCurrency" label="Currency"
-              defaultValue={settings.commissionCurrency}
-              description="Symbol shown on all commission amounts across the app."
-              options={CURRENCIES.map((c) => ({ value: c.symbol, label: c.label }))}
-            />
+          <CardContent>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <AutoInput
+                id="companyName" name="companyName" label="Company Name"
+                defaultValue={settings.companyName} placeholder="DataForge"
+              />
+              <AutoSelect
+                id="commissionCurrency" name="commissionCurrency" label="Currency"
+                defaultValue={settings.commissionCurrency}
+                description="Symbol shown on all commission amounts across the app."
+                options={CURRENCIES.map((c) => ({ value: c.symbol, label: c.label }))}
+              />
+            </div>
           </CardContent>
         </Card>
       </TabsContent>}
@@ -585,6 +596,7 @@ export function SettingsClient({ settings, isAdmin, isBoss = false, isLeadSpecia
       <TabsContent value="security" className="mt-0">
         <ChangePasswordCard />
       </TabsContent>
+      </div>
     </Tabs>
   );
 }
