@@ -93,12 +93,35 @@ because* the other two are authoritative.
 both carry a commission (`LeadCommission.leadId` is unique, so one would have to be dropped).
 Keep that refusal.
 
-### C6. `src/lib/scraping/google/` is off-limits without explicit approval
+### C6. Never alter the scraping algorithm or the auto-keyword loop
 
-The scraping algorithm is the product's core and the hardest thing to debug. Dedup and
-egress work belongs in `src/lib/scraping/jobs/`. The scraper's contract — a **synchronous**
-`skipNames: Set<string>` and `isDuplicate(lead)` predicate — must be preserved; that
-constraint is why a cache exists instead of per-batch queries.
+This is the product's core, the hardest thing to debug, and the easiest thing to break
+subtly — a change that looks harmless can quietly halve the leads collected, and nobody
+notices for days. **Do not touch these without the developer explicitly asking for a change
+to them, by name:**
+
+| Off-limits | What lives there |
+|---|---|
+| `src/lib/scraping/google/` (all of it) | the Google Maps scraper: pagination, detail pages, retries, stealth, `MAX_SCRAPE_MS` |
+| `runKeywordAutoLoop()` — `jobs/processor.ts` | the auto-run loop: job creation, stale-job reaping, run-time guards, concurrency |
+| `processKeywordJob()` control flow | attempts/retries, cancellation polling, insert chaining, email-grab queueing, progress heartbeats |
+| `src/lib/keywords/service.ts` | `getDueKeywords`, `pickSearchTerm`, `resolveRunLocation`, `enforceMaxAutoRunTime`, `onKeywordJobSuccess/Failure` — scheduling, city rotation, keyword re-rolling |
+| `src/app/api/scraping/cron/route.ts` | which jobs are enqueued per tick, and the concurrency cap |
+
+The scraper's contract must be preserved exactly: a **synchronous** `skipNames: Set<string>`
+and a synchronous `isDuplicate(lead)` predicate. That constraint is the whole reason a cache
+exists instead of cheaper per-batch queries — making the check async would mean changing the
+scraper, which is not allowed.
+
+**What is permissible** inside `processKeywordJob`, and only this: *where the dedup key sets
+come from*. The 2026-08 egress fix changed exactly one line — `await getDedupCache()` in
+place of a full-table `findMany` — plus swapping the two set-mutation lines for
+`rememberLead()`. The `isDuplicate` body was left byte-identical and verified so with a diff
+against `HEAD`. Hold any future change to that same standard: if `git diff` on
+`src/lib/scraping/google/` is not empty, you have gone too far.
+
+Dedup, caching and egress work belongs in `src/lib/scraping/jobs/dedup-cache.ts`,
+`src/lib/utils/dedup.ts` and `src/lib/leads/`.
 
 ### C7. The dedup indexes are expression indexes and `prisma db push` will drop them
 
