@@ -2,39 +2,56 @@ import { PrismaClient } from "@/generated/prisma/client";
 import { DedupResult } from "@/types/lead";
 
 /**
- * Check if a lead already exists in the database.
+ * Check if a lead already exists anywhere in the database.
  *
- * Priority:
- *  1. Phone match (most reliable)
- *  2. Email match (if no phone)
- *  3. Business name match (last resort — only when neither phone nor email present,
- *     to avoid false positives on directory scrapes where every lead shares the
- *     same site name as businessName)
+ * A lead is a duplicate when EITHER key matches an existing row:
+ *   - phone number (digits-only, as stored by normalizePhone)
+ *   - business name (case-insensitive, trimmed)
+ *
+ * Both are checked on every insert, not in priority order. An earlier version
+ * short-circuited — phone only, falling back to name just when no phone was present —
+ * so a lead carrying a phone number was never name-checked, and the same business
+ * scraped with two different numbers landed twice. Name uniqueness lived only in the
+ * scraper's in-memory snapshot, which a second concurrent job could not see.
+ *
+ * Email is deliberately NOT a uniqueness key. Scraped emails are frequently template
+ * or telemetry addresses lifted from site boilerplate and shared by unrelated
+ * businesses: in the current data one Wix Sentry address appears on 860 leads,
+ * "user@domain.com" on 629, and 9,032 rows in total share an email with another lead.
+ * Keying on it collapses distinct businesses.
+ *
+ * Note the tradeoff name matching restores: directory scrapes can produce distinct
+ * leads sharing one site-derived name, and those now collapse into a single lead
+ * (industries merged, score kept monotonic by insertLead) rather than inserting
+ * separately. That is the intended "unique across the whole database" behaviour.
+ *
+ * Written as one raw query so both comparisons hit their indexes: "phone" is indexed
+ * directly and stored pre-normalized, and lower(btrim("businessName")) is covered by
+ * Lead_business_name_key_idx. Prisma's `mode: "insensitive"` compiles to ILIKE, which
+ * no btree index can serve — that would seq-scan the whole table on every insert.
  */
 export async function checkDuplicate(
   prisma: PrismaClient,
   normalizedPhone: string,
   businessName: string,
-  normalizedEmail?: string,
 ): Promise<DedupResult> {
-  const orConditions: object[] = [];
+  const phone = normalizedPhone?.trim() ?? "";
+  const nameKey = businessName?.toLowerCase().trim() ?? "";
 
-  if (normalizedPhone) {
-    orConditions.push({ phone: normalizedPhone });
-  } else if (normalizedEmail) {
-    orConditions.push({ email: normalizedEmail });
-  } else if (businessName.trim()) {
-    orConditions.push({ businessName: { equals: businessName.trim(), mode: "insensitive" } });
-  }
+  if (!phone && !nameKey) return { isDuplicate: false };
 
-  if (orConditions.length === 0) return { isDuplicate: false };
+  // The ::text casts are required: in `$1 <> ''` both sides are untyped as far as
+  // Postgres is concerned, which fails with "could not determine data type of parameter".
+  // The empty-string guards themselves are essential — 6,951 leads have a blank phone, so
+  // an unguarded `"phone" = ''` would report every one of them as a duplicate.
+  const rows = await prisma.$queryRaw<{ id: string }[]>`
+    SELECT "id" FROM "Lead"
+    WHERE (${phone}::text <> '' AND "phone" = ${phone}::text)
+       OR (${nameKey}::text <> '' AND lower(btrim("businessName")) = ${nameKey}::text)
+    LIMIT 1
+  `;
 
-  const existing = await prisma.lead.findFirst({
-    where: { OR: orConditions },
-    select: { id: true },
-  });
-
-  return existing
-    ? { isDuplicate: true, existingId: existing.id }
+  return rows.length > 0
+    ? { isDuplicate: true, existingId: rows[0].id }
     : { isDuplicate: false };
 }

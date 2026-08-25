@@ -7,6 +7,8 @@ import { getFolders } from "@/lib/folders/service";
 import { getLeads } from "@/lib/leads/service";
 import { getCategoryGrants, hasFullLeadAccess, canSeeCategory } from "@/lib/leads/access";
 import { ManageCategoryAccessButton } from "@/components/leads/ManageCategoryAccessButton";
+import { DuplicatesBanner } from "@/components/leads/DuplicatesBanner";
+import { getDuplicateGroupCount } from "@/lib/leads/duplicates";
 import { getUsers } from "@/lib/users/service";
 import { auth } from "@/lib/auth";
 import { withDbRetry } from "@/lib/prisma";
@@ -40,12 +42,14 @@ export default async function LeadsPage({
   const fullAccess = hasFullLeadAccess(role);
   const grants = fullAccess ? null : await getCategoryGrants(session.user.id!);
 
-  const [industriesRaw, allFoldersRaw, unfiledResult, users] = await withDbRetry(() =>
+  const [industriesRaw, allFoldersRaw, unfiledResult, users, duplicateCount] = await withDbRetry(() =>
     Promise.all([
       getIndustries(scopedUserId, savedById),
       getFolders(scopedUserId, savedById),
       getLeads({ folderId: "unfiled", pageSize: 1, savedById, ...(grants ? { access: grants } : {}) }),
       isAdmin ? getUsers().then((u) => u.filter((x) => x.role === "lead_specialist")) : Promise.resolve([]),
+      // Only admins can resolve duplicates, so only they pay for the count.
+      isAdmin ? getDuplicateGroupCount().catch(() => 0) : Promise.resolve(0),
     ])
   );
 
@@ -87,6 +91,12 @@ export default async function LeadsPage({
           </Link>
         </div>
       </div>
+
+      {/* Possible duplicates. Several people and devices scrape at once, so the same
+          business can be reached from two directions; identical rows are blocked at write
+          time, and what surfaces here are the ambiguous cases a person has to judge.
+          Admin-only: resolving one merges records. */}
+      {isAdmin && duplicateCount > 0 && <DuplicatesBanner initialCount={duplicateCount} />}
 
       {/* Globe — boss/admin only. Data is loaded ON DEMAND when the user opens
           the globe (see GlobeSection), so navigating to Leads no longer pulls

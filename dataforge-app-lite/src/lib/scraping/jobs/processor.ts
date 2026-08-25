@@ -11,6 +11,7 @@ import { scrapeGoogleMapsHeadless } from "@/lib/scraping/google/maps-scraper";
 import { insertLead } from "@/lib/leads/service";
 import { getOrCreateUngroupedFolder } from "@/lib/folders/service";
 import { normalizePhone } from "@/lib/utils/normalize";
+import { getDedupCache, rememberLead } from "@/lib/scraping/jobs/dedup-cache";
 import { calculateDataQualityScore } from "@/lib/utils/scoring";
 import { onKeywordJobSuccess, onKeywordJobFailure, getKeywordById, pickSearchTerm, resolveRunLocation } from "@/lib/keywords/service";
 import { createNotification, createNotificationsForRole } from "@/lib/notifications/service";
@@ -79,11 +80,13 @@ export async function processKeywordJob(
     } catch { /* ignore transient DB errors */ }
   }, 5_000);
 
-  // ── Pre-fetch existing leads for duplicate skipping (runs once before scraping) ─
+  // ── Existing-lead keys for duplicate skipping ──────────────────────────────────
   // Uniqueness: phone number OR business name (case-insensitive). Website/email excluded.
-  const existingLeads = await prisma.lead.findMany({ select: { businessName: true, phone: true } });
-  const skipNames   = new Set(existingLeads.map(l => l.businessName.toLowerCase().trim()));
-  const knownPhones = new Set(existingLeads.map(l => l.phone).filter(Boolean));
+  // These sets come from a process-wide cache rather than a per-job query: fetching
+  // them for every job was ~7.6 MB of egress each time and grew with the table. They
+  // only drive the scraper's early skip — insertLead() still re-checks the database,
+  // so a slightly stale cache costs a wasted page open, never a duplicate row.
+  const { skipNames, knownPhones } = await getDedupCache();
   const isDuplicate = (lead: import("@/lib/scraping/google/maps-scraper").SerpLead): boolean => {
     if (lead.phone) {
       const p = normalizePhone(lead.phone);
@@ -199,11 +202,7 @@ export async function processKeywordJob(
                 if (idx !== -1) collectedLeads.splice(idx, 1);
               } else {
                 savedCount++;
-                if (lead.businessName) skipNames.add(lead.businessName.toLowerCase().trim());
-                if (lead.phone) {
-                  const p = normalizePhone(lead.phone);
-                  if (p) knownPhones.add(p);
-                }
+                rememberLead(lead.businessName, lead.phone);
                 // Queue email grab — run as a batch after the main loop completes
                 if (kw?.grabEmail && lead.website && !lead.email && result.status === "created") {
                   pendingEmailGrabs.push({ leadId: result.id, website: lead.website });

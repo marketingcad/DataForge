@@ -44,3 +44,6 @@ next-env.d.ts
 
 # Electron build output (contains bundled .env secrets + installer — never commit)
 dist/
+
+# Database backups (NDJSON dumps — large, and contain lead data + password hashes)
+dataforge-backup-*/

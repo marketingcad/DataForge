@@ -17,7 +17,7 @@ export async function insertLead(raw: LeadInput & { folderId?: string; savedById
   const email = raw.email ? normalizeEmail(raw.email) : "";
   const website = raw.website ? normalizeWebsite(raw.website) : "";
 
-  const dedupResult = await checkDuplicate(prisma, phone, raw.businessName, email || undefined);
+  const dedupResult = await checkDuplicate(prisma, phone, raw.businessName);
 
   if (dedupResult.isDuplicate) {
     const existing = await prisma.lead.findUnique({
@@ -65,30 +65,53 @@ export async function insertLead(raw: LeadInput & { folderId?: string; savedById
     country: raw.country,
   });
 
-  const lead = await prisma.lead.create({
-    data: {
-      businessName: raw.businessName,
-      phone,
-      email: email || null,
-      website: website || null,
-      contactPerson: raw.contactPerson || null,
-      address: raw.address || null,
-      city: raw.city || null,
-      state: raw.state || null,
-      country: raw.country || null,
-      category: raw.category || null,
-      source: raw.source,
-      industriesFoundIn: industries,
-      dataQualityScore: score,
-      folderId: raw.folderId || null,
-      savedById: raw.savedById || null,
-      keywordId: raw.keywordId || null,
-      latitude: coords?.latitude ?? null,
-      longitude: coords?.longitude ?? null,
-    },
-  });
+  try {
+    const lead = await prisma.lead.create({
+      data: {
+        businessName: raw.businessName,
+        phone,
+        email: email || null,
+        website: website || null,
+        contactPerson: raw.contactPerson || null,
+        address: raw.address || null,
+        city: raw.city || null,
+        state: raw.state || null,
+        country: raw.country || null,
+        category: raw.category || null,
+        source: raw.source,
+        industriesFoundIn: industries,
+        dataQualityScore: score,
+        folderId: raw.folderId || null,
+        savedById: raw.savedById || null,
+        keywordId: raw.keywordId || null,
+        latitude: coords?.latitude ?? null,
+        longitude: coords?.longitude ?? null,
+      },
+    });
 
-  return { status: "created", id: lead.id };
+    return { status: "created", id: lead.id };
+  } catch (err) {
+    // Lost the race: Postgres rejected the insert on one of the dedup indexes
+    // (Lead_phone_normalized_key for leads with a phone, Lead_name_nophone_key for
+    // those without). checkDuplicate() above reads committed rows only, so two people
+    // scraping the same business at the same moment can both get past it — these
+    // indexes are what actually guarantee only one row survives.
+    //
+    // Re-run the same duplicate check to find the row that won, so the caller gets a
+    // real existingId rather than an error.
+    if (isUniqueViolation(err)) {
+      const winner = await checkDuplicate(prisma, phone, raw.businessName);
+      if (winner.isDuplicate && winner.existingId) {
+        return { status: "duplicate", existingId: winner.existingId };
+      }
+    }
+    throw err;
+  }
+}
+
+/** True for Prisma's unique-constraint error (P2002), without importing the error class. */
+function isUniqueViolation(err: unknown): boolean {
+  return typeof err === "object" && err !== null && (err as { code?: string }).code === "P2002";
 }
 
 /**

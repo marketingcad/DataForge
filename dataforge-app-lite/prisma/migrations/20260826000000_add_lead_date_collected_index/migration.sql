@@ -1,0 +1,11 @@
+-- Index for the lead dedup local copy's delta sync.
+--
+-- src/lib/scraping/jobs/dedup-cache.ts keeps a local copy of the lead keys on disk and,
+-- instead of re-reading the whole table, asks only for leads added since it last synced:
+--
+--   SELECT "businessName", "phone" FROM "Lead" WHERE "dateCollected" > $1
+--
+-- Without an index that scans all ~130k rows on every sync, which defeats the point of
+-- the delta. "Lead" had indexes on phone/email/website/city/folder/keyword/etc. but never
+-- one on dateCollected, even though it is also the default sort for the leads list.
+CREATE INDEX IF NOT EXISTS "Lead_dateCollected_idx" ON "Lead"("dateCollected");

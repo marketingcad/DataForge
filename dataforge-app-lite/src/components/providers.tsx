@@ -19,9 +19,11 @@ function AccentInitializer() {
   return null;
 }
 
+// Night is the default rather than "system": the header switch offers
+// Night / Day / Glow, and Glow is Night plus the ambient aurora.
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+    <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
       <AccentInitializer />
       <TooltipProvider>
         <NotificationProvider>

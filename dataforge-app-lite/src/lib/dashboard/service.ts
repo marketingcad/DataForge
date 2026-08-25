@@ -1,5 +1,5 @@
 import { unstable_cache } from "next/cache";
-import { prisma } from "@/lib/prisma";
+import { prisma, withDbRetry } from "@/lib/prisma";
 
 async function _getDashboardStats() {
   const now = new Date();
@@ -18,7 +18,10 @@ async function _getDashboardStats() {
     quality_premium: bigint;
   };
 
-  const [statsRows, recentLeads, jobStats] = await Promise.all([
+  // Wrapped in withDbRetry like the rest of the data layer: these three run in
+  // parallel, so each needs its own pooler connection, and on a slow link a single
+  // connect timeout was enough to fail the whole dashboard render.
+  const [statsRows, recentLeads, jobStats] = await withDbRetry(() => Promise.all([
     prisma.$queryRaw<StatsRow[]>`
       SELECT
         COUNT(*)                                                              AS total_leads,
@@ -49,7 +52,7 @@ async function _getDashboardStats() {
       _count: { id: true },
       _sum: { leadsProcessed: true },
     }),
-  ]);
+  ]));
 
   const s = statsRows[0];
   const totalLeads = Number(s.total_leads);

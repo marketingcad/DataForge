@@ -5,7 +5,7 @@ import { Pool } from "pg";
 
 // Bump this string any time you run prisma migrate (adds/removes models).
 // This forces a new client in dev hot-reload scenarios.
-const CLIENT_VERSION = "v24-grab-email";
+const CLIENT_VERSION = "v26-pool-tuning";
 
 function createPrismaClient() {
   const connectionString =
@@ -22,9 +22,27 @@ function createPrismaClient() {
     connectionString?.includes("127.0.0.1") ||
     connectionString?.includes("sslmode=disable") ||
     connectionString?.includes("sslmode=prefer");
+  // Pool tuning for a slow/lossy link to the Supabase pooler. Establishing a TCP
+  // connection to ap-southeast-1 measures 0.5–2.7s from some networks, and pg's
+  // default idleTimeoutMillis is only 10s — so connections were being thrown away
+  // and re-dialled constantly, turning ordinary page loads into ETIMEDOUT errors.
+  // Holding connections open and reusing them removes almost all of that cost.
   const pool = new Pool({
     connectionString,
     ssl: isLocal ? false : { rejectUnauthorized: false },
+    // Keep warm connections instead of re-dialling every 10 seconds.
+    idleTimeoutMillis: isLocal ? 10_000 : 60_000,
+    // TCP keepalive stops idle connections being silently dropped in between.
+    keepAlive: !isLocal,
+    keepAliveInitialDelayMillis: 10_000,
+    // Cold connects over a degraded path can take seconds, and pages like the
+    // profile issue 12 queries in one Promise.all — every one wanting its own
+    // connection at the same moment. Too short a budget here surfaced as
+    // "timeout exceeded when trying to connect" even with withDbRetry.
+    connectionTimeoutMillis: isLocal ? 0 : 30_000,
+    // Must comfortably exceed the widest Promise.all in the app (12) while staying
+    // well under the server's max_connections (60, 3 reserved for superuser).
+    max: isLocal ? 10 : 15,
   });
   return new PrismaClient({ adapter: new PrismaPg(pool) });
 }
