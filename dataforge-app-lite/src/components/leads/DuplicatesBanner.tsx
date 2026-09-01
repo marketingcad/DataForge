@@ -77,19 +77,37 @@ function displayPhone(raw: string): string {
   return formatPhone(raw);
 }
 
+/** How a group is resolved when it is not picked copy-by-copy. */
+type KeepStrategy = "strongest" | "other";
+
 /**
- * Which copy to keep when resolving a group without picking by hand.
- * Highest quality score wins; then the copy with the most call history, then one
- * carrying a commission, and finally the oldest record — the original entry.
+ * Rank copies strongest-first: highest quality score, then most call history, then
+ * one carrying a commission, and finally the oldest record — the original entry.
  */
-function bestCopy(leads: DuplicateLead[]): DuplicateLead {
+function ranked(leads: DuplicateLead[]): DuplicateLead[] {
   return [...leads].sort(
     (a, b) =>
       b.dataQualityScore - a.dataQualityScore ||
       b.callCount - a.callCount ||
       Number(b.hasCommission) - Number(a.hasCommission) ||
       new Date(a.dateCollected).getTime() - new Date(b.dateCollected).getTime()
-  )[0];
+  );
+}
+
+const bestCopy = (leads: DuplicateLead[]) => ranked(leads)[0];
+
+/**
+ * The copy a strategy would keep.
+ *
+ * "other" keeps the weakest instead of the strongest — useful when the automatic
+ * ranking picks the wrong one, for instance when the higher-scoring copy is the
+ * scrape and the lower-scoring one is the record someone has actually been working.
+ * With two copies that is unambiguous; with three or more it keeps the last in the
+ * ranking, which is why the UI shows the chosen row for every group before you commit.
+ */
+function keeperFor(leads: DuplicateLead[], strategy: KeepStrategy): DuplicateLead {
+  const order = ranked(leads);
+  return strategy === "strongest" ? order[0] : order[order.length - 1];
 }
 
 /**
@@ -113,6 +131,8 @@ export function DuplicatesBanner({ initialCount }: { initialCount: number }) {
   const [query, setQuery] = useState("");
   const [matchFilter, setMatchFilter] = useState<"all" | "name" | "phone">("all");
   const [historyFilter, setHistoryFilter] = useState<HistoryFilter>("any");
+  /** Which copy bulk resolve keeps. Also drives the "will keep" marker per group. */
+  const [keepStrategy, setKeepStrategy] = useState<KeepStrategy>("strongest");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -212,12 +232,12 @@ export function DuplicatesBanner({ initialCount }: { initialCount: number }) {
     });
   }
 
-  /** Resolve every selected group, keeping the best copy in each. */
+  /** Resolve every selected group, keeping whichever copy the strategy picks. */
   function mergeSelected() {
     const chosen = visible.filter((g) => selected.has(groupId(g)));
     if (!chosen.length) return;
     const plans = chosen.map((g) => {
-      const keepLead = bestCopy(g.leads);
+      const keepLead = keeperFor(g.leads, keepStrategy);
       return { keepId: keepLead.id, removeIds: g.leads.filter((l) => l.id !== keepLead.id).map((l) => l.id) };
     });
     setBusyKey("__bulk__");
@@ -333,8 +353,18 @@ export function DuplicatesBanner({ initialCount }: { initialCount: number }) {
                 : "Loading…"}
             </span>
             {selectedVisible.length > 0 && (
-              <div className="ml-auto flex items-center gap-2">
+              <div className="ml-auto flex flex-wrap items-center gap-2">
                 <span className="text-xs font-medium">{selectedVisible.length} selected</span>
+                <span className="text-xs text-muted-foreground">keep:</span>
+                <Select value={keepStrategy} onValueChange={(v) => setKeepStrategy(v as KeepStrategy)}>
+                  <SelectTrigger className="h-7 w-[140px] text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="strongest">Strongest copy</SelectItem>
+                    <SelectItem value="other">The other copy</SelectItem>
+                  </SelectContent>
+                </Select>
                 <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setSelected(new Set())}>
                   Clear
                 </Button>
@@ -345,7 +375,7 @@ export function DuplicatesBanner({ initialCount }: { initialCount: number }) {
                       Resolving…
                     </>
                   ) : (
-                    `Delete duplicates in ${selectedVisible.length}`
+                    `Keep ${keepStrategy === "strongest" ? "strongest" : "the other"} in ${selectedVisible.length}`
                   )}
                 </Button>
               </div>
@@ -353,8 +383,11 @@ export function DuplicatesBanner({ initialCount }: { initialCount: number }) {
           </div>
           {selectedVisible.length > 0 && (
             <p className="pb-2 text-xs text-muted-foreground">
-              Keeps the strongest copy in each group (best quality score, then most call history) and
-              removes the rest.
+              {keepStrategy === "strongest"
+                ? "Keeps the strongest copy in each group — best quality score, then most call history — and folds the rest into it."
+                : "Keeps the other copy in each group instead of the strongest, and folds the rest into it."}{" "}
+              The row marked <span className="font-medium text-foreground">will keep</span> below shows
+              the choice for every group before you commit.
             </p>
           )}
 
@@ -375,6 +408,10 @@ export function DuplicatesBanner({ initialCount }: { initialCount: number }) {
               const id = groupId(group);
               const isSelected = selected.has(id);
               const best = bestCopy(group.leads);
+              // Which copy bulk resolve would keep for this group under the current
+              // strategy — shown only while the group is selected, so the marker never
+              // implies an action that is not about to happen.
+              const keeper = keeperFor(group.leads, keepStrategy);
               return (
                 <div key={id} className={cn("rounded-lg border", isSelected && "border-primary/60 bg-primary/5")}>
                   <div className="flex items-center gap-2 border-b bg-muted/40 px-3 py-2">
@@ -404,6 +441,9 @@ export function DuplicatesBanner({ initialCount }: { initialCount: number }) {
                               <Badge variant="secondary" className="text-[10px]">
                                 strongest
                               </Badge>
+                            )}
+                            {isSelected && lead.id === keeper.id && (
+                              <Badge className="text-[10px]">will keep</Badge>
                             )}
                           </p>
                           <p className="truncate text-xs text-muted-foreground">
