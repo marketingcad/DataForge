@@ -87,15 +87,23 @@ Two details that are **not** optional:
 
 ## 5. The expression indexes — and why `prisma db push` drops them
 
-| Index | Definition |
-|---|---|
-| `Lead_phone_normalized_key` | unique on the normalized phone (`regexp_replace(...)`) |
-| `Lead_name_nophone_key` | unique on `lower(btrim("businessName"))`, **partial: only rows with no usable phone** |
-| `Lead_business_name_key_idx` | non-unique on `lower(btrim("businessName"))` — serves `checkDuplicate`'s name arm |
+| Index | Definition | Re-asserted after `db push`? |
+|---|---|---|
+| `Lead_phone_normalized_key` | unique on the normalized phone (`regexp_replace(...)`) | yes |
+| `Lead_business_name_key_idx` | non-unique on `lower(btrim("businessName"))` — serves `checkDuplicate`'s name arm | yes |
+| `Lead_name_nophone_key` | unique on `lower(btrim("businessName"))`, **partial: only rows with no usable phone** | **no — see below** |
 
 These use SQL expressions **Prisma's schema language cannot represent**, so they live only in
 raw SQL migrations. `vercel.json` runs `scripts/migration/ensure-dedup-indexes.mjs` after the
-build's `prisma db push` to recreate them. **Keep that step wired in.** (CLAUDE.md §C7.)
+build's `prisma db push`. **Keep that step wired in.** (CLAUDE.md §C7.)
+
+⚠ **Known gap:** that script re-asserts only the first two. `Lead_name_nophone_key` exists
+solely in `prisma/migrations/20260826000001_add_lead_name_nophone_unique/` and is absent from
+both `ensure-dedup-indexes.mjs` and `scripts/migration/new-project-schema.sql`. Since every
+deploy runs `prisma db push --accept-data-loss`, a drift drop would remove it permanently and
+silently — taking with it the concurrent-insert backstop for leads that have no phone. Verify
+with `\d "Lead"` before assuming it is present; adding a third statement to the ensure script
+is the fix.
 
 If the build ever moves to `prisma migrate deploy` — preferred, the history is baselined —
 verify it from a network where the Prisma CLI can actually reach the database first. Port

@@ -43,6 +43,13 @@ represent. They live only in raw SQL. `vercel.json` therefore runs
 step.** If you move the build to `prisma migrate deploy` (preferred — history is baselined),
 verify it from a network where the Prisma CLI can actually reach the database first.
 
+⚠ **That script covers only two of the three.** `Lead_name_nophone_key` lives solely in
+`prisma/migrations/20260826000001_add_lead_name_nophone_unique/` — it is in neither
+`ensure-dedup-indexes.mjs` nor `new-project-schema.sql`. A drift drop on any deploy would
+remove it permanently and silently. Confirm it with `\d "Lead"` rather than assuming; the fix
+is a third `CREATE UNIQUE INDEX IF NOT EXISTS` statement in the ensure script, matching the
+migration's predicate exactly.
+
 That script is also the model for every database script you write here: 5 connect attempts
 with 3 s backoff, `ssl: { rejectUnauthorized: false }`, `connectionTimeoutMillis: 30000`,
 `IF NOT EXISTS` statements, an existence check after each, and **it never fails the build** —
