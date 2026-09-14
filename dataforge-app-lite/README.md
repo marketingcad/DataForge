@@ -1,36 +1,30 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# DataForge — application
 
-## Getting Started
+This is the **active** DataForge application. (`../dataforge-app/` is a frozen backup and
+must not be edited.)
 
-First, run the development server:
+Documentation lives at the repository root:
+
+* [`../README.md`](../README.md) — start here
+* [`../docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md) — system design
+* [`../docs/DATA_MODEL.md`](../docs/DATA_MODEL.md) — ERD and schema
+* [`../docs/SCRAPING_PIPELINE.md`](../docs/SCRAPING_PIPELINE.md) — scraper and dedup
+* [`../docs/API_REFERENCE.md`](../docs/API_REFERENCE.md) — routes and server actions
+* [`../docs/CODEBASE_GUIDE.md`](../docs/CODEBASE_GUIDE.md) — file-by-file tour
+* [`../docs/OPERATIONS.md`](../docs/OPERATIONS.md) — env, deploy, backup, troubleshooting
+* [`../CLAUDE.md`](../CLAUDE.md) — ⚠️ the rules that must not be broken silently
+
+## Run it
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npx playwright install chromium     # only if running scrapes locally
+npx prisma generate
+npm run dev                          # tsx server.ts -> http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Requires `.env.local` with at least `DATABASE_URL` (Supabase transaction pooler, port
+6543) and `AUTH_SECRET`. See [`../docs/OPERATIONS.md`](../docs/OPERATIONS.md#1-environment-variables).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+> Quit the DataForge desktop app before running the dev server — both bind port 3000, and
+> the desktop app serves a pre-built bundle.
