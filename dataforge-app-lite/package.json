@@ -1,6 +1,6 @@
 {
   "name": "dataforge-app",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "main": "electron/main.js",
   "scripts": {
@@ -13,7 +13,8 @@
     "desktop:browsers": "playwright install chromium",
     "desktop:assemble": "node electron/assemble.mjs",
     "desktop:pack": "electron-builder --win",
-    "desktop:dist": "npm run desktop:browsers && npm run desktop:build-web && npm run desktop:assemble && electron-builder --win"
+    "desktop:dist": "npm run desktop:browsers && npm run desktop:build-web && npm run desktop:assemble && electron-builder --win",
+    "desktop:publish": "npm run desktop:browsers && npm run desktop:build-web && npm run desktop:assemble && electron-builder --win --publish always"
   },
   "build": {
     "appId": "com.murphyconsulting.dataforge",
@@ -34,7 +35,16 @@
       "oneClick": false,
       "perMachine": false,
       "allowToChangeInstallationDirectory": true
-    }
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "marketingcad",
+        "repo": "DataForge-releases",
+        "private": true,
+        "releaseType": "release"
+      }
+    ]
   },
   "dependencies": {
     "@amcharts/amcharts5": "^5.16.2",
@@ -73,6 +83,7 @@
     "country-state-city": "^3.2.1",
     "date-fns": "^4.1.0",
     "dotenv": "^17.3.1",
+    "electron-updater": "^6.8.9",
     "lucide-react": "^0.577.0",
     "next": "16.1.6",
     "next-auth": "^5.0.0-beta.30",

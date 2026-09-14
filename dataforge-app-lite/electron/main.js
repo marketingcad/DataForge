@@ -10,6 +10,7 @@
 // Electron just hosts it in a native window instead of a browser tab.
 
 const { app, BrowserWindow, shell, Tray, Menu, nativeImage } = require("electron");
+const { initUpdater, isUpdateReady, installNow, stopUpdater } = require("./updater");
 const path = require("path");
 const { spawn } = require("child_process");
 const http = require("http");
@@ -210,6 +211,49 @@ function showWindow() {
   mainWindow.focus();
 }
 
+/**
+ * Build the tray menu. Rebuilt (not built once) because the update item only appears
+ * after an update has downloaded — Electron has no way to toggle an existing item's
+ * visibility, so the whole menu is replaced.
+ */
+function buildTrayMenu() {
+  const items = [
+    { label: "Open DataForge", click: showWindow },
+  ];
+
+  if (isUpdateReady()) {
+    items.push(
+      { type: "separator" },
+      {
+        label: "Restart && update now",
+        click: () => installNow(() => { isQuitting = true; stopServer(); }),
+      },
+      { label: "Update installs on quit", enabled: false },
+    );
+  }
+
+  items.push(
+    { type: "separator" },
+    {
+      label: "Quit DataForge",
+      click: () => { isQuitting = true; app.quit(); },
+    },
+  );
+
+  return Menu.buildFromTemplate(items);
+}
+
+/** Swap in a freshly built menu — called when an update finishes downloading. */
+function refreshTrayMenu() {
+  if (!tray) return;
+  try {
+    tray.setContextMenu(buildTrayMenu());
+    tray.setToolTip(isUpdateReady() ? "DataForge — update ready" : "DataForge");
+  } catch (err) {
+    console.error("[dataforge] failed to refresh tray menu:", err);
+  }
+}
+
 /** System-tray icon + menu so the app can live in the background. */
 function createTray() {
   if (tray) return;
@@ -217,14 +261,7 @@ function createTray() {
     const image = nativeImage.createFromPath(TRAY_ICON);
     tray = new Tray(image.isEmpty() ? nativeImage.createEmpty() : image);
     tray.setToolTip("DataForge");
-    tray.setContextMenu(Menu.buildFromTemplate([
-      { label: "Open DataForge", click: showWindow },
-      { type: "separator" },
-      {
-        label: "Quit DataForge",
-        click: () => { isQuitting = true; app.quit(); },
-      },
-    ]));
+    tray.setContextMenu(buildTrayMenu());
     // Single click (Windows) / double-click opens the window.
     tray.on("click", showWindow);
     tray.on("double-click", showWindow);
@@ -271,6 +308,11 @@ if (gotSingleInstanceLock) app.whenReady().then(async () => {
   if (!ATTACH_MODE) startServer();
   timing("server spawn kicked off");
 
+  // Auto-update runs behind everything else: the first check is delayed and the
+  // module no-ops in dev and whenever the private feed is unreachable, so it can
+  // never delay startup or a scrape.
+  initUpdater(refreshTrayMenu);
+
   try {
     await waitForServer(APP_URL);
     timing("server responding");
@@ -294,5 +336,6 @@ app.on("window-all-closed", () => {
 
 app.on("before-quit", () => {
   isQuitting = true;
+  stopUpdater();
   stopServer();
 });

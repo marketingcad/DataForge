@@ -1,0 +1,145 @@
+name: Desktop Release
+
+# Builds the Windows desktop app and publishes it to the PRIVATE releases repo
+# (marketingcad/DataForge-releases). Triggered by a version tag only — ordinary
+# pushes to main never ship to the installed fleet.
+#
+#   git tag v0.2.0 && git push origin v0.2.0
+#
+# Why a private repo: this repository is public and electron/assemble.mjs bakes .env
+# into the packaged app. A public release asset would expose DATABASE_URL, the
+# Supabase service-role key and AUTH_SECRET on an unauthenticated URL. CLAUDE.md C9.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Build but do not publish"
+        type: boolean
+        default: true
+
+concurrency:
+  group: desktop-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build and publish Windows installer
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    defaults:
+      run:
+        working-directory: dataforge-app-lite
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # The tag IS the version electron-updater compares against. If package.json
+      # disagrees, installed apps either never see the update or see a phantom one,
+      # and the failure is silent on every machine. Fail loudly here instead.
+      - name: Assert tag matches package.json version
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF#refs/tags/v}"
+          PKG=$(node -p "require('./package.json').version")
+          echo "tag=$TAG package.json=$PKG"
+          if [ "$TAG" != "$PKG" ]; then
+            echo "::error::Tag v$TAG does not match package.json version $PKG. Bump package.json and re-tag."
+            exit 1
+          fi
+
+      # The peer-dependency conflict between @anthropic-ai/claude-agent-sdk and
+      # @anthropic-ai/sdk is pre-existing; claude-agent-sdk is optional at runtime
+      # (see next.config.ts) and Forger degrades gracefully without it.
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      # Written from secrets, never committed. assemble.mjs copies this into the
+      # packaged app.
+      #
+      # Two secrets, deliberately separate:
+      #   DESKTOP_ENV_FILE  — the app's runtime config (database, auth, Supabase)
+      #   UPDATE_FEED_TOKEN — contents:read on the releases repo, appended here
+      #
+      # Keeping the update token out of the env blob means rotating it does not
+      # require re-uploading the whole runtime config.
+      - name: Write .env
+        shell: bash
+        env:
+          DESKTOP_ENV_FILE: ${{ secrets.DESKTOP_ENV_FILE }}
+          UPDATE_FEED_TOKEN: ${{ secrets.UPDATE_FEED_TOKEN }}
+        run: |
+          if [ -z "$DESKTOP_ENV_FILE" ]; then
+            echo "::error::DESKTOP_ENV_FILE secret is not set — the packaged app would have no database config."
+            exit 1
+          fi
+          if [ -z "$UPDATE_FEED_TOKEN" ]; then
+            echo "::error::UPDATE_FEED_TOKEN secret is not set — the shipped app could not reach the private update feed."
+            exit 1
+          fi
+
+          printf '%s' "$DESKTOP_ENV_FILE" > .env
+          # Guarantee a trailing newline before appending, or the token would be
+          # concatenated onto whatever the blob's last line happens to be.
+          [ -n "$(tail -c 1 .env)" ] && printf '\n' >> .env
+
+          # Only append if the blob did not already carry one, so either layout works.
+          if grep -q '^UPDATE_FEED_TOKEN=' .env; then
+            echo "UPDATE_FEED_TOKEN already present in DESKTOP_ENV_FILE — using that."
+          else
+            printf 'UPDATE_FEED_TOKEN=%s\n' "$UPDATE_FEED_TOKEN" >> .env
+            echo "UPDATE_FEED_TOKEN appended from its own secret."
+          fi
+
+          # Never print values. Names only, so a failed build is still debuggable.
+          echo "env keys written:"
+          grep -oE '^[A-Z0-9_]+' .env | sort | sed 's/^/  /'
+
+          for required in DATABASE_URL AUTH_SECRET UPDATE_FEED_TOKEN; do
+            if ! grep -qE "^${required}=.+" .env; then
+              echo "::error::${required} missing or empty in the assembled .env."
+              exit 1
+            fi
+          done
+
+      - name: Build standalone server
+        run: npm run desktop:build-web
+
+      - name: Fetch Chromium for packaging machinery
+        run: npm run desktop:browsers
+
+      - name: Assemble bundle
+        run: npm run desktop:assemble
+
+      - name: Package and publish
+        env:
+          # contents:write on marketingcad/DataForge-releases. NOT the read-only
+          # token that ships inside the app — different scope, different secret.
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        run: npx electron-builder --win --publish ${{ (github.event_name == 'workflow_dispatch' && inputs.dry_run) && 'never' || 'always' }}
+
+      - name: Upload installer as a workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dataforge-windows-installer
+          path: |
+            dataforge-app-lite/dist/*.exe
+            dataforge-app-lite/dist/latest.yml
+          retention-days: 7
+          if-no-files-found: error
+
+      # .env is written into the workspace and copied into the bundle. The runner is
+      # ephemeral, but do not rely on that alone.
+      - name: Scrub .env
+        if: always()
+        shell: bash
+        run: rm -f .env
