@@ -91,7 +91,8 @@ Seeding a first account: `npx tsx prisma/seed.ts` creates `boss@dataforge.dev` /
 | `desktop:browsers` | `playwright install chromium` |
 | `desktop:assemble` | Stage `.next/standalone` + copy `.env*` into it |
 | `desktop:pack` | `electron-builder --win` |
-| `desktop:dist` | browsers → build-web → assemble → pack (the full desktop release) |
+| `desktop:dist` | browsers → build-web → assemble → pack (local build, no publish) |
+| `desktop:publish` | same, then publish to the private releases repo (needs `GH_TOKEN`) |
 
 ---
 
@@ -122,12 +123,78 @@ Vercel, configured entirely by `vercel.json`:
 
 ## 4. Deployment — desktop
 
+### Releasing (the normal path)
+
+Desktop releases are **tag-triggered**. Ordinary pushes to `main` never reach installed
+apps — only a version tag does.
+
 ```bash
-npm run desktop:dist     # browsers -> standalone build -> assemble -> electron-builder
+# 1. Bump the version. The tag and package.json MUST agree or the build fails loudly;
+#    electron-updater compares versions, so a mismatch breaks updates silently on
+#    every installed machine.
+npm version 0.3.0 --no-git-tag-version   # in dataforge-app-lite/
+git commit -am "Desktop v0.3.0"
+
+# 2. Tag and push. .github/workflows/desktop-release.yml does the rest.
+git tag v0.3.0
+git push origin main --tags
+```
+
+The workflow builds on `windows-latest`, asserts the tag matches `package.json`, writes
+`.env` from the `DESKTOP_ENV_FILE` secret, packages, and publishes to the **private**
+releases repo. Installed apps pick it up within 4 hours, or on their next launch.
+
+Use **Run workflow** in the Actions tab with `dry_run: true` to build without publishing.
+
+### Where releases live, and why
+
+Installers go to **`marketingcad/DataForge-releases` (private)** — *not* to this repo.
+`marketingcad/DataForge` is public, and `electron/assemble.mjs` bakes `.env` into the
+package, so a public release asset would put `DATABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
+and `AUTH_SECRET` on an unauthenticated URL. CLAUDE.md C9.
+
+### Required secrets
+
+| Where | Name | Scope |
+|---|---|---|
+| Actions secret on `DataForge` | `RELEASE_TOKEN` | Fine-grained PAT, **`contents: write`** on `DataForge-releases` only |
+| Actions secret on `DataForge` | `DESKTOP_ENV_FILE` | The full `.env` contents, including `UPDATE_FEED_TOKEN` |
+| Inside `DESKTOP_ENV_FILE` | `UPDATE_FEED_TOKEN` | Fine-grained PAT, **`contents: read`** on `DataForge-releases` only |
+
+`UPDATE_FEED_TOKEN` ships **inside the installer** — the app needs it to read a private
+feed. Its blast radius is "can download DataForge installers", not "owns the database",
+but it is still a secret in a distributed artifact and **cannot be rotated without
+shipping a new build**. Keep its scope minimal and never reuse it for anything else.
+
+### How the update behaves
+
+Download is silent and in the background; the user is notified when it is ready; it
+installs **on quit**. The app never restarts itself.
+
+That last point matters more than it sounds: DataForge **hides to the tray rather than
+quitting**, so a machine left running may not quit for weeks and `autoInstallOnAppQuit`
+would never fire. The tray therefore grows a **"Restart & update now"** item once an
+update has downloaded — that, and the notification, are the real delivery mechanism;
+quit-install is the fallback. Restarting does stop a running scrape, which is acceptable
+only because the user asked: the job's row goes stale and the 3-minute reaper cleans it up.
+
+`electron/updater.js` is defensive by design — it no-ops in dev, when
+`electron-updater` is missing, and when `UPDATE_FEED_TOKEN` is unset. A failed update
+check must never cost a launch or a scrape.
+
+### Building locally
+
+```bash
+npm run desktop:dist      # build + package, no publish
+npm run desktop:publish    # build + package + publish to the private repo (needs GH_TOKEN)
 ```
 
 Output lands in `dist/` (gitignored — it contains bundled secrets and the installer).
 Installer: NSIS, per-user, install directory changeable.
+
+> ⚠️ **`signExecutable` is `false`.** Windows SmartScreen warns on **every** update, not
+> just the first. Users learning to click through that warning is a habit worth avoiding;
+> a code-signing certificate is the only real fix.
 
 > **`electron/assemble.mjs` copies `.env.local` and `.env` into the packaged app.**
 > Rotating the database password therefore breaks **every installed desktop app** until
