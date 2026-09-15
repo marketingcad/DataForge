@@ -5,9 +5,14 @@ obvious from the code**, and the traps that have already cost real money and rea
 
 Companion documents:
 - **`HANDOVER.md`** — the 2026-08 Supabase migration, the egress incident, and the risks.
-- **`CODEBASE_MAP.md`** — file-by-file tour. ⚠️ Written 2026-04 and **partly stale**: it says
-  the database is Neon. It is **Supabase** (since 2026-08). Treat its stack table with
-  suspicion; trust `prisma.config.ts` and `.env` instead.
+- **`docs/`** — the current reference set (2026-09): `CODEBASE_GUIDE.md`, `ARCHITECTURE.md`,
+  `DATA_MODEL.md`, `API_REFERENCE.md`, `OPERATIONS.md`, `SCRAPING_PIPELINE.md`. Start here.
+- **`GHL_SYNC_PLAN.md`** — as-built reference for the GoHighLevel integration. Despite the
+  filename it is **not** a plan; the integration shipped 2026-04 → 2026-07.
+- **`CODEBASE_MAP.md`** — file-by-file tour. ⚠️ Written 2026-04; its stack table was corrected
+  2026-09-15 but **the body has not been re-verified**. Superseded by `docs/CODEBASE_GUIDE.md`.
+  Trust order: this file → `prisma.config.ts` / `.env` → `docs/` → `CODEBASE_MAP.md`.
+- **`REPORT.md`** — historical session log (2026-03). Its stack line is obsolete by design.
 
 ---
 
@@ -223,7 +228,10 @@ the source if you touch that area.
 - **Count the round trips.** Every serious problem here has been an access-pattern problem,
   not a scale one. The data is small: ~261k rows, under 500 MB.
 - **Prefer one query with `FILTER` over N counts.** `src/lib/dashboard/service.ts` is the
-  model; `getAgentProfile` is the outstanding offender (six `callLog.count()` calls).
+  model; `getAgentProfile` is the outstanding offender — `marketing/agent.service.ts:201`
+  destructures a **12-wide `Promise.all`** (5 × `callLog.count`, 3 × `callLog.aggregate`),
+  then runs a `$queryRaw` and a `callLog.findMany` outside it: **10 CallLog round trips for
+  one profile page.**
 - **Cache page-level aggregates.** `unstable_cache` with a tag, purged by `updateTag` on
   write. See `getDuplicateGroupCount`.
 - **Match the existing comment style:** explain *why*, especially for anything a future
@@ -237,11 +245,23 @@ the source if you touch that area.
 
 ## 5. Known gaps (not yet fixed)
 
-1. **No repeatable backup.** The NDJSON dump that saved the 2026-08 migration was produced
-   by a script that is *not in this repo*, and the Free plan has no automated backups. A
-   `scripts/backup.mjs` counterpart to `restore-backup.mjs` is the highest-value work left.
+0. **🔴 Seven credentials are committed to a public repository.** `github.com/marketingcad/DataForge`
+   is public. Six `postgresql://` strings carrying `neondb_owner` passwords sit at `HEAD` in
+   `scripts/get-feedback.mjs` and `setup-vercel-env.sh` — **in both apps**, so two of the four
+   files are under the frozen `dataforge-app/`. A live GHL webhook trigger URL is in history
+   from `91a67fa`. **Rotate first, scrub second** — redaction does not reach history.
+   This is a standing **C9** breach, not a stylistic gap. See `STATE.md` → Escalations.
+1. **Backup exists but nothing runs it.** `scripts/backup.mjs` (added `c561c65`) is a proper
+   NDJSON counterpart to `restore-backup.mjs` — but it is not in `package.json`, not in
+   `vercel.json`, and not scheduled. The Free plan still has no automated backups, so a
+   backup only exists if someone remembers to run it by hand.
 2. `prisma db push --accept-data-loss` runs on every deploy (see C7).
-3. `DbNotification` has 77k+ rows and nothing prunes it.
+3. `DbNotification` has 77k+ rows and nothing prunes it. The only deletion in app code is
+   `notifications/service.ts:73`, a per-user clear-all — not an age-based prune.
 4. `getAgentProfile` fan-out (see §4).
-5. `scrapingMaxRunMinutes` defaults to `0` — no ceiling on the auto-run loop.
-6. `CODEBASE_MAP.md` still describes Neon as the database.
+5. `scrapingMaxRunMinutes` defaults to `0` — no ceiling on the auto-run loop. Its consumer
+   (`keywords/service.ts`) is C6-protected, so any fix needs the developer to ask by name.
+6. **I9 pool floors are breached on the `isLocal` branch** of `src/lib/prisma.ts`
+   (`idleTimeoutMillis` 10_000, `keepAlive` false, `max` 10). The **production path is
+   compliant**; C8's measured failure was on the remote path, and `connectionTimeoutMillis: 0`
+   locally means queueing rather than throwing. Dev-machine serialisation only.

@@ -380,9 +380,15 @@ every serious problem here has been an access-pattern problem, not a scale one.
    preferred — the history is baselined — but must first be verified from a network where
    the Prisma CLI can reach port 5432.
 2. `DbNotification` has 77k+ rows and nothing prunes it.
-3. `getAgentProfile` fans out into 12 parallel queries, six of them `callLog.count()`.
-   It is the outstanding `FILTER`-rewrite candidate.
+3. `getAgentProfile` fans out into 12 parallel queries — 5 × `callLog.count` and
+   3 × `callLog.aggregate` — then runs a `$queryRaw` and a `callLog.findMany` outside the
+   batch: **10 CallLog round trips for one profile page.** The outstanding `FILTER`-rewrite
+   candidate.
 4. `AppSettings.scrapingMaxRunMinutes` defaults to `0` — no ceiling on the auto-run loop.
 5. Socket.io real-time silently does nothing on Vercel.
-6. `CODEBASE_MAP.md` (written 2026-04) still describes the database as Neon. It is
-   **Supabase**, and has been since 2026-08.
+6. `CODEBASE_MAP.md` (written 2026-04) had its stack table corrected on 2026-09-15, but the
+   rest of the file has not been re-verified. `REPORT.md` is a 2026-03 session log and is
+   marked historical. Both are superseded by `docs/CODEBASE_GUIDE.md`.
+7. 🔴 **Seven credentials sit in public git history** — six `neondb_owner` Postgres strings
+   across both apps' `get-feedback.mjs` / `setup-vercel-env.sh`, plus a GHL webhook trigger
+   URL from `91a67fa`. Rotation is the fix; redaction does not reach history.

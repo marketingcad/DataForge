@@ -44,9 +44,10 @@ real machine with a real residential IP. Both talk to the same Supabase Postgres
 | **[CLAUDE.md](CLAUDE.md)** | ⚠️ **The Constitution** — nine rules that each exist because violating them broke something. Read before changing anything. |
 | **[HANDOVER.md](HANDOVER.md)** | The 2026-08 Supabase migration and the egress incident, in narrative form |
 | [DATAFORGE_PRD.md](DATAFORGE_PRD.md) | Product brief |
-| [GHL_SYNC_PLAN.md](GHL_SYNC_PLAN.md) | GoHighLevel integration plan |
+| [GHL_SYNC_PLAN.md](GHL_SYNC_PLAN.md) | **As-built** reference for the GoHighLevel integration (shipped 2026-04 → 2026-07). Despite the filename, not a plan. |
 | [DataForge-SOP.pdf](DataForge-SOP.pdf) | Operator SOP |
-| ~~CODEBASE_MAP.md~~ | ⚠️ Written 2026-04 and **partly stale** — it says the database is Neon. It is Supabase. Superseded by [docs/CODEBASE_GUIDE.md](docs/CODEBASE_GUIDE.md). |
+| ~~CODEBASE_MAP.md~~ | ⚠️ Written 2026-04. Stack table corrected 2026-09-15, **body not re-verified**. Superseded by [docs/CODEBASE_GUIDE.md](docs/CODEBASE_GUIDE.md). |
+| ~~REPORT.md~~ | Historical session log (2026-03). Stack line obsolete by design. |
 
 ---
 
