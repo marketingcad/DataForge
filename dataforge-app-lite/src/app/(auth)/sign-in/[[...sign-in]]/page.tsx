@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { APP_VERSION } from "@/lib/version";
 import { Database, EyeIcon, EyeOffIcon, Loader2, Search, ShieldCheck, BarChart3 } from "lucide-react";
 
 export default function SignInPage() {
@@ -93,7 +94,7 @@ export default function SignInPage() {
         </div>
 
         <p className="relative z-10 text-sm text-blue-100/70">
-          © 2026 DataForge. All rights reserved.
+          © 2026 DataForge. All rights reserved. <span className="opacity-70">· v{APP_VERSION}</span>
         </p>
       </div>
 
