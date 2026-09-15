@@ -44,9 +44,10 @@ real machine with a real residential IP. Both talk to the same Supabase Postgres
 | **[CLAUDE.md](CLAUDE.md)** | ⚠️ **The Constitution** — nine rules that each exist because violating them broke something. Read before changing anything. |
 | **[HANDOVER.md](HANDOVER.md)** | The 2026-08 Supabase migration and the egress incident, in narrative form |
 | [DATAFORGE_PRD.md](DATAFORGE_PRD.md) | Product brief |
-| [GHL_SYNC_PLAN.md](GHL_SYNC_PLAN.md) | GoHighLevel integration plan |
+| [GHL_SYNC_PLAN.md](GHL_SYNC_PLAN.md) | **As-built** reference for the GoHighLevel integration (shipped 2026-04 → 2026-07). Despite the filename, not a plan. |
 | [DataForge-SOP.pdf](DataForge-SOP.pdf) | Operator SOP |
-| ~~CODEBASE_MAP.md~~ | ⚠️ Written 2026-04 and **partly stale** — it says the database is Neon. It is Supabase. Superseded by [docs/CODEBASE_GUIDE.md](docs/CODEBASE_GUIDE.md). |
+| ~~CODEBASE_MAP.md~~ | ⚠️ Written 2026-04. Stack table corrected 2026-09-15, **body not re-verified**. Superseded by [docs/CODEBASE_GUIDE.md](docs/CODEBASE_GUIDE.md). |
+| ~~REPORT.md~~ | Historical session log (2026-03). Stack line obsolete by design. |
 
 ---
 
@@ -184,3 +185,28 @@ violating it broke something real. The full set, with the amendment process, is 
   "clean up".
 * **Verify against real data before shipping a rule.** Every number in CLAUDE.md came from
   querying the actual database.
+
+---
+
+## Recent updates — 15 September 2026
+
+**1. Full written guide to the app.** Produced complete documentation covering how DataForge
+is built, how its data is organised, and how leads are collected and cleaned. A new developer
+can now get up to speed from the documents alone, instead of needing someone to walk them
+through it.
+
+**2. The desktop app now updates itself.** Previously, every new feature or fix meant
+uninstalling and reinstalling the app by hand on each person's computer. It now checks for
+updates on its own and installs them quietly, without interrupting anyone's work.
+
+**3. Automated safety checks added.** Set up an automatic reviewer that checks new work
+against the mistakes that have already cost this project money, before those mistakes can go
+live. It found a genuine problem on its very first run.
+
+**4. Security issue found and flagged.** Discovered that some old database passwords and a
+live connection link were saved somewhere publicly visible. There is no sign anything was
+misused, but they should be changed as a priority.
+
+**5. Release process built and tested.** Built the system that packages the desktop app and
+delivers it to the team, and completed a full trial run successfully. Nothing was released to
+anyone — the test confirmed the process works before it is used for real.

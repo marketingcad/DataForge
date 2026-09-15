@@ -1,7 +1,15 @@
 # DataForge — Development Report
+
+> ⚠️ **HISTORICAL RECORD — do not use as a stack reference.**
+> This is a point-in-time session report from 2026-03-19. Its stack line below was accurate
+> then and is **wrong now**: the database moved from Neon to **Supabase** in 2026-08, and
+> Next.js is on 16.x. For current facts see [CLAUDE.md](CLAUDE.md) §0 and
+> [docs/CODEBASE_GUIDE.md](docs/CODEBASE_GUIDE.md).
+> Kept because the phase-by-phase build log is still useful provenance.
+
 **Date:** March 19, 2026
 **Session:** Full-Day Build Session
-**Stack:** Next.js 15 · Prisma · Neon PostgreSQL · shadcn/ui · Tailwind CSS
+**Stack _(as of 2026-03-19, now superseded)_:** Next.js 15 · Prisma · Neon PostgreSQL · shadcn/ui · Tailwind CSS
 
 ---
 

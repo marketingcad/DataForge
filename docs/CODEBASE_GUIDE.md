@@ -3,8 +3,9 @@
 > A file-by-file tour of `dataforge-app-lite/`, plus the conventions that hold across it.
 > Read [`ARCHITECTURE.md`](ARCHITECTURE.md) first for the layering this guide assumes.
 >
-> This supersedes the root `CODEBASE_MAP.md`, which was written 2026-04 and still
-> describes the database as Neon. It is **Supabase**.
+> This supersedes the root `CODEBASE_MAP.md`, written 2026-04. Its stack table was
+> corrected on 2026-09-15, but the rest of that file has **not** been re-verified against
+> the current code. The database is **Supabase** (since 2026-08).
 
 ---
 
@@ -14,9 +15,9 @@
 DataForge/
 ├── CLAUDE.md               ← the Constitution: rules that broke something when violated
 ├── HANDOVER.md             ← the 2026-08 Supabase migration + egress incident
-├── CODEBASE_MAP.md         ← ⚠️ partly stale (says Neon); superseded by this file
+├── CODEBASE_MAP.md         ← ⚠️ body unverified since 2026-04; superseded by this file
 ├── DATAFORGE_PRD.md        ← product brief
-├── GHL_SYNC_PLAN.md        ← GoHighLevel integration plan
+├── GHL_SYNC_PLAN.md        ← GoHighLevel integration, as-built (shipped; not a plan)
 ├── DataForge-SOP.pdf/html  ← operator SOP
 ├── docs/                   ← this documentation set
 ├── dataforge-app/          ← ⛔ frozen backup. Do not edit.

@@ -209,11 +209,20 @@ load after a restart to take several seconds locally, then ~100 ms.
 
 ## 6. Risks, ranked
 
-1. **There is no repeatable backup.** The NDJSON dump that made this migration possible was
-   produced by something that is *not in this repo*, and the Free Plan has no automated
-   backups. The new project is currently the only copy of everything. A `scripts/backup.mjs`
-   counterpart to `restore-backup.mjs`, run on a schedule, is the single highest-value
-   thing left to do.
+0. 🔴 **Seven credentials are in public git history.** `github.com/marketingcad/DataForge` is
+   a public repository. Six `postgresql://` strings carrying `neondb_owner` passwords are
+   committed at `HEAD` in `scripts/get-feedback.mjs` and `setup-vercel-env.sh` — **in both
+   `dataforge-app-lite/` and the frozen `dataforge-app/`** — and a live GHL webhook trigger
+   URL entered in `91a67fa`. These are legacy pre-Supabase Neon credentials, which is
+   probably why they survived earlier sweeps; **C9 states no legacy exemption**, and
+   `src/lib/prisma.ts` still branches to `PrismaNeon` for `neon.tech` strings, so that path
+   is live code. Rotate in the Neon console and in GHL **first**; scrubbing the files is the
+   second step and does not reach history on its own.
+1. **The backup script exists, but nothing runs it.** `scripts/backup.mjs` (added `c561c65`)
+   is a proper NDJSON counterpart to `restore-backup.mjs`. It is **not** wired into
+   `package.json`, `vercel.json`, or any schedule, and the Free Plan has no automated
+   backups — so a backup exists only when someone remembers to run it by hand. Scheduling it
+   is the highest-value thing left to do.
 2. **`prisma db push --accept-data-loss` runs on every Vercel deploy.** It is what created
    the Forger tables outside the migration history, and it is what would drop the dedup
    indexes if the guard script were removed. The migration history is baselined, so moving

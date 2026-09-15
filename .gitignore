@@ -21,3 +21,9 @@ dataforge-app/next-env.d.ts
 
 # Playwright MCP session logs (contain internal hosts) — never commit
 .playwright-mcp/
+
+# Claude Code local settings — machine-specific, and the permission allowlist
+# accumulates live URLs/tokens from approved commands (C9: secrets never enter
+# committed files).
+.claude/settings.local.json
+**/settings.local.json

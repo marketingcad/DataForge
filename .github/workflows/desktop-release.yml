@@ -36,11 +36,11 @@ jobs:
         working-directory: dataforge-app-lite
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
-          node-version: "20"
+          node-version: "24"
 
       # The tag IS the version electron-updater compares against. If package.json
       # disagrees, installed apps either never see the update or see a phantom one,
@@ -128,7 +128,7 @@ jobs:
         run: npx electron-builder --win --publish ${{ (github.event_name == 'workflow_dispatch' && inputs.dry_run) && 'never' || 'always' }}
 
       - name: Upload installer as a workflow artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: dataforge-windows-installer
           path: |

@@ -1,6 +1,12 @@
 # DataForge — Codebase Map for AI Reference
-> Use this file to recover context before editing anything significant.
-> Last updated: 2026-04-02
+
+> ⚠️ **PARTLY STALE — superseded by [docs/CODEBASE_GUIDE.md](docs/CODEBASE_GUIDE.md).**
+> Written 2026-04-02, before the 2026-08 Supabase migration. The stack table below has been
+> corrected (2026-09-15), but **the remaining ~360 lines have not been re-verified** against
+> the current code and may describe files, flows, or names that have since changed.
+> Trust order: [CLAUDE.md](CLAUDE.md) §0 → `prisma.config.ts` / `.env` → `docs/` → this file.
+>
+> Body last updated: 2026-04-02 · Stack table corrected: 2026-09-15
 
 ---
 
@@ -10,8 +16,8 @@
 |-------|-----------|
 | Framework | Next.js 16 App Router (Turbopack) |
 | Language | TypeScript strict |
-| Database | Neon PostgreSQL (serverless — sleeps after 5 min on free tier) |
-| ORM | Prisma v7 TypeScript-first client (`@prisma/adapter-neon`) |
+| Database | **Supabase Postgres 17** (project `pbvwxyqbzmwoftxkzpoh`, `ap-southeast-1`) — transaction pooler, **port 6543** (5432 is ISP-blocked) |
+| ORM | Prisma v7 TypeScript-first client. `createPrismaClient()` uses `pg` for Supabase; the `@prisma/adapter-neon` branch remains as a legacy fallback for `neon.tech` connection strings only |
 | Auth | NextAuth v5 (`auth()` server function) |
 | UI primitives | shadcn/ui (Input, Button, Badge, Dialog, Slider, DropdownMenu…) |
 | Dialog system | base-ui (`@base-ui-components/react`) — NOT Radix directly |
@@ -313,7 +319,7 @@ Logged-in users are redirected away from `/`, `/sign-in`, `/sign-up` → `/dashb
 ## Server Actions Pattern
 
 ```
-components → actions/*.ts ("use server") → lib/*/service.ts → prisma → Neon DB
+components → actions/*.ts ("use server") → lib/*/service.ts → prisma → Supabase Postgres
 ```
 
 API routes (`src/app/api/`) used for:
@@ -354,8 +360,8 @@ API routes (`src/app/api/`) used for:
 ## Environment Variables
 
 ```
-DATABASE_URL              # Neon direct connection (dev)
-POSTGRES_PRISMA_URL       # Neon pooler connection (preferred for prod)
+DATABASE_URL              # Supabase transaction pooler, port 6543 (5432 is ISP-blocked)
+POSTGRES_PRISMA_URL       # Supabase pooled connection (prod)
 NEXTAUTH_SECRET           # NextAuth signing secret
 NEXTAUTH_URL              # App base URL
 SERPAPI_API_KEY           # SerpAPI key (legacy — Maps scraper now uses Playwright)
@@ -374,4 +380,4 @@ SERPAPI_API_KEY           # SerpAPI key (legacy — Maps scraper now uses Playwr
 | Duplicate toast notifications | `applyJobResult` called from multiple places | `completedToastRef` Set guards dedup |
 | Duplicate DB notifications for boss/admin | Creator gets individual + role broadcast | Pass `kw.createdById` as `excludeUserId` to `createNotificationsForRole` |
 | Globe off-center after zoom | `wheelY: "zoom"` zooms toward cursor | Manual wheel handler only changes `zoomLevel` |
-| Dashboard/leads timeout | Neon cold start on free tier | Retry page; use pooler URL for prod |
+| Dashboard/leads timeout | Slow link to `ap-southeast-1` (545–2700 ms, ~1 failure in 6) | Use `withDbRetry`; see CLAUDE.md §3 |

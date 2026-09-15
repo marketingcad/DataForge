@@ -1,324 +1,201 @@
-# GHL Call Sync — Build Plan
-> Status: PLANNING — not started
-> Last updated: 2026-04-02
+# GHL Integration — As-Built Reference
+
+> **Status: SHIPPED.** Built 2026-04-06 → 2026-07-02 across ~48 commits; imported into
+> `dataforge-app-lite` wholesale in `c410db6` (2026-08-21).
+> Last verified against the code: 2026-09-15.
+>
+> This file used to be a build plan dated 2026-04-02 that read *"Status: PLANNING — not
+> started."* It stayed that way for five months while the integration was built, and it
+> was built **differently than planned**. What follows describes the code that exists.
+> The original plan is recoverable from git (`79a7609`); §7 records where reality diverged
+> so nobody re-derives the differences from scratch.
 
 ---
 
-## Decisions Locked
+## 1. The one thing to know first
 
-| # | Question | Decision |
+**Calls arrive by webhook, not by polling.** The original plan called for an hourly cron
+that pulled call logs from the GHL API. That was built, then **deliberately reverted** in
+`cb76a5c` (*"revert: remove GHL auto-sync cron and AutoRefresh"*), and `9c05876` made it
+explicit: *"calls now come from webhook only."*
+
+`vercel.json` has exactly one cron — `/api/scraping/cron` — and it contains **no GHL call**.
+If you are looking for the scheduled GHL sync, it does not exist. Opportunities,
+appointments and booked contacts sync **on demand** via a server action; calls arrive in
+real time via webhook endpoints.
+
+Two leftover comments in the code say so at the point of confusion:
+
+- `src/app/api/ghl/inbound-call/route.ts:96`
+- `src/app/api/ghl/outbound-call/route.ts:199`
+
+---
+
+## 2. Configuration — all in `AppSettings`, none in env
+
+Entered through the Settings page, stored in the database. **Never in a committed file (C9).**
+
+| Field | Purpose |
+|---|---|
+| `ghlApiKey` | Agency-level private integration key |
+| `ghlSubAccountApiKey` | Sub-account key (separate scope from the above) |
+| `ghlLocationId` | GHL sub-account / location ID |
+| `ghlWebhookUrl` | Inbound-webhook trigger URL for pushing leads **to** GHL |
+| `ghlInboundSecret` | Shared secret for authenticating inbound webhooks |
+| `ghlCallsLastSyncedAt` | Incremental cursor — calls |
+| `ghlOppsLastSyncedAt` | Incremental cursor — opportunities |
+| `ghlAppsLastSyncedAt` | Incremental cursor — appointments |
+| `webhookLastPayload` / `webhookLastOutcome` | Last inbound payload + result, for debugging |
+| `timezone` | IANA zone aligning DataForge's day/week/month boundaries with GHL |
+
+> **C9 — `ghlWebhookUrl` is a credential.** It is a live trigger endpoint. It belongs in
+> `AppSettings`, never in a doc, commit, or transcript. A populated copy of it was committed
+> to this file in `91a67fa` and is still in public git history; see §8.
+
+---
+
+## 3. Data model
+
+Three dedicated models, plus GHL keys on existing ones.
+
+| Model | Key | Notes |
 |---|---|---|
-| 1 | API key storage | Saved to `AppSettings` in DB, entered via Settings page |
-| 2 | Sync frequency | Every hour via existing cron job |
-| 3 | Historical data | Full sync on first run, incremental (since last sync) after |
-| 4 | Agent email match | Emails do NOT match — manual mapping required |
-| 5 | Call direction | Both inbound + outbound |
+| `GhlOpportunity` | `ghlId @unique` | `status` (open/won/lost/abandoned), `monetaryValue`, optional `leadId` |
+| `GhlAppointment` | `ghlId @unique` | GHL calendar event; `startTime`/`endTime`, `status`, `calendarId` |
+| `GhlBookedContact` | `ghlId @unique` | Contacts tagged `appointment-booked`, attributed to contact owner |
+
+Fields on existing models:
+
+| Model | Field | Purpose |
+|---|---|---|
+| `User` | `ghlUserId String? @unique` | **Agent mapping lives here** — there is no join table |
+| `Lead` | `ghlContactId String?` | Set once a lead is migrated to GHL |
+| `CallLog` | `ghlMessageId String? @unique` | Dedup key for synced calls |
+
+Every `Ghl*` model cascades from `User` on delete and sets `leadId` null on lead delete —
+consistent with **C5** (a lead merge must reassign children, never orphan them).
 
 ---
 
-## Webhook (already confirmed)
+## 4. Code layout
 
-```
-POST https://services.leadconnectorhq.com/hooks/cgAQMEZGL1qQIq1fJXJ3/webhook-trigger/222fab2b-9747-423d-a293-5135f9feb96b
-```
-- Returns `{"status":"Success: test request received"}` HTTP 200
-- Used for **pushing leads TO GHL** (one-way)
-- Cannot query existing contacts — needs API key for that
+### `src/lib/ghl/` — 4 modules, ~1,080 lines
 
----
+| File | Lines | Contents |
+|---|---|---|
+| `client.ts` | 572 | All GHL API access: contacts, conversations, calls, agents, opportunities, calendars, appointments, tag queries |
+| `sync.ts` | 358 | `autoSyncGhlCalls`, `autoSyncGhlAppointments`, `autoSyncGhlOpportunities`, `autoSyncGhlBookedContacts` |
+| `mapping.ts` | 88 | `mapLeadToGhl` — DataForge Lead → GHL contact payload |
+| `match-rep.ts` | 60 | `matchRepByName` — scored fuzzy matching of a GHL rep name to a DataForge user |
 
-## Still Need From User
+`match-rep.ts` exists because GHL sends a **rep name string**, not an ID, on webhook
+payloads. Its matching rules were tuned over five commits (`6a7249b`, `018397c`, `9cd8103`,
+`35b3ad8`, `4cc6173`) against real payloads: first-name match beats last-name beats
+substring, and social-media source prefixes are stripped first. Treat it as load-bearing —
+the scoring order is the product of observed failures, not taste.
 
-- [ ] GHL API key (private integration key from GHL Settings)
-- [ ] GHL Location ID (sub-account ID)
+### API routes — 14
 
----
+**Production** (`src/app/api/ghl/`): `inbound-call`, `outbound-call`, `sync-calls`,
+`migrate-lead`, `unmark-lead`, `agents`, `webhook-status`
 
-## Build Order
+**Webhooks** (`src/app/api/webhooks/`): `ghl-lead`, `ghl-appointment`
 
----
+**Debug** (`src/app/api/ghl/`): `debug-appointments`, `debug-contacts`, `debug-messages`,
+`debug-outbound-call`, `debug-sync`
 
-### Step 1 — Schema Changes
+### Server action
 
-**File:** `prisma/schema.prisma`
+`src/actions/ghl-sync.actions.ts` — runs opportunities, appointments and booked contacts
+concurrently. **Calls are not in it** (see §1).
 
-```prisma
-// Add to AppSettings:
-ghlApiKey       String?       // GHL private API key
-ghlLocationId   String?       // GHL sub-account/location ID
-ghlLastSyncAt   DateTime?     // tracks last sync for incremental
+### UI
 
-// Add to CallLog:
-ghlCallId       String? @unique   // dedup key — prevents re-inserting same call
-
-// New model:
-model GhlUserMap {
-  id              String   @id @default(uuid())
-  dataforgeUserId String   @unique
-  ghlUserId       String   @unique
-  ghlUserName     String?
-  ghlUserEmail    String?
-  user            User     @relation(fields: [dataforgeUserId], references: [id], onDelete: Cascade)
-  createdAt       DateTime @default(now())
-
-  @@index([ghlUserId])
-}
-
-// Add to User model:
-ghlUserMap      GhlUserMap?
-```
-
-After schema changes:
-```bash
-npx prisma db push --accept-data-loss
-npx prisma generate
-# Bump CLIENT_VERSION in src/lib/prisma.ts
-```
-
----
-
-### Step 2 — GHL API Client Layer
-
-**New files in `src/lib/ghl/`:**
-
-#### `client.ts`
-```ts
-// Fetch wrapper — injects Authorization: Bearer <ghlApiKey>
-// Base URL: https://services.leadconnectorhq.com
-export async function ghlFetch(path: string, options?: RequestInit)
-```
-
-#### `users.ts`
-```ts
-// GET /users?locationId=XXX
-// Returns list of GHL agents (id, name, email, role)
-export async function fetchGhlUsers(apiKey: string, locationId: string): Promise<GhlUser[]>
-
-type GhlUser = {
-  id: string
-  name: string
-  email: string
-  role: string
-}
-```
-
-#### `calls.ts`
-```ts
-// GET /conversations/search?type=TYPE_CALL&locationId=XXX&startAfter=<timestamp>
-// Paginates through all results
-// since = undefined → full historical sync
-// since = Date     → incremental sync from that date
-export async function fetchGhlCalls(
-  apiKey: string,
-  locationId: string,
-  since?: Date
-): Promise<GhlCall[]>
-
-type GhlCall = {
-  id: string          // → ghlCallId (dedup key)
-  userId: string      // → look up in GhlUserMap
-  direction: "inbound" | "outbound"
-  status: "completed" | "missed" | "voicemail" | "no_answer"
-  durationSecs: number
-  calledAt: string    // ISO timestamp
-  contactName?: string
-  contactPhone?: string
-}
-```
-
-#### `mapping.ts` *(already exists)*
-```
-DataForge Lead → GHL Contact field mapping (confirmed working)
-```
-
-#### `sync.ts`
-```ts
-// Main sync engine
-export async function syncGhlCalls(): Promise<{
-  inserted: number
-  skipped: number   // already exists (dedup)
-  unmapped: number  // no GhlUserMap entry for this agent
-  errors: number
-}>
-
-// Logic:
-// 1. Load ghlApiKey, ghlLocationId, ghlLastSyncAt from AppSettings
-// 2. ghlLastSyncAt === null → full historical sync
-//    ghlLastSyncAt !== null → incremental (since last sync)
-// 3. fetchGhlCalls(apiKey, locationId, since)
-// 4. For each call:
-//    a. Look up call.userId in GhlUserMap → get dataforgeUserId
-//    b. Skip if no mapping (unmapped++)
-//    c. Skip if CallLog with ghlCallId exists (skipped++)
-//    d. prisma.callLog.create({ agentId, direction, status, durationSecs, calledAt, ghlCallId })
-// 5. Update AppSettings.ghlLastSyncAt = new Date()
-// 6. Return counts
-```
-
----
-
-### Step 3 — Settings Page Updates
-
-**File:** `src/app/(app)/settings/SettingsClient.tsx`
-
-Add two new cards:
-
-#### Card: GHL Connection
-```
-- GHL API Key       [password input — masked]
-- GHL Location ID   [text input]
-- [Test Connection] button → hits /api/ghl/test to verify key is valid
-- Shows: "Connected ✓" / "Invalid key ✗"
-```
-
-#### Card: Agent Mapping
-```
-- [Fetch GHL Agents] button → calls fetchGhlUsers() and shows table
-- Table rows: GHL agent name/email | → | DataForge user dropdown
-- [Save Mapping] saves to GhlUserMap table
-- Auto-matches by email where possible
-- Unmapped agents shown in red
-```
-
-**New server action:** `src/actions/ghl.actions.ts`
-```ts
-saveGhlSettingsAction(formData)    // saves apiKey + locationId to AppSettings
-saveAgentMappingAction(mappings)   // upserts GhlUserMap rows
-triggerManualSyncAction()          // runs syncGhlCalls() on demand
-testGhlConnectionAction(apiKey, locationId) // verifies key is valid
-```
-
----
-
-### Step 4 — Cron Integration
-
-**File:** `src/app/api/scraping/cron/route.ts`
-
-Add to existing cron handler:
-```ts
-import { syncGhlCalls } from "@/lib/ghl/sync";
-
-// Inside cron handler (runs every hour):
-if (settings.ghlApiKey && settings.ghlLocationId) {
-  await syncGhlCalls().catch(console.error);
-}
-```
-
----
-
-### Step 5 — Leaderboard
-
-**New files:**
-
-#### `src/lib/calls/service.ts`
-```ts
-type CallPeriod = "today" | "week" | "month" | "all"
-
-type AgentCallStats = {
-  userId: string
-  userName: string
-  avatar?: string
-  callsInPeriod: number
-  totalCalls: number
-  avgDurationSecs: number
-  longestCallSecs: number
-  connectRate: number           // completed / total * 100
-  breakdown: {
-    completed: number
-    missed: number
-    voicemail: number
-    no_answer: number
-  }
-}
-
-getLeaderboard(period: CallPeriod): Promise<AgentCallStats[]>
-getAgentStats(userId: string, period: CallPeriod): Promise<AgentCallStats>
-```
-
-#### `src/app/(app)/marketing/leaderboard/page.tsx`
-- Boss + admin access only
-- Period filter: Today / This week / This month / All time
-- Sortable by: most calls, avg duration, connect rate
-
-#### `src/components/marketing/AgentLeaderboard.tsx`
-```
-Rank  Agent         Calls  Avg Duration  Connect Rate
-─────────────────────────────────────────────────────
- 🥇1  Maria Santos    8       4m 12s         78%
- 🥈2  Jake Rivera     6       3m 45s         65%
- 🥉3  Ana Cruz        5       5m 01s         82%
-```
-
-#### Sales rep self-view
-Add stats card to `/marketing/profile`:
-- My calls today / this week
-- My avg duration
-- My rank
-
----
-
-### Step 6 — Dashboard Updates
-
-**File:** `src/lib/dashboard/service.ts`
-
-Update `getDashboardStats()` to pull real call data from `CallLog` instead of mock/manual data.
-
----
-
-## Full Data Flow
-
-```
-Every hour (cron)
-  → syncGhlCalls()
-      → GHL API fetchGhlCalls(since: ghlLastSyncAt)
-      → GhlUserMap lookup → resolve dataforgeUserId
-      → CallLog.create (skip if ghlCallId already exists)
-      → AppSettings.ghlLastSyncAt = now()
-
-Dashboard / Leaderboard (on page load)
-  → getLeaderboard(period) from CallLog
-  → per-agent rankings, stats, connect rates
-
-Marketing Tasks (existing)
-  → TaskProgress.callCount fed by real CallLog data
-  → Points + badges auto-awarded on milestones
-```
-
----
-
-## New Files Summary
-
-| File | Purpose |
+| Component | Where |
 |---|---|
-| `src/lib/ghl/client.ts` | GHL API fetch wrapper with auth |
-| `src/lib/ghl/calls.ts` | Fetch call logs from GHL API |
-| `src/lib/ghl/users.ts` | Fetch GHL agent list |
-| `src/lib/ghl/sync.ts` | Full sync engine (historical + incremental) |
-| `src/lib/calls/service.ts` | Leaderboard + per-agent stats queries |
-| `src/actions/ghl.actions.ts` | Server actions for GHL settings + manual sync |
-| `src/app/api/ghl/test/route.ts` | Test GHL connection endpoint |
-| `src/app/(app)/marketing/leaderboard/page.tsx` | Leaderboard page |
-| `src/components/marketing/AgentLeaderboard.tsx` | Leaderboard table component |
-
-## Modified Files
-
-| File | Change |
-|---|---|
-| `prisma/schema.prisma` | Add ghlApiKey/ghlLocationId/ghlLastSyncAt to AppSettings, ghlCallId to CallLog, new GhlUserMap model |
-| `src/lib/settings/service.ts` | Include new AppSettings fields |
-| `src/actions/settings.actions.ts` | Handle new fields |
-| `src/app/(app)/settings/SettingsClient.tsx` | GHL Connection + Agent Mapping cards |
-| `src/app/api/scraping/cron/route.ts` | Add syncGhlCalls() call |
-| `src/components/SidebarNav.tsx` | Add Leaderboard nav item |
-| `src/lib/dashboard/service.ts` | Use real CallLog data |
+| `GhlLeadButton.tsx` | Push a single lead to GHL from the lead detail page |
+| `GhlMigrationModal.tsx` | Bulk lead migration |
+| `SyncGhlButton.tsx` / `SyncGhlCallsButton.tsx` | Manual sync triggers (marketing) |
+| `ImportGhlDialog.tsx` | Admin — import users from GHL |
+| `SalesLeaderboard.tsx`, `LeaderboardSection.tsx`, `LeaderboardClientWrapper.tsx` | Leaderboard fed by GHL data |
 
 ---
 
-## Notes
+## 5. Data flow
 
-- GHL API base URL: `https://services.leadconnectorhq.com`
-- Auth header: `Authorization: Bearer <ghlApiKey>`
-- All requests require `locationId` param
-- GHL call records live in the Conversations API under type `TYPE_CALL`
-- Pagination: GHL uses cursor-based pagination (`startAfter` / `nextPageCursor`)
-- Rate limit: 100 req/10s on GHL API — add delay between paginated fetches
+```
+Real time  ── GHL automation fires ──▶ /api/webhooks/ghl-lead
+                                       /api/webhooks/ghl-appointment
+                                       /api/ghl/inbound-call
+                                       /api/ghl/outbound-call
+                                          │
+                                          ├─ matchRepByName() → User
+                                          └─ CallLog / GhlAppointment row
+
+On demand  ── SyncGhlButton ──▶ ghl-sync.actions.ts
+                                  ├─ autoSyncGhlOpportunities()
+                                  ├─ autoSyncGhlAppointments()
+                                  └─ autoSyncGhlBookedContacts()
+                                       (each reads its own ghl*LastSyncedAt cursor)
+
+On demand  ── SyncGhlCallsButton ──▶ /api/ghl/sync-calls → autoSyncGhlCalls()
+                                       (batched pagination, cursor resume, full re-sync option)
+
+Read       ── Leaderboard / Reports ──▶ GhlOpportunity, GhlAppointment,
+                                        GhlBookedContact, CallLog
+```
+
+---
+
+## 6. Egress notes (C1-adjacent)
+
+The GHL sync path has already been tuned once for data transfer, **four months before** the
+August egress incident: `dee5dc2` — *"reduce DB data transfer — 1hr sync cooldown, drop full
+leads scan, fire-and-forget sync."*
+
+That commit removed a full-table leads scan from the sync path. It is the same failure mode
+**C1** was written about. If you touch `sync.ts`, do not reintroduce a scan over all leads;
+count the round trips first (§4 of CLAUDE.md).
+
+`c92e79d` later added batched pagination and cursor resume to the calls sync for the same
+reason.
+
+---
+
+## 7. Where it diverged from the 2026-04 plan
+
+Recorded so the differences are not re-derived. **Left column is obsolete.**
+
+| Plan said | What was built |
+|---|---|
+| `GhlUserMap` join table | Dropped — `User.ghlUserId @unique` |
+| One `ghlLastSyncAt` | Three cursors: calls / opps / appts |
+| `CallLog.ghlCallId` | `CallLog.ghlMessageId` |
+| Separate `users.ts`, `calls.ts` | Folded into `client.ts` |
+| `src/lib/calls/service.ts` | Never created; leaderboard logic sits in `src/components/marketing/` |
+| `src/actions/ghl.actions.ts` | `src/actions/ghl-sync.actions.ts` |
+| `/api/ghl/test` | `/api/ghl/webhook-status` |
+| **Hourly cron calls `syncGhlCalls()`** | **Reverted — webhooks instead** (§1) |
+| Scope: calls only | Also opportunities, appointments, booked contacts, lead migration, reports |
+
+---
+
+## 8. Open item
+
+**The webhook trigger URL is burned.** A fully populated copy sat at `GHL_SYNC_PLAN.md:22`
+from `91a67fa` until it was redacted in the working tree on 2026-09-15. Redaction does not
+reach history, and `github.com/marketingcad/DataForge` is **public**.
+
+→ Rotate the trigger in GHL. Treat the old value as disclosed. This is tracked in
+`STATE.md` under Escalations.
+
+---
+
+## 9. Reference
+
+- Base URL: `https://services.leadconnectorhq.com`
+- Auth: `Authorization: Bearer <ghlApiKey>`
+- All requests require a `locationId` parameter
+- Calls live in the Conversations API under type `TYPE_CALL`
+- Pagination is cursor-based (`startAfter` / `nextPageCursor`)
+- Rate limit: 100 requests / 10 s — the paginated fetches in `client.ts` space themselves accordingly
