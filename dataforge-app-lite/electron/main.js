@@ -9,12 +9,14 @@
 // The window loads the exact same web UI — nothing about the design changes;
 // Electron just hosts it in a native window instead of a browser tab.
 
-const { app, BrowserWindow, shell, Tray, Menu, nativeImage } = require("electron");
-const { initUpdater, isUpdateReady, installNow, stopUpdater } = require("./updater");
+const { app, BrowserWindow, shell, Tray, Menu, nativeImage, ipcMain, dialog } = require("electron");
+const { initUpdater, isUpdateReady, getUpdateState, installNow, stopUpdater } = require("./updater");
 const path = require("path");
 const { spawn } = require("child_process");
 const http = require("http");
+const net = require("net");
 const fs = require("fs");
+const os = require("os");
 
 const TRAY_ICON = path.join(__dirname, "icon.ico");
 
@@ -103,6 +105,40 @@ function startServer() {
   serverProcess.on("exit", (code) => {
     console.log(`[dataforge] server process exited with code ${code}`);
   });
+}
+
+/**
+ * Is anything already accepting connections on this port?
+ *
+ * Checked BEFORE we spawn our own server, and deliberately not by asking the
+ * responder who it is: another app's replies are not ours to predict. If we have
+ * not started yet and something already answers, that alone is the collision.
+ *
+ * This is the failure it prevents. An unrelated Next app was left running on
+ * 3000; our server child could not bind, and because packaged builds run it with
+ * stdio "ignore" that failure was invisible. `waitForServer` then got an instant
+ * reply from the stranger, and the window loaded THEIR app — surfacing only as
+ * "a client-side exception has occurred while loading localhost", which points
+ * nowhere near the real cause.
+ *
+ * Both loopback families are probed: two servers can hold the same port at once
+ * when one binds IPv4 and the other IPv6, and which one a later `localhost`
+ * lookup reaches is not something we should leave to resolution order.
+ */
+function isPortInUse(port, timeoutMs = 1500) {
+  const probe = (host) => new Promise((resolve) => {
+    const socket = net.connect({ host, port });
+    const done = (inUse) => {
+      socket.destroy();
+      resolve(inUse);
+    };
+    socket.setTimeout(timeoutMs);
+    socket.once("connect", () => done(true));
+    socket.once("timeout", () => done(false));
+    socket.once("error", () => done(false));
+  });
+
+  return Promise.all([probe("127.0.0.1"), probe("::1")]).then((r) => r.some(Boolean));
 }
 
 /** Poll the server URL until it responds (or we time out). */
@@ -254,6 +290,75 @@ function refreshTrayMenu() {
   }
 }
 
+/**
+ * An update finished downloading. Refresh the tray AND tell the renderer so the
+ * in-app modal can appear.
+ *
+ * The send is best-effort by design: the window may be hidden in the tray, closed,
+ * or still showing the splash. Anything that misses the push picks the same state
+ * up from `updater:get-state` when it mounts, so there is no retry logic here.
+ */
+function handleUpdateStateChange() {
+  refreshTrayMenu();
+  try {
+    mainWindow?.webContents.send("updater:ready", getUpdateState());
+  } catch (err) {
+    console.error("[dataforge] failed to notify renderer of update:", err);
+  }
+}
+
+/**
+ * Machine identity for the boss fleet view, computed once in the MAIN process.
+ *
+ * This used to live in preload.js. Preloads run SANDBOXED (webPreferences sets
+ * contextIsolation and leaves `sandbox` at its default of true), and a sandboxed
+ * preload cannot `require("os")` — it throws "module not found" and aborts the
+ * ENTIRE preload, silently taking the whole `window.dataforgeDesktop` bridge with
+ * it. That is exactly what was happening: every desktop install reported itself as
+ * "web", with no device name and no LAN IP.
+ *
+ * Computing it here and passing it over IPC keeps the sandbox on.
+ */
+function firstLanIp() {
+  try {
+    for (const addrs of Object.values(os.networkInterfaces())) {
+      for (const a of addrs ?? []) {
+        if (a.family === "IPv4" && !a.internal) return a.address;
+      }
+    }
+  } catch { /* ignore */ }
+  return null;
+}
+
+const DEVICE_INFO = {
+  platform: process.platform,
+  deviceName: (() => { try { return os.hostname(); } catch { return null; } })(),
+  lanIp: firstLanIp(),
+};
+
+/**
+ * IPC surface for the in-app update prompt — the app's only two channels.
+ *
+ * Both are deliberately narrow: one reads the small state object from updater.js,
+ * the other performs the same user-initiated install the tray already offers. The
+ * renderer gets no general-purpose bridge into the main process.
+ */
+function registerIpc() {
+  // Synchronous on purpose: the preload exposes deviceName/lanIp as plain values,
+  // which is the shape PresenceHeartbeat already reads. The payload is three short
+  // strings computed once at startup, so the blocking round trip is negligible —
+  // and making it async would mean changing every consumer.
+  ipcMain.on("device:info", (event) => { event.returnValue = DEVICE_INFO; });
+
+  ipcMain.handle("updater:get-state", () => getUpdateState());
+  ipcMain.handle("updater:install-now", () => {
+    // Identical to the tray's "Restart && update now": stop the server child first
+    // so the scrape dies with us rather than outliving the app.
+    installNow(() => { isQuitting = true; stopServer(); });
+    return true;
+  });
+}
+
 /** System-tray icon + menu so the app can live in the background. */
 function createTray() {
   if (tray) return;
@@ -300,27 +405,59 @@ app.on("second-instance", () => {
 
 if (gotSingleInstanceLock) app.whenReady().then(async () => {
   timing("app ready (Electron init done)");
+  // IPC first, before any window exists: the preload runs as soon as a window is
+  // created and asks for device info synchronously. Registering after createWindow()
+  // would leave that first call unanswered.
+  registerIpc();
   // Kick off the server AND show the splash window at the same time, so the
   // window appears instantly instead of after the server has finished booting.
   // Window FIRST so it paints instantly, then boot everything behind the splash.
   await createWindow();
   createTray();
-  if (!ATTACH_MODE) startServer();
+
+  // Refuse to start on an occupied port rather than silently adopting whatever
+  // is already there. ATTACH_MODE is exempt by definition — it exists to attach
+  // to a server someone else started.
+  let portConflict = false;
+  if (!ATTACH_MODE) {
+    portConflict = await isPortInUse(Number(PORT)).catch(() => false);
+    if (portConflict) {
+      const message =
+        `Port ${PORT} is already in use by another application, so DataForge cannot ` +
+        `start its own server.\n\nClose whatever is using port ${PORT} and launch ` +
+        `DataForge again, or start DataForge with DATAFORGE_PORT set to a free port.`;
+      console.error(`[dataforge] ${message}`);
+      try { dialog.showErrorBox("DataForge could not start", message); } catch { /* never fatal */ }
+    } else {
+      startServer();
+    }
+  }
   timing("server spawn kicked off");
 
   // Auto-update runs behind everything else: the first check is delayed and the
   // module no-ops in dev and whenever the private feed is unreachable, so it can
   // never delay startup or a scrape.
-  initUpdater(refreshTrayMenu);
+  initUpdater(handleUpdateStateChange);
 
-  try {
-    await waitForServer(APP_URL);
-    timing("server responding");
-    // Swap the splash for the real app (guard in case the window was closed).
-    if (mainWindow) await mainWindow.loadURL(APP_URL);
-    timing("app URL loaded (usable)");
-  } catch (err) {
-    console.error("[dataforge]", err);
+  // A conflicting port means anything answering on it is not ours, so do not
+  // load it into the window — that is precisely how another app's UI ended up
+  // inside DataForge. The splash stays up behind the error dialog.
+  if (!portConflict) {
+    try {
+      await waitForServer(APP_URL);
+      timing("server responding");
+      // Swap the splash for the real app (guard in case the window was closed).
+      if (mainWindow) await mainWindow.loadURL(APP_URL);
+      timing("app URL loaded (usable)");
+    } catch (err) {
+      console.error("[dataforge]", err);
+      // Packaged builds run the server with stdio "ignore", so a startup failure
+      // is otherwise completely invisible — the window just sits on the splash.
+      // Say what went wrong.
+      try {
+        dialog.showErrorBox("DataForge could not start", String(err?.message ?? err));
+      } catch { /* a dialog must never be the thing that breaks startup */ }
+    }
   }
 
   app.on("activate", () => {

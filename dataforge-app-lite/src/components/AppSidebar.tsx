@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useState, useEffect } from "react";
+import { APP_VERSION } from "@/lib/version";
 import {
   Database,
   ChevronRight,
@@ -420,7 +421,7 @@ export function AppSidebar({
 
       {/* Footer */}
       <div className={cn("border-t py-3 flex items-center", collapsed ? "justify-center px-2" : "px-4 justify-between")}>
-        {!collapsed && <p className="text-[10px]">DataForge v1.0</p>}
+        {!collapsed && <p className="text-[10px]">DataForge v{APP_VERSION}</p>}
         <button
           onClick={() => setCollapsed((c) => !c)} 
           className="opacity-100 hover:opacity-40 transition-opacity"

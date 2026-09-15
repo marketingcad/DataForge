@@ -1,10 +1,25 @@
 import type { NextConfig } from "next";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 // Desktop (Electron) build is opt-in via BUILD_TARGET=desktop so the normal
 // Vercel build is completely unaffected.
 const isDesktop = process.env.BUILD_TARGET === "desktop";
 
+// The version shown in the UI comes from package.json — the same value
+// electron-builder packages and the release workflow asserts against the git tag.
+// Reading it here means the label cannot drift from the build the user is running,
+// which the previously hardcoded "v1.0" had already done.
+const { version: appVersion } = JSON.parse(
+  readFileSync(join(process.cwd(), "package.json"), "utf8"),
+) as { version: string };
+
 const nextConfig: NextConfig = {
+  // Inlined into the client bundle at build time — no runtime lookup, and no IPC,
+  // so the web and desktop builds report the version identically.
+  env: {
+    NEXT_PUBLIC_APP_VERSION: appVersion,
+  },
   serverExternalPackages: [
     "@prisma/client",
     "@prisma/adapter-neon",

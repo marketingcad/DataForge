@@ -1,14 +1,17 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { loginAction } from "@/actions/auth.actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { APP_VERSION } from "@/lib/version";
 import { Database, EyeIcon, EyeOffIcon, Loader2, Search, ShieldCheck, BarChart3 } from "lucide-react";
 
 export default function SignInPage() {
+  const router = useRouter();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -39,9 +42,25 @@ export default function SignInPage() {
       localStorage.setItem(REMEMBER_FLAG, rememberMe ? "1" : "0");
     } catch { /* ignore */ }
 
-    const result = await loginAction(new FormData(e.currentTarget));
-    if (result?.error) {
-      setError(result.error);
+    // Every exit from here must clear `pending` or re-enable it by navigating
+    // away. It previously cleared only when the action RETURNED an error — and
+    // on success the action always threw (NEXT_REDIRECT), so a redirect that
+    // failed to move the browser left this button disabled on "Signing in…"
+    // forever, recoverable only by reloading.
+    try {
+      const result = await loginAction(new FormData(e.currentTarget));
+      if (result?.error) {
+        setError(result.error);
+        setPending(false);
+        return;
+      }
+      // Signed in. Navigate ourselves rather than relying on a server redirect.
+      // `pending` stays true through the transition so the button can't be
+      // double-submitted while the next route loads.
+      router.replace("/dashboard");
+      router.refresh();
+    } catch {
+      setError("Sign-in failed. Please try again.");
       setPending(false);
     }
   }
@@ -93,7 +112,7 @@ export default function SignInPage() {
         </div>
 
         <p className="relative z-10 text-sm text-blue-100/70">
-          © 2026 DataForge. All rights reserved.
+          © 2026 DataForge. All rights reserved. <span className="opacity-70">· v{APP_VERSION}</span>
         </p>
       </div>
 

@@ -3,7 +3,6 @@
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { signIn, signOut } from "@/lib/auth";
-import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 
 // Auth.js session-cookie names across prefixes/versions (secure prefix first).
@@ -70,22 +69,20 @@ export async function loginAction(formData: FormData) {
   const rememberMe = !!formData.get("rememberMe");
 
   try {
-    if (rememberMe) {
-      // Proven path: persistent session (Auth.js default). Throws NEXT_REDIRECT
-      // on success.
-      await signIn("credentials", { email, password, redirectTo: "/dashboard" });
-    } else {
-      // Sign in without redirecting so we can shorten the cookie afterwards.
-      const res = await signIn("credentials", { email, password, redirect: false });
-      if (res && typeof res === "object" && "error" in res && (res as { error?: unknown }).error) {
-        return { error: "Invalid email or password." };
-      }
+    // NEVER redirect from inside this action. Both branches used to: the
+    // rememberMe path via signIn's `redirectTo`, the other via redirect() below.
+    // Both throw NEXT_REDIRECT, so on SUCCESS this action always rejected, and
+    // the only thing standing between "signed in" and a button stuck on
+    // "Signing in…" forever was Next actually acting on that throw. When it
+    // didn't, the page froze until a manual reload — the identical failure that
+    // sign-OUT already hit and fixed the same way (see signOutAction above).
+    //
+    // So: resolve normally and let the client navigate itself.
+    const res = await signIn("credentials", { email, password, redirect: false });
+    if (res && typeof res === "object" && "error" in res && (res as { error?: unknown }).error) {
+      return { error: "Invalid email or password." };
     }
   } catch (err: unknown) {
-    // Re-throw Next.js redirect (this is how the rememberMe path succeeds)
-    if (err instanceof Error && (err as { digest?: string }).digest?.startsWith("NEXT_REDIRECT")) {
-      throw err;
-    }
     const type = (err as { type?: string }).type;
     const message = err instanceof Error ? err.message : String(err);
     if (type === "CredentialsSignin" || message.includes("CredentialsSignin")) {
@@ -94,8 +91,9 @@ export async function loginAction(formData: FormData) {
     return { error: "Invalid email or password." };
   }
 
-  // Reached only on the successful !rememberMe path: make the session end on
-  // browser close, then navigate.
-  await makeSessionCookieEphemeral();
-  redirect("/dashboard");
+  // "Remember me" unchecked: downgrade the persistent cookie Auth.js just set to
+  // a session cookie, so it clears when the browser closes.
+  if (!rememberMe) await makeSessionCookieEphemeral();
+
+  return { ok: true as const };
 }

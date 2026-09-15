@@ -12,6 +12,7 @@ import { MigrationProvider } from "@/contexts/MigrationContext";
 import { MigrationStatusBadge } from "@/components/MigrationStatusBadge";
 import { GhlMigrationModal } from "@/components/leads/GhlMigrationModal";
 import { PresenceHeartbeat } from "@/components/PresenceHeartbeat";
+import { UpdateAvailableDialog } from "@/components/UpdateAvailableDialog";
 import { TabBar } from "@/components/tabs/TabBar";
 import { Breadcrumb } from "@/components/tabs/Breadcrumb";
 import { ForgerWidget } from "@/components/forger/ForgerWidget";
@@ -107,6 +108,9 @@ export function AppClientShell({ children, userName, userEmail, userId = "", rol
 
         {/* Global migration modal */}
         <GhlMigrationModal />
+
+        {/* Desktop auto-update prompt — renders nothing in the browser build */}
+        <UpdateAvailableDialog />
 
         {/* Forger AI assistant — boss/admin only */}
         {forgerEnabled && (role === "boss" || role === "admin") && <ForgerWidget />}
