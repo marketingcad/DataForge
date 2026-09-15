@@ -9,11 +9,12 @@
 // The window loads the exact same web UI — nothing about the design changes;
 // Electron just hosts it in a native window instead of a browser tab.
 
-const { app, BrowserWindow, shell, Tray, Menu, nativeImage, ipcMain } = require("electron");
+const { app, BrowserWindow, shell, Tray, Menu, nativeImage, ipcMain, dialog } = require("electron");
 const { initUpdater, isUpdateReady, getUpdateState, installNow, stopUpdater } = require("./updater");
 const path = require("path");
 const { spawn } = require("child_process");
 const http = require("http");
+const net = require("net");
 const fs = require("fs");
 const os = require("os");
 
@@ -104,6 +105,40 @@ function startServer() {
   serverProcess.on("exit", (code) => {
     console.log(`[dataforge] server process exited with code ${code}`);
   });
+}
+
+/**
+ * Is anything already accepting connections on this port?
+ *
+ * Checked BEFORE we spawn our own server, and deliberately not by asking the
+ * responder who it is: another app's replies are not ours to predict. If we have
+ * not started yet and something already answers, that alone is the collision.
+ *
+ * This is the failure it prevents. An unrelated Next app was left running on
+ * 3000; our server child could not bind, and because packaged builds run it with
+ * stdio "ignore" that failure was invisible. `waitForServer` then got an instant
+ * reply from the stranger, and the window loaded THEIR app — surfacing only as
+ * "a client-side exception has occurred while loading localhost", which points
+ * nowhere near the real cause.
+ *
+ * Both loopback families are probed: two servers can hold the same port at once
+ * when one binds IPv4 and the other IPv6, and which one a later `localhost`
+ * lookup reaches is not something we should leave to resolution order.
+ */
+function isPortInUse(port, timeoutMs = 1500) {
+  const probe = (host) => new Promise((resolve) => {
+    const socket = net.connect({ host, port });
+    const done = (inUse) => {
+      socket.destroy();
+      resolve(inUse);
+    };
+    socket.setTimeout(timeoutMs);
+    socket.once("connect", () => done(true));
+    socket.once("timeout", () => done(false));
+    socket.once("error", () => done(false));
+  });
+
+  return Promise.all([probe("127.0.0.1"), probe("::1")]).then((r) => r.some(Boolean));
 }
 
 /** Poll the server URL until it responds (or we time out). */
@@ -379,7 +414,24 @@ if (gotSingleInstanceLock) app.whenReady().then(async () => {
   // Window FIRST so it paints instantly, then boot everything behind the splash.
   await createWindow();
   createTray();
-  if (!ATTACH_MODE) startServer();
+
+  // Refuse to start on an occupied port rather than silently adopting whatever
+  // is already there. ATTACH_MODE is exempt by definition — it exists to attach
+  // to a server someone else started.
+  let portConflict = false;
+  if (!ATTACH_MODE) {
+    portConflict = await isPortInUse(Number(PORT)).catch(() => false);
+    if (portConflict) {
+      const message =
+        `Port ${PORT} is already in use by another application, so DataForge cannot ` +
+        `start its own server.\n\nClose whatever is using port ${PORT} and launch ` +
+        `DataForge again, or start DataForge with DATAFORGE_PORT set to a free port.`;
+      console.error(`[dataforge] ${message}`);
+      try { dialog.showErrorBox("DataForge could not start", message); } catch { /* never fatal */ }
+    } else {
+      startServer();
+    }
+  }
   timing("server spawn kicked off");
 
   // Auto-update runs behind everything else: the first check is delayed and the
@@ -387,14 +439,25 @@ if (gotSingleInstanceLock) app.whenReady().then(async () => {
   // never delay startup or a scrape.
   initUpdater(handleUpdateStateChange);
 
-  try {
-    await waitForServer(APP_URL);
-    timing("server responding");
-    // Swap the splash for the real app (guard in case the window was closed).
-    if (mainWindow) await mainWindow.loadURL(APP_URL);
-    timing("app URL loaded (usable)");
-  } catch (err) {
-    console.error("[dataforge]", err);
+  // A conflicting port means anything answering on it is not ours, so do not
+  // load it into the window — that is precisely how another app's UI ended up
+  // inside DataForge. The splash stays up behind the error dialog.
+  if (!portConflict) {
+    try {
+      await waitForServer(APP_URL);
+      timing("server responding");
+      // Swap the splash for the real app (guard in case the window was closed).
+      if (mainWindow) await mainWindow.loadURL(APP_URL);
+      timing("app URL loaded (usable)");
+    } catch (err) {
+      console.error("[dataforge]", err);
+      // Packaged builds run the server with stdio "ignore", so a startup failure
+      // is otherwise completely invisible — the window just sits on the splash.
+      // Say what went wrong.
+      try {
+        dialog.showErrorBox("DataForge could not start", String(err?.message ?? err));
+      } catch { /* a dialog must never be the thing that breaks startup */ }
+    }
   }
 
   app.on("activate", () => {
