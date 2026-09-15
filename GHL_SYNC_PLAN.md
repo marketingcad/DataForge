@@ -19,11 +19,12 @@
 ## Webhook (already confirmed)
 
 ```
-POST https://services.leadconnectorhq.com/hooks/cgAQMEZGL1qQIq1fJXJ3/webhook-trigger/222fab2b-9747-423d-a293-5135f9feb96b
+POST https://services.leadconnectorhq.com/hooks/<locationId>/webhook-trigger/<triggerId>
 ```
 - Returns `{"status":"Success: test request received"}` HTTP 200
 - Used for **pushing leads TO GHL** (one-way)
 - Cannot query existing contacts — needs API key for that
+- The live URL is a credential (C9): it lives in `AppSettings.ghlWebhookUrl`, never in a doc
 
 ---
 

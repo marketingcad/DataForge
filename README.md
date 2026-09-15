@@ -184,3 +184,28 @@ violating it broke something real. The full set, with the amendment process, is 
   "clean up".
 * **Verify against real data before shipping a rule.** Every number in CLAUDE.md came from
   querying the actual database.
+
+---
+
+## Recent updates — 15 September 2026
+
+**1. Full written guide to the app.** Produced complete documentation covering how DataForge
+is built, how its data is organised, and how leads are collected and cleaned. A new developer
+can now get up to speed from the documents alone, instead of needing someone to walk them
+through it.
+
+**2. The desktop app now updates itself.** Previously, every new feature or fix meant
+uninstalling and reinstalling the app by hand on each person's computer. It now checks for
+updates on its own and installs them quietly, without interrupting anyone's work.
+
+**3. Automated safety checks added.** Set up an automatic reviewer that checks new work
+against the mistakes that have already cost this project money, before those mistakes can go
+live. It found a genuine problem on its very first run.
+
+**4. Security issue found and flagged.** Discovered that some old database passwords and a
+live connection link were saved somewhere publicly visible. There is no sign anything was
+misused, but they should be changed as a priority.
+
+**5. Release process built and tested.** Built the system that packages the desktop app and
+delivers it to the team, and completed a full trial run successfully. Nothing was released to
+anyone — the test confirmed the process works before it is used for real.
