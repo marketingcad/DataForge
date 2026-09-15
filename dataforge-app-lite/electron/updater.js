@@ -27,6 +27,10 @@ const CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000; // 4h
 
 let autoUpdater = null;
 let updateReady = false;
+// Version string of the downloaded update. Kept alongside the flag because the
+// renderer's modal has to name the version, and the `update-downloaded` payload
+// is gone by the time a window asks.
+let updateVersion = null;
 let checkTimer = null;
 /** Called after an update finishes downloading, so main.js can refresh the tray menu. */
 let onStateChange = () => {};
@@ -84,11 +88,26 @@ function notify(title, body) {
  * @param {() => void} stateChangeCallback re-render the tray menu when an update lands
  */
 function initUpdater(stateChangeCallback) {
+  if (typeof stateChangeCallback === "function") onStateChange = stateChangeCallback;
+
   if (!app.isPackaged) {
+    // A dev build has no feed to check, which also means the renderer's update
+    // modal can never be exercised. DATAFORGE_FAKE_UPDATE=<version> synthesises the
+    // "downloaded and waiting" state so the whole IPC → modal path can be tested
+    // without publishing a release. Packaged builds never reach this branch, so the
+    // real install path stays untouched.
+    const fakeVersion = process.env.DATAFORGE_FAKE_UPDATE;
+    if (fakeVersion) {
+      updateReady = true;
+      updateVersion = fakeVersion;
+      log(`dev build — simulating a downloaded update (${fakeVersion})`);
+      // Deferred so the window exists to receive the push.
+      setTimeout(() => onStateChange(), FIRST_CHECK_DELAY_MS / 6).unref?.();
+      return;
+    }
     log("dev build — auto-update skipped");
     return;
   }
-  if (typeof stateChangeCallback === "function") onStateChange = stateChangeCallback;
 
   const updater = loadUpdater();
   if (!updater) return;
@@ -103,6 +122,7 @@ function initUpdater(stateChangeCallback) {
 
   updater.on("update-downloaded", (info) => {
     updateReady = true;
+    updateVersion = info?.version ?? null;
     log(`update ${info?.version} downloaded — will install on quit`);
     notify(
       "DataForge update ready",
@@ -129,6 +149,18 @@ function initUpdater(stateChangeCallback) {
 /** True once an update is downloaded and waiting. Drives the tray menu item. */
 function isUpdateReady() {
   return updateReady;
+}
+
+/**
+ * Everything the renderer needs to draw its update prompt, and nothing else.
+ *
+ * This is the ONLY updater state that crosses the IPC boundary. It must never grow
+ * to carry UPDATE_FEED_TOKEN, a feed URL with credentials in it, or anything else
+ * read from the environment — the renderer runs web code, and a value that reaches
+ * it is a value that can leave (C9).
+ */
+function getUpdateState() {
+  return { ready: updateReady, version: updateVersion, current: app.getVersion() };
 }
 
 /**
@@ -159,4 +191,4 @@ function stopUpdater() {
   }
 }
 
-module.exports = { initUpdater, isUpdateReady, installNow, stopUpdater };
+module.exports = { initUpdater, isUpdateReady, getUpdateState, installNow, stopUpdater };

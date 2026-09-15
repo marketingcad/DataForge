@@ -178,6 +178,18 @@ update has downloaded — that, and the notification, are the real delivery mech
 quit-install is the fallback. Restarting does stop a running scrape, which is acceptable
 only because the user asked: the job's row goes stale and the 3-minute reaper cleans it up.
 
+Since 0.2.1 there is a third surface: an **in-app modal** naming the new version, shown
+inside the authenticated shell once the download completes. Its prominent button is the
+safe one — *Install on quit*, which only acknowledges and suppresses re-prompting for
+that version — with *Restart now* secondary, because that is the button that stops a
+scrape. The modal supplements the toast and the tray; it does not replace either, so a
+renderer that never receives the IPC still gets notified exactly as before.
+
+The modal reaches the renderer over the app's only two IPC channels,
+`updater:get-state` and `updater:install-now` (`electron/main.js` → `registerIpc`).
+Only `{ ready, version, current }` crosses that boundary — never the feed token or
+anything else from the environment (C9).
+
 `electron/updater.js` is defensive by design — it no-ops in dev, when
 `electron-updater` is missing, and when `UPDATE_FEED_TOKEN` is unset. A failed update
 check must never cost a launch or a scrape.

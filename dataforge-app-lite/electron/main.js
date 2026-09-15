@@ -9,12 +9,13 @@
 // The window loads the exact same web UI — nothing about the design changes;
 // Electron just hosts it in a native window instead of a browser tab.
 
-const { app, BrowserWindow, shell, Tray, Menu, nativeImage } = require("electron");
-const { initUpdater, isUpdateReady, installNow, stopUpdater } = require("./updater");
+const { app, BrowserWindow, shell, Tray, Menu, nativeImage, ipcMain } = require("electron");
+const { initUpdater, isUpdateReady, getUpdateState, installNow, stopUpdater } = require("./updater");
 const path = require("path");
 const { spawn } = require("child_process");
 const http = require("http");
 const fs = require("fs");
+const os = require("os");
 
 const TRAY_ICON = path.join(__dirname, "icon.ico");
 
@@ -254,6 +255,75 @@ function refreshTrayMenu() {
   }
 }
 
+/**
+ * An update finished downloading. Refresh the tray AND tell the renderer so the
+ * in-app modal can appear.
+ *
+ * The send is best-effort by design: the window may be hidden in the tray, closed,
+ * or still showing the splash. Anything that misses the push picks the same state
+ * up from `updater:get-state` when it mounts, so there is no retry logic here.
+ */
+function handleUpdateStateChange() {
+  refreshTrayMenu();
+  try {
+    mainWindow?.webContents.send("updater:ready", getUpdateState());
+  } catch (err) {
+    console.error("[dataforge] failed to notify renderer of update:", err);
+  }
+}
+
+/**
+ * Machine identity for the boss fleet view, computed once in the MAIN process.
+ *
+ * This used to live in preload.js. Preloads run SANDBOXED (webPreferences sets
+ * contextIsolation and leaves `sandbox` at its default of true), and a sandboxed
+ * preload cannot `require("os")` — it throws "module not found" and aborts the
+ * ENTIRE preload, silently taking the whole `window.dataforgeDesktop` bridge with
+ * it. That is exactly what was happening: every desktop install reported itself as
+ * "web", with no device name and no LAN IP.
+ *
+ * Computing it here and passing it over IPC keeps the sandbox on.
+ */
+function firstLanIp() {
+  try {
+    for (const addrs of Object.values(os.networkInterfaces())) {
+      for (const a of addrs ?? []) {
+        if (a.family === "IPv4" && !a.internal) return a.address;
+      }
+    }
+  } catch { /* ignore */ }
+  return null;
+}
+
+const DEVICE_INFO = {
+  platform: process.platform,
+  deviceName: (() => { try { return os.hostname(); } catch { return null; } })(),
+  lanIp: firstLanIp(),
+};
+
+/**
+ * IPC surface for the in-app update prompt — the app's only two channels.
+ *
+ * Both are deliberately narrow: one reads the small state object from updater.js,
+ * the other performs the same user-initiated install the tray already offers. The
+ * renderer gets no general-purpose bridge into the main process.
+ */
+function registerIpc() {
+  // Synchronous on purpose: the preload exposes deviceName/lanIp as plain values,
+  // which is the shape PresenceHeartbeat already reads. The payload is three short
+  // strings computed once at startup, so the blocking round trip is negligible —
+  // and making it async would mean changing every consumer.
+  ipcMain.on("device:info", (event) => { event.returnValue = DEVICE_INFO; });
+
+  ipcMain.handle("updater:get-state", () => getUpdateState());
+  ipcMain.handle("updater:install-now", () => {
+    // Identical to the tray's "Restart && update now": stop the server child first
+    // so the scrape dies with us rather than outliving the app.
+    installNow(() => { isQuitting = true; stopServer(); });
+    return true;
+  });
+}
+
 /** System-tray icon + menu so the app can live in the background. */
 function createTray() {
   if (tray) return;
@@ -300,6 +370,10 @@ app.on("second-instance", () => {
 
 if (gotSingleInstanceLock) app.whenReady().then(async () => {
   timing("app ready (Electron init done)");
+  // IPC first, before any window exists: the preload runs as soon as a window is
+  // created and asks for device info synchronously. Registering after createWindow()
+  // would leave that first call unanswered.
+  registerIpc();
   // Kick off the server AND show the splash window at the same time, so the
   // window appears instantly instead of after the server has finished booting.
   // Window FIRST so it paints instantly, then boot everything behind the splash.
@@ -311,7 +385,7 @@ if (gotSingleInstanceLock) app.whenReady().then(async () => {
   // Auto-update runs behind everything else: the first check is delayed and the
   // module no-ops in dev and whenever the private feed is unreachable, so it can
   // never delay startup or a scrape.
-  initUpdater(refreshTrayMenu);
+  initUpdater(handleUpdateStateChange);
 
   try {
     await waitForServer(APP_URL);
