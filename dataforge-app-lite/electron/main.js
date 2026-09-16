@@ -10,7 +10,14 @@
 // Electron just hosts it in a native window instead of a browser tab.
 
 const { app, BrowserWindow, shell, Tray, Menu, nativeImage, ipcMain, dialog } = require("electron");
-const { initUpdater, isUpdateReady, getUpdateState, installNow, stopUpdater } = require("./updater");
+const {
+  initUpdater,
+  isUpdateReady,
+  getUpdateState,
+  getUpdatesDisabledReason,
+  installNow,
+  stopUpdater,
+} = require("./updater");
 const path = require("path");
 const { spawn } = require("child_process");
 const http = require("http");
@@ -268,6 +275,16 @@ function buildTrayMenu() {
     );
   }
 
+  // Say so when auto-update is off. Silence here previously looked identical to
+  // "you are up to date", which is how a missing feed token went unnoticed.
+  const disabledReason = getUpdatesDisabledReason();
+  if (disabledReason && !isUpdateReady()) {
+    items.push(
+      { type: "separator" },
+      { label: `Updates unavailable (${disabledReason})`, enabled: false },
+    );
+  }
+
   items.push(
     { type: "separator" },
     {
@@ -304,6 +321,45 @@ function handleUpdateStateChange() {
     mainWindow?.webContents.send("updater:ready", getUpdateState());
   } catch (err) {
     console.error("[dataforge] failed to notify renderer of update:", err);
+  }
+}
+
+/**
+ * Put UPDATE_FEED_TOKEN into THIS process's environment.
+ *
+ * The baked .env is read by the SERVER CHILD — `assemble.mjs` copies it beside
+ * server.js, and the Next standalone server loads it from its own cwd. Nothing
+ * ever loaded it here. But the updater runs in the main process, so
+ * `process.env.UPDATE_FEED_TOKEN` was always undefined, `loadUpdater()` took its
+ * "token not set" branch, and auto-update silently did nothing: no check, no
+ * timer, no network traffic at all. The token was correctly baked into the
+ * installer the whole time — just into the wrong process's environment.
+ *
+ * Reads only the one key the updater needs; the rest of the file stays where it
+ * belongs. Failure is non-fatal: updates stay disabled rather than blocking a
+ * launch (C9 — the value is never logged, only whether one was found).
+ */
+function loadUpdateFeedToken() {
+  if (process.env.UPDATE_FEED_TOKEN) return true;
+
+  const envPath = app.isPackaged
+    ? path.join(process.resourcesPath, "standalone", ".env")
+    : path.join(APP_ROOT, ".env");
+
+  try {
+    const line = fs
+      .readFileSync(envPath, "utf8")
+      .split(/\r?\n/)
+      .find((l) => l.startsWith("UPDATE_FEED_TOKEN="));
+    if (!line) return false;
+
+    const value = line.slice("UPDATE_FEED_TOKEN=".length).trim().replace(/^"|"$/g, "");
+    if (!value) return false;
+
+    process.env.UPDATE_FEED_TOKEN = value;
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -437,7 +493,13 @@ if (gotSingleInstanceLock) app.whenReady().then(async () => {
   // Auto-update runs behind everything else: the first check is delayed and the
   // module no-ops in dev and whenever the private feed is unreachable, so it can
   // never delay startup or a scrape.
-  initUpdater(handleUpdateStateChange);
+  //
+  // The token has to be in this process's environment BEFORE initUpdater reads it.
+  const haveToken = loadUpdateFeedToken();
+  initUpdater(handleUpdateStateChange, { tokenFound: haveToken });
+  // The tray was built before initUpdater ran, so it cannot know yet whether
+  // updates are disabled. Rebuild it now that the answer exists.
+  refreshTrayMenu();
 
   // A conflicting port means anything answering on it is not ours, so do not
   // load it into the window — that is precisely how another app's UI ended up
