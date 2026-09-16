@@ -188,6 +188,39 @@ violating it broke something real. The full set, with the amendment process, is 
 
 ---
 
+## Recent updates — 16 September 2026 *(in progress)*
+
+**1. The app tells you when an update is ready.** A message now appears inside DataForge when
+a new version has finished downloading, with two choices: install it next time you close the
+app, or restart straight away. The safe option is the default, because restarting stops any
+collection that is running.
+
+**2. Fixed: the sign-in screen could freeze.** Signing in could leave the button stuck on
+"Signing in…" indefinitely. Closing and reopening the app did not clear it — the only way out
+was reloading the whole window. It can no longer get stuck that way.
+
+**3. The app now shows which version you are running.** The version appears in the sidebar and
+on the login screen. The old label was simply wrong: it read "v1.0" no matter which version
+was actually installed.
+
+**4. Fixed: desktop computers were being reported as web users.** A long-standing fault meant
+desktop installations never identified themselves correctly, so the Fleet view could not tell
+machines apart or show their names. They now report properly.
+
+**5. Fixed: the app could show a different program by mistake.** If another program on the
+same computer was already using the connection DataForge needs, DataForge would quietly
+display that program's screen instead of its own, with only a confusing error to go on. It now
+stops and explains what is wrong.
+
+**6. Two versions released.** 0.2.1 and 0.2.2 were packaged and delivered through the release
+system built last week — its first real use.
+
+> **Still being confirmed.** Automatic updating has been tested step by step, but a complete
+> start-to-finish run on an installed copy has not succeeded yet: the app is not picking up
+> the newest version. That is the open item.
+
+---
+
 ## Recent updates — 15 September 2026
 
 **1. Full written guide to the app.** Produced complete documentation covering how DataForge
