@@ -19,6 +19,8 @@
 // 3-minute reaper catches it.
 
 const { app, Notification, shell } = require("electron");
+const fs = require("fs");
+const path = require("path");
 
 // Check this soon after launch, then on a slow timer. A desktop instance often runs
 // for days, so without the interval the launch check is the only one that ever fires.
@@ -32,11 +34,38 @@ let updateReady = false;
 // is gone by the time a window asks.
 let updateVersion = null;
 let checkTimer = null;
+/**
+ * Why auto-update is off, when it is. Surfaced in the tray so "updates are
+ * broken" never again looks exactly like "you are up to date" — the ambiguity
+ * that hid a missing feed token through several releases.
+ */
+let updatesDisabledReason = null;
 /** Called after an update finishes downloading, so main.js can refresh the tray menu. */
 let onStateChange = () => {};
 
+/**
+ * Log to stdout AND to a file in userData.
+ *
+ * A packaged app launched from the Start menu has no console attached, so every
+ * updater message went nowhere. That is why "updates are silently disabled" and
+ * "you are already up to date" looked identical from the outside, and why a
+ * missing token went unnoticed through several releases. The file is the first
+ * thing to read when someone reports that updates are not arriving.
+ *
+ * Never log the token or any other value from the environment (C9) — messages
+ * here state whether something was found, never what it was.
+ */
+let logPath = null;
+
 function log(...args) {
-  console.log("[dataforge:updater]", ...args);
+  const line = `[dataforge:updater] ${args.join(" ")}`;
+  console.log(line);
+  try {
+    if (!logPath) logPath = path.join(app.getPath("userData"), "updater.log");
+    fs.appendFileSync(logPath, `${new Date().toISOString()} ${line}\n`);
+  } catch {
+    /* logging must never be the thing that breaks the updater */
+  }
 }
 
 /**
@@ -67,7 +96,11 @@ function loadUpdater() {
     // general-purpose GitHub token with write scope.
     process.env.GH_TOKEN = token;
   } else {
-    log("UPDATE_FEED_TOKEN not set — private update feed unreachable, updates disabled");
+    // Reaching here means the token never made it into THIS process's
+    // environment — see loadUpdateFeedToken() in main.js. It is not enough for
+    // the token to be baked into the installer; the main process has to read it.
+    updatesDisabledReason = "no update feed token";
+    log("UPDATE_FEED_TOKEN not set in the main process — update feed unreachable, updates disabled");
     return null;
   }
 
@@ -87,8 +120,11 @@ function notify(title, body) {
  * Wire up auto-update. Safe to call once, after the tray exists.
  * @param {() => void} stateChangeCallback re-render the tray menu when an update lands
  */
-function initUpdater(stateChangeCallback) {
+function initUpdater(stateChangeCallback, { tokenFound = null } = {}) {
   if (typeof stateChangeCallback === "function") onStateChange = stateChangeCallback;
+
+  log(`starting — packaged=${app.isPackaged} version=${app.getVersion()}` +
+      (tokenFound === null ? "" : ` feedToken=${tokenFound ? "found" : "MISSING"}`));
 
   if (!app.isPackaged) {
     // A dev build has no feed to check, which also means the renderer's update
@@ -163,6 +199,11 @@ function getUpdateState() {
   return { ready: updateReady, version: updateVersion, current: app.getVersion() };
 }
 
+/** Non-null when auto-update is switched off, with a short reason for the tray. */
+function getUpdatesDisabledReason() {
+  return updatesDisabledReason;
+}
+
 /**
  * Install now, at the user's explicit request from the tray.
  *
@@ -191,4 +232,11 @@ function stopUpdater() {
   }
 }
 
-module.exports = { initUpdater, isUpdateReady, getUpdateState, installNow, stopUpdater };
+module.exports = {
+  initUpdater,
+  isUpdateReady,
+  getUpdateState,
+  getUpdatesDisabledReason,
+  installNow,
+  stopUpdater,
+};
