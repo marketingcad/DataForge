@@ -4,7 +4,14 @@ import next from "next";
 import { Server as SocketIOServer } from "socket.io";
 
 const dev = process.env.NODE_ENV !== "production";
-const hostname = process.env.HOSTNAME ?? "localhost";
+// MSYS/Git Bash exports HOSTNAME as the machine name ("Dev"), which is not an
+// address anyone can connect to. listen() below binds every interface regardless,
+// so this only feeds the Next config and the log line - honour an explicit
+// HOST/HOSTNAME when it is a loopback address (electron/main.js passes one) and
+// ignore whatever the shell happened to leak in.
+const LOOPBACK = new Set(["localhost", "127.0.0.1", "0.0.0.0", "::1", "::"]);
+const requestedHostname = process.env.HOST ?? process.env.HOSTNAME ?? "localhost";
+const hostname = LOOPBACK.has(requestedHostname) ? requestedHostname : "localhost";
 const port = parseInt(process.env.PORT ?? "3000", 10);
 
 const app = next({ dev, hostname, port });
